@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nadi.local/contract/trajectory_schema.json",
+  "title": "Trajectory Artifact",
+  "description": "Frozen Python<->TS contract: a single SUMO run reduced to per-vehicle geographic trajectories. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "meta", "vehicles"],
+  "properties": {
+    "schema_version": {
+      "description": "Semantic version of THIS contract. Frozen at 0.1.0 for v0.",
+      "const": "0.1.0"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "network", "bbox", "sim_start", "sim_end", "step_length", "created_at"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "network": {"type": "string", "minLength": 1},
+        "bbox": {
+          "description": "[minLon, minLat, maxLon, maxLat] in WGS84.",
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "sim_start": {"type": "number"},
+        "sim_end": {"type": "number"},
+        "step_length": {"type": "number", "exclusiveMinimum": 0},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "vehicles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "path", "timestamps", "speeds"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "type": {"type": "string", "minLength": 1},
+          "path": {
+            "description": "Ordered [lon, lat] points (WGS84). Index-aligned with timestamps and speeds.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {"type": "number"},
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "timestamps": {
+            "description": "Simulation time (s) for each path point. Index-aligned with path and speeds.",
+            "type": "array",
+            "items": {"type": "number"}
+          },
+          "speeds": {
+            "description": "Speed (m/s) at each path point. Index-aligned with path and timestamps.",
+            "type": "array",
+            "items": {"type": "number"}
+          }
+        }
+      }
+    }
+  }
+}

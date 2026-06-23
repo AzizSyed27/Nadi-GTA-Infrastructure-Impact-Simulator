@@ -1,0 +1,150 @@
+Warning: Ignoring track count 2 for edge '1101005718'.
+Warning: Ignoring track count 2 for edge '1101005721'.
+Warning: Discarding unknown compound 'usage.main' in type 'railway.rail|usage.main' (first occurrence for edge '4321390').
+Warning: Ambiguous railway kilometrage direction for way '4321390' (assuming forward)
+Warning: Ambiguous railway kilometrage direction for way '4321402' (assuming forward)
+Warning: Discarding unusable type 'waterway.river' (first occurrence for edge '4928972').
+Warning: Discarding unknown compound 'bus' in type 'bus|highway.service|psv' (first occurrence for edge '31876590').
+Warning: Discarding unknown compound 'psv' in type 'bus|highway.service|psv' (first occurrence for edge '31876590').
+Warning: Discarding unknown compound 'bus' in type 'bus|highway.service' (first occurrence for edge '31876595').
+Warning: Discarding unknown compound 'cycleway.lane' in type 'cycleway.lane|highway.tertiary' (first occurrence for edge '36783512').
+Warning: Discarding unusable type 'railway.platform' (first occurrence for edge '36952151').
+Warning: Discarding unusable type 'waterway.stream' (first occurrence for edge '37236477').
+Warning: Ambiguous railway kilometrage direction for way '43209630' (assuming forward)
+Warning: Ambiguous railway kilometrage direction for way '43209633' (assuming forward)
+Warning: Discarding unusable type 'railway.disused|service.yard' (first occurrence for edge '115431854').
+Warning: Discarding unusable type 'railway.disused' (first occurrence for edge '115431855').
+Warning: Ambiguous railway kilometrage direction for way '136964576' (assuming forward)
+Warning: Removing pt stop '1502631584' on non existing edge '765773368#0'.
+Warning: Removing pt stop '26132060' on non existing edge '137068148'.
+Warning: Removing pt stop '7034874490' on non existing edge '136964690#1'.
+Warning: Removing pt stop '7151908061' on non existing edge '136964690#1'.
+Warning: Removing pt stop '7151908062' on non existing edge '23122487'.
+Warning: PT line in relation 166145 with no stops ignored. Probably OSM file is incomplete.
+Warning: PT line in relation 285634 with no stops ignored. Probably OSM file is incomplete.
+Warning: Ignoring restriction relation '303365' with unknown type.
+Warning: Ignoring restriction relation '303384' with unknown type.
+Warning: Ignoring restriction relation '303385' with unknown type.
+Warning: to-edge '43224346' of restriction relation could not be determined
+Warning: Ignoring restriction relation '304268'.
+Warning: from-edge '43224346' of restriction relation could not be determined
+Warning: Ignoring restriction relation '304269'.
+Warning: to-edge '43224679' of restriction relation could not be determined
+Warning: Ignoring restriction relation '304270'.
+Warning: from-edge '43224679' of restriction relation could not be determined
+Warning: Ignoring restriction relation '304271'.
+Warning: to-edge '552615352' of restriction relation could not be determined
+Warning: Ignoring restriction relation '324174'.
+Warning: PT line in relation 1852310 with no stops ignored. Probably OSM file is incomplete.
+Warning: direction of restriction relation could not be determined
+Warning: direction of restriction relation could not be determined
+Warning: Ignoring restriction relation '2941116' with unknown type.
+Warning: PT line '900 DRT Pulse' in relation 3010162 has a gap of 2 stops, only keeping first part.
+Warning: PT line in relation 3045480 with no stops ignored. Probably OSM file is incomplete.
+Warning: to-edge '31876618' of restriction relation could not be determined
+Warning: Ignoring restriction relation '3973123' with unknown type.
+Warning: direction of restriction relation could not be determined
+Warning: direction of restriction relation could not be determined
+Warning: direction of restriction relation could not be determined
+Warning: to-edge '433238471' of restriction relation could not be determined
+Warning: from-edge '36854992' of restriction relation could not be determined
+Warning: Ignoring restriction relation '6625473' with unknown via.
+Warning: Ignoring restriction relation '6625474' with unknown via.
+Warning: from-edge '205718571' of restriction relation could not be determined
+Warning: from-edge '478285165' of restriction relation could not be determined
+Warning: PT line in relation 7844710 with no stops ignored. Probably OSM file is incomplete.
+Warning: No way found for reference '1264414831' in relation '8799531'
+Warning: Ignoring restriction relation '8799531' with unknown from-way.
+Warning: PT line '921 to Scarborough Centre Station' in relation 18984076 has a gap of 19 stops, only keeping first part.
+Warning: PT line '920 to Scarborough Centre Station' in relation 18984078 has a gap of 55 stops, only keeping first part.
+Warning: Could not assign stop '7071350690' to pt line '10441923' (closest edge '205718509', distance 349.04). Ignoring!
+Warning: Removed invalid stop '7071350690' from line '10441923'.
+Warning: PT stop '436897485' has been moved to edge '-42140835#0'.
+Warning: Could not assign stop '7071350690' to pt line '10441924' (closest edge '205718509', distance 349.04). Ignoring!
+Warning: Removed invalid stop '7071350690' from line '10441924'.
+Warning: Could not assign stop '7071350690' to pt line '10441925' (closest edge '35800155#0', distance 324.10). Ignoring!
+Warning: Removed invalid stop '7071350690' from line '10441925'.
+Warning: Could not assign stop '7106007246' to pt line '10535698' (closest edge '35800155#0', distance 427.40). Ignoring!
+Warning: Removed invalid stop '7106007246' from line '10535698'.
+Warning: Could not assign stop '10300832004' to pt line '121126' (closest edge '205718509', distance 471.32). Ignoring!
+Warning: Removed invalid stop '10300832004' from line '121126'.
+Warning: Cannot revise pt stop localization for pt line '12725882', which has no route edges. Ignoring!
+Warning: Cannot revise pt stop localization for pt line '12730098', which has no route edges. Ignoring!
+Warning: Cannot revise pt stop localization for pt line '12732174', which has no route edges. Ignoring!
+Warning: PT stop '9866201636' has been moved to edge '180046153#1'.
+Warning: Cannot revise pt stop localization for pt line '18354063', which has no route edges. Ignoring!
+Warning: Cannot revise pt stop localization for pt line '1877472', which has no route edges. Ignoring!
+Warning: Converting invalid rail_crossing to priority junction '11263445675'.
+Warning: Converting invalid rail_crossing to priority junction '13659910020'.
+Warning: Converting invalid rail_crossing to priority junction '13659910021'.
+Warning: Converting invalid rail_crossing to priority junction '137437730'.
+Warning: Converting invalid rail_crossing to priority junction '1502631589'.
+Warning: Reducing junction cluster 11209969140,379872394,379872399,418523961 (parallel incoming -35798639,306061216#1).
+Warning: Reducing junction cluster 11253935683,266901217,266901219 (parallel incoming -129726925#2,-4935184#1).
+Warning: Not joining junctions 11253935683,266901217,266901219 (after reduction).
+Warning: Reducing junction cluster 11645126062,2789316173,2789316177,764519749,764519750,764519772,764519774,764519776 (it contains a pt stop edge).
+Warning: Not joining junctions 12431859196,7817943470,7817943471 (long edge).
+Warning: Not joining junctions 428864148,428864314 (long edge).
+Warning: Reducing junction cluster 1512040143,287775502,428554722 (parallel incoming -36859225#0,334899875#5).
+Warning: Not joining junctions 1512040143,287775502,428554722 (after reduction).
+Warning: Reducing junction cluster 297561872,297561891,427685520 (parallel outgoing 287421094#0,36787107#0).
+Warning: Not joining junctions 414437546,429376580 (only 1 edge within and no cross-traffic).
+Warning: Ambiguity in turnarounds computation at junction '10946344232'.
+Warning: Ambiguity in turnarounds computation at junction '277153804'.
+Warning: Ambiguity in turnarounds computation at junction '427652613'.
+Warning: Ambiguity in turnarounds computation at junction '428548741'.
+Warning: Ambiguity in turnarounds computation at junction '428554609'.
+Warning: Found sharp turn with radius 8.54 at the end of edge '-1246823330#2'.
+Warning: Found angle of 102.34 degrees at edge '-1503074455', segment 0.
+Warning: Found angle of 102.34 degrees at edge '-35799319#1', segment 8.
+Warning: Found sharp turn with radius 8.54 at the start of edge '1246823330#0'.
+Warning: Found angle of 99.99 degrees at edge '727847865#2', segment 0.
+Warning: Found sharp turn with radius 3.80 at the start of edge '727847865#2'.
+Warning: Shape for junction '257893676' has distance 29.85 to its given position.
+Warning: Shape for junction '257893683' has distance 40.91 to its given position.
+Warning: Shape for junction '38067030' has distance 37.80 to its given position.
+Warning: Could not set connection from '1343593563#0_2' to '1343593564_4'.
+Warning: Could not set connection from '227817711#0_2' to '205718509_4'.
+Warning: Lane '252976668#0_0' is not connected from any incoming edge at junction 'cluster_32472344_648913728'.
+Warning: Minor green from edge '-339646710#2' to edge '227679317#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '417884840#0' to edge '-1390873493#1' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '-36548449#1' to edge '1394496446#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '36796021#0' to edge '1264415651#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '-36796118#1' to edge '36796044#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: The traffic light '433594555' does not control any links; it will not be build.
+Warning: Could not build program '0' for traffic light '433594555'
+Warning: The traffic light '433731182' does not control any links; it will not be build.
+Warning: Could not build program '0' for traffic light '433731182'
+Warning: Speed of straight connection '25022512#0_0->25022512#1_0' reduced by 5.18 due to turning radius of 13.80 (length=2.01, angle=23.87).
+Warning: Speed of straight connection '110478685#2_1->110478685#1_1' reduced by 5.52 due to turning radius of 12.73 (length=12.55, angle=75.30).
+Warning: Speed of straight connection '110478685#1_1->110478685#2_1' reduced by 5.41 due to turning radius of 13.06 (length=12.93, angle=75.39).
+Warning: Speed of straight connection '36795811#0_0->36795811#1_0' reduced by 6.78 due to turning radius of 9.18 (length=3.03, angle=35.70).
+Warning: Speed of straight connection '36795811#0_1->36795811#1_1' reduced by 9.44 due to turning radius of 3.59 (length=1.01, angle=35.70).
+Warning: Intersecting left turns at junction 'cluster_413716992_413717454_418984450_418984453' from lane '35303738#0_0' and lane '-35303740_0' (increase junction radius to avoid this).
+Warning: Stop '-2134236405' named 'Mid Pines Road' from line '10476321' on edge '-36796023#1' is not part of the route downstream of the previous stop.
+Warning: Stop '9866201636' named 'Centennial Circle' from line '17923552' on edge '180046153#0' is not part of the route.
+Warning: Stop '-11232452226' named 'Progress WB/Corporate' from line '18984076' on edge '-43308452#10' is not part of the route downstream of the previous stop.
+Warning: Stop '11232452227' named 'Town Centre/Scarborough Centre Station' from line '18984076' on edge '4934659#1' is not part of the route downstream of the previous stop.
+Warning: Stop '-11232452225' named 'Progress WB/Markham Road' from line '18984076' on edge '-37237445#1' is not part of the route downstream of the previous stop.
+Warning: Removed 19 pt stops because they could not be assigned to the network
+Warning: Writing incomplete roundabout. Edges: '27040752#0 27040752#3 27040752#4' no longer exist'
+Warning: Writing incomplete roundabout. Edges: '37396029#0 37396029#1 37396029#3 37396029#5' no longer exist'
+Warning: 7 total messages of type: Ambiguity in turnarounds computation at junction '%'.
+Warning: 11 total messages of type: Ambiguous railway kilometrage direction for way '%' (assuming forward)
+Warning: 7 total messages of type: Cannot revise pt stop localization for pt line '%', which has no route edges. Ignoring!
+Warning: 15 total messages of type: Converting invalid rail_crossing to priority junction '%'.
+Warning: 50 total messages of type: Could not assign stop '%' to pt line '%' (closest edge '%', distance %). Ignoring!
+Warning: 11 total messages of type: Discarding unknown compound '%' in type '%' (first occurrence for edge '%').
+Warning: 8 total messages of type: Discarding unusable type '%' (first occurrence for edge '%').
+Warning: 15 total messages of type: Ignoring restriction relation '%' with unknown type.
+Warning: 46 total messages of type: Ignoring restriction relation '%'.
+Warning: 26 total messages of type: Minor green from edge '%' to edge '%' exceeds %m/s. Maybe a left-turn lane is missing.
+Warning: 22 total messages of type: PT line in relation % with no stops ignored. Probably OSM file is incomplete.
+Warning: 6 total messages of type: Reducing junction cluster % (%).
+Warning: 64 total messages of type: Removed invalid stop '%' from line '%'.
+Warning: 26 total messages of type: Removing pt stop '%' on non existing edge '%'.
+Warning: 141 total messages of type: Speed of % connection '%' reduced by % due to turning radius of % (length=%, angle=%).
+Warning: 29 total messages of type: Stop '%' named '%' from line '%' on edge '%' is %.
+Warning: 14 total messages of type: direction of restriction relation could not be determined%
+Warning: 15 total messages of type: from-edge '%' of restriction relation could not be determined
+Warning: 17 total messages of type: to-edge '%' of restriction relation could not be determined
