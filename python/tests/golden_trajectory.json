@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1.0",
+  "vehicle_count": 300,
+  "total_points": 139435,
+  "bbox": [
+    -79.2757876064758,
+    43.73316421365569,
+    -79.17241917610747,
+    43.79178698544348
+  ],
+  "sim_start": 0.0,
+  "sim_end": 1829.0,
+  "step_length": 1.0,
+  "sample_sha256": "0e831236a182add5239cfbac850ae4332f952616ef4614c9ad9085f70f6c2b7f"
+}
