@@ -22,6 +22,11 @@ out/
 *.fcd.xml
 # large generated networks (hand-authored ones can be force-added)
 *.net.xml
+# raw OSM extracts pulled by osmGet (large, regenerable)
+*.osm.xml
+
+# --- Generated trajectory artifacts (the contract SCHEMA stays tracked; runs do not) ---
+contract/runs/
 
 # --- Claude Code worktrees ---
 .claude/worktrees/
