@@ -1,1 +1,30 @@
+# --- Python (conda env, not venv) ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.pyright/
+# conda env lives outside the repo; ignore any local env dir if created
+/env/
+/.conda/
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+
+# --- Env files ---
+.env
+.env.*
+!.env.example
+
+# --- SUMO outputs ---
+*.fcd.xml
+# large generated networks (hand-authored ones can be force-added)
+*.net.xml
+
+# --- Claude Code worktrees ---
+.claude/worktrees/
+
+# --- Local planning docs (pre-existing) ---
 docs/
