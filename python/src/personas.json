@@ -1,0 +1,35 @@
+{
+  "schema_note": "Car-commuter persona archetypes for the stakeholder-reaction layer. DATA, not code, so Phase 2 can expand/replace the set. `description` is the temperament/priorities text fed to the LLM prompt in Step 1.4; `delay_sensitivity` in [0,1] (1 = a minute of added travel time hurts most).",
+  "personas": [
+    {
+      "id": "time_pressed",
+      "label": "Time-pressed commuter",
+      "description": "Runs a tight morning schedule — a school drop-off and a fixed shift start. Watches the clock, takes the same fast route daily, and reads any added delay as a personal cost. Pragmatic but quick to frustration when traffic stalls.",
+      "delay_sensitivity": 0.9
+    },
+    {
+      "id": "gig_driver",
+      "label": "Rideshare / delivery driver",
+      "description": "Earns per trip, so time literally is money — every minute stuck is lost income and a worse rating. Knows the corridor intimately, hyper-attuned to congestion, and resentful of changes that cut into throughput.",
+      "delay_sensitivity": 1.0
+    },
+    {
+      "id": "steady_regular",
+      "label": "Steady daily regular",
+      "description": "Drives this corridor every day out of habit. Even-tempered and adaptable — notices changes and grumbles mildly, but adjusts routine without much drama. A barometer for the typical commuter.",
+      "delay_sensitivity": 0.5
+    },
+    {
+      "id": "local_resident",
+      "label": "Resident on the corridor",
+      "description": "Lives right on the street and cares more about through-traffic, speeding, and noise outside their door than about their own travel time. Tends to welcome calming measures even when they slow the drive.",
+      "delay_sensitivity": 0.3
+    },
+    {
+      "id": "safety_first_parent",
+      "label": "Safety-conscious parent",
+      "description": "Walks kids to a school near the corridor and prioritizes slower, safer streets over speed. Willing to absorb extra minutes if it means calmer traffic at crossings; skeptical of anything that prioritizes flow over safety.",
+      "delay_sensitivity": 0.2
+    }
+  ]
+}
