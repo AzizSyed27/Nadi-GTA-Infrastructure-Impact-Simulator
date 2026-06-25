@@ -45,7 +45,9 @@ def dump_artifact(artifact: TrajectoryArtifact, path: str | Path | None = None) 
 
     If ``path`` is omitted, writes to ``contract/runs/<run_id>.json``.
     """
-    data = artifact.model_dump(mode="json")
+    # exclude_none: optional fields (meta.scenario, change.value_mps) are OMITTED when absent rather
+    # than emitted as JSON null — the schema types them as object/number, so null would fail validation.
+    data = artifact.model_dump(mode="json", exclude_none=True)
     validate_artifact(data)  # never write an artifact that violates the frozen contract
     out = Path(path) if path is not None else RUNS_DIR / f"{artifact.meta.run_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)

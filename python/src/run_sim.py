@@ -7,6 +7,11 @@ GEOGRAPHIC position (lon/lat), speed, and type each step, then writes a versione
 CRITICAL: positions are converted from SUMO internal (x,y) to (lon,lat) via
 ``simulation.convertGeo`` before recording. Skipping that renders the dots in the ocean.
 
+Phase 1 reuse: the run loop is factored into ``simulate()`` / ``apply_change()`` /
+``build_artifact()`` so the two-run scenario harness (``scenario_harness.py``) can drive the SAME
+extractor with a change applied and a tripinfo file emitted. ``run()`` (this module's entrypoint)
+is unchanged in behaviour — it still produces a byte-identical ``corridor-<UTC>.json``.
+
 Run as a script:  ``python python/src/run_sim.py``
 """
 
@@ -28,9 +33,12 @@ SUMO_BINARY = SUMO_HOME / "bin" / "sumo.exe"
 sys.path.insert(0, str(SUMO_HOME / "tools"))
 # Sibling imports: this file runs as a script, so sys.path[0] is python/src/.
 import trajectory_io  # noqa: E402
-from contract_models import Meta, TrajectoryArtifact, Vehicle  # noqa: E402
+from contract_models import Change, Meta, Scenario, TrajectoryArtifact, Vehicle  # noqa: E402
 
 # libsumo-first, TraCI fallback. Both expose the identical .start/.simulationStep/.vehicle/.simulation/.close API.
+# NOTE: the two-run harness calls start()/close() twice in one process. That is safe on TraCI (a fresh
+# sumo subprocess per start) but UNRELIABLE on libsumo (global C++ state) — if a libsumo wheel is ever
+# installed, run the baseline and scenario in separate processes.
 try:
     import libsumo as conn  # noqa: E402
 
@@ -54,17 +62,57 @@ def net_bbox(net_path: Path) -> list[float]:
     return [min(lon0, lon1), min(lat0, lat1), max(lon0, lon1), max(lat0, lat1)]
 
 
-def run() -> Path:
+def apply_change(change: Change) -> None:
+    """Apply an infrastructure change to the live ``conn`` simulation. Open dispatch by ``type``.
+
+    Only ``speed_limit`` is implemented in Phase 1; other types raise NotImplementedError so adding
+    them later (e.g. ``new_signal``, lane closures) is a localized change, never a silent no-op.
+    """
+    if change.type == "speed_limit":
+        if change.value_mps is None:
+            raise ValueError("speed_limit change requires value_mps (the new max speed in m/s)")
+        if change.target_edge not in conn.edge.getIDList():
+            raise ValueError(
+                f"target_edge {change.target_edge!r} is not in the network — refusing to no-op silently"
+            )
+        lane0 = f"{change.target_edge}_0"
+        before = conn.lane.getMaxSpeed(lane0)
+        conn.edge.setMaxSpeed(change.target_edge, change.value_mps)  # sets ALL lanes of the edge (m/s)
+        after = conn.lane.getMaxSpeed(lane0)
+        print(
+            f"[change] speed_limit on edge {change.target_edge!r}: "
+            f"{before:.2f} -> {after:.2f} m/s ({before * 3.6:.1f} -> {after * 3.6:.1f} km/h)"
+        )
+    else:
+        raise NotImplementedError(f"change type {change.type!r} is not implemented yet")
+
+
+def simulate(
+    change: Change | None = None,
+    tripinfo_path: str | Path | None = None,
+) -> tuple[dict[str, dict], float, float]:
+    """Run ``corridor.sumocfg`` headless and record per-vehicle lon/lat trajectories.
+
+    If ``change`` is given it is applied once at sim start (in force from t=0). If ``tripinfo_path``
+    is given, SUMO writes per-vehicle trip summaries there (finalized on close).
+
+    Returns ``(records, sim_end, step_length)`` where ``records`` maps vehicle id -> dict with
+    ``type``/``path``/``timestamps``/``speeds`` (path points are [lon, lat]).
+    """
     if not CFG.is_file():
         raise FileNotFoundError(f"sumocfg not found: {CFG}")
     if not SUMO_BINARY.is_file():
         raise FileNotFoundError(f"sumo binary not found: {SUMO_BINARY} (set SUMO_HOME)")
 
-    bbox = net_bbox(NET)
-    min_lon, min_lat, max_lon, max_lat = bbox
-
     # Override the cfg's end=1000 so vehicles departing near 897s actually finish.
-    conn.start([str(SUMO_BINARY), "-c", str(CFG), "--end", str(MAX_T)])
+    args = [str(SUMO_BINARY), "-c", str(CFG), "--end", str(MAX_T)]
+    if tripinfo_path is not None:
+        args += ["--tripinfo-output", str(tripinfo_path)]
+    conn.start(args)
+
+    if change is not None:
+        apply_change(change)  # after start, before stepping -> in effect from the first step
+
     step_length = conn.simulation.getDeltaT()
 
     records: dict[str, dict] = {}
@@ -92,10 +140,25 @@ def run() -> Path:
                 rec["speeds"].append(round(conn.vehicle.getSpeed(vid), 3))
         sim_end = conn.simulation.getTime()
     finally:
-        conn.close()
+        conn.close()  # ends the sim process; finalizes the tripinfo file
 
     if not records:
         raise RuntimeError("No vehicles were recorded — demand/config problem?")
+    return records, sim_end, step_length
+
+
+def build_artifact(
+    records: dict[str, dict],
+    sim_end: float,
+    step_length: float,
+    *,
+    run_id: str,
+    network: str,
+    bbox: list[float],
+    scenario: Scenario | None = None,
+) -> TrajectoryArtifact:
+    """Assemble + geo-check a TrajectoryArtifact from recorded trajectories. ``agents`` stays empty."""
+    min_lon, min_lat, max_lon, max_lat = bbox
 
     # --- sample-coordinate-in-bbox sanity check (the ocean guard) ---
     first_id = next(iter(records))
@@ -110,21 +173,31 @@ def run() -> Path:
             "Geo-conversion likely failed — refusing to write the artifact."
         )
 
-    run_id = "corridor-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    artifact = TrajectoryArtifact(
+    return TrajectoryArtifact(
         meta=Meta(
             run_id=run_id,
-            network=NET.name,
+            network=network,
             bbox=bbox,
             sim_start=0.0,
             sim_end=sim_end,
             step_length=step_length,
             created_at=datetime.now(timezone.utc).isoformat(),
+            scenario=scenario,
         ),
         vehicles=[
             Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
             for vid, r in records.items()
         ],
+    )
+
+
+def run() -> Path:
+    """Phase-0 entrypoint: a single baseline run -> ``contract/runs/corridor-<UTC>.json``."""
+    bbox = net_bbox(NET)
+    records, sim_end, step_length = simulate()
+    run_id = "corridor-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    artifact = build_artifact(
+        records, sim_end, step_length, run_id=run_id, network=NET.name, bbox=bbox
     )
 
     out_path = trajectory_io.dump_artifact(artifact)  # validates vs schema before writing

@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "vehicle_count": 300,
   "total_points": 139435,
   "bbox": [
