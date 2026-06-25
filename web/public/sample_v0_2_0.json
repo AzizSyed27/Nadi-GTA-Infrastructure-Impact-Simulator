@@ -1,0 +1,97 @@
+{
+  "schema_version": "0.2.0",
+  "meta": {
+    "run_id": "scenario-sample-v0_2_0",
+    "network": "corridor.net.xml",
+    "bbox": [-79.2757876064758, 43.73316421365569, -79.17241917610747, 43.79178698544348],
+    "sim_start": 0.0,
+    "sim_end": 1200.0,
+    "step_length": 1.0,
+    "created_at": "2026-06-25T12:00:00Z",
+    "scenario": {
+      "baseline_run_id": "corridor-baseline-0001",
+      "change": {
+        "type": "speed_limit",
+        "target_edge": "kingston_rd_seg_42",
+        "value_mps": 8.33,
+        "description": "Reduced limit on Kingston Rd segment from 60 to 30 km/h"
+      }
+    }
+  },
+  "vehicles": [
+    {
+      "id": "veh0",
+      "type": "car",
+      "path": [[-79.2300, 43.7500], [-79.2280, 43.7505], [-79.2260, 43.7510]],
+      "timestamps": [0.0, 30.0, 60.0],
+      "speeds": [12.4, 9.0, 8.33]
+    },
+    {
+      "id": "veh1",
+      "type": "car",
+      "path": [[-79.2400, 43.7600], [-79.2390, 43.7610], [-79.2380, 43.7620]],
+      "timestamps": [45.0, 75.0, 105.0],
+      "speeds": [15.0, 14.2, 13.5]
+    },
+    {
+      "id": "veh2",
+      "type": "car",
+      "path": [[-79.2000, 43.7700], [-79.1990, 43.7710]],
+      "timestamps": [120.0, 150.0],
+      "speeds": [10.0, 11.2]
+    }
+  ],
+  "agents": [
+    {
+      "vehicle_id": "veh0",
+      "persona": {"id": "time_pressed", "label": "Time-pressed commuter"},
+      "outcome": {
+        "baseline_duration": 1320.0,
+        "scenario_duration": 1860.0,
+        "delta_seconds": 540.0,
+        "baseline_timeloss": 110.0,
+        "scenario_timeloss": 640.0
+      },
+      "reaction": {
+        "comment": "If this slows my morning run by nine minutes every day, I'll just cut through the side streets instead.",
+        "sentiment": -0.7,
+        "stance": "opposed"
+      },
+      "trigger_t": 60.0
+    },
+    {
+      "vehicle_id": "veh1",
+      "persona": {"id": "local_resident", "label": "Resident on the corridor"},
+      "outcome": {
+        "baseline_duration": 900.0,
+        "scenario_duration": 920.0,
+        "delta_seconds": 20.0,
+        "baseline_timeloss": 40.0,
+        "scenario_timeloss": 55.0
+      },
+      "reaction": {
+        "comment": "Barely notice the extra time, and traffic past my house might finally be calmer.",
+        "sentiment": 0.1,
+        "stance": "neutral"
+      },
+      "trigger_t": 75.0
+    },
+    {
+      "vehicle_id": "veh2",
+      "persona": {"id": "safety_conscious", "label": "Safety-conscious parent"},
+      "outcome": {
+        "baseline_duration": 600.0,
+        "scenario_duration": 660.0,
+        "delta_seconds": 60.0,
+        "baseline_timeloss": 30.0,
+        "scenario_timeloss": 70.0
+      },
+      "reaction": {
+        "comment": "A minute longer is worth it if cars are going slower near the school crossing.",
+        "sentiment": 0.6,
+        "stance": "supportive"
+      },
+      "trigger_t": 150.0
+    }
+  ]
+}

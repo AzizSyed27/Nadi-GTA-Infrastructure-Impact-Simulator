@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nadi.local/contract/trajectory_schema.json",
   "title": "Trajectory Artifact",
-  "description": "Frozen Python<->TS contract: a single SUMO run reduced to per-vehicle geographic trajectories. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/.",
+  "description": "Frozen Python<->TS contract: a single SUMO run reduced to per-vehicle geographic trajectories, plus (v0.2.0) the scenario it represents and a sampled stakeholder-reaction layer. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. Frozen at 0.1.0 for v0.",
-      "const": "0.1.0"
+      "description": "Semantic version of THIS contract. 0.2.0 is current; 0.1.0 is accepted for back-compat reads (such artifacts simply omit meta.scenario and agents).",
+      "enum": ["0.1.0", "0.2.0"]
     },
     "meta": {
       "type": "object",
@@ -28,7 +28,46 @@
         "sim_start": {"type": "number"},
         "sim_end": {"type": "number"},
         "step_length": {"type": "number", "exclusiveMinimum": 0},
-        "created_at": {"type": "string", "format": "date-time"}
+        "created_at": {"type": "string", "format": "date-time"},
+        "scenario": {
+          "description": "OPTIONAL (v0.2.0+). The proposed infrastructure change this run represents, vs. a baseline run. Absent for plain baseline runs.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["baseline_run_id", "change"],
+          "properties": {
+            "baseline_run_id": {
+              "description": "run_id of the baseline (no-change) run this scenario is compared against.",
+              "type": "string",
+              "minLength": 1
+            },
+            "change": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "target_edge", "description"],
+              "properties": {
+                "type": {
+                  "description": "Kind of infrastructure change. Intentionally a permissive enum; extend (additively) as new change types are modeled.",
+                  "enum": ["speed_limit", "add_lane", "remove_lane", "new_signal", "bike_lane", "new_road"]
+                },
+                "target_edge": {
+                  "description": "SUMO edge id the change applies to.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "value_mps": {
+                  "description": "OPTIONAL. Numeric parameter of the change in SI units (e.g. new speed limit in m/s). Omitted for changes with no scalar value (e.g. a new signal).",
+                  "type": "number",
+                  "minimum": 0
+                },
+                "description": {
+                  "description": "Human-readable summary of the change.",
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
       }
     },
     "vehicles": {
@@ -59,6 +98,74 @@
             "description": "Speed (m/s) at each path point. Index-aligned with path and timestamps.",
             "type": "array",
             "items": {"type": "number"}
+          }
+        }
+      }
+    },
+    "agents": {
+      "description": "OPTIONAL (v0.2.0+). Sampled persona agents pinned to specific simulated vehicles. NOT one agent per vehicle — only a few hundred sampled travelers reason. A stakeholder-reaction PREVIEW, never a referendum or crash/ROI oracle.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vehicle_id", "persona", "outcome", "reaction", "trigger_t"],
+        "properties": {
+          "vehicle_id": {
+            "description": "id of the vehicle (in vehicles[]) this agent is pinned to.",
+            "type": "string",
+            "minLength": 1
+          },
+          "persona": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "label": {"type": "string", "minLength": 1}
+            }
+          },
+          "outcome": {
+            "description": "Quantitative baseline-vs-scenario outcome for this traveler (seconds).",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "baseline_duration",
+              "scenario_duration",
+              "delta_seconds",
+              "baseline_timeloss",
+              "scenario_timeloss"
+            ],
+            "properties": {
+              "baseline_duration": {"type": "number"},
+              "scenario_duration": {"type": "number"},
+              "delta_seconds": {"type": "number"},
+              "baseline_timeloss": {"type": "number"},
+              "scenario_timeloss": {"type": "number"}
+            }
+          },
+          "reaction": {
+            "description": "The persona's anticipated reaction. A PREVIEW of texture/objection, not a verdict.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["comment", "sentiment", "stance"],
+            "properties": {
+              "comment": {"type": "string"},
+              "sentiment": {
+                "description": "Sentiment in [-1, 1]; -1 strongly negative, +1 strongly positive.",
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "stance": {
+                "description": "Coarse stance toward the change. Intentionally a small permissive enum.",
+                "enum": ["supportive", "neutral", "opposed"]
+              }
+            }
+          },
+          "trigger_t": {
+            "description": "Simulation time (s) at which this agent's reaction is keyed during playback.",
+            "type": "number",
+            "minimum": 0
           }
         }
       }

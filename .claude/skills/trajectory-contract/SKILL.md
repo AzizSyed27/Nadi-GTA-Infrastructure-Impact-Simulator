@@ -11,7 +11,11 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 ## Cardinal rules
 1. **Positions are ALWAYS `[lon, lat]` (WGS84)** — never SUMO internal x/y. (Wrong → dots in the ocean.)
 2. **The schema is FROZEN.** Do not change field names/types/shape without **bumping `schema_version`**
-   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.1.0`**.
+   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.2.0`**.
+   `schema_version` is an **enum `["0.1.0", "0.2.0"]`** — 0.2.0 is what new runs emit; 0.1.0 is still
+   accepted for back-compat reads (such artifacts simply omit `meta.scenario` and `agents`).
+   **v0.2.0 added, ADDITIVELY:** optional `meta.scenario` (the proposed change vs. a baseline run)
+   and an optional top-level `agents` array (sampled stakeholder reactions). `vehicles` is unchanged.
 3. `path`, `timestamps`, `speeds` are **index-aligned** per vehicle (same length, same order).
 4. `timestamps` are **simulation seconds** (matches deck.gl `currentTime`/`trailLength` units on the web side).
 5. `contract/` is **write-guarded by a PreToolUse hook** (`.claude/hooks/guard.py`) — edits via the
@@ -22,10 +26,11 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 | World | File | What it does |
 |---|---|---|
 | Canonical schema | `contract/trajectory_schema.json` | JSON Schema (draft 2020-12). The authority both sides validate against. |
-| Python — typed models | `python/src/contract_models.py` | pydantic v2 `Meta` / `Vehicle` / `TrajectoryArtifact` (+ `SCHEMA_VERSION`). |
+| Python — typed models | `python/src/contract_models.py` | pydantic v2 `Meta` / `Vehicle` / `TrajectoryArtifact` + (v0.2.0) `Scenario` / `Change` / `Agent` / `Persona` / `Outcome` / `Reaction` (+ `SCHEMA_VERSION`). |
 | Python — (de)serializer | `python/src/trajectory_io.py` | `validate_artifact(dict)`, `dump_artifact(artifact, path?)` (validates → writes), `load_artifact(path)` (reads → validates → pydantic), `load_schema()`. Validates against the schema file on every read/write. |
-| TS — typed mirror | `web/lib/types.ts` | `Meta` / `Vehicle` / `TrajectoryArtifact` interfaces (compile-time only). |
-| TS — consumer | `web/components/MapView.tsx` | `fetch('/run.json')` → cast to `TrajectoryArtifact`. NOTE: no runtime JSON-Schema validation on the TS side yet — if added, validate against the SAME `contract/trajectory_schema.json` (e.g. ajv). |
+| TS — typed mirror | `web/lib/types.ts` | `Meta` / `Vehicle` / `TrajectoryArtifact` + (v0.2.0) `Scenario` / `Change` / `Agent` / `Persona` / `Outcome` / `Reaction` interfaces (compile-time only). |
+| TS — loader + validator | `web/lib/loadArtifact.ts` | `loadArtifact(url)`: fetch → **ajv** validate against the imported `contract/trajectory_schema.json` (Ajv2020 for draft 2020-12 + `ajv-formats` for `date-time`) → typed `TrajectoryArtifact`. Same authority as Python → no drift. Throws `ArtifactValidationError`. |
+| TS — consumer | `web/components/MapView.tsx` | currently `fetch('/run.json')` → cast (the v0.1.0 spine playback). New 0.2.0 consumers should use `loadArtifact()` instead of a bare cast. |
 
 Artifacts are emitted to `contract/runs/<run_id>.json` (see the `run-sim` skill). `contract/runs/` is gitignored.
 
@@ -36,49 +41,47 @@ Artifacts are emitted to `contract/runs/<run_id>.json` (see the `run-sim` skill)
    field changes are picked up automatically).
 4. Re-emit a run (`run-sim` skill) and confirm `load_artifact()` still validates.
 
-## v0 schema reference (schema_version 0.1.0) — keep both worlds consistent with THIS
+## Schema reference (schema_version 0.2.0) — keep both worlds consistent with THIS
+Top level: `{ schema_version, meta, vehicles }` required; **`agents` optional**. `schema_version`
+is `{"enum": ["0.1.0", "0.2.0"]}`.
+
+**`meta`** (required `run_id, network, bbox, sim_start, sim_end, step_length, created_at`):
+`bbox` = `[minLon, minLat, maxLon, maxLat]`; `created_at` is a `date-time`. **`meta.scenario` is
+OPTIONAL (v0.2.0+)** — the proposed change vs. a baseline run:
+```json
+"scenario": {
+  "baseline_run_id": "string",
+  "change": {
+    "type": "speed_limit | add_lane | remove_lane | new_signal | bike_lane | new_road",
+    "target_edge": "edge_id",
+    "value_mps": 8.33,                 // OPTIONAL — omit for changes with no scalar (e.g. a signal)
+    "description": "free text"
+  }                                     // change requires: type, target_edge, description
+}                                       // scenario requires: baseline_run_id, change
+```
+
+**`vehicles[]`** (UNCHANGED from v0.1.0; required `id, type, path, timestamps, speeds`):
+`path` = ordered `[lon, lat]` points (WGS84); `timestamps` (sim seconds) and `speeds` (m/s) are
+index-aligned with `path`.
+
+**`agents[]`** (OPTIONAL, v0.2.0+) — sampled persona reactions pinned to vehicles (NOT one per
+vehicle). Each agent requires `vehicle_id, persona, outcome, reaction, trigger_t`:
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://nadi.local/contract/trajectory_schema.json",
-  "title": "Trajectory Artifact",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["schema_version", "meta", "vehicles"],
-  "properties": {
-    "schema_version": { "const": "0.1.0" },
-    "meta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["run_id", "network", "bbox", "sim_start", "sim_end", "step_length", "created_at"],
-      "properties": {
-        "run_id": {"type": "string", "minLength": 1},
-        "network": {"type": "string", "minLength": 1},
-        "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
-        "sim_start": {"type": "number"},
-        "sim_end": {"type": "number"},
-        "step_length": {"type": "number", "exclusiveMinimum": 0},
-        "created_at": {"type": "string", "format": "date-time"}
-      }
-    },
-    "vehicles": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "type", "path", "timestamps", "speeds"],
-        "properties": {
-          "id": {"type": "string", "minLength": 1},
-          "type": {"type": "string", "minLength": 1},
-          "path": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}},
-          "timestamps": {"type": "array", "items": {"type": "number"}},
-          "speeds": {"type": "array", "items": {"type": "number"}}
-        }
-      }
-    }
-  }
+  "vehicle_id": "veh0",                                    // must reference a vehicles[].id
+  "persona":  { "id": "time_pressed", "label": "Time-pressed commuter" },
+  "outcome":  { "baseline_duration": 1320.0, "scenario_duration": 1860.0, "delta_seconds": 540.0,
+                "baseline_timeloss": 110.0, "scenario_timeloss": 640.0 },   // all required, seconds
+  "reaction": { "comment": "…", "sentiment": -0.7, "stance": "supportive | neutral | opposed" },
+                                                           // sentiment in [-1, 1]
+  "trigger_t": 60.0                                        // sim seconds, >= 0
 }
 ```
-`bbox` = `[minLon, minLat, maxLon, maxLat]`; `path` = ordered `[lon, lat]` points. The committed
+All objects are `additionalProperties: false`. A hand-authored sample exercising every field lives at
+`contract/runs/sample_v0_2_0.json` (and `web/public/sample_v0_2_0.json`). The committed
 `contract/trajectory_schema.json` is the authority — this block is a quick reference; if they ever
 differ, the file wins.
+
+> Note: the `run-sim` skill's "Verify a run" one-liner prints `0.1.0` for the existing spine
+> artifact; once the sim is re-run it will emit `0.2.0` (and the golden test's exact `schema_version`
+> match will need a one-time refresh — see `python/tests/test_golden_trajectory.py`).

@@ -37,7 +37,9 @@ def resolve_artifact() -> Path | None:
     env = os.environ.get("NADI_RUN_ARTIFACT")
     if env:
         return Path(env)
-    runs = sorted(RUNS_DIR.glob("*.json"))
+    # Match only real sim runs (run_sim names them "corridor-<UTC>.json"), not hand-authored
+    # fixtures like sample_v0_2_0.json that also live in contract/runs/.
+    runs = sorted(RUNS_DIR.glob("corridor-*.json"))
     return runs[-1] if runs else None
 
 
