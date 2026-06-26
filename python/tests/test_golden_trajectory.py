@@ -27,6 +27,8 @@ import trajectory_io  # noqa: E402
 
 RUNS_DIR = REPO_ROOT / "contract" / "runs"
 GOLDEN_PATH = Path(__file__).resolve().parent / "golden_trajectory.json"
+# Committed, hand-authored v0.2.0 fixture (always present, never skips) — a contract-shape canary.
+SAMPLE_PATH = REPO_ROOT / "web" / "public" / "sample_v0_2_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -103,6 +105,56 @@ def test_golden_trajectory() -> None:
     assert abs(summary["sim_end"] - golden["sim_end"]) <= max(60.0, 0.02 * golden["sim_end"]), (
         f"sim_end {summary['sim_end']} vs golden {golden['sim_end']}"
     )
+
+
+def assert_agents_wellformed(artifact: dict) -> None:
+    """Validate a v0.2.0 artifact and check every agent is internally consistent.
+
+    Used by two tests: the committed sample (contract-shape canary) and the newest real scenario run
+    (the pipeline guard — exercises the harness→sampler→reactions vehicle_id join + outcome carry-through).
+    """
+    trajectory_io.validate_artifact(artifact)  # raises if it doesn't satisfy the frozen schema
+    assert artifact["schema_version"] == "0.2.0", "expected a v0.2.0 (agents-bearing) artifact"
+
+    meta = artifact["meta"]
+    sim_start, sim_end = meta["sim_start"], meta["sim_end"]
+    veh_ids = {v["id"] for v in artifact["vehicles"]}
+    agents = artifact.get("agents", [])
+    assert agents, "expected a non-empty agents array"
+
+    for a in agents:
+        vid = a["vehicle_id"]
+        assert vid in veh_ids, f"agent vehicle_id {vid!r} not present in vehicles[]"
+        tt = a["trigger_t"]
+        assert sim_start <= tt <= sim_end, f"agent {vid} trigger_t {tt} outside [{sim_start}, {sim_end}]"
+        sentiment = a["reaction"]["sentiment"]
+        assert -1.0 <= sentiment <= 1.0, f"agent {vid} sentiment {sentiment} outside [-1, 1]"
+        o = a["outcome"]
+        # delta is rounded to 3 dp in join_outcomes but the durations are not, so allow float slack.
+        expected_delta = o["scenario_duration"] - o["baseline_duration"]
+        assert abs(o["delta_seconds"] - expected_delta) < 1e-2, (
+            f"agent {vid} outcome math: delta_seconds {o['delta_seconds']} != "
+            f"scenario - baseline ({expected_delta})"
+        )
+
+
+def test_v0_2_0_sample_agents() -> None:
+    """Contract-shape canary on the committed hand-authored sample (always runs)."""
+    assert SAMPLE_PATH.is_file(), f"committed sample fixture missing: {SAMPLE_PATH}"
+    artifact = json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
+    assert_agents_wellformed(artifact)
+
+
+def test_scenario_pipeline_agents() -> None:
+    """Pipeline guard on the newest real scenario run (skips if none on disk — runs are gitignored)."""
+    runs = sorted(RUNS_DIR.glob("scenario-*.json"))
+    if not runs:
+        pytest.skip(
+            "No scenario-*.json in contract/runs/ (gitignored). "
+            "Run the run-scenario pipeline (scenario_harness -> sampler -> reactions) first."
+        )
+    artifact = json.loads(runs[-1].read_text(encoding="utf-8"))
+    assert_agents_wellformed(artifact)
 
 
 def _write_golden() -> None:

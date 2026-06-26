@@ -86,7 +86,10 @@ def build_prompt(persona: dict, outcome: dict, change: dict) -> tuple[str, str]:
         f"PROPOSED CHANGE: {change_desc} "
         f"(type: {change.get('type')}"
         + (f", new speed {change['value_mps'] * 3.6:.0f} km/h" if change.get("value_mps") is not None else "")
-        + "). This typically makes the street slower to drive but calmer and safer for people near it.\n\n"
+        # State only the mechanical change — do NOT assert benefits (e.g. "safer"/"calmer") the
+        # simulation never measured. Whatever a persona values about it is THEIR anticipation, supplied
+        # by their disposition in the system prompt, not a fact injected here (preview, not verdict).
+        + ").\n\n"
         f"HOW IT AFFECTS YOUR USUAL TRIP ON THIS CORRIDOR:\n"
         f"- baseline travel time: {_fmt_minutes(outcome['baseline_duration'])}\n"
         f"- with the change:      {_fmt_minutes(outcome['scenario_duration'])}  ({direction})\n"

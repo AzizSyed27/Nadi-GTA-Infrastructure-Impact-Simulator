@@ -48,9 +48,24 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - Small commits.
 
 ## Current phase
-Phase 0 — spine spike. Real Toronto corridor → SUMO run → frozen trajectory artifact →
-moving dots on a MapLibre map with a timeline scrubber. No edits, no agents. Single session,
-serialized — do NOT parallelize Phase 0.
+**Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
+parameterized change, e.g. a speed limit, to one corridor edge), a per-vehicle outcome join, a sampler
+that pins ~12 persona agents to winner/loser travelers, an LLM reaction layer (provider-agnostic,
+Groq default) that voices each as an INDIVIDUAL anticipated reaction, all assembled into a v0.2.0
+artifact and played back on the map with sentiment-colored instrumented dots, a click-through panel,
+and a live comment feed keyed to each traveler's worst moment.
+Next: Phase 2 — social-graph opinion propagation (OASIS) + the report agent's GraphRAG memory (two
+distinct graphs; see the locked decisions). Agents still preview, never a verdict.
 
 ## Run commands
-(filled in as they're created)
+SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
+- **Baseline run + artifact:** `python python/src/run_sim.py`  (see the `run-sim` skill)
+- **Full scenario pipeline** (see the `run-scenario` skill):
+  ```bash
+  python python/src/scenario_harness.py            # baseline + scenario runs + outcome join
+  python python/src/sampler.py                     # sample instrumented travelers
+  PROVIDER=groq python python/src/reactions.py     # LLM reactions -> v0.2.0 artifact (GROQ_API_KEY in .env)
+  ```
+  Then point `web/components/MapView.tsx` `ARTIFACT_URL` at the new `/scenario-<ts>.json`.
+- **Frontend:** `cd web && npm run dev`  → http://localhost:3000
+- **Tests:** `python -m pytest python/tests` (golden spine + v0.2.0 agent invariants)

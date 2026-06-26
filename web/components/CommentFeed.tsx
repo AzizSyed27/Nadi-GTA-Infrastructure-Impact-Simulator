@@ -29,7 +29,10 @@ export function CommentFeed({ agents, currentTime, onSelect, selectedId }: Comme
   return (
     <div style={wrap} data-testid="comment-feed">
       <div style={head}>
-        LIVE REACTIONS <span style={{ color: '#9aa0a6' }}>{fired.length}/{agents.length}</span>
+        ANTICIPATED REACTIONS{' '}
+        <span style={{ color: '#9aa0a6' }}>
+          {fired.length} of {agents.length} travelers so far
+        </span>
       </div>
       <div style={list}>
         {fired.length === 0 ? (
