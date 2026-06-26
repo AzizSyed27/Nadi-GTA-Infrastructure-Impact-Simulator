@@ -36,6 +36,14 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - Before writing code against any external/fast-moving library (libsumo, deck.gl, MapLibre,
   OASIS, LightRAG, FastAPI features), use the docs-researcher subagent / Context7 FIRST to
   confirm the CURRENT API. Do not write integration code from memory.
+- Agent LLM layer is PROVIDER-AGNOSTIC behind a thin adapter (`python/src/llm_provider.py`):
+  an `LLMClient` Protocol + two adapters — `GeminiAdapter` (google-genai) and `OpenAICompatAdapter`
+  (the `openai` SDK pointed at any OpenAI-compatible `base_url`). One `PROVIDER_PRESETS` table
+  (base_url, default_model, key_env) covers Groq / DeepSeek / OpenAI / Cerebras / Mistral / Kimi.
+  **Recommended default: Groq** (`openai/gpt-oss-20b`) — free tier + strict structured JSON. Select
+  via env `PROVIDER` / `MODEL`; key from `.env` (e.g. `GROQ_API_KEY`, `GEMINI_API_KEY`). Gemini's
+  free tier is tiny (flash = 20 req/day) and flash-lite is often 503. No model id hardcoded from
+  memory — confirm via docs-researcher.
 - Use Plan Mode for any non-trivial change: present the plan + files to touch, wait for approval.
 - Small commits.
 

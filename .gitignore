@@ -16,6 +16,7 @@ out/
 # --- Env files ---
 .env
 .env.*
+*.env
 !.env.example
 
 # --- SUMO outputs ---
