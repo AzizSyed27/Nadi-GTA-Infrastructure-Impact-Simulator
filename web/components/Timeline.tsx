@@ -23,9 +23,12 @@ export function Timeline({ simStart, simEnd, currentTime, onSeek, vehicleCount }
   const [playing, setPlaying] = useState(true);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef<number | null>(null);
-  // Read the latest time inside the rAF loop without re-subscribing the effect.
+  // Read the latest time inside the rAF loop without re-subscribing the effect. Update the ref in an
+  // effect (not during render — refs must not be mutated while rendering).
   const timeRef = useRef(currentTime);
-  timeRef.current = currentTime;
+  useEffect(() => {
+    timeRef.current = currentTime;
+  }, [currentTime]);
 
   useEffect(() => {
     if (!playing) return;

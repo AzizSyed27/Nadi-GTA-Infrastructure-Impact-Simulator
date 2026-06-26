@@ -13,6 +13,9 @@ node_modules/
 .next/
 out/
 
+# --- Playwright MCP scratch (screenshots / snapshots from browser verification) ---
+.playwright-mcp/
+
 # --- Env files ---
 .env
 .env.*
