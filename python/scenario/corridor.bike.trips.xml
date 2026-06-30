@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-06-30 12:29:20.521456 by Eclipse SUMO randomTrips.py v1_27_0+0000-e238ea04b71
+<configuration>
+    <net-file value="python/scenario/corridor.net.xml"/>
+    <output-trip-file value="python/scenario/corridor.bike.trips.xml"/>
+    <route-file value="python/scenario/corridor.bike.rou.xml"/>
+    <prefix value="bike"/>
+    <vehicle-class value="bicycle"/>
+    <fringe-factor value="2"/>
+    <min-distance value="200.0"/>
+    <max-distance value="4000.0"/>
+    <end value="900.0"/>
+    <period value="11.0"/>
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vType id="bike_bicycle" vClass="bicycle"/>
+    <trip id="bike0" depart="0.00" from="-36795837#4" to="-36784222#1" type="bike_bicycle"/>
+    <trip id="bike1" depart="11.00" from="36784367#0" to="36783555#0" type="bike_bicycle"/>
+    <trip id="bike2" depart="22.00" from="-36784227#3" to="1417004905" type="bike_bicycle"/>
+    <trip id="bike3" depart="33.00" from="-36784234#1" to="31876575" type="bike_bicycle"/>
+    <trip id="bike4" depart="44.00" from="36796037#8" to="-1262843445" type="bike_bicycle"/>
+    <trip id="bike5" depart="55.00" from="36796011#0" to="36783682#0" type="bike_bicycle"/>
+    <trip id="bike6" depart="66.00" from="448617604#0" to="-36804810#3" type="bike_bicycle"/>
+    <trip id="bike7" depart="77.00" from="-25542120#8" to="-25542534#1" type="bike_bicycle"/>
+    <trip id="bike8" depart="88.00" from="36858786#0" to="35303740" type="bike_bicycle"/>
+    <trip id="bike9" depart="99.00" from="36796019#0" to="36784353#18" type="bike_bicycle"/>
+    <trip id="bike10" depart="110.00" from="-36886052" to="25022512#0" type="bike_bicycle"/>
+    <trip id="bike11" depart="121.00" from="36797400#0" to="35798422#0" type="bike_bicycle"/>
+    <trip id="bike12" depart="132.00" from="36784191#0" to="-1388211573#1" type="bike_bicycle"/>
+    <trip id="bike13" depart="143.00" from="-36784280#2" to="-36795872" type="bike_bicycle"/>
+    <trip id="bike14" depart="154.00" from="-24488213#10" to="-36784277#2" type="bike_bicycle"/>
+    <trip id="bike15" depart="165.00" from="-27944957#3" to="-36795831#1" type="bike_bicycle"/>
+    <trip id="bike16" depart="176.00" from="-36795793#3" to="43307648#0" type="bike_bicycle"/>
+    <trip id="bike17" depart="187.00" from="35835638#0" to="35303777#0" type="bike_bicycle"/>
+    <trip id="bike18" depart="198.00" from="-35836134#2" to="36784353#12" type="bike_bicycle"/>
+    <trip id="bike19" depart="209.00" from="36854676#0" to="36795861#0" type="bike_bicycle"/>
+    <trip id="bike20" depart="220.00" from="-36784288#2" to="-1317846851" type="bike_bicycle"/>
+    <trip id="bike21" depart="231.00" from="-36796086" to="-36795773#2" type="bike_bicycle"/>
+    <trip id="bike22" depart="242.00" from="-36784182#1" to="437477408#0" type="bike_bicycle"/>
+    <trip id="bike23" depart="253.00" from="36859314#0" to="-36796037#4" type="bike_bicycle"/>
+    <trip id="bike24" depart="264.00" from="35835688#0" to="-39206429#1" type="bike_bicycle"/>
+    <trip id="bike25" depart="275.00" from="37236807#0" to="1264808028#0" type="bike_bicycle"/>
+    <trip id="bike26" depart="286.00" from="-36795790#1" to="-36784353#6" type="bike_bicycle"/>
+    <trip id="bike27" depart="297.00" from="25542116#2" to="-36794903#2" type="bike_bicycle"/>
+    <trip id="bike28" depart="308.00" from="-43224348" to="-36784196#1" type="bike_bicycle"/>
+    <trip id="bike29" depart="319.00" from="940826333#0" to="1447288030" type="bike_bicycle"/>
+    <trip id="bike30" depart="330.00" from="-25465461#0" to="-1392402430#2" type="bike_bicycle"/>
+    <trip id="bike31" depart="341.00" from="-33725045#1" to="35798569#0" type="bike_bicycle"/>
+    <trip id="bike32" depart="352.00" from="36795936#0" to="-4935184#0" type="bike_bicycle"/>
+    <trip id="bike33" depart="363.00" from="89185046#0" to="205717854#0" type="bike_bicycle"/>
+    <trip id="bike34" depart="374.00" from="-1266776718#1" to="36784305#0" type="bike_bicycle"/>
+    <trip id="bike35" depart="385.00" from="36859252#2" to="-36795761" type="bike_bicycle"/>
+    <trip id="bike36" depart="396.00" from="1420861807#0" to="-36548454#4" type="bike_bicycle"/>
+    <trip id="bike37" depart="407.00" from="36795790#2" to="227817712#0" type="bike_bicycle"/>
+    <trip id="bike38" depart="418.00" from="36795858#0" to="207232591" type="bike_bicycle"/>
+    <trip id="bike39" depart="429.00" from="-1095431556#1" to="-36796098#0" type="bike_bicycle"/>
+    <trip id="bike40" depart="440.00" from="36861117#0" to="36803733#0" type="bike_bicycle"/>
+    <trip id="bike41" depart="451.00" from="-36796019#2" to="-1490021005#2" type="bike_bicycle"/>
+    <trip id="bike42" depart="462.00" from="-220546463#8" to="36795792#0" type="bike_bicycle"/>
+    <trip id="bike43" depart="473.00" from="1317806166" to="24488217#1" type="bike_bicycle"/>
+    <trip id="bike44" depart="484.00" from="-36795790#1" to="36859252#4" type="bike_bicycle"/>
+    <trip id="bike45" depart="495.00" from="23799280#5" to="36784353#2" type="bike_bicycle"/>
+    <trip id="bike46" depart="506.00" from="-36783639#1" to="-36796012#1" type="bike_bicycle"/>
+    <trip id="bike47" depart="517.00" from="890834838#0" to="35835646#0" type="bike_bicycle"/>
+    <trip id="bike48" depart="528.00" from="-89185295#2" to="1492963736" type="bike_bicycle"/>
+    <trip id="bike49" depart="539.00" from="-35303782" to="-36784228#1" type="bike_bicycle"/>
+    <trip id="bike50" depart="550.00" from="-36784294#6" to="-36784200#1" type="bike_bicycle"/>
+    <trip id="bike51" depart="561.00" from="-22486528#3" to="35798707#1" type="bike_bicycle"/>
+    <trip id="bike52" depart="572.00" from="-36784287#2" to="37229599#0" type="bike_bicycle"/>
+    <trip id="bike53" depart="583.00" from="-36784346" to="36783514" type="bike_bicycle"/>
+    <trip id="bike54" depart="594.00" from="-36784200#1" to="-35798438#2" type="bike_bicycle"/>
+    <trip id="bike55" depart="605.00" from="1312645393#1" to="36795907#0" type="bike_bicycle"/>
+    <trip id="bike56" depart="616.00" from="36796021#0" to="-36783544#1" type="bike_bicycle"/>
+    <trip id="bike57" depart="627.00" from="-5023684#1" to="1288863209" type="bike_bicycle"/>
+    <trip id="bike58" depart="638.00" from="36784334#0" to="36783537#0" type="bike_bicycle"/>
+    <trip id="bike59" depart="649.00" from="61108953#0" to="-26296427#1" type="bike_bicycle"/>
+    <trip id="bike60" depart="660.00" from="36859046#0" to="-36784362#1" type="bike_bicycle"/>
+    <trip id="bike61" depart="671.00" from="-36783582#3" to="118889157#0" type="bike_bicycle"/>
+    <trip id="bike62" depart="682.00" from="-500279608#9" to="-36795833#1" type="bike_bicycle"/>
+    <trip id="bike63" depart="693.00" from="-36791854#1" to="39206807" type="bike_bicycle"/>
+    <trip id="bike64" depart="704.00" from="252976982#0" to="-1417004905" type="bike_bicycle"/>
+    <trip id="bike65" depart="715.00" from="5023687#4" to="40789190#7" type="bike_bicycle"/>
+    <trip id="bike66" depart="726.00" from="36858792#0" to="-35835681" type="bike_bicycle"/>
+    <trip id="bike67" depart="737.00" from="-36886057" to="61108952#0" type="bike_bicycle"/>
+    <trip id="bike68" depart="748.00" from="-36795790#2" to="36795894" type="bike_bicycle"/>
+    <trip id="bike69" depart="759.00" from="1266039233#0" to="-498960122" type="bike_bicycle"/>
+    <trip id="bike70" depart="770.00" from="25431573#1" to="36784291#0" type="bike_bicycle"/>
+    <trip id="bike71" depart="781.00" from="-35835606#0" to="-36795921#1" type="bike_bicycle"/>
+    <trip id="bike72" depart="792.00" from="-1490369719#1" to="298209618#0" type="bike_bicycle"/>
+    <trip id="bike73" depart="803.00" from="-35835638#2" to="461108536#0" type="bike_bicycle"/>
+    <trip id="bike74" depart="814.00" from="-24488213#2" to="-36783524#1" type="bike_bicycle"/>
+    <trip id="bike75" depart="825.00" from="33725328#0" to="36783545#0" type="bike_bicycle"/>
+    <trip id="bike76" depart="836.00" from="36886037#0" to="-36784353#2" type="bike_bicycle"/>
+    <trip id="bike77" depart="847.00" from="33725064#0" to="35798426#0" type="bike_bicycle"/>
+    <trip id="bike78" depart="858.00" from="-36783658#1" to="36784276#0" type="bike_bicycle"/>
+    <trip id="bike79" depart="869.00" from="-36796090#3" to="36794903#0" type="bike_bicycle"/>
+    <trip id="bike80" depart="880.00" from="-22486628#3" to="1264808026#0" type="bike_bicycle"/>
+    <trip id="bike81" depart="891.00" from="941830567" to="890834840#0" type="bike_bicycle"/>
+</routes>

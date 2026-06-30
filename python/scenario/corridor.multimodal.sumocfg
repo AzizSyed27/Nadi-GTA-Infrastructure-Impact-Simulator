@@ -1,0 +1,19 @@
+<configuration>
+  <!-- Phase 2 multi-modal demand: cars + bikes + pedestrians on the sidewalk/crossing-enabled net.
+       SEPARATE from corridor.sumocfg (cars-only) which the golden test + scenario harness depend on. -->
+  <input>
+    <net-file value="corridor.net.xml"/>
+    <route-files value="corridor.rou.xml,corridor.bike.rou.xml,corridor.ped.rou.xml"/>
+  </input>
+  <time>
+    <begin value="0"/>
+    <!-- vehicles all finish by ~2400s; the longest pedestrian walks (winding sidewalk paths +
+         crossing-signal waits) need until ~4000s. 6000 is a safety ceiling — the harness stops
+         as soon as the sim drains. -->
+    <end value="6000"/>
+  </time>
+  <processing>
+    <!-- striping is the default pedestrian model; set explicitly for self-documentation -->
+    <pedestrian.model value="striping"/>
+  </processing>
+</configuration>
