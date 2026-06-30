@@ -62,11 +62,30 @@ def net_bbox(net_path: Path) -> list[float]:
     return [min(lon0, lon1), min(lat0, lat1), max(lon0, lon1), max(lat0, lat1)]
 
 
-def apply_change(change: Change) -> None:
+def _car_lane_indices(edge_id: str) -> list[int]:
+    """Indices of lanes on ``edge_id`` that permit passenger cars, via the live ``conn`` permissions.
+
+    A lane permits cars when ``passenger`` is in its allowed set, OR the allowed set is empty (SUMO's
+    "all classes allowed") and ``passenger`` is not explicitly disallowed. Sidewalks (pedestrian-only)
+    and any bike-only lanes are excluded.
+    """
+    out: list[int] = []
+    for i in range(conn.edge.getLaneNumber(edge_id)):
+        lane = f"{edge_id}_{i}"
+        allowed = set(conn.lane.getAllowed(lane))
+        disallowed = set(conn.lane.getDisallowed(lane))
+        if "passenger" in allowed or (not allowed and "passenger" not in disallowed):
+            out.append(i)
+    return out
+
+
+def apply_change(change: Change, target_lane: int | None = None) -> None:
     """Apply an infrastructure change to the live ``conn`` simulation. Open dispatch by ``type``.
 
-    Only ``speed_limit`` is implemented in Phase 1; other types raise NotImplementedError so adding
-    them later (e.g. ``new_signal``, lane closures) is a localized change, never a silent no-op.
+    ``speed_limit`` (Phase 1) and ``bike_lane`` (Phase 2) are implemented; other types raise
+    NotImplementedError so adding them later is a localized change, never a silent no-op. ``target_lane``
+    is only consumed by lane-scoped changes (``bike_lane``); it is ignored by ``speed_limit`` so existing
+    callers (``simulate``/``run``) are unaffected.
     """
     if change.type == "speed_limit":
         if change.value_mps is None:
@@ -82,6 +101,37 @@ def apply_change(change: Change) -> None:
         print(
             f"[change] speed_limit on edge {change.target_edge!r}: "
             f"{before:.2f} -> {after:.2f} m/s ({before * 3.6:.1f} -> {after * 3.6:.1f} km/h)"
+        )
+    elif change.type == "bike_lane":
+        # Convert one curbside CAR lane to bicycle-only. NEVER touch the sidewalk (pedestrian) lane, and
+        # NEVER convert the last car lane (would block cars on the edge). target_lane defaults to the
+        # curbside car lane (lowest car-lane index, just inside the sidewalk).
+        if change.target_edge not in conn.edge.getIDList():
+            raise ValueError(
+                f"target_edge {change.target_edge!r} is not in the network — refusing to no-op silently"
+            )
+        car_lanes = _car_lane_indices(change.target_edge)
+        if len(car_lanes) < 2:
+            raise ValueError(
+                f"bike_lane needs >= 2 car lanes on edge {change.target_edge!r} so >= 1 remains for cars; "
+                f"found {len(car_lanes)} ({car_lanes}). Refusing to block the edge."
+            )
+        idx = car_lanes[0] if target_lane is None else target_lane
+        if idx not in car_lanes:
+            raise ValueError(
+                f"target_lane {idx} is not a car lane on edge {change.target_edge!r} (car lanes: {car_lanes})"
+            )
+        if [i for i in car_lanes if i != idx] == []:
+            raise ValueError(f"converting lane {idx} would leave 0 car lanes on {change.target_edge!r}")
+        lane = f"{change.target_edge}_{idx}"
+        before_a, before_d = conn.lane.getAllowed(lane), conn.lane.getDisallowed(lane)
+        conn.lane.setAllowed(lane, ["bicycle"])  # bicycle-only; empty list would mean "all", so be explicit
+        after_a = conn.lane.getAllowed(lane)
+        remaining = [i for i in car_lanes if i != idx]
+        print(
+            f"[change] bike_lane on edge {change.target_edge!r} lane {idx} (id {lane!r}): "
+            f"allowed {tuple(before_a) or '(all)'} / disallowed {tuple(before_d) or '()'} "
+            f"-> allowed {tuple(after_a)}; car lanes {car_lanes} -> remaining for cars {remaining}"
         )
     else:
         raise NotImplementedError(f"change type {change.type!r} is not implemented yet")
