@@ -38,6 +38,26 @@ python "$SUMO_HOME/tools/osmGet.py" --bbox=-79.27,43.74,-79.18,43.79 --output-di
   `projParameter="+proj=utm ..."`, NOT `"!"`. Without it, vehicle positions can't convert to lon/lat.
 - Car-only filter (`keep passenger` / `remove pedestrian,bicycle`) is intentional for Phase 0.
 
+## Stage 1b — add pedestrian infrastructure (Phase 2+, only after a stage-1 rebuild)
+The stage-1 net is car-only (no sidewalks/crossings). Phase 2 needs pedestrians to walk along + cross
+roads. Add the infra by **re-importing the existing net** (NOT regenerating from OSM — re-running OSM
+with `--junctions.join`/`--geometry.remove` re-splits edges and breaks the routes). Bicycle access is
+already present (SUMO roads permit `bicycle` by default), so this step is pedestrian-only:
+```bash
+"$SUMO_HOME/bin/netconvert.exe" \
+  --sumo-net-file python/scenario/corridor.net.xml \
+  --sidewalks.guess --sidewalks.guess.max-speed 19.5 \
+  --crossings.guess --walkingareas \
+  --output-file python/scenario/corridor.net.new.xml    # then verify, then replace
+```
+- `--sidewalks.guess.max-speed 19.5` (~70 km/h) so the 60 km/h arterials get sidewalks (default 13.89 skips them).
+- Do NOT add `--junctions.join`/`--geometry.remove` (off by default on `-s` reimport — keep them off).
+- VERIFY before replacing: `<location>` line unchanged (geo-ref), edge-ID set unchanged (all
+  `corridor.rou.xml` edges still present), car-lane counts not dropped, and crossings/walkingareas
+  appear as `function="crossing"`/`function="walkingarea"` internal edges (NOT `<crossing>` elements).
+- Sidewalks add a lane per edge → lane indices shift but edge-based routes are unaffected. The golden
+  test must be **re-baselined** afterward (crossings add pedestrian TLS phases → car timing shifts).
+
 ## Stage 2 — generate demand (only when changing traffic volume/seed)
 ~300 cars departing over 0–900 s (`-p 3.0` = 1 veh / 3 s); validated routes via duarouter.
 ```bash

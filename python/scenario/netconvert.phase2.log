@@ -1,0 +1,76 @@
+Parsing sumo-net from 'python/scenario/corridor.net.xml' ... done (660ms).
+ Import done:
+   1865 nodes loaded.
+   10 types loaded.
+   4570 edges loaded.
+Removing self-loops ... done (0ms).
+Removing empty nodes ... done (6ms).
+   0 nodes removed.
+Computing turning directions ...
+Warning: Ambiguity in turnarounds computation at junction '10946344232'.
+Warning: Ambiguity in turnarounds computation at junction '277153804'.
+Warning: Ambiguity in turnarounds computation at junction '427652613'.
+Warning: Ambiguity in turnarounds computation at junction '428548741'.
+Warning: Ambiguity in turnarounds computation at junction '428554609'.
+ done (6ms).
+Assigning nodes to traffic lights ... done (1ms).
+Guessed 4214 sidewalks.
+Warning: Found sharp turn with radius 8.54 at the end of edge '-1246823330#2'.
+Warning: Found angle of 102.34 degrees at edge '-1503074455', segment 0.
+Warning: Found angle of 102.34 degrees at edge '-35799319#1', segment 8.
+Warning: Found sharp turn with radius 8.54 at the start of edge '1246823330#0'.
+Warning: Found angle of 99.99 degrees at edge '727847865#2', segment 0.
+Warning: Found sharp turn with radius 3.80 at the start of edge '727847865#2'.
+Sorting nodes' edges ... done (4ms).
+Computing node shapes ...
+Warning: Shape for junction '257893676' has distance 29.85 to its given position.
+Warning: Shape for junction '257893683' has distance 40.91 to its given position.
+Warning: Shape for junction '38067030' has distance 37.80 to its given position.
+ done (163ms).
+Computing edge shapes ... done (51ms).
+Computing node types ... done (1ms).
+Guessed 3430 pedestrian crossings.
+Computing priorities ... done (6ms).
+Computing approached edges ... done (0ms).
+Guessing and setting roundabouts ... done (1ms).
+Computing approaching lanes ... done (1ms).
+Dividing of lanes on approached lanes ... done (16ms).
+Processing turnarounds ... done (0ms).
+Rechecking of lane endings ...
+Warning: Lane '252976668#0_1' is not connected from any incoming edge at junction 'cluster_32472344_648913728'.
+ done (4ms).
+Computing traffic light control information ... done (1ms).
+Computing node logics ... done (63ms).
+Computing traffic light logics ...
+Warning: Minor green from edge '-339646710#2' to edge '227679317#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '417884840#0' to edge '-1390873493#1' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '-36548449#1' to edge '1394496446#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '36796021#0' to edge '1264415651#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+Warning: Minor green from edge '-36796118#1' to edge '36796044#0' exceeds 19.44m/s. Maybe a left-turn lane is missing.
+ done (26ms).
+ 125 traffic light(s) computed.
+Building inner edges ...
+Warning: Speed of straight connection '-25022512#1_1->-25022512#0_1' reduced by 6.27 due to turning radius of 10.55 (length=1.51, angle=23.87).
+Warning: Speed of straight connection '110478685#2_2->110478685#1_2' reduced by 5.67 due to turning radius of 12.27 (length=12.07, angle=75.30).
+Warning: Speed of straight connection '110478685#1_2->110478685#2_2' reduced by 5.55 due to turning radius of 12.66 (length=12.50, angle=75.39).
+Warning: Speed of straight connection '36795811#0_1->36795811#1_1' reduced by 6.78 due to turning radius of 9.18 (length=3.03, angle=35.70).
+Warning: Speed of straight connection '36795811#0_2->36795811#1_2' reduced by 9.44 due to turning radius of 3.59 (length=1.01, angle=35.70).
+Warning: Intersecting left turns at junction 'cluster_413716992_413717454_418984450_418984453' from lane '35303738#0_1' and lane '-35303740_1' (increase junction radius to avoid this).
+ done (196ms).
+-----------------------------------------------------
+Summary:
+ Node type statistics:
+  Unregulated junctions       : 0
+  Dead-end junctions          : 23
+  Priority junctions          : 1686
+  Right-before-left junctions : 31
+  Traffic light junctions      : 125
+ Network boundaries:
+  Original boundary  : 0.00,0.00,8181.01,6689.41
+  Applied offset     : 0.00,0.00
+  Converted boundary : 0.00,0.00,8181.01,6689.41
+-----------------------------------------------------
+Writing network ... done (1114ms).
+Warning: 7 total messages of type: Ambiguity in turnarounds computation at junction '%'.
+Warning: 13 total messages of type: Minor green from edge '%' to edge '%' exceeds %m/s. Maybe a left-turn lane is missing.
+Warning: 138 total messages of type: Speed of % connection '%' reduced by % due to turning radius of % (length=%, angle=%).
