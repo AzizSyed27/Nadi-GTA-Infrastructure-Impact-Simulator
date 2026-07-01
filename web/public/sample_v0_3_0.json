@@ -1,0 +1,147 @@
+{
+  "schema_version": "0.3.0",
+  "meta": {
+    "run_id": "scenario-sample-v0_3_0",
+    "network": "corridor.net.xml",
+    "bbox": [-79.2757876064758, 43.73316421365569, -79.17241917610747, 43.79178698544348],
+    "sim_start": 0.0,
+    "sim_end": 1200.0,
+    "step_length": 1.0,
+    "created_at": "2026-06-30T12:00:00Z",
+    "scenario": {
+      "baseline_run_id": "multimodal-baseline-0001",
+      "change": {
+        "type": "bike_lane",
+        "target_edge": "660176957#0",
+        "target_lane": 1,
+        "description": "Converted curbside car lane 1 of edge 660176957#0 to a bicycle-only lane"
+      }
+    }
+  },
+  "vehicles": [
+    {
+      "id": "car0",
+      "type": "car",
+      "path": [[-79.2300, 43.7500], [-79.2280, 43.7505], [-79.2260, 43.7510]],
+      "timestamps": [0.0, 30.0, 60.0],
+      "speeds": [12.4, 9.0, 8.33]
+    },
+    {
+      "id": "car1",
+      "type": "car",
+      "path": [[-79.2400, 43.7600], [-79.2390, 43.7610], [-79.2380, 43.7620]],
+      "timestamps": [45.0, 75.0, 105.0],
+      "speeds": [15.0, 14.2, 13.5]
+    },
+    {
+      "id": "bike0",
+      "type": "bicycle",
+      "path": [[-79.2210, 43.7720], [-79.2200, 43.7725], [-79.2190, 43.7730]],
+      "timestamps": [120.0, 150.0, 180.0],
+      "speeds": [5.2, 5.0, 4.8]
+    }
+  ],
+  "persons": [
+    {
+      "id": "ped0",
+      "type": "pedestrian",
+      "path": [[-79.1920, 43.7524], [-79.1918, 43.7526], [-79.1916, 43.7529]],
+      "timestamps": [180.0, 210.0, 240.0],
+      "speeds": [1.3, 1.2, 1.35]
+    },
+    {
+      "id": "ped1",
+      "type": "pedestrian",
+      "path": [[-79.2050, 43.7600], [-79.2048, 43.7603]],
+      "timestamps": [300.0, 330.0],
+      "speeds": [1.25, 1.3]
+    }
+  ],
+  "conflicts": [
+    {
+      "t": 300.0,
+      "lon": -79.2260,
+      "lat": 43.7510,
+      "type": "hard_braking",
+      "severity": 0.6,
+      "entities": ["car0"]
+    },
+    {
+      "t": 450.0,
+      "lon": -79.2200,
+      "lat": 43.7725,
+      "type": "ttc",
+      "severity": 0.85,
+      "ttc": 1.3,
+      "pet": 2.1,
+      "entities": ["bike0", "car1"]
+    }
+  ],
+  "scorecard": {
+    "groups": [
+      {"group": "drivers", "grounding": "sim", "travel_time_delta": 14.0, "safety_delta": 0.2, "access_delta": null},
+      {"group": "cyclists", "grounding": "sim", "travel_time_delta": -9.0, "safety_delta": -0.4, "access_delta": null},
+      {"group": "pedestrians", "grounding": "sim", "travel_time_delta": 0.5, "safety_delta": -0.3, "access_delta": null},
+      {"group": "residents", "grounding": "inferred", "travel_time_delta": null, "safety_delta": -0.2, "access_delta": 0.1},
+      {"group": "businesses", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": 0.3},
+      {"group": "transit_riders", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": null}
+    ],
+    "bca": {"note": "illustrative only; 2.4 defines the benefit-cost structure"}
+  },
+  "agents": [
+    {
+      "grounding": "sim",
+      "vehicle_id": "car0",
+      "persona": {"id": "time_pressed", "label": "Time-pressed commuter"},
+      "outcome": {
+        "baseline_duration": 540.0,
+        "scenario_duration": 690.0,
+        "delta_seconds": 150.0,
+        "baseline_timeloss": 60.0,
+        "scenario_timeloss": 190.0
+      },
+      "reaction": {
+        "comment": "Losing a lane here backs me up every morning; I'll be looking for another way through.",
+        "sentiment": -0.6,
+        "stance": "opposed"
+      },
+      "trigger_t": 60.0
+    },
+    {
+      "grounding": "sim",
+      "person_id": "ped0",
+      "persona": {"id": "safety_first_parent", "label": "Safety-conscious parent"},
+      "outcome": {
+        "baseline_duration": 300.0,
+        "scenario_duration": 298.0,
+        "delta_seconds": -2.0,
+        "baseline_timeloss": 20.0,
+        "scenario_timeloss": 18.0
+      },
+      "reaction": {
+        "comment": "A buffer of bikes between the sidewalk and traffic feels safer when I'm walking the kids.",
+        "sentiment": 0.5,
+        "stance": "supportive"
+      },
+      "trigger_t": 200.0
+    },
+    {
+      "grounding": "inferred",
+      "persona": {"id": "local_resident", "label": "Resident on the corridor"},
+      "reaction": {
+        "comment": "Quieter, slower traffic outside my door would be a welcome change.",
+        "sentiment": 0.3,
+        "stance": "supportive"
+      }
+    },
+    {
+      "grounding": "inferred",
+      "persona": {"id": "shop_owner", "label": "Corridor business owner"},
+      "reaction": {
+        "comment": "If the curb lane goes to bikes, where do my customers park? That worries me.",
+        "sentiment": -0.4,
+        "stance": "opposed"
+      }
+    }
+  ]
+}

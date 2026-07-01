@@ -2,13 +2,13 @@
 
 import { useMemo } from 'react';
 
-import type { Agent } from '@/lib/types';
+import type { InstrumentedAgent } from '@/lib/types';
 import { sentimentHex } from '@/lib/viz';
 
 interface CommentFeedProps {
-  agents: Agent[];
+  agents: InstrumentedAgent[];
   currentTime: number;
-  onSelect: (agent: Agent) => void;
+  onSelect: (agent: InstrumentedAgent) => void;
   selectedId?: string | null;
 }
 

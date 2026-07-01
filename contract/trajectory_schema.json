@@ -2,14 +2,34 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nadi.local/contract/trajectory_schema.json",
   "title": "Trajectory Artifact",
-  "description": "Frozen Python<->TS contract: a single SUMO run reduced to per-vehicle geographic trajectories, plus (v0.2.0) the scenario it represents and a sampled stakeholder-reaction layer. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/.",
+  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
+  "allOf": [
+    {
+      "$comment": "v0.3.0 requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0 — keeping the bump additive.",
+      "if": {
+        "properties": {"schema_version": {"const": "0.3.0"}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["persona", "reaction", "grounding"]
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. 0.2.0 is current; 0.1.0 is accepted for back-compat reads (such artifacts simply omit meta.scenario and agents).",
-      "enum": ["0.1.0", "0.2.0"]
+      "description": "Semantic version of THIS contract. 0.3.0 is current; 0.1.0 and 0.2.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures and the agent grounding field).",
+      "enum": ["0.1.0", "0.2.0", "0.3.0"]
     },
     "meta": {
       "type": "object",
@@ -54,6 +74,10 @@
                   "type": "string",
                   "minLength": 1
                 },
+                "target_lane": {
+                  "description": "OPTIONAL (v0.3.0+). Lane index on target_edge the change applies to (e.g. the car lane converted to a bike lane). Omitted for edge-wide changes (e.g. speed_limit).",
+                  "type": "integer"
+                },
                 "value_mps": {
                   "description": "OPTIONAL. Numeric parameter of the change in SI units (e.g. new speed limit in m/s). Omitted for changes with no scalar value (e.g. a new signal).",
                   "type": "number",
@@ -71,6 +95,7 @@
       }
     },
     "vehicles": {
+      "description": "Per-vehicle geographic trajectories. type is a free string; motorized traffic uses \"car\", cyclists use \"bicycle\" (v0.3.0+). Pedestrians are NOT here — they live in persons[].",
       "type": "array",
       "items": {
         "type": "object",
@@ -102,16 +127,50 @@
         }
       }
     },
-    "agents": {
-      "description": "OPTIONAL (v0.2.0+). Sampled persona agents pinned to specific simulated vehicles. NOT one agent per vehicle — only a few hundred sampled travelers reason. A stakeholder-reaction PREVIEW, never a referendum or crash/ROI oracle.",
+    "persons": {
+      "description": "OPTIONAL (v0.3.0+). Per-pedestrian geographic trajectories — SAME per-entity shape as vehicles[], but a distinct population (SUMO persons, not vehicles). type is a free string; pedestrians use \"pedestrian\".",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["vehicle_id", "persona", "outcome", "reaction", "trigger_t"],
+        "required": ["id", "type", "path", "timestamps", "speeds"],
         "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "type": {"type": "string", "minLength": 1},
+          "path": {
+            "description": "Ordered [lon, lat] points (WGS84). Index-aligned with timestamps and speeds.",
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {"type": "number"},
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "timestamps": {"type": "array", "items": {"type": "number"}},
+          "speeds": {"type": "array", "items": {"type": "number"}}
+        }
+      }
+    },
+    "agents": {
+      "description": "OPTIONAL (v0.2.0+). Sampled stakeholder agents. NOT one per traveler — only a few sampled agents reason. A stakeholder-reaction PREVIEW, never a referendum or crash/ROI oracle. grounding (v0.3.0+) discriminates SIM-grounded agents (pinned to a simulated traveler via exactly one of vehicle_id/person_id, with a quantitative outcome + a playback trigger_t) from INFERRED agents (residents, businesses — no simulated trip, hence no pin/outcome/trigger_t). The sim/inferred field-presence invariant is enforced in the models, not this schema (schema stays loose to leave room).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["persona", "reaction"],
+        "properties": {
+          "grounding": {
+            "description": "REQUIRED for v0.3.0. \"sim\" = pinned to a simulated traveler (has one id + outcome + trigger_t); \"inferred\" = no simulated trip (no pin/outcome/trigger_t).",
+            "enum": ["sim", "inferred"]
+          },
           "vehicle_id": {
-            "description": "id of the vehicle (in vehicles[]) this agent is pinned to.",
+            "description": "OPTIONAL. id of the vehicle (in vehicles[]) a sim-grounded agent is pinned to. Mutually exclusive with person_id.",
+            "type": "string",
+            "minLength": 1
+          },
+          "person_id": {
+            "description": "OPTIONAL (v0.3.0+). id of the person (in persons[]) a sim-grounded pedestrian agent is pinned to. Mutually exclusive with vehicle_id.",
             "type": "string",
             "minLength": 1
           },
@@ -125,7 +184,7 @@
             }
           },
           "outcome": {
-            "description": "Quantitative baseline-vs-scenario outcome for this traveler (seconds).",
+            "description": "OPTIONAL. Quantitative baseline-vs-scenario outcome for a sim-grounded traveler (seconds). Absent for inferred agents.",
             "type": "object",
             "additionalProperties": false,
             "required": [
@@ -163,10 +222,72 @@
             }
           },
           "trigger_t": {
-            "description": "Simulation time (s) at which this agent's reaction is keyed during playback.",
+            "description": "OPTIONAL. Simulation time (s) a sim-grounded agent's reaction is keyed to during playback. Absent for inferred agents.",
             "type": "number",
             "minimum": 0
           }
+        }
+      }
+    },
+    "conflicts": {
+      "description": "OPTIONAL (v0.3.0+). Safety-SURROGATE events computed from trajectories (time-to-collision, hard braking, blocked junctions) — NEVER a crash prediction. Deliberately under-constrained; 2.4 tightens.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["t", "lon", "lat", "type", "severity"],
+        "properties": {
+          "t": {"description": "Simulation time (s) of the conflict.", "type": "number"},
+          "lon": {"type": "number"},
+          "lat": {"type": "number"},
+          "type": {"description": "Kind of surrogate (e.g. \"ttc\", \"hard_braking\", \"blocked_junction\").", "type": "string", "minLength": 1},
+          "severity": {"description": "Surrogate magnitude. Uniform convention: higher = worse.", "type": "number"},
+          "ttc": {"description": "OPTIONAL. Time-to-collision (s), where applicable.", "type": "number"},
+          "pet": {"description": "OPTIONAL. Post-encroachment-time (s), where applicable.", "type": "number"},
+          "entities": {
+            "description": "OPTIONAL. ids (vehicles[]/persons[]) involved in the conflict.",
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "scorecard": {
+      "description": "OPTIONAL (v0.3.0+). Per-STAKEHOLDER outcome summary — who wins, who loses, per group, on travel time / safety / access. NOT a single ROI. Deliberately under-constrained; 2.4 tightens.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["groups"],
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["group", "grounding"],
+            "properties": {
+              "group": {"description": "Stakeholder group name (e.g. \"drivers\", \"cyclists\", \"residents\").", "type": "string", "minLength": 1},
+              "grounding": {
+                "description": "\"sim\" = derived from simulated trips; \"inferred\" = no simulated trip for this group.",
+                "enum": ["sim", "inferred"]
+              },
+              "travel_time_delta": {
+                "description": "OPTIONAL & NULLABLE. Uniform sign: POSITIVE = WORSE for this group. null (or absent) = no signal / this group has no trip.",
+                "type": ["number", "null"]
+              },
+              "safety_delta": {
+                "description": "OPTIONAL & NULLABLE. POSITIVE = WORSE (less safe). null/absent = no signal.",
+                "type": ["number", "null"]
+              },
+              "access_delta": {
+                "description": "OPTIONAL & NULLABLE. POSITIVE = WORSE (less access). null/absent = no signal.",
+                "type": ["number", "null"]
+              }
+            }
+          }
+        },
+        "bca": {
+          "description": "OPTIONAL. Supplementary benefit-cost context. Deliberately unshaped (under-constrained) — 2.4 defines its structure.",
+          "type": "object"
         }
       }
     }

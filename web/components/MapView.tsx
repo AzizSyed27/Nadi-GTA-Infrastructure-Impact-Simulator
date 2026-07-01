@@ -8,7 +8,8 @@ import { ScatterplotLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import type { Agent, TrajectoryArtifact, Vehicle } from '@/lib/types';
+import type { InstrumentedAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
+import { isInstrumentedAgent } from '@/lib/types';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -26,7 +27,7 @@ const PULSE_WINDOW = 25; // sim seconds around trigger_t during which the instru
 
 /** An instrumented traveler joined to its vehicle trajectory (stable across frames). */
 interface Instrumented {
-  agent: Agent;
+  agent: InstrumentedAgent;
   vehicle: Vehicle;
 }
 
@@ -40,7 +41,7 @@ function DeckOverlay({ layers }: { layers: Layer[] }) {
 export default function MapView() {
   const [artifact, setArtifact] = useState<TrajectoryArtifact | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [selected, setSelected] = useState<Agent | null>(null);
+  const [selected, setSelected] = useState<InstrumentedAgent | null>(null);
   const mapRef = useRef<MapRef | null>(null);
 
   useEffect(() => {
@@ -58,7 +59,12 @@ export default function MapView() {
     };
   }, []);
 
-  const agents = useMemo<Agent[]>(() => artifact?.agents ?? [], [artifact]);
+  // Only sim-grounded, vehicle-pinned agents are rendered on the map today (person-pinned + inferred
+  // agents arrive in later steps). Narrowing here guarantees vehicle_id/outcome/trigger_t downstream.
+  const agents = useMemo<InstrumentedAgent[]>(
+    () => (artifact?.agents ?? []).filter(isInstrumentedAgent),
+    [artifact],
+  );
 
   // Static split (recomputed only when the artifact changes): instrumented vehicles (joined to their
   // agent) vs background vehicles. A vehicle is INSTRUMENTED iff its id appears in agents[].

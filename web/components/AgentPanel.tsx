@@ -1,10 +1,10 @@
 'use client';
 
-import type { Agent } from '@/lib/types';
+import type { InstrumentedAgent } from '@/lib/types';
 import { minutes, sentimentHex, signedMinutes } from '@/lib/viz';
 
 /** Side panel for a clicked instrumented traveler: persona, before/after numbers, full comment. */
-export function AgentPanel({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
+export function AgentPanel({ agent, onClose }: { agent: InstrumentedAgent | null; onClose: () => void }) {
   if (!agent) return null;
   const { persona, outcome, reaction } = agent;
   const worse = outcome.delta_seconds > 0;

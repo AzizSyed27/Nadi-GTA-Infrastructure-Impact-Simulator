@@ -23,12 +23,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Make `import trajectory_io` work under both pytest (`pythonpath = python/src`) and direct
 # execution (`python python/tests/test_golden_trajectory.py`). Harmless duplicate under pytest.
 sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
+import contract_models  # noqa: E402
 import trajectory_io  # noqa: E402
+from jsonschema import ValidationError as SchemaValidationError  # noqa: E402
+from pydantic import ValidationError as ModelValidationError  # noqa: E402
 
 RUNS_DIR = REPO_ROOT / "contract" / "runs"
 GOLDEN_PATH = Path(__file__).resolve().parent / "golden_trajectory.json"
-# Committed, hand-authored v0.2.0 fixture (always present, never skips) — a contract-shape canary.
+# Committed, hand-authored fixtures (always present, never skip) — contract-shape canaries.
 SAMPLE_PATH = REPO_ROOT / "web" / "public" / "sample_v0_2_0.json"
+SAMPLE_V3_PATH = REPO_ROOT / "web" / "public" / "sample_v0_3_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -155,6 +159,120 @@ def test_scenario_pipeline_agents() -> None:
         )
     artifact = json.loads(runs[-1].read_text(encoding="utf-8"))
     assert_agents_wellformed(artifact)
+
+
+# ---------------------------------------------------------------------------
+# v0.3.0 contract (additive over v0.2.0). Existing v0.2.0 assertions above are UNCHANGED.
+# ---------------------------------------------------------------------------
+
+
+def test_v0_3_0_sample() -> None:
+    """The committed v0.3.0 sample validates (schema + model) and every new structure is well-formed."""
+    assert SAMPLE_V3_PATH.is_file(), f"committed v0.3.0 sample missing: {SAMPLE_V3_PATH}"
+    raw = json.loads(SAMPLE_V3_PATH.read_text(encoding="utf-8"))
+
+    # (1) schema + (2) model (the model enforces the sim/inferred grounding invariant).
+    trajectory_io.validate_artifact(raw)
+    trajectory_io.load_artifact(SAMPLE_V3_PATH)
+    assert raw["schema_version"] == "0.3.0"
+
+    meta = raw["meta"]
+    sim_start, sim_end = meta["sim_start"], meta["sim_end"]
+    veh_ids = {v["id"] for v in raw["vehicles"]}
+    person_ids = {p["id"] for p in raw.get("persons", [])}
+
+    # agents: grounding invariant + id resolution + trigger_t within the sim window.
+    for a in raw.get("agents", []):
+        pinned = [x for x in (a.get("vehicle_id"), a.get("person_id")) if x is not None]
+        if a["grounding"] == "sim":
+            assert len(pinned) == 1, f"sim agent needs exactly one id, got {pinned}"
+            assert "outcome" in a and "trigger_t" in a, "sim agent needs outcome + trigger_t"
+            assert sim_start <= a["trigger_t"] <= sim_end, "trigger_t outside sim window"
+        else:  # inferred
+            assert not pinned and "outcome" not in a and "trigger_t" not in a, (
+                "inferred agent must have no id/outcome/trigger_t"
+            )
+        if a.get("vehicle_id") is not None:
+            assert a["vehicle_id"] in veh_ids, f"agent vehicle_id {a['vehicle_id']!r} not in vehicles[]"
+        if a.get("person_id") is not None:
+            assert a["person_id"] in person_ids, f"agent person_id {a['person_id']!r} not in persons[]"
+
+    # conflicts: required fields present + t within the sim window.
+    for c in raw.get("conflicts", []):
+        assert sim_start <= c["t"] <= sim_end, f"conflict t {c['t']} outside sim window"
+        assert isinstance(c["type"], str) and c["type"], "conflict type must be a non-empty string"
+
+    # scorecard: groups well-formed (grounding enum; deltas number-or-null).
+    for g in raw.get("scorecard", {}).get("groups", []):
+        assert g["grounding"] in ("sim", "inferred")
+        for key in ("travel_time_delta", "safety_delta", "access_delta"):
+            assert g.get(key) is None or isinstance(g[key], (int, float)), f"{key} must be number or null"
+
+
+def test_grounding_conditional_bites() -> None:
+    """The schema if/then is the SOLE enforcement of grounding — prove it discriminates by version.
+
+    A 0.3.0 artifact whose agent lacks `grounding` must FAIL; the SAME agent under 0.2.0 must PASS.
+    Without this, a fail-open conditional silently enforces nothing while every happy-path test stays green.
+    """
+    base = json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))  # a valid v0.2.0 artifact
+    grounding_less_agent = {
+        "vehicle_id": base["vehicles"][0]["id"],
+        "persona": {"id": "x", "label": "X"},
+        "outcome": {
+            "baseline_duration": 1.0, "scenario_duration": 2.0, "delta_seconds": 1.0,
+            "baseline_timeloss": 0.0, "scenario_timeloss": 0.0,
+        },
+        "reaction": {"comment": "c", "sentiment": 0.0, "stance": "neutral"},
+        "trigger_t": 1.0,
+    }
+    doc = {"schema_version": "0.3.0", "meta": base["meta"], "vehicles": base["vehicles"], "agents": [grounding_less_agent]}
+
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(doc)  # 0.3.0 REQUIRES grounding
+
+    doc["schema_version"] = "0.2.0"
+    trajectory_io.validate_artifact(doc)  # same agent is fine under 0.2.0 (no grounding required)
+
+
+def test_agent_invariant_enforced() -> None:
+    """The pydantic model rejects sim/inferred field-presence violations the schema leaves loose."""
+    persona = {"id": "p", "label": "P"}
+    reaction = {"comment": "c", "sentiment": 0.0, "stance": "neutral"}
+    outcome = {
+        "baseline_duration": 1.0, "scenario_duration": 2.0, "delta_seconds": 1.0,
+        "baseline_timeloss": 0.0, "scenario_timeloss": 0.0,
+    }
+    # inferred agent must NOT carry a pin.
+    with pytest.raises(ModelValidationError):
+        contract_models.Agent(grounding="inferred", vehicle_id="v0", persona=persona, reaction=reaction)
+    # sim agent must carry outcome + trigger_t.
+    with pytest.raises(ModelValidationError):
+        contract_models.Agent(grounding="sim", vehicle_id="v0", persona=persona, reaction=reaction)
+    # a well-formed inferred agent (no pin/outcome/trigger_t) is accepted.
+    contract_models.Agent(grounding="inferred", persona=persona, reaction=reaction)
+    # a well-formed sim agent (one id + outcome + trigger_t) is accepted.
+    contract_models.Agent(
+        grounding="sim", vehicle_id="v0", outcome=contract_models.Outcome(**outcome),
+        trigger_t=1.0, persona=contract_models.Persona(**persona),
+        reaction=contract_models.Reaction(**reaction),
+    )
+
+
+def test_scorecard_null_delta_roundtrips() -> None:
+    """dump_artifact uses exclude_none — a scorecard group with a null delta must still re-validate
+    (null omitted-as-absent is schema-valid, since deltas are optional). Guards the exclude_none trap."""
+    raw = json.loads(SAMPLE_V3_PATH.read_text(encoding="utf-8"))
+    art = contract_models.TrajectoryArtifact.model_validate(raw)
+    assert any(  # the sample already carries null deltas (inferred groups with no trip)
+        g.travel_time_delta is None for g in art.scorecard.groups
+    ), "expected the sample scorecard to exercise null deltas"
+    out = RUNS_DIR / "_rt_scorecard_null.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)  # validates against the schema on write
+        trajectory_io.validate_artifact(json.loads(out.read_text(encoding="utf-8")))  # and re-validate
+    finally:
+        out.unlink(missing_ok=True)
 
 
 def _write_golden() -> None:
