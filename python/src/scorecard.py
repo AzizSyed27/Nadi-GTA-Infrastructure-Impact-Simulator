@@ -1,0 +1,199 @@
+"""Phase 2.4b — compute the per-STAKEHOLDER scorecard and inject it into the v0.3.0 artifact.
+
+Post-processes the 2.4a outputs IN PLACE (no re-run): reads the real ``multimodal-scenario-<ts>.json``
+artifact (scenario conflicts live in its ``conflicts[]``), the matching ``outcomes-<ts>.json`` (per-mode
+travel-time deltas) and ``conflicts-baseline-<ts>.json`` sidecars, computes ``scorecard``, and rewrites
+the SAME artifact path (re-validated) + recopies to web/public.
+
+HONESTY (see CLAUDE.md — preview, not verdict):
+  - travel_time & safety on SIM groups (car_commuter/cyclist/pedestrian) are MEASURED from the sim.
+  - local_resident safety is ESTIMATED (inferred — the corridor-wide conflict change).
+  - the ENTIRE access column is a HEURISTIC ESTIMATE for every group (grounding can't flag this
+    per-column, so we say it plainly). Coarse ordinals, not false precision.
+  - safety_delta is a dimensionless severity-sum delta (a relative aggregate) — NOT a crash count,
+    rate, or seconds. bca stays null (no cost model for a runtime lane change).
+Uniform sign everywhere: POSITIVE = WORSE for the group. null cell = no signal / not applicable.
+
+Run:  python python/src/scorecard.py            # newest multimodal-scenario run
+      python python/src/scorecard.py --run-id multimodal-scenario-20260702T044134Z
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "python" / "src"))
+import trajectory_io  # noqa: E402
+from contract_models import Scorecard, ScorecardCell, ScorecardGroup  # noqa: E402
+
+RUNS_DIR = trajectory_io.RUNS_DIR
+WEB_PUBLIC = ROOT / "web" / "public"
+
+# A traveler more than this many seconds slower in the scenario is "adversely affected". 0.5 s matches
+# the harness's loser threshold (and the ~36% car share). Near-noise, so we ALWAYS report it with the share.
+LOSER_THRESHOLD_S = 0.5
+
+# The seven canonical groups: three sim-grounded (have trips) + four inferred (no simulated trip).
+SIM_GROUPS = ("car_commuter", "cyclist", "pedestrian")
+INFERRED_GROUPS = ("local_resident", "business_owner", "accessibility", "transit_riders")
+_MODE_TO_GROUP = {"car": "car_commuter", "bicycle": "cyclist", "pedestrian": "pedestrian"}
+
+# access_delta HEURISTIC per change type (coarse ordinals; POSITIVE = worse access). ESTIMATED, not measured.
+# Groups omitted here (and all groups for unmodelled change types) get a null access cell — honest.
+_ACCESS_HEURISTIC = {
+    "bike_lane": {
+        "car_commuter": 0.33,   # loses ~1 of 3 car lanes (lost-lane fraction — the defensible one)
+        "cyclist": -1.0,        # gains a protected lane (better)
+        "pedestrian": -0.1,     # marginally better (buffer from traffic)
+        "business_owner": 0.5,  # loses curbside (coarse ordinal, not precise)
+    },
+}
+
+
+def _group_of_entity(eid: str) -> str:
+    s = str(eid)
+    if s.startswith("ped"):
+        return "pedestrian"
+    if s.startswith("bike"):
+        return "cyclist"
+    return "car_commuter"
+
+
+def _travel_cell(outcomes: list[dict]) -> ScorecardCell | None:
+    """MEASURED. Central value = median per-traveler delta; affected_share = fraction > LOSER_THRESHOLD_S.
+    The share is what stops a car median near 0 from reading as 'no effect'."""
+    deltas = [o["delta_seconds"] for o in outcomes]
+    if not deltas:
+        return None
+    share = sum(1 for d in deltas if d > LOSER_THRESHOLD_S) / len(deltas)
+    return ScorecardCell(value=round(statistics.median(deltas), 3), affected_share=round(share, 3))
+
+
+def _severity_sums(conflicts: list[dict]) -> dict[str, float]:
+    """Sum of conflict severity per group (a conflict counts for EVERY group it involves — a car-bike
+    conflict is a real risk event for both) plus an 'overall' corridor total."""
+    agg = {g: 0.0 for g in ("car_commuter", "cyclist", "pedestrian", "overall")}
+    for c in conflicts:
+        sev = float(c.get("severity", 0.0))
+        agg["overall"] += sev
+        for g in {_group_of_entity(e) for e in c.get("entities", [])}:
+            agg[g] += sev
+    return agg
+
+
+def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts: list[dict], change: dict) -> Scorecard:
+    """Assemble the 7-group scorecard. ``buckets`` = outcomes['modes']; conflicts are lists of dicts."""
+    # travel_time (MEASURED, sim groups only)
+    tt = {g: _travel_cell(buckets.get(mode, {}).get("outcomes", [])) for mode, g in _MODE_TO_GROUP.items()}
+
+    # safety = Δ severity-sum (scenario − baseline). Sim groups MEASURED; local_resident = overall ESTIMATED.
+    base_s, scen_s = _severity_sums(base_conflicts), _severity_sums(scen_conflicts)
+
+    def safety_cell(key: str) -> ScorecardCell:
+        return ScorecardCell(value=round(scen_s[key] - base_s[key], 3))
+
+    access = _ACCESS_HEURISTIC.get(change.get("type"), {})
+
+    def access_cell(group: str) -> ScorecardCell | None:
+        return ScorecardCell(value=access[group]) if group in access else None
+
+    groups = [
+        ScorecardGroup(group="car_commuter", grounding="sim", travel_time_delta=tt["car_commuter"],
+                       safety_delta=safety_cell("car_commuter"), access_delta=access_cell("car_commuter")),
+        ScorecardGroup(group="cyclist", grounding="sim", travel_time_delta=tt["cyclist"],
+                       safety_delta=safety_cell("cyclist"), access_delta=access_cell("cyclist")),
+        ScorecardGroup(group="pedestrian", grounding="sim", travel_time_delta=tt["pedestrian"],
+                       safety_delta=safety_cell("pedestrian"), access_delta=access_cell("pedestrian")),
+        ScorecardGroup(group="local_resident", grounding="inferred", travel_time_delta=None,
+                       safety_delta=safety_cell("overall"), access_delta=access_cell("local_resident")),
+        ScorecardGroup(group="business_owner", grounding="inferred", travel_time_delta=None,
+                       safety_delta=None, access_delta=access_cell("business_owner")),
+        ScorecardGroup(group="accessibility", grounding="inferred", travel_time_delta=None,
+                       safety_delta=None, access_delta=access_cell("accessibility")),
+        ScorecardGroup(group="transit_riders", grounding="inferred", travel_time_delta=None,
+                       safety_delta=None, access_delta=access_cell("transit_riders")),
+    ]
+    return Scorecard(groups=groups, bca=None)  # bca null for v0 — the distribution is the point
+
+
+def _resolve(run_id: str | None) -> tuple[Path, str]:
+    if run_id:
+        art = RUNS_DIR / f"{run_id}.json"
+        if not art.is_file():
+            raise SystemExit(f"artifact not found: {art}")
+    else:
+        runs = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))
+        if not runs:
+            raise SystemExit("no multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py (2.4a) first.")
+        art = runs[-1]
+    ts = art.stem.replace("multimodal-scenario-", "")
+    return art, ts
+
+
+def _fmt_cell(cell, measured: bool) -> str:
+    if cell is None:
+        return "—"
+    tag = "MEAS" if measured else "EST"
+    share = f", {cell.affected_share:.0%} affected" if cell.affected_share is not None else ""
+    return f"{cell.value:+.2f}{share} [{tag}]"
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Compute + inject the per-stakeholder scorecard (2.4b).")
+    ap.add_argument("--run-id", default=None, help="artifact stem (default: newest multimodal-scenario)")
+    args = ap.parse_args()
+
+    art_path, ts = _resolve(args.run_id)
+    outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
+    baseline = json.loads((RUNS_DIR / f"conflicts-baseline-{ts}.json").read_text(encoding="utf-8"))
+    raw_art = json.loads(art_path.read_text(encoding="utf-8"))
+
+    # GUARD: never cross-wire runs — the outcomes sidecar must describe THIS artifact.
+    if outcomes.get("scenario_run_id") != raw_art["meta"]["run_id"]:
+        raise SystemExit(
+            f"run-id mismatch: outcomes.scenario_run_id={outcomes.get('scenario_run_id')!r} != "
+            f"artifact.meta.run_id={raw_art['meta']['run_id']!r}"
+        )
+
+    scorecard = compute_scorecard(
+        outcomes["modes"], baseline["conflicts"], raw_art["conflicts"], raw_art["meta"]["scenario"]["change"]
+    )
+
+    # Inject + re-validate (dump_artifact validates against the frozen schema on write).
+    artifact = trajectory_io.load_artifact(art_path)
+    artifact.scorecard = scorecard
+    trajectory_io.dump_artifact(artifact, path=art_path)
+    reloaded = trajectory_io.load_artifact(art_path)  # round-trip proof
+    (WEB_PUBLIC / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # ---- report ----
+    print("=" * 92)
+    print(f"PER-STAKEHOLDER SCORECARD — {art_path.name}   (sign: POSITIVE = worse; — = null/N.A.)")
+    print(f"  affected_share threshold: traveler > {LOSER_THRESHOLD_S}s slower  |  bca: null (v0)")
+    print("-" * 92)
+    print(f"  {'group':<15} {'grnd':<9} {'travel_time':<26} {'safety':<16} {'access':<14}")
+    for g in reloaded.scorecard.groups:
+        sim = g.grounding == "sim"
+        print(f"  {g.group:<15} {g.grounding:<9} "
+              f"{_fmt_cell(g.travel_time_delta, sim):<26} "
+              f"{_fmt_cell(g.safety_delta, sim and g.group in [f'{x}' for x in SIM_GROUPS]):<16} "
+              f"{_fmt_cell(g.access_delta, False):<14}")
+    print("-" * 92)
+    print("  MEAS = measured from the sim | EST = estimated. NOTE: the ENTIRE access column is a")
+    print("  heuristic estimate (all groups). local_resident safety is inferred (corridor-wide). safety")
+    print("  values are a dimensionless severity-sum delta — a relative aggregate, not a crash count/rate.")
+    print("=" * 92)
+    car = next(g for g in reloaded.scorecard.groups if g.group == "car_commuter")
+    print(f"[car concentration] median {car.travel_time_delta.value:+.1f}s but "
+          f"{car.travel_time_delta.affected_share:.0%} adversely affected — a concentrated cost, not 'no effect'.")
+    print(f"[artifact] scorecard injected + validated ({len(reloaded.scorecard.groups)} groups) -> "
+          f"contract/runs/{art_path.name} (+ web/public copy)")
+
+
+if __name__ == "__main__":
+    main()

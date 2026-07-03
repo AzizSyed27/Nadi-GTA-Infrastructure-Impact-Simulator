@@ -43,7 +43,7 @@ from pathlib import Path
 import run_sim  # also puts SUMO_HOME/tools on sys.path, so `sumolib` imports below
 import sumolib
 import trajectory_io
-from contract_models import Change, Scenario
+from contract_models import Change, Conflict, Meta, Person, Scenario, TrajectoryArtifact, Vehicle
 
 ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.rou.xml"
 BIKE_ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.bike.rou.xml"
@@ -64,6 +64,23 @@ REROUTING_ARGS = [
     "--device.rerouting.adaptation-interval", "10",
     "--seed", "42",
 ]
+
+# ---- Safety surrogate (SSM) config — CONFLICT THRESHOLDS. A conflict is defined relative to these. ----
+# SUMO SSM device is VEHICLE-VEHICLE ONLY (it ignores persons) — ped conflicts are computed post-hoc
+# (crossing-anchored PET, see compute_ped_conflicts). SSM is a passive observer: it does not change
+# trajectories, so baseline vs scenario stay comparable under the same seed. Same SSM config in BOTH runs.
+SSM_MEASURES = "TTC PET DRAC"
+SSM_TTC_THRESHOLD = 3.0  # s  — time-to-collision below this = conflict (SUMO default)
+SSM_PET_THRESHOLD = 2.0  # s  — post-encroachment-time below this = conflict (SUMO default)
+SSM_DRAC_THRESHOLD = 3.0  # m/s² — deceleration-to-avoid-crash ABOVE this = conflict (SUMO default)
+SSM_ARGS = [
+    "--device.ssm.probability", "1",  # equip every vehicle
+    "--device.ssm.measures", SSM_MEASURES,
+    "--device.ssm.thresholds", f"{SSM_TTC_THRESHOLD} {SSM_PET_THRESHOLD} {SSM_DRAC_THRESHOLD}",
+]
+# Pedestrian-vehicle PET (post-hoc): the SSM device can't see persons. PET < this = crossing conflict.
+PED_PET_THRESHOLD = 5.0  # s  — encounter (Fu et al. 2016); < 1.2 s is "critical"
+PED_GRID_M = 4.0  # spatial pre-filter cell size (m) — ONLY prunes candidate pairs, never defines a conflict
 
 
 def pick_busy_edge(rou_path: Path, net_path: Path) -> tuple[str, int, float]:
@@ -219,27 +236,42 @@ def connectivity_check(net, edge_id: str, convert_idx: int) -> set[str]:
         return set()
 
 
-def _record(records: dict, eid: str, mode: str, pos, speed: float, t: float) -> None:
-    lon, lat = run_sim.conn.simulation.convertGeo(pos[0], pos[1])  # (x,y)->(lon,lat); the conversion that matters
+def _record(records: dict, eid: str, mode: str, pos, speed: float, t: float, xy_tracks: dict | None = None) -> None:
+    x, y = pos
+    lon, lat = run_sim.conn.simulation.convertGeo(x, y)  # (x,y)->(lon,lat); the conversion that matters
     rec = records.get(eid)
     if rec is None:
         rec = records[eid] = {"type": mode, "path": [], "timestamps": [], "speeds": []}
     rec["path"].append([lon, lat])
     rec["timestamps"].append(round(t, 3))
     rec["speeds"].append(round(speed, 3))
+    # Raw SUMO x,y (metres) kept only for the post-hoc ped-PET pass — NOT written to the artifact.
+    if xy_tracks is not None:
+        tr = xy_tracks.get(eid)
+        if tr is None:
+            tr = xy_tracks[eid] = {"type": mode, "xy": [], "t": []}
+        tr["xy"].append((x, y))
+        tr["t"].append(t)
 
 
-def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripinfo_path: Path, vehroute_path: Path):
-    """Run corridor.multimodal.sumocfg headless with rerouting; record cars+bikes (vehicles) AND peds
-    (persons, a separate population). If ``change`` is given it is applied once at sim start.
+def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripinfo_path: Path,
+                        vehroute_path: Path, ssm_path: Path):
+    """Run corridor.multimodal.sumocfg headless with rerouting + the SSM safety-surrogate device; record
+    cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
+    once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
 
     Two sequential start/close cycles per pair are SAFE on TraCI (fresh subprocess each) but UNSAFE on
     libsumo (global C++ state) — if a libsumo wheel is ever installed, run the two in separate processes.
+
+    Returns (records, sim_end, step, remaining, xy_tracks) — xy_tracks are raw metre coords for the
+    post-hoc ped-PET pass (the SSM device can't see pedestrians).
     """
     conn = run_sim.conn
     args = [
         str(run_sim.SUMO_BINARY), "-c", str(MULTIMODAL_CFG), "--end", str(MULTIMODAL_MAX_T),
         "--tripinfo-output", str(tripinfo_path), "--vehroute-output", str(vehroute_path),
+        "--device.ssm.file", str(ssm_path),
+        *SSM_ARGS,
         *REROUTING_ARGS,
     ]
     conn.start(args)
@@ -248,6 +280,7 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
     step = conn.simulation.getDeltaT()
 
     records: dict[str, dict] = {}
+    xy_tracks: dict[str, dict] = {}
     prev_t = -1.0
     try:
         while conn.simulation.getMinExpectedNumber() > 0:
@@ -258,16 +291,16 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
             prev_t = t
             for vid in conn.vehicle.getIDList():
                 mode = "bicycle" if conn.vehicle.getVehicleClass(vid) == "bicycle" else "car"
-                _record(records, vid, mode, conn.vehicle.getPosition(vid), conn.vehicle.getSpeed(vid), t)
+                _record(records, vid, mode, conn.vehicle.getPosition(vid), conn.vehicle.getSpeed(vid), t, xy_tracks)
             for pid in conn.person.getIDList():  # persons are NEVER in vehicle.getIDList()
-                _record(records, pid, "pedestrian", conn.person.getPosition(pid), conn.person.getSpeed(pid), t)
+                _record(records, pid, "pedestrian", conn.person.getPosition(pid), conn.person.getSpeed(pid), t, xy_tracks)
         sim_end = conn.simulation.getTime()
         remaining = conn.simulation.getMinExpectedNumber()
     finally:
         conn.close()
     if not records:
         raise RuntimeError("No entities recorded — multimodal demand/config problem?")
-    return records, sim_end, step, remaining
+    return records, sim_end, step, remaining, xy_tracks
 
 
 def parse_personinfo(path: Path) -> dict[str, dict[str, float]]:
@@ -358,6 +391,252 @@ def reroute_count(base_vehroute: Path, scen_vehroute: Path, car_ids: list[str]) 
     return rerouted, len(matched)
 
 
+# ======================================================================================
+# Phase 2.4a — safety-SURROGATE conflicts (near-misses, NEVER crash predictions)
+# ======================================================================================
+
+# SUMO SSM numeric encounter-type codes -> the frozen contract conflicts[] enum. (Following = rear-end,
+# merging = lane-change-like, crossing = right-of-way at a junction.) See SSM_Device docs.
+_SSM_TYPE = {
+    2: "rear_end", 3: "rear_end", 18: "rear_end",  # FOLLOWING_*
+    5: "lane_change", 6: "lane_change", 7: "lane_change", 8: "lane_change", 19: "lane_change",  # MERGING_*
+    9: "crossing", 10: "crossing", 11: "crossing", 12: "crossing", 13: "crossing",
+    14: "crossing", 15: "crossing", 16: "crossing", 17: "crossing",  # CROSSING_* / *_LEFT_CONFLICT_AREA
+    111: "crossing",  # COLLISION (should not occur; classify defensively)
+}
+
+
+def _classify_ssm_type(type_codes: str | None) -> str:
+    """Map an SSM `type=`/`typeSpan` value (may be several space-separated codes) to the contract enum.
+    Take the most severe class present: crossing > lane_change > rear_end > other."""
+    order = {"crossing": 3, "lane_change": 2, "rear_end": 1, "other": 0}
+    best = "other"
+    for tok in (type_codes or "").split():
+        try:
+            cls = _SSM_TYPE.get(int(float(tok)), "other")
+        except ValueError:
+            cls = "other"
+        if order[cls] > order[best]:
+            best = cls
+    return best
+
+
+def _clamp01(x: float) -> float:
+    return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+
+
+def _in_bbox(bbox: list[float], lon: float, lat: float) -> bool:
+    return bbox[0] <= lon <= bbox[2] and bbox[1] <= lat <= bbox[3]
+
+
+def _ssm_float(v: str | None) -> float | None:
+    """SSM writes value="NA" when a measure isn't computable for a conflict — treat as missing."""
+    if v is None or v in ("", "NA"):
+        return None
+    try:
+        return float(v)
+    except ValueError:
+        return None
+
+
+def _parse_xy(pos: str | None) -> tuple[float, float] | None:
+    if not pos or pos == "NA":
+        return None
+    first = pos.split()[0]  # a Span may list many; take the first sample
+    x, y = first.split(",")
+    return float(x), float(y)
+
+
+def parse_ssm(ssm_path: Path, net, bbox: list[float]) -> list[dict]:
+    """Parse a SUMO SSM device file into contract conflict dicts (vehicle-vehicle only).
+
+    Dedupe symmetric logs (ego/foe swap) on frozenset({ego,foe}) + rounded begin. Positions are SUMO
+    x,y -> converted to lon/lat via the net (NOT --device.ssm.geo). Ocean-guard: points outside the
+    corridor bbox are dropped + counted (a conversion smell). Severity is normalized to [0,1], higher =
+    worse, from whichever measure(s) breached: TTC/PET below threshold, DRAC above threshold.
+    """
+    if not ssm_path.is_file():
+        return []
+    root = ET.parse(ssm_path).getroot()
+    seen: set = set()
+    out: list[dict] = []
+    dropped = 0
+    for c in root.iter("conflict"):
+        ego, foe, begin = c.get("ego"), c.get("foe"), c.get("begin")
+        key = (frozenset((ego, foe)), round(float(begin), 1) if begin else None)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        min_ttc = c.find("minTTC")
+        pet = c.find("PET")
+        max_drac = c.find("maxDRAC")
+
+        ttc_val = _ssm_float(min_ttc.get("value")) if min_ttc is not None else None
+        pet_val = _ssm_float(pet.get("value")) if pet is not None else None
+        drac_val = _ssm_float(max_drac.get("value")) if max_drac is not None else None
+
+        # severity: max over the measures that actually breached (each in [0,1], higher = worse).
+        sevs = []
+        if ttc_val is not None and ttc_val < SSM_TTC_THRESHOLD:
+            sevs.append(_clamp01(1.0 - ttc_val / SSM_TTC_THRESHOLD))
+        if pet_val is not None and pet_val < SSM_PET_THRESHOLD:
+            sevs.append(_clamp01(1.0 - pet_val / SSM_PET_THRESHOLD))
+        if drac_val is not None and drac_val > SSM_DRAC_THRESHOLD:
+            sevs.append(_clamp01((drac_val - SSM_DRAC_THRESHOLD) / SSM_DRAC_THRESHOLD))
+        if not sevs:
+            continue  # no measure breached its threshold on the extreme record — not a conflict
+        severity = max(sevs)
+
+        # position + time from the governing (most severe) record — prefer the breaching measure.
+        rec = min_ttc if (ttc_val is not None and ttc_val < SSM_TTC_THRESHOLD) else (pet if pet_val is not None else max_drac)
+        xy = _parse_xy(rec.get("position") if rec is not None else None)
+        if xy is None:
+            continue
+        lon, lat = net.convertXY2LonLat(xy[0], xy[1])
+        if not _in_bbox(bbox, lon, lat):
+            dropped += 1
+            continue
+        t = (_ssm_float(rec.get("time")) if rec is not None else None) or float(begin or 0.0)
+        conflict = {
+            "t": round(t, 3), "lon": lon, "lat": lat,
+            "type": _classify_ssm_type(rec.get("type") if rec is not None else None),
+            "severity": round(severity, 3),
+            "entities": [e for e in (ego, foe) if e],
+        }
+        if ttc_val is not None:
+            conflict["ttc"] = round(ttc_val, 3)
+        if pet_val is not None:
+            conflict["pet"] = round(pet_val, 3)
+        out.append(conflict)
+    if dropped:
+        print(f"[ssm] WARNING: dropped {dropped} conflict point(s) outside bbox (geo-conversion smell)")
+    return out
+
+
+def _segment_pet(p0, p1, tp0, tp1, q0, q1, tq0, tq1):
+    """If ped segment p0->p1 and vehicle segment q0->q1 intersect transversally, return
+    (ix, iy, |t_ped - t_veh|) at the intersection point; else None. Times interpolated along each segment."""
+    r = (p1[0] - p0[0], p1[1] - p0[1])
+    s = (q1[0] - q0[0], q1[1] - q0[1])
+    denom = r[0] * s[1] - r[1] * s[0]
+    if abs(denom) < 1e-12:
+        return None  # parallel / collinear — no transversal crossing (kills the parallel-sidewalk case)
+    qp = (q0[0] - p0[0], q0[1] - p0[1])
+    u = (qp[0] * s[1] - qp[1] * s[0]) / denom  # param along ped segment
+    v = (qp[0] * r[1] - qp[1] * r[0]) / denom  # param along vehicle segment
+    if not (0.0 <= u <= 1.0 and 0.0 <= v <= 1.0):
+        return None
+    ix, iy = p0[0] + u * r[0], p0[1] + u * r[1]
+    t_ped = tp0 + u * (tp1 - tp0)
+    t_veh = tq0 + v * (tq1 - tq0)
+    return ix, iy, abs(t_ped - t_veh)
+
+
+def _seg_cells(x0: float, y0: float, x1: float, y1: float) -> set:
+    """The ~PED_GRID_M cells a segment passes through (sampled), so an intersecting ped/veh segment
+    pair is guaranteed to share an indexed cell — the grid can then localize the O(n²) segment test."""
+    length = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+    n = max(1, int(length / (PED_GRID_M * 0.5)) + 1)
+    return {(int((x0 + k / n * (x1 - x0)) // PED_GRID_M), int((y0 + k / n * (y1 - y0)) // PED_GRID_M))
+            for k in range(n + 1)}
+
+
+def compute_ped_conflicts(xy_tracks: dict, net, bbox: list[float]) -> list[dict]:
+    """Post-hoc pedestrian-vehicle conflicts (the SSM device can't see persons).
+
+    CROSSING-ANCHORED PET, not cell co-location: a conflict requires the ped and vehicle polylines to
+    actually INTERSECT (a real crossing), with PET = |t_ped - t_veh| at that point. Parallel sidewalks
+    never intersect (no false positive); a waiting ped's crossing point is timestamped when it truly
+    steps out. The ~4 m grid ONLY localizes the segment test (index vehicle segments by cell; test a ped
+    segment against just the vehicle segments sharing a cell) — it never defines a conflict. One min-PET
+    conflict per (ped, vehicle) pair; flagged when PET < PED_PET_THRESHOLD.
+    """
+    from collections import defaultdict
+
+    peds = {i: tr for i, tr in xy_tracks.items() if tr["type"] == "pedestrian"}
+    vehs = {i: tr for i, tr in xy_tracks.items() if tr["type"] in ("car", "bicycle")}
+    if not peds or not vehs:
+        return []
+
+    # Index every vehicle segment by the cells it rasterizes through.
+    veh_by_cell: dict = defaultdict(list)  # cell -> [(vid, seg_index)]
+    for vid, tr in vehs.items():
+        xy = tr["xy"]
+        for j in range(len(xy) - 1):
+            for c in _seg_cells(xy[j][0], xy[j][1], xy[j + 1][0], xy[j + 1][1]):
+                veh_by_cell[c].append((vid, j))
+
+    best: dict = {}  # (pid, vid) -> (pet, ix, iy, t) — min PET per pair (dedupe)
+    for pid, ptr in peds.items():
+        pxy, pt = ptr["xy"], ptr["t"]
+        for i in range(len(pxy) - 1):
+            cand: set = set()
+            for c in _seg_cells(pxy[i][0], pxy[i][1], pxy[i + 1][0], pxy[i + 1][1]):
+                cand.update(veh_by_cell.get(c, ()))
+            for vid, j in cand:
+                vxy, vt = vehs[vid]["xy"], vehs[vid]["t"]
+                hit = _segment_pet(pxy[i], pxy[i + 1], pt[i], pt[i + 1],
+                                   vxy[j], vxy[j + 1], vt[j], vt[j + 1])
+                if hit is None:
+                    continue
+                key = (pid, vid)
+                if key not in best or hit[2] < best[key][0]:
+                    best[key] = (hit[2], hit[0], hit[1], min(pt[i], vt[j]))
+
+    conflicts: list[dict] = []
+    for (pid, vid), (pet, ix, iy, t) in best.items():
+        if pet >= PED_PET_THRESHOLD:
+            continue
+        lon, lat = net.convertXY2LonLat(ix, iy)
+        if not _in_bbox(bbox, lon, lat):
+            continue
+        conflicts.append({
+            "t": round(t, 3), "lon": lon, "lat": lat, "type": "crossing",
+            "severity": round(_clamp01(1.0 - pet / PED_PET_THRESHOLD), 3),
+            "pet": round(pet, 3), "entities": [pid, vid],
+        })
+    return conflicts
+
+
+def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: str, baseline_run_id: str,
+                              change: Change, target_lane: int, bbox: list[float], sim_end: float,
+                              step: float) -> TrajectoryArtifact:
+    """Assemble the FIRST real v0.3.0 artifact from multi-modal trajectories + scenario conflicts.
+    scorecard stays None (2.4b), agents stays [] (2.6). Ocean-guards a sample vehicle position."""
+    vehicles = [
+        Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
+        for vid, r in records.items() if r["type"] in ("car", "bicycle")
+    ]
+    persons = [
+        Person(id=pid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
+        for pid, r in records.items() if r["type"] == "pedestrian"
+    ]
+    if not vehicles:
+        raise RuntimeError("no vehicles recorded — cannot build artifact")
+
+    # ocean-guard: a sample vehicle's first point must be in-bbox (geo-conversion sanity).
+    s_lon, s_lat = vehicles[0].path[0]
+    print(f"[geo-check] sample vehicle {vehicles[0].id!r} first point -> lon {s_lon:.5f}, lat {s_lat:.5f}")
+    if not _in_bbox(bbox, s_lon, s_lat):
+        raise RuntimeError(f"sample coord ({s_lon},{s_lat}) OUTSIDE bbox {bbox} — refusing to write")
+
+    change = change.model_copy(update={"target_lane": target_lane})
+    return TrajectoryArtifact(
+        schema_version="0.3.0",
+        meta=Meta(
+            run_id=run_id, network=run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
+            step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
+            scenario=Scenario(baseline_run_id=baseline_run_id, change=change),
+        ),
+        vehicles=vehicles,
+        persons=persons,
+        conflicts=[Conflict(**c) for c in conflicts],
+        scorecard=None,
+        agents=[],
+    )
+
+
 def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | None, target_lane: int | None,
                        bbox: list[float], sim_end: float, step: float, records: dict) -> None:
     """Provisional (UNVALIDATED) per-entity trajectory capture for 2.3/2.6 to formalize. Same per-entity
@@ -383,31 +662,43 @@ def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | N
     )
 
 
-def run_pair_multimodal(change: Change, target_lane: int) -> dict:
+def run_pair_multimodal(change: Change, target_lane: int, net) -> dict:
     """Baseline (no change) then scenario (bike_lane applied), SAME multimodal demand + IDENTICAL
-    rerouting. Emits tripinfo + vehroute per run and writes provisional trajectory files."""
+    rerouting + SSM. Emits tripinfo + vehroute + SSM per run; computes per-run conflicts (SSM
+    vehicle-vehicle + post-hoc ped-vehicle). The SCENARIO trajectories are returned for the caller to
+    promote to the real v0.3.0 artifact (so we do NOT write a provisional scenario file); the BASELINE
+    provisional trajectories are kept for 2.4b."""
     bbox = run_sim.net_bbox(run_sim.NET)  # net is identical across runs; lane perms change only in-sim
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base_id, scen_id = f"multimodal-baseline-{ts}", f"multimodal-scenario-{ts}"
     paths = {
         "base_ti": RUNS_DIR / f"{base_id}.tripinfo.xml", "scen_ti": RUNS_DIR / f"{scen_id}.tripinfo.xml",
         "base_vr": RUNS_DIR / f"{base_id}.vehroute.xml", "scen_vr": RUNS_DIR / f"{scen_id}.vehroute.xml",
+        "base_ssm": RUNS_DIR / f"{base_id}.ssm.xml", "scen_ssm": RUNS_DIR / f"{scen_id}.ssm.xml",
     }
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n=== BASELINE run ({base_id}) — no change, rerouting ON ===")
-    recs_b, end_b, step_b, rem_b = simulate_multimodal(None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"])
+    print(f"\n=== BASELINE run ({base_id}) — no change, rerouting + SSM ON ===")
+    recs_b, end_b, step_b, rem_b, xy_b = simulate_multimodal(
+        None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"])
     _write_provisional(RUNS_DIR / f"{base_id}.json", run_id=base_id, role="baseline", change=None,
                        target_lane=None, bbox=bbox, sim_end=end_b, step=step_b, records=recs_b)
-    print(f"[baseline] sim_end={end_b:.0f}s remaining={rem_b}  entities={len(recs_b)}")
+    conf_b = {"ssm": parse_ssm(paths["base_ssm"], net, bbox), "ped": compute_ped_conflicts(xy_b, net, bbox)}
+    print(f"[baseline] sim_end={end_b:.0f}s remaining={rem_b}  entities={len(recs_b)}  "
+          f"conflicts: {len(conf_b['ssm'])} veh + {len(conf_b['ped'])} ped")
 
-    print(f"\n=== SCENARIO run ({scen_id}) — {change.description}, rerouting ON ===")
-    recs_s, end_s, step_s, rem_s = simulate_multimodal(change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"])
-    _write_provisional(RUNS_DIR / f"{scen_id}.json", run_id=scen_id, role="scenario", change=change,
-                       target_lane=target_lane, bbox=bbox, sim_end=end_s, step=step_s, records=recs_s)
-    print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={len(recs_s)}")
+    print(f"\n=== SCENARIO run ({scen_id}) — {change.description}, rerouting + SSM ON ===")
+    recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
+        change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"], ssm_path=paths["scen_ssm"])
+    conf_s = {"ssm": parse_ssm(paths["scen_ssm"], net, bbox), "ped": compute_ped_conflicts(xy_s, net, bbox)}
+    print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={len(recs_s)}  "
+          f"conflicts: {len(conf_s['ssm'])} veh + {len(conf_s['ped'])} ped")
 
-    return {"ts": ts, "base_id": base_id, "scen_id": scen_id, **{k: v for k, v in paths.items()}}
+    return {
+        "ts": ts, "base_id": base_id, "scen_id": scen_id, **paths,
+        "recs_s": recs_s, "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
+        "conf_b": conf_b, "conf_s": conf_s,
+    }
 
 
 def count_persons(rou_path: Path) -> int:
@@ -442,6 +733,47 @@ def _print_multimodal_report(change: Change, target_lane: int, severed: set[str]
           f"({(100.0 * rerouted / reroute_matched) if reroute_matched else 0:.0f}%) — the adaptation signal")
     print("NOTE          : bike & ped deltas are reported for completeness; their REAL signal (safety/")
     print("                access) comes later — small time deltas are NOT those groups' outcome.")
+    print("=" * 70)
+
+
+def _dist_point_to_polyline(px: float, py: float, shape: list) -> float:
+    """Min distance (m) from (px,py) to a polyline of (x,y) points."""
+    best = float("inf")
+    for (ax, ay), (bx, by) in zip(shape, shape[1:]):
+        dx, dy = bx - ax, by - ay
+        seg2 = dx * dx + dy * dy
+        u = 0.0 if seg2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / seg2))
+        cx, cy = ax + u * dx, ay + u * dy
+        best = min(best, ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5)
+    return best
+
+
+def _print_conflict_report(net, target_edge: str, conf_b: dict, conf_s: dict, near_m: float = 50.0) -> None:
+    print("\n" + "=" * 70)
+    print("SAFETY-SURROGATE CONFLICTS — baseline vs scenario (near-misses, NOT crash predictions)")
+    print("=" * 70)
+    print(f"thresholds    : veh TTC<{SSM_TTC_THRESHOLD}s, PET<{SSM_PET_THRESHOLD}s, DRAC>{SSM_DRAC_THRESHOLD}m/s²  |  "
+          f"ped PET<{PED_PET_THRESHOLD}s (crossing-anchored)")
+    for label, conf in (("baseline", conf_b), ("scenario", conf_s)):
+        allc = conf["ssm"] + conf["ped"]
+        by_type = Counter(c["type"] for c in allc)
+        print(f"[{label}] total {len(allc)}  = {len(conf['ssm'])} veh-veh (SSM) + {len(conf['ped'])} ped-veh (PET) | "
+              f"by type: {dict(by_type)}")
+    # clustering of SCENARIO conflicts relative to the changed edge (in metres).
+    try:
+        shape = net.getEdge(target_edge).getShape()
+        near = far = 0
+        for c in conf_s["ssm"] + conf_s["ped"]:
+            x, y = net.convertLonLat2XY(c["lon"], c["lat"])
+            if _dist_point_to_polyline(x, y, shape) <= near_m:
+                near += 1
+            else:
+                far += 1
+        print(f"[scenario] clustering vs changed edge {target_edge!r}: {near} within {near_m:.0f} m, {far} elsewhere")
+    except Exception as exc:  # convertLonLat2XY / shape unavailable — skip distance, keep type breakdown
+        print(f"[scenario] clustering unavailable ({exc!r})")
+    print("CAVEAT        : rerouting shifts EXPOSURE (who is where), so a raw baseline-vs-scenario count")
+    print("                delta is not a pure safety effect — 2.4b computes per-group deltas.")
     print("=" * 70)
 
 
@@ -566,14 +898,31 @@ def _run_bike_lane(args) -> None:
     change = Change(
         type="bike_lane",
         target_edge=target_edge,
+        target_lane=target_lane,  # native v0.3.0 Change field
         description=f"Converted lane {target_lane} of edge {target_edge} to a bicycle-only lane",
     )
-    ids = run_pair_multimodal(change, target_lane)
+    ids = run_pair_multimodal(change, target_lane, net)
 
     demand = {"car": count_demand(ROUTES), "bicycle": count_demand(BIKE_ROUTES), "pedestrian": count_persons(PED_ROUTES)}
     buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
     car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
     rerouted, reroute_matched = reroute_count(ids["base_vr"], ids["scen_vr"], car_ids)
+
+    # ---- Promote the SCENARIO run to the FIRST real v0.3.0 artifact (conflicts filled). ----
+    conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
+    artifact = build_multimodal_artifact(
+        ids["recs_s"], conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"],
+        change=change, target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
+    )
+    art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates on write
+    reloaded = trajectory_io.load_artifact(art_path)  # round-trip: schema + pydantic model
+    web_copy = run_sim.ROOT / "web" / "public" / f"{ids['scen_id']}.json"
+    web_copy.write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # Baseline conflicts sidecar for 2.4b (per-group safety delta).
+    (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
+        json.dumps({"baseline_run_id": ids["base_id"], "conflicts": ids["conf_b"]["ssm"] + ids["conf_b"]["ped"]}, indent=2),
+        encoding="utf-8")
 
     # Per-mode outcomes sidecar (extends Phase-1's shape with per-mode buckets). NOT a contract artifact.
     side = RUNS_DIR / f"outcomes-{ids['ts']}.json"
@@ -582,7 +931,7 @@ def _run_bike_lane(args) -> None:
             {
                 "scenario_run_id": ids["scen_id"],
                 "baseline_run_id": ids["base_id"],
-                "change": change.model_dump(exclude_none=True) | {"target_lane": target_lane},
+                "change": change.model_dump(exclude_none=True),
                 "connectivity_severed_edges": sorted(severed),
                 "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched},
                 "modes": buckets,
@@ -593,6 +942,11 @@ def _run_bike_lane(args) -> None:
     )
     _print_multimodal_report(change, target_lane, severed, buckets, rerouted, reroute_matched)
     print(f"outcomes side-file: contract/runs/{side.name}")
+    _print_conflict_report(net, target_edge, ids["conf_b"], ids["conf_s"])
+    print(f"\n[artifact] REAL v0.3.0 written + validated: contract/runs/{art_path.name}  "
+          f"({len(reloaded.vehicles)} vehicles, {len(reloaded.persons)} persons, "
+          f"{len(reloaded.conflicts)} conflicts, scorecard={reloaded.scorecard}, agents={len(reloaded.agents)})")
+    print(f"[artifact] copied to web/public/{web_copy.name}")
 
 
 def main() -> None:

@@ -79,14 +79,15 @@
   ],
   "scorecard": {
     "groups": [
-      {"group": "drivers", "grounding": "sim", "travel_time_delta": 14.0, "safety_delta": 0.2, "access_delta": null},
-      {"group": "cyclists", "grounding": "sim", "travel_time_delta": -9.0, "safety_delta": -0.4, "access_delta": null},
-      {"group": "pedestrians", "grounding": "sim", "travel_time_delta": 0.5, "safety_delta": -0.3, "access_delta": null},
-      {"group": "residents", "grounding": "inferred", "travel_time_delta": null, "safety_delta": -0.2, "access_delta": 0.1},
-      {"group": "businesses", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": 0.3},
+      {"group": "car_commuter", "grounding": "sim", "travel_time_delta": {"value": 0.0, "affected_share": 0.36}, "safety_delta": {"value": 0.2}, "access_delta": {"value": 0.33}},
+      {"group": "cyclist", "grounding": "sim", "travel_time_delta": {"value": -9.0, "affected_share": 0.27}, "safety_delta": {"value": -0.4}, "access_delta": {"value": -1.0}},
+      {"group": "pedestrian", "grounding": "sim", "travel_time_delta": {"value": 0.5, "affected_share": 0.29}, "safety_delta": {"value": -0.3}, "access_delta": {"value": -0.1}},
+      {"group": "local_resident", "grounding": "inferred", "travel_time_delta": null, "safety_delta": {"value": -0.2}, "access_delta": null},
+      {"group": "business_owner", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": {"value": 0.5}},
+      {"group": "accessibility", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": null},
       {"group": "transit_riders", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": null}
     ],
-    "bca": {"note": "illustrative only; 2.4 defines the benefit-cost structure"}
+    "bca": null
   },
   "agents": [
     {

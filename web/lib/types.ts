@@ -146,13 +146,23 @@ export interface Conflict {
   entities?: string[];
 }
 
-/** v0.3.0+. One stakeholder group's outcome. Uniform sign: POSITIVE = WORSE. null = no signal/no trip. */
+/**
+ * v0.3.0+. One scorecard cell: a central `value` (POSITIVE = worse) + an optional `affected_share`
+ * (fraction of the group adversely affected, 0..1) conveying concentration — a median value near 0
+ * with a high share is a concentrated cost, not "no effect".
+ */
+export interface ScorecardCell {
+  value: number | null;
+  affected_share?: number | null;
+}
+
+/** v0.3.0+. One stakeholder group's outcome. Uniform sign: POSITIVE = WORSE. null cell = no signal/no trip. */
 export interface ScorecardGroup {
   group: string;
   grounding: Grounding;
-  travel_time_delta?: number | null;
-  safety_delta?: number | null;
-  access_delta?: number | null;
+  travel_time_delta?: ScorecardCell | null;
+  safety_delta?: ScorecardCell | null;
+  access_delta?: ScorecardCell | null;
 }
 
 /** v0.3.0+. Per-STAKEHOLDER outcome summary, NOT a single ROI. `bca` is under-constrained (2.4 defines it). */

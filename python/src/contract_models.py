@@ -163,17 +163,29 @@ class Conflict(BaseModel):
     entities: list[str] | None = None
 
 
+class ScorecardCell(BaseModel):
+    """v0.3.0+. One scorecard cell: a central ``value`` (POSITIVE = worse) plus an OPTIONAL
+    ``affected_share`` (fraction of the group adversely affected, 0..1) that conveys CONCENTRATION —
+    e.g. a median value near 0 with a high share = concentrated cost, not "no effect". Both fields are
+    optional & nullable so the whole cell can be None (no signal) and ``exclude_none`` stays safe."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: float | None = None
+    affected_share: float | None = Field(default=None, ge=0, le=1)
+
+
 class ScorecardGroup(BaseModel):
     """v0.3.0+. One stakeholder group's outcome. Uniform sign: POSITIVE = WORSE for the group.
-    Deltas are optional & nullable (None = absent = no signal / no trip for this group)."""
+    Each delta is an optional & nullable ScorecardCell (None = no signal / no trip for this group)."""
 
     model_config = ConfigDict(extra="forbid")
 
     group: str
     grounding: Literal["sim", "inferred"]
-    travel_time_delta: float | None = None
-    safety_delta: float | None = None
-    access_delta: float | None = None
+    travel_time_delta: ScorecardCell | None = None
+    safety_delta: ScorecardCell | None = None
+    access_delta: ScorecardCell | None = None
 
 
 class Scorecard(BaseModel):

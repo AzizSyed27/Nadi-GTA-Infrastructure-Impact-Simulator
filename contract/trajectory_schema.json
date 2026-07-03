@@ -6,6 +6,17 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
+  "$defs": {
+    "scorecardCell": {
+      "description": "A scorecard cell (v0.3.0): a central value + an OPTIONAL concentration signal. The whole cell and both fields are OPTIONAL & NULLABLE — a present cell normally carries value; affected_share (fraction of the group adversely affected, 0..1) applies mainly to travel_time on sim-grounded groups.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {"type": ["number", "null"]},
+        "affected_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
+    }
+  },
   "allOf": [
     {
       "$comment": "v0.3.0 requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0 — keeping the bump additive.",
@@ -271,23 +282,23 @@
                 "enum": ["sim", "inferred"]
               },
               "travel_time_delta": {
-                "description": "OPTIONAL & NULLABLE. Uniform sign: POSITIVE = WORSE for this group. null (or absent) = no signal / this group has no trip.",
-                "type": ["number", "null"]
+                "description": "OPTIONAL & NULLABLE cell {value, affected_share}. Uniform sign: POSITIVE = WORSE. null (or absent) = no signal / this group has no trip. affected_share conveys concentration (e.g. a median value near 0 with a high share = concentrated cost, not 'no effect').",
+                "$ref": "#/$defs/scorecardCell"
               },
               "safety_delta": {
-                "description": "OPTIONAL & NULLABLE. POSITIVE = WORSE (less safe). null/absent = no signal.",
-                "type": ["number", "null"]
+                "description": "OPTIONAL & NULLABLE cell {value, affected_share}. POSITIVE = WORSE (less safe). null/absent = no signal.",
+                "$ref": "#/$defs/scorecardCell"
               },
               "access_delta": {
-                "description": "OPTIONAL & NULLABLE. POSITIVE = WORSE (less access). null/absent = no signal.",
-                "type": ["number", "null"]
+                "description": "OPTIONAL & NULLABLE cell {value, affected_share}. POSITIVE = WORSE (less access). null/absent = no signal.",
+                "$ref": "#/$defs/scorecardCell"
               }
             }
           }
         },
         "bca": {
-          "description": "OPTIONAL. Supplementary benefit-cost context. Deliberately unshaped (under-constrained) — 2.4 defines its structure.",
-          "type": "object"
+          "description": "OPTIONAL & NULLABLE. Supplementary benefit-cost context. null for v0 (a runtime lane change has no construction/maintenance cost model — the DISTRIBUTION is the point). Deliberately unshaped; a later step defines its structure.",
+          "type": ["object", "null"]
         }
       }
     }

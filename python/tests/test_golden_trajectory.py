@@ -202,11 +202,54 @@ def test_v0_3_0_sample() -> None:
         assert sim_start <= c["t"] <= sim_end, f"conflict t {c['t']} outside sim window"
         assert isinstance(c["type"], str) and c["type"], "conflict type must be a non-empty string"
 
-    # scorecard: groups well-formed (grounding enum; deltas number-or-null).
+    # scorecard: groups well-formed (grounding enum; deltas are null OR an enriched cell {value, affected_share}).
     for g in raw.get("scorecard", {}).get("groups", []):
         assert g["grounding"] in ("sim", "inferred")
         for key in ("travel_time_delta", "safety_delta", "access_delta"):
-            assert g.get(key) is None or isinstance(g[key], (int, float)), f"{key} must be number or null"
+            cell = g.get(key)
+            if cell is None:
+                continue
+            assert isinstance(cell, dict), f"{key} must be null or a cell object"
+            assert cell.get("value") is None or isinstance(cell["value"], (int, float)), f"{key}.value must be number|null"
+            share = cell.get("affected_share")
+            assert share is None or (0.0 <= share <= 1.0), f"{key}.affected_share must be in [0,1] or null"
+
+
+def test_multimodal_artifact_valid() -> None:
+    """Pipeline guard on the newest REAL multimodal v0.3.0 artifact. Skips if none on disk (gitignored).
+    Validates schema + model, conflicts[] well-formed, and (post-2.4b) the 7-group scorecard."""
+    runs = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))
+    if not runs:
+        pytest.skip("No multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.")
+    art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip
+    assert art.schema_version == "0.3.0"
+    assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
+    assert not art.agents, "agents are wired at 2.6, not here"
+    veh_ids = {v.id for v in art.vehicles}
+    ped_ids = {p.id for p in art.persons}
+    s0, s1 = art.meta.sim_start, art.meta.sim_end
+    for c in art.conflicts:
+        assert s0 <= c.t <= s1, f"conflict t {c.t} outside sim window"
+        assert c.type in ("rear_end", "crossing", "lane_change", "other")
+        assert 0.0 <= c.severity <= 1.0
+        for e in c.entities or []:
+            assert e in veh_ids or e in ped_ids, f"conflict entity {e!r} not in vehicles/persons"
+
+    # 2.4b: the scorecard is injected. 7 groups, valid grounding, well-formed enriched cells.
+    assert art.scorecard is not None, "2.4b injects the scorecard"
+    groups = art.scorecard.groups
+    assert len(groups) == 7, f"expected 7 stakeholder groups, got {len(groups)}"
+    for g in groups:
+        assert g.grounding in ("sim", "inferred")
+        for cell in (g.travel_time_delta, g.safety_delta, g.access_delta):
+            if cell is None:
+                continue
+            assert cell.value is None or isinstance(cell.value, (int, float))
+            assert cell.affected_share is None or (0.0 <= cell.affected_share <= 1.0)
+    # sim groups carry a measured travel_time cell; inferred groups do not.
+    by = {g.group: g for g in groups}
+    assert by["car_commuter"].travel_time_delta is not None and by["car_commuter"].travel_time_delta.affected_share is not None
+    assert by["local_resident"].travel_time_delta is None
 
 
 def test_grounding_conditional_bites() -> None:
@@ -259,20 +302,24 @@ def test_agent_invariant_enforced() -> None:
     )
 
 
-def test_scorecard_null_delta_roundtrips() -> None:
-    """dump_artifact uses exclude_none — a scorecard group with a null delta must still re-validate
-    (null omitted-as-absent is schema-valid, since deltas are optional). Guards the exclude_none trap."""
+def test_scorecard_cells_roundtrip() -> None:
+    """dump_artifact uses exclude_none — both a null delta AND an enriched cell {value, affected_share}
+    must survive dump→re-validate. Null omitted-as-absent is schema-valid (cells optional); an enriched
+    cell must serialize with its share intact. Guards the exclude_none trap for the enriched shape."""
     raw = json.loads(SAMPLE_V3_PATH.read_text(encoding="utf-8"))
     art = contract_models.TrajectoryArtifact.model_validate(raw)
-    assert any(  # the sample already carries null deltas (inferred groups with no trip)
-        g.travel_time_delta is None for g in art.scorecard.groups
-    ), "expected the sample scorecard to exercise null deltas"
-    out = RUNS_DIR / "_rt_scorecard_null.json"
+    groups = {g.group: g for g in art.scorecard.groups}
+    assert groups["local_resident"].travel_time_delta is None, "expected a null delta (inferred, no trip)"
+    car_tt = groups["car_commuter"].travel_time_delta
+    assert car_tt is not None and car_tt.affected_share is not None, "expected an enriched cell with a share"
+    out = RUNS_DIR / "_rt_scorecard_cells.json"
     try:
         trajectory_io.dump_artifact(art, path=out)  # validates against the schema on write
-        trajectory_io.validate_artifact(json.loads(out.read_text(encoding="utf-8")))  # and re-validate
+        reloaded = trajectory_io.load_artifact(out)  # and re-validate + model round-trip
     finally:
         out.unlink(missing_ok=True)
+    rt_car = {g.group: g for g in reloaded.scorecard.groups}["car_commuter"].travel_time_delta
+    assert rt_car.affected_share == car_tt.affected_share, "affected_share must survive the round-trip"
 
 
 def _write_golden() -> None:
