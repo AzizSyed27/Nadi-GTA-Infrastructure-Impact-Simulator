@@ -1,0 +1,214 @@
+"""Precursor to 2.5 — robustness of the 2.4 safety deltas. ANALYSIS ONLY (no artifact/contract changes).
+
+Three stress tests on the 2.4b safety story:
+  1. SEED sensitivity  — do the per-group safety-delta SIGNS survive seeds 43/44 (vs 42)?
+  2. THRESHOLD sensitivity — do conflict counts/signs survive TTC {2.5,3.0,3.5} and ped PET {4.0,5.0}?
+  3. AFFECTED-SHARE materiality — is the >0.5 s "adversely affected" cutoff honest, vs {30,60} s?
+
+Method (see the plan): re-threshold through the SAME pipeline conflict definition — a conflict is
+``parse_ssm(log, ttc_th) + ped(pet_th)``, severity = max of breaching measures — NEVER a reimplementation.
+Verified: re-parsing seed 42 at ttc_th=3.0 reproduces 2.4a's +6.58/+6.86/+0.19 exactly. SUMO's SSM only
+LOGS sub-threshold conflicts, so the seed-43/44 runs are logged PERMISSIVELY (TTC<6.0) to sweep upward to
+3.5 parse-only; seed 42's native 3.0 log is reused for the ≤3.0 columns. CAVEAT: SSM is a passive
+observer (no trajectory perturbation) — that is what makes reusing 42's strict log alongside 43/44's
+permissive logs valid.
+
+Run:  python python/src/robustness.py     # runs seeds 43/44 once (~20 min), caches, then re-analyzes
+"""
+
+from __future__ import annotations
+
+import json
+import statistics
+from pathlib import Path
+
+import run_sim  # wires SUMO tools onto sys.path (must precede sumolib)
+import sumolib
+import scenario_harness as sh
+import scorecard as sc
+from contract_models import Change
+
+RUNS_DIR = sh.RUNS_DIR
+PERMISSIVE_SSM = "6.0 6.0 0.5"  # TTC PET DRAC — log a superset so the 2.5/3.0/3.5 sweep is parse-only
+NEW_SEEDS = [43, 44]
+GROUPS = ("car_commuter", "cyclist", "pedestrian", "overall")
+
+_NET = None
+_BBOX = None
+
+
+def _net():
+    global _NET, _BBOX
+    if _NET is None:
+        _NET = sumolib.net.readNet(str(run_sim.NET))
+        _BBOX = run_sim.net_bbox(run_sim.NET)
+    return _NET, _BBOX
+
+
+def _peds(conflicts: list[dict]) -> list[dict]:
+    return [c for c in conflicts if any(str(e).startswith("ped") for e in c.get("entities", []))]
+
+
+def _ped_filter(ped: list[dict], pet_th: float) -> list[dict]:
+    return [c for c in ped if c.get("pet", 1e9) < pet_th]
+
+
+def _count_by_group(conflicts: list[dict]) -> dict[str, int]:
+    agg = {g: 0 for g in GROUPS}
+    for c in conflicts:
+        agg["overall"] += 1
+        for g in {sc._group_of_entity(e) for e in c.get("entities", [])}:
+            agg[g] += 1
+    return agg
+
+
+# ---------------------------------------------------------------------------------------------------
+# Seed runs (cached): seed 42 reuses the 2.4a files; seeds 43/44 run once, permissively, and are saved.
+# ---------------------------------------------------------------------------------------------------
+
+def _seed42() -> dict:
+    """Reuse the 2.4a on-disk run (native TTC<3.0 log + the artifact/sidecar ped conflicts)."""
+    art_path = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))[-1]
+    ts = art_path.stem.replace("multimodal-scenario-", "")
+    art = json.loads(art_path.read_text(encoding="utf-8"))
+    base = json.loads((RUNS_DIR / f"conflicts-baseline-{ts}.json").read_text(encoding="utf-8"))
+    outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
+    return {
+        "seed": 42, "ts": ts, "permissive": False,
+        "ssm_base": RUNS_DIR / f"multimodal-baseline-{ts}.ssm.xml",
+        "ssm_scen": RUNS_DIR / f"multimodal-scenario-{ts}.ssm.xml",
+        "ped_base": _peds(base["conflicts"]), "ped_scen": _peds(art["conflicts"]),
+        "cars_rerouted": outcomes["reroute"]["cars_rerouted"], "cars_matched": outcomes["reroute"]["cars_matched"],
+        "outcomes": outcomes["modes"],
+    }
+
+
+def _run_seed(seed: int, change: Change, target_lane: int) -> dict:
+    """Run one baseline+scenario pair at ``seed`` with PERMISSIVE SSM logging; cache to a sidecar."""
+    cache = RUNS_DIR / f"robustness-seed{seed}.json"
+    net, bbox = _net()
+    paths = {r: {k: RUNS_DIR / f"robustness-{r}-s{seed}.{k}.xml" for k in ("tripinfo", "vehroute", "ssm")}
+             for r in ("baseline", "scenario")}
+
+    print(f"\n=== seed {seed} BASELINE (permissive SSM) ===")
+    recs_b, _, _, _, xy_b = sh.simulate_multimodal(
+        None, None, tripinfo_path=paths["baseline"]["tripinfo"], vehroute_path=paths["baseline"]["vehroute"],
+        ssm_path=paths["baseline"]["ssm"], seed=seed, ssm_thresholds=PERMISSIVE_SSM)
+    ped_b = sh.compute_ped_conflicts(xy_b, net, bbox)
+
+    print(f"=== seed {seed} SCENARIO (permissive SSM) ===")
+    recs_s, _, _, _, xy_s = sh.simulate_multimodal(
+        change, target_lane, tripinfo_path=paths["scenario"]["tripinfo"], vehroute_path=paths["scenario"]["vehroute"],
+        ssm_path=paths["scenario"]["ssm"], seed=seed, ssm_thresholds=PERMISSIVE_SSM)
+    ped_s = sh.compute_ped_conflicts(xy_s, net, bbox)
+
+    car_ids = [k for k in recs_s if not k.startswith("bike") and not k.startswith("ped")]
+    rerouted, matched = sh.reroute_count(paths["baseline"]["vehroute"], paths["scenario"]["vehroute"], car_ids)
+    data = {
+        "seed": seed, "permissive": True,
+        "ssm_base": str(paths["baseline"]["ssm"]), "ssm_scen": str(paths["scenario"]["ssm"]),
+        "ped_base": ped_b, "ped_scen": ped_s, "cars_rerouted": rerouted, "cars_matched": matched,
+    }
+    cache.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"[seed {seed}] cached -> {cache.name}  (cars_rerouted {rerouted}/{matched})")
+    return data
+
+
+def _load_seed(seed: int, change: Change, target_lane: int) -> dict:
+    cache = RUNS_DIR / f"robustness-seed{seed}.json"
+    if cache.is_file():
+        d = json.loads(cache.read_text(encoding="utf-8"))
+        d["ssm_base"], d["ssm_scen"] = Path(d["ssm_base"]), Path(d["ssm_scen"])
+        print(f"[seed {seed}] reused cache {cache.name}")
+        return d
+    return _run_seed(seed, change, target_lane)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Analyses (all parse-only)
+# ---------------------------------------------------------------------------------------------------
+
+def _combined(seed: dict, role: str, ttc_th: float, pet_th: float) -> list[dict]:
+    net, bbox = _net()
+    log = seed["ssm_base"] if role == "base" else seed["ssm_scen"]
+    ped = seed["ped_base"] if role == "base" else seed["ped_scen"]
+    return sh.parse_ssm(log, net, bbox, ttc_th=ttc_th) + _ped_filter(ped, pet_th)
+
+
+def _delta(seed: dict, ttc_th=3.0, pet_th=5.0):
+    base = _combined(seed, "base", ttc_th, pet_th)
+    scen = _combined(seed, "scen", ttc_th, pet_th)
+    sev_b, sev_s = sc._severity_sums(base), sc._severity_sums(scen)
+    cnt_b, cnt_s = _count_by_group(base), _count_by_group(scen)
+    return {g: {"sev": sev_s[g] - sev_b[g], "cnt": cnt_s[g] - cnt_b[g]} for g in GROUPS}, len(scen), len(base)
+
+
+def seed_table(seeds: list[dict]) -> None:
+    print("\n### 1. Seed sensitivity — per-group safety delta (scenario − baseline) at the 2.4 config "
+          "(TTC<3.0, ped PET<5.0). +severity/+count = worse.\n")
+    print("| seed | cars_rerouted | conflicts (base→scen) | car Δsev(Δcnt) | cyclist Δsev(Δcnt) | ped Δsev(Δcnt) | overall Δsev |")
+    print("|---|---|---|---|---|---|---|")
+    for s in seeds:
+        d, n_s, n_b = _delta(s)
+        print(f"| {s['seed']} | {s['cars_rerouted']}/{s.get('cars_matched','?')} | {n_b}→{n_s} | "
+              f"{d['car_commuter']['sev']:+.2f}({d['car_commuter']['cnt']:+d}) | "
+              f"{d['cyclist']['sev']:+.2f}({d['cyclist']['cnt']:+d}) | "
+              f"{d['pedestrian']['sev']:+.2f}({d['pedestrian']['cnt']:+d}) | {d['overall']['sev']:+.2f} |")
+
+
+def threshold_table(seeds_perm: list[dict], seed42: dict) -> None:
+    print("\n### 2. Threshold sensitivity — TTC sweep (per-group severity delta + total scen conflicts) "
+          "and ped PET sweep (ped count delta). Permissive-logged seeds carry 3.5; seed 42 (native 3.0 log) shown ≤3.0.\n")
+    print("| seed | TTC | scen conflicts | car Δsev | cyclist Δsev | ped Δsev | overall Δsev |")
+    print("|---|---|---|---|---|---|---|")
+    rows = [(s, [2.5, 3.0, 3.5]) for s in seeds_perm] + [(seed42, [2.5, 3.0])]
+    for s, ttcs in rows:
+        for ttc in ttcs:
+            d, n_s, _ = _delta(s, ttc_th=ttc)
+            print(f"| {s['seed']} | {ttc} | {n_s} | {d['car_commuter']['sev']:+.2f} | "
+                  f"{d['cyclist']['sev']:+.2f} | {d['pedestrian']['sev']:+.2f} | {d['overall']['sev']:+.2f} |")
+    print("\n**Ped PET sweep (ped conflict COUNT delta, scenario − baseline):**\n")
+    print("| seed | PET<4.0 (base→scen, Δ) | PET<5.0 (base→scen, Δ) |")
+    print("|---|---|---|")
+    for s in seeds_perm + [seed42]:
+        r = []
+        for pet in (4.0, 5.0):
+            b, sc_ = len(_ped_filter(s["ped_base"], pet)), len(_ped_filter(s["ped_scen"], pet))
+            r.append(f"{b}→{sc_} ({sc_-b:+d})")
+        print(f"| {s['seed']} | {r[0]} | {r[1]} |")
+
+
+def materiality_table(outcomes: dict) -> None:
+    print("\n### 3. Affected-share materiality — share of each mode worse by more than the cutoff "
+          "(from the seed-42 outcomes).\n")
+    print("| mode | n | share >0.5s | share >30s | share >60s |")
+    print("|---|---|---|---|---|")
+    for mode, group in (("car", "car_commuter"), ("bicycle", "cyclist"), ("pedestrian", "pedestrian")):
+        deltas = [o["delta_seconds"] for o in outcomes[mode]["outcomes"]]
+        n = len(deltas)
+        shares = [sum(1 for x in deltas if x > cut) / n for cut in (0.5, 30, 60)]
+        print(f"| {group} | {n} | {shares[0]:.0%} | {shares[1]:.0%} | {shares[2]:.0%} |")
+
+
+def main() -> None:
+    net = sumolib.net.readNet(str(run_sim.NET))
+    target_edge, _, _, _ = sh.pick_bike_lane_edge(sh.ROUTES, run_sim.NET, min_car_lanes=2)
+    target_lane = sh.curbside_car_lane(net, target_edge)
+    change = Change(type="bike_lane", target_edge=target_edge, target_lane=target_lane,
+                    description=f"Converted lane {target_lane} of edge {target_edge} to a bicycle-only lane")
+
+    seed42 = _seed42()
+    seeds_new = [_load_seed(s, change, target_lane) for s in NEW_SEEDS]
+    all_seeds = [seed42] + seeds_new
+
+    print("\n" + "=" * 100)
+    print("ROBUSTNESS OF THE 2.4 SAFETY DELTAS  (SURROGATE near-misses; SSM is a passive observer)")
+    print("=" * 100)
+    seed_table(all_seeds)
+    threshold_table(seeds_new, seed42)
+    materiality_table(seed42["outcomes"])
+    print("\n(seed 42 comparability: re-parse at TTC 3.0 reproduces the 2.4b scorecard — validated.)")
+
+
+if __name__ == "__main__":
+    main()

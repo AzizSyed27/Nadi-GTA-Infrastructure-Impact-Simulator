@@ -58,12 +58,13 @@ DEFAULT_SPEED_MPS = 8.33  # 30 km/h
 MULTIMODAL_MAX_T = 7200.0
 # Symmetric rerouting config — IDENTICAL in baseline and scenario so only the lane permission differs.
 # (No --device.rerouting.threads / --weights.random-factor: both are documented nondeterminism sources.)
+# --seed is passed separately (simulate_multimodal) so a robustness sweep can vary it per pair.
 REROUTING_ARGS = [
     "--device.rerouting.probability", "1",
     "--device.rerouting.period", "60",
     "--device.rerouting.adaptation-interval", "10",
-    "--seed", "42",
 ]
+DEFAULT_SEED = 42
 
 # ---- Safety surrogate (SSM) config — CONFLICT THRESHOLDS. A conflict is defined relative to these. ----
 # SUMO SSM device is VEHICLE-VEHICLE ONLY (it ignores persons) — ped conflicts are computed post-hoc
@@ -73,11 +74,7 @@ SSM_MEASURES = "TTC PET DRAC"
 SSM_TTC_THRESHOLD = 3.0  # s  — time-to-collision below this = conflict (SUMO default)
 SSM_PET_THRESHOLD = 2.0  # s  — post-encroachment-time below this = conflict (SUMO default)
 SSM_DRAC_THRESHOLD = 3.0  # m/s² — deceleration-to-avoid-crash ABOVE this = conflict (SUMO default)
-SSM_ARGS = [
-    "--device.ssm.probability", "1",  # equip every vehicle
-    "--device.ssm.measures", SSM_MEASURES,
-    "--device.ssm.thresholds", f"{SSM_TTC_THRESHOLD} {SSM_PET_THRESHOLD} {SSM_DRAC_THRESHOLD}",
-]
+# (SSM CLI args are built in simulate_multimodal so the thresholds can be overridden for a robustness sweep.)
 # Pedestrian-vehicle PET (post-hoc): the SSM device can't see persons. PET < this = crossing conflict.
 PED_PET_THRESHOLD = 5.0  # s  — encounter (Fu et al. 2016); < 1.2 s is "critical"
 PED_GRID_M = 4.0  # spatial pre-filter cell size (m) — ONLY prunes candidate pairs, never defines a conflict
@@ -255,7 +252,8 @@ def _record(records: dict, eid: str, mode: str, pos, speed: float, t: float, xy_
 
 
 def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripinfo_path: Path,
-                        vehroute_path: Path, ssm_path: Path):
+                        vehroute_path: Path, ssm_path: Path, seed: int = DEFAULT_SEED,
+                        ssm_thresholds: str | None = None):
     """Run corridor.multimodal.sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
     once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
@@ -267,12 +265,16 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
     post-hoc ped-PET pass (the SSM device can't see pedestrians).
     """
     conn = run_sim.conn
+    ssm_th = ssm_thresholds if ssm_thresholds is not None else f"{SSM_TTC_THRESHOLD} {SSM_PET_THRESHOLD} {SSM_DRAC_THRESHOLD}"
     args = [
         str(run_sim.SUMO_BINARY), "-c", str(MULTIMODAL_CFG), "--end", str(MULTIMODAL_MAX_T),
         "--tripinfo-output", str(tripinfo_path), "--vehroute-output", str(vehroute_path),
         "--device.ssm.file", str(ssm_path),
-        *SSM_ARGS,
+        "--device.ssm.probability", "1",
+        "--device.ssm.measures", SSM_MEASURES,
+        "--device.ssm.thresholds", ssm_th,
         *REROUTING_ARGS,
+        "--seed", str(seed),
     ]
     conn.start(args)
     if change is not None:
@@ -447,13 +449,19 @@ def _parse_xy(pos: str | None) -> tuple[float, float] | None:
     return float(x), float(y)
 
 
-def parse_ssm(ssm_path: Path, net, bbox: list[float]) -> list[dict]:
+def parse_ssm(ssm_path: Path, net, bbox: list[float], ttc_th: float = SSM_TTC_THRESHOLD,
+              pet_th: float = SSM_PET_THRESHOLD, drac_th: float = SSM_DRAC_THRESHOLD) -> list[dict]:
     """Parse a SUMO SSM device file into contract conflict dicts (vehicle-vehicle only).
 
     Dedupe symmetric logs (ego/foe swap) on frozenset({ego,foe}) + rounded begin. Positions are SUMO
     x,y -> converted to lon/lat via the net (NOT --device.ssm.geo). Ocean-guard: points outside the
     corridor bbox are dropped + counted (a conversion smell). Severity is normalized to [0,1], higher =
     worse, from whichever measure(s) breached: TTC/PET below threshold, DRAC above threshold.
+
+    The thresholds are parameters (default = the 2.4 config) so a robustness sweep can RE-THRESHOLD the
+    SAME keep+severity logic — the conflict definition never forks. NOTE: an SSM log only CONTAINS
+    conflicts that breached the thresholds it was LOGGED with, so re-thresholding is exact only DOWNWARD
+    from the logged values (log permissively to sweep upward).
     """
     if not ssm_path.is_file():
         return []
@@ -478,18 +486,18 @@ def parse_ssm(ssm_path: Path, net, bbox: list[float]) -> list[dict]:
 
         # severity: max over the measures that actually breached (each in [0,1], higher = worse).
         sevs = []
-        if ttc_val is not None and ttc_val < SSM_TTC_THRESHOLD:
-            sevs.append(_clamp01(1.0 - ttc_val / SSM_TTC_THRESHOLD))
-        if pet_val is not None and pet_val < SSM_PET_THRESHOLD:
-            sevs.append(_clamp01(1.0 - pet_val / SSM_PET_THRESHOLD))
-        if drac_val is not None and drac_val > SSM_DRAC_THRESHOLD:
-            sevs.append(_clamp01((drac_val - SSM_DRAC_THRESHOLD) / SSM_DRAC_THRESHOLD))
+        if ttc_val is not None and ttc_val < ttc_th:
+            sevs.append(_clamp01(1.0 - ttc_val / ttc_th))
+        if pet_val is not None and pet_val < pet_th:
+            sevs.append(_clamp01(1.0 - pet_val / pet_th))
+        if drac_val is not None and drac_val > drac_th:
+            sevs.append(_clamp01((drac_val - drac_th) / drac_th))
         if not sevs:
             continue  # no measure breached its threshold on the extreme record — not a conflict
         severity = max(sevs)
 
         # position + time from the governing (most severe) record — prefer the breaching measure.
-        rec = min_ttc if (ttc_val is not None and ttc_val < SSM_TTC_THRESHOLD) else (pet if pet_val is not None else max_drac)
+        rec = min_ttc if (ttc_val is not None and ttc_val < ttc_th) else (pet if pet_val is not None else max_drac)
         xy = _parse_xy(rec.get("position") if rec is not None else None)
         if xy is None:
             continue
