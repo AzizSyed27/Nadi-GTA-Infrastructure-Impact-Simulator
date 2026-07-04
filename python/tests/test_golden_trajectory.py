@@ -213,6 +213,10 @@ def test_v0_3_0_sample() -> None:
             assert cell.get("value") is None or isinstance(cell["value"], (int, float)), f"{key}.value must be number|null"
             share = cell.get("affected_share")
             assert share is None or (0.0 <= share <= 1.0), f"{key}.affected_share must be in [0,1] or null"
+            # v0.3.0 (2.5): optional trust flag + free-text caveat.
+            conf = cell.get("confidence")
+            assert conf in (None, "measured", "low"), f"{key}.confidence must be measured|low|null"
+            assert "note" not in cell or isinstance(cell["note"], str), f"{key}.note must be a string when present"
 
 
 def test_multimodal_artifact_valid() -> None:
@@ -221,10 +225,9 @@ def test_multimodal_artifact_valid() -> None:
     runs = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))
     if not runs:
         pytest.skip("No multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.")
-    art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip
+    art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
     assert art.schema_version == "0.3.0"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
-    assert not art.agents, "agents are wired at 2.6, not here"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
     s0, s1 = art.meta.sim_start, art.meta.sim_end
@@ -234,6 +237,17 @@ def test_multimodal_artifact_valid() -> None:
         assert 0.0 <= c.severity <= 1.0
         for e in c.entities or []:
             assert e in veh_ids or e in ped_ids, f"conflict entity {e!r} not in vehicles/persons"
+
+    # 2.5b: agents[] are wired by the (generative) reaction step. Validate WHEN present (a fresh run may
+    # not have them yet). The model already enforced the grounding invariant on load; here we additionally
+    # check that sim pins resolve into vehicles/persons and inferred agents carry no pin.
+    for a in art.agents:
+        if a.grounding == "sim":
+            pins = [x for x in (a.vehicle_id, a.person_id) if x is not None]
+            assert len(pins) == 1 and (pins[0] in veh_ids or pins[0] in ped_ids), f"sim agent pin {pins} unresolved"
+            assert a.outcome is not None and a.trigger_t is not None and s0 <= a.trigger_t <= s1
+        else:
+            assert not any((a.vehicle_id, a.person_id, a.outcome, a.trigger_t)), "inferred agent must carry no pin/outcome/trigger_t"
 
     # 2.4b: the scorecard is injected. 7 groups, valid grounding, well-formed enriched cells.
     assert art.scorecard is not None, "2.4b injects the scorecard"
@@ -250,6 +264,16 @@ def test_multimodal_artifact_valid() -> None:
     by = {g.group: g for g in groups}
     assert by["car_commuter"].travel_time_delta is not None and by["car_commuter"].travel_time_delta.affected_share is not None
     assert by["local_resident"].travel_time_delta is None
+    # 2.5 close-out — the honesty labeling landed: travel_time cells are MEASURED, safety cells are LOW
+    # (the seed-flip caveat), and every cell carries a confidence flag.
+    for g in groups:
+        for cell in (g.travel_time_delta, g.safety_delta, g.access_delta):
+            if cell is not None:
+                assert cell.confidence in ("measured", "low"), f"{g.group} cell missing confidence flag"
+    for grp in ("car_commuter", "cyclist", "pedestrian"):
+        assert by[grp].travel_time_delta.confidence == "measured", f"{grp} travel_time should be measured"
+        assert by[grp].safety_delta is not None and by[grp].safety_delta.confidence == "low", f"{grp} safety should be low"
+    assert by["local_resident"].safety_delta.confidence == "low"
 
 
 def test_grounding_conditional_bites() -> None:
@@ -320,6 +344,9 @@ def test_scorecard_cells_roundtrip() -> None:
         out.unlink(missing_ok=True)
     rt_car = {g.group: g for g in reloaded.scorecard.groups}["car_commuter"].travel_time_delta
     assert rt_car.affected_share == car_tt.affected_share, "affected_share must survive the round-trip"
+    # 2.5: confidence + note are the newest optional cell fields — they must survive exclude_none too.
+    assert rt_car.confidence == car_tt.confidence, "confidence must survive the round-trip"
+    assert rt_car.note == car_tt.note, "note must survive the round-trip"
 
 
 def _write_golden() -> None:

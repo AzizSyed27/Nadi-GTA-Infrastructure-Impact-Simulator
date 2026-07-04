@@ -1,35 +1,122 @@
 {
-  "schema_note": "Car-commuter persona archetypes for the stakeholder-reaction layer. DATA, not code, so Phase 2 can expand/replace the set. `description` is the temperament/priorities text fed to the LLM prompt in Step 1.4; `delay_sensitivity` in [0,1] (1 = a minute of added travel time hurts most).",
+  "schema_note": "Full stakeholder persona roster for the reaction layer. DATA, not code, so it can be expanded/replaced. `description` = temperament/priorities text fed to the LLM prompt (Step 2.5b); `delay_sensitivity` in [0,1] (1 = a minute of added travel time hurts most). `mode` in car|bicycle|pedestrian|inferred pins the persona to a traveller mode or marks an inferred (no-trip) stakeholder voice. Inferred personas carry `stakeholder` naming a scorecard group (local_resident/business_owner/accessibility/transit_riders) or a free label. Persona ids must NOT collide with scorecard-group ids (two graphs, one key space) — see resident_driver (car) vs longtime_resident (inferred, stakeholder local_resident).",
   "personas": [
     {
       "id": "time_pressed",
       "label": "Time-pressed commuter",
       "description": "Runs a tight morning schedule — a school drop-off and a fixed shift start. Watches the clock, takes the same fast route daily, and reads any added delay as a personal cost. Pragmatic but quick to frustration when traffic stalls.",
-      "delay_sensitivity": 0.9
+      "delay_sensitivity": 0.9,
+      "mode": "car"
     },
     {
       "id": "gig_driver",
       "label": "Rideshare / delivery driver",
       "description": "Earns per trip, so time literally is money — every minute stuck is lost income and a worse rating. Knows the corridor intimately, hyper-attuned to congestion, and resentful of changes that cut into throughput.",
-      "delay_sensitivity": 1.0
+      "delay_sensitivity": 1.0,
+      "mode": "car"
     },
     {
       "id": "steady_regular",
       "label": "Steady daily regular",
       "description": "Drives this corridor every day out of habit. Even-tempered and adaptable — notices changes and grumbles mildly, but adjusts routine without much drama. A barometer for the typical commuter.",
-      "delay_sensitivity": 0.5
+      "delay_sensitivity": 0.5,
+      "mode": "car"
     },
     {
-      "id": "local_resident",
-      "label": "Resident on the corridor",
-      "description": "Lives right on the street and cares more about through-traffic, speeding, and noise outside their door than about their own travel time. Tends to welcome calming measures even when they slow the drive.",
-      "delay_sensitivity": 0.3
+      "id": "resident_driver",
+      "label": "Resident who drives the corridor",
+      "description": "Lives right on the street AND drives it daily — genuinely torn. Feels every added minute on their own commute, yet also lives with the through-traffic, speeding, and noise outside their door. Ambivalent about calming measures: annoyed by the delay, quietly glad the street may be quieter.",
+      "delay_sensitivity": 0.4,
+      "mode": "car"
     },
     {
       "id": "safety_first_parent",
-      "label": "Safety-conscious parent",
-      "description": "Walks kids to a school near the corridor and prioritizes slower, safer streets over speed. Willing to absorb extra minutes if it means calmer traffic at crossings; skeptical of anything that prioritizes flow over safety.",
-      "delay_sensitivity": 0.2
+      "label": "Safety-conscious driver-parent",
+      "description": "Drives the corridor but prioritizes slower, safer streets over speed, worried about kids crossing near a school. Willing to absorb extra minutes if it means calmer traffic; skeptical of anything that prioritizes flow over safety.",
+      "delay_sensitivity": 0.2,
+      "mode": "car"
+    },
+    {
+      "id": "bike_commuter",
+      "label": "Daily bike commuter",
+      "description": "Rides this corridor to work every day, rain or shine. Wants a route that's both quick and survivable next to fast traffic; weighs a protected lane against any detour it forces. Confident in traffic but tired of being squeezed by passing cars.",
+      "delay_sensitivity": 0.7,
+      "mode": "bicycle"
+    },
+    {
+      "id": "cautious_cyclist",
+      "label": "Cautious newer rider",
+      "description": "Recently started biking and only rides where it feels safe — a protected lane is the whole reason they'd use this corridor at all. Nervous beside moving cars, values separation over speed, and would ride far more if the infrastructure felt safe.",
+      "delay_sensitivity": 0.3,
+      "mode": "bicycle"
+    },
+    {
+      "id": "bike_courier",
+      "label": "Bicycle delivery courier",
+      "description": "Delivers by bike and is paid per drop, so time is money — but also the one most exposed to close calls all day. Fast, assertive, knows every gap in the corridor; welcomes a lane that's quicker AND cuts the near-misses.",
+      "delay_sensitivity": 0.9,
+      "mode": "bicycle"
+    },
+    {
+      "id": "school_run_parent",
+      "label": "School-run parent on foot",
+      "description": "Walks kids to a nearby school along and across the corridor twice a day. Cares above all about safe crossings and calmer, slower traffic; a few extra seconds walking matter far less than not dreading the crossing.",
+      "delay_sensitivity": 0.3,
+      "mode": "pedestrian"
+    },
+    {
+      "id": "senior_walker",
+      "label": "Senior who walks everywhere",
+      "description": "Does errands on foot and crosses the corridor slowly, needing generous crossing time and low traffic speeds. Crossing safety and curb access are central; fast turning traffic is a daily worry.",
+      "delay_sensitivity": 0.3,
+      "mode": "pedestrian"
+    },
+    {
+      "id": "transit_walker",
+      "label": "Walk-to-transit commuter",
+      "description": "Walks to a bus stop on the corridor as the first leg of a longer trip, so walking time and safe crossings feed directly into catching the bus. Practical, in a mild hurry, notices anything that lengthens or endangers the walk to the stop.",
+      "delay_sensitivity": 0.6,
+      "mode": "pedestrian"
+    },
+    {
+      "id": "longtime_resident",
+      "label": "Long-time corridor resident",
+      "description": "Has lived on this street for decades and experiences it as home, not a route. Cares about noise, speeding, safety, and neighbourhood character far more than anyone's travel time; generally welcomes anything that calms the street.",
+      "delay_sensitivity": 0.2,
+      "mode": "inferred",
+      "stakeholder": "local_resident"
+    },
+    {
+      "id": "shop_owner",
+      "label": "Small business owner",
+      "description": "Runs a shop on the corridor and depends on customers being able to stop and park at the curb. Anxious that removing curbside space for a bike lane costs foot traffic and deliveries, even if it helps others; livelihood is on the line.",
+      "delay_sensitivity": 0.4,
+      "mode": "inferred",
+      "stakeholder": "business_owner"
+    },
+    {
+      "id": "accessibility_advocate",
+      "label": "Accessibility advocate",
+      "description": "Speaks for people with mobility, vision, or hearing disabilities. Focused on step-free access, curb ramps, crossing time, tactile cues, and whether new layouts help or hinder wheelchair and cane users. Judges changes by the most vulnerable user, not the average one.",
+      "delay_sensitivity": 0.3,
+      "mode": "inferred",
+      "stakeholder": "accessibility"
+    },
+    {
+      "id": "transit_rider",
+      "label": "Transit rider perspective",
+      "description": "Rides the bus along the corridor and cares whether the change speeds, slows, or endangers transit — bus stop access, boarding, and whether buses get stuck behind reduced car capacity. Wants reliable, dignified transit over private-vehicle throughput.",
+      "delay_sensitivity": 0.5,
+      "mode": "inferred",
+      "stakeholder": "transit_riders"
+    },
+    {
+      "id": "skeptical_taxpayer",
+      "label": "Skeptical taxpayer",
+      "description": "A wildcard voice who didn't ask for this and questions the cost, the process, and whether anyone actually wanted it. Not tied to a single stakeholder group — a blunt, sometimes contrarian check on whether the change is worth the disruption and public money.",
+      "delay_sensitivity": 0.3,
+      "mode": "inferred",
+      "stakeholder": "taxpayer"
     }
   ]
 }

@@ -79,11 +79,11 @@
   ],
   "scorecard": {
     "groups": [
-      {"group": "car_commuter", "grounding": "sim", "travel_time_delta": {"value": 0.0, "affected_share": 0.36}, "safety_delta": {"value": 0.2}, "access_delta": {"value": 0.33}},
-      {"group": "cyclist", "grounding": "sim", "travel_time_delta": {"value": -9.0, "affected_share": 0.27}, "safety_delta": {"value": -0.4}, "access_delta": {"value": -1.0}},
-      {"group": "pedestrian", "grounding": "sim", "travel_time_delta": {"value": 0.5, "affected_share": 0.29}, "safety_delta": {"value": -0.3}, "access_delta": {"value": -0.1}},
-      {"group": "local_resident", "grounding": "inferred", "travel_time_delta": null, "safety_delta": {"value": -0.2}, "access_delta": null},
-      {"group": "business_owner", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": {"value": 0.5}},
+      {"group": "car_commuter", "grounding": "sim", "travel_time_delta": {"value": 0.0, "affected_share": 0.03, "confidence": "measured", "note": "affected_share = fraction >30s slower"}, "safety_delta": {"value": 0.2, "confidence": "low", "note": "sign not stable across seeds"}, "access_delta": {"value": 0.33, "confidence": "low", "note": "rule-based estimate"}},
+      {"group": "cyclist", "grounding": "sim", "travel_time_delta": {"value": -9.0, "affected_share": 0.0, "confidence": "measured"}, "safety_delta": {"value": -0.4, "confidence": "low"}, "access_delta": {"value": -1.0, "confidence": "low"}},
+      {"group": "pedestrian", "grounding": "sim", "travel_time_delta": {"value": 0.5, "affected_share": 0.0, "confidence": "measured"}, "safety_delta": {"value": -0.3, "confidence": "low"}, "access_delta": {"value": -0.1, "confidence": "low"}},
+      {"group": "local_resident", "grounding": "inferred", "travel_time_delta": null, "safety_delta": {"value": -0.2, "confidence": "low"}, "access_delta": null},
+      {"group": "business_owner", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": {"value": 0.5, "confidence": "low"}},
       {"group": "accessibility", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": null},
       {"group": "transit_riders", "grounding": "inferred", "travel_time_delta": null, "safety_delta": null, "access_delta": null}
     ],

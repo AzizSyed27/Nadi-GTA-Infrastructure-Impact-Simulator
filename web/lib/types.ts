@@ -154,6 +154,10 @@ export interface Conflict {
 export interface ScorecardCell {
   value: number | null;
   affected_share?: number | null;
+  /** v0.3.0+. Trust flag: 'measured' (from the sim) vs 'low' (heuristic/estimate/not-robust). */
+  confidence?: 'measured' | 'low' | null;
+  /** v0.3.0+. Free-text caveat (e.g. materiality cutoff or robustness note). */
+  note?: string | null;
 }
 
 /** v0.3.0+. One stakeholder group's outcome. Uniform sign: POSITIVE = WORSE. null cell = no signal/no trip. */

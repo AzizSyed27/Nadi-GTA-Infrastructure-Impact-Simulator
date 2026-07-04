@@ -8,12 +8,14 @@
   "required": ["schema_version", "meta", "vehicles"],
   "$defs": {
     "scorecardCell": {
-      "description": "A scorecard cell (v0.3.0): a central value + an OPTIONAL concentration signal. The whole cell and both fields are OPTIONAL & NULLABLE — a present cell normally carries value; affected_share (fraction of the group adversely affected, 0..1) applies mainly to travel_time on sim-grounded groups.",
+      "description": "A scorecard cell (v0.3.0): a central value + OPTIONAL concentration/trust signals. All fields OPTIONAL & NULLABLE — a present cell normally carries value; affected_share (fraction of the group adversely affected, 0..1) applies mainly to travel_time on sim-grounded groups; confidence (v0.3.0+) flags how much to trust the cell ('measured' from the sim vs 'low' = heuristic/estimate/not-robust), with an optional free-text note (e.g. a materiality cutoff or a robustness caveat).",
       "type": ["object", "null"],
       "additionalProperties": false,
       "properties": {
         "value": {"type": ["number", "null"]},
-        "affected_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+        "affected_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "confidence": {"enum": ["measured", "low", null]},
+        "note": {"type": ["string", "null"]}
       }
     }
   },

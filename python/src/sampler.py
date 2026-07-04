@@ -10,13 +10,22 @@ From the matched per-vehicle outcomes of a scenario run (Step 1.2's ``outcomes-<
      (longest stop, else lowest speed) — when their comment will pop in playback,
 and writes the instrumented set ``[{vehicle_id, persona, outcome, trigger_t}]`` to a sidecar.
 
-Reaction text is NOT produced here (Step 1.4). This sidecar is an INTERMEDIATE handoff, not the
+Reaction text is NOT produced here (Step 2.5b). This sidecar is an INTERMEDIATE handoff, not the
 frozen contract artifact — ``agents[]`` can't be written until reactions exist (``Agent.reaction`` is
 a required schema field).
 
+Step 2.5a adds the MULTI-MODAL path (``main()`` dispatches on ``"modes" in side``): it samples from BOTH
+populations of the v0.3.0 artifact — cars/bikes in ``vehicles[]`` (bucket keys ``car``/``bicycle``, pinned
+by ``vehicle_id``) and pedestrians in ``persons[]`` (bucket ``pedestrian``, pinned by ``person_id``) — plus
+inferred stakeholder voices (``grounding="inferred"``, no pin/outcome/trigger_t). Personas are matched by
+``mode``; cars force-include the top-k worst by delta (the hard-hit tail). Every record is validated as a
+``contract_models.Agent`` in-run (the 2.3 grounding invariant) before the sidecar is written. The legacy
+Phase-1 flat-outcomes (speed_limit) path is preserved.
+
 Run as a script:
-    python python/src/sampler.py                       # newest outcomes-*.json, N=12
-    python python/src/sampler.py --n 20 --unchanged-band 10
+    python python/src/sampler.py                       # newest outcomes-*.json (multi-modal auto-detected)
+    python python/src/sampler.py --n-car 120 --n-bike 40 --n-ped 40 --n-inferred 12 --car-tail-k 5
+    python python/src/sampler.py --n 20 --unchanged-band 10   # legacy flat outcomes
 """
 
 from __future__ import annotations
@@ -26,8 +35,8 @@ import json
 from pathlib import Path
 
 import trajectory_io
-from contract_models import Outcome
-from personas import PersonaSpec, load_personas
+from contract_models import Agent, Outcome, Persona, Reaction
+from personas import PersonaSpec, load_personas, personas_by_mode
 
 RUNS_DIR = trajectory_io.RUNS_DIR
 STOP_EPS = 0.1  # m/s — at or below this a vehicle is "stopped"
@@ -186,6 +195,147 @@ def build_instrumented(
     return payload, selected
 
 
+# ======================================================================================
+# Phase 2.5a — multi-modal sampler (cars + bikes in vehicles[], peds in persons[]) + inferred voices
+# ======================================================================================
+
+SIM_MODES = ("car", "bicycle", "pedestrian")
+MODE_PIN = {"car": "vehicle_id", "bicycle": "vehicle_id", "pedestrian": "person_id"}
+_DUMMY_REACTION = {"comment": "x", "sentiment": 0.0, "stance": "neutral"}  # only for the in-run Agent guard
+
+
+def _select_mode(bins: dict[str, list[dict]], n: int, tail_k: int) -> dict[str, list[dict]]:
+    """Pick up to n outcomes spanning bins. For cars (tail_k>0), ALWAYS force-include the top-k worst by
+    delta (the hard-hit tail — the panel's most important voices), then select/space the rest. Returns
+    {bin: [outcomes]} with the tail prepended into 'worse'."""
+    worse_desc = sorted(bins["worse"], key=lambda o: o["delta_seconds"], reverse=True)
+    tail = worse_desc[:tail_k]
+    tail_ids = {o["id"] for o in tail}
+    rem = {b: [o for o in bins[b] if o["id"] not in tail_ids] for b in BIN_ORDER}
+    take = select_counts(rem, max(0, n - len(tail)))
+    per_bin: dict[str, list[dict]] = {}
+    for b in BIN_ORDER:
+        ordered = sorted(rem[b], key=lambda o: (o["delta_seconds"], o["id"]))
+        picks = evenly_spaced(ordered, take[b])
+        per_bin[b] = (list(tail) + picks) if b == "worse" else picks
+    return per_bin
+
+
+def _interleave(per_bin: dict[str, list[dict]]) -> list[tuple[str, dict]]:
+    """Round-robin across bins (worse/unchanged/better) so round-robin persona assignment doesn't track
+    the delta sort. Returns [(bin, outcome)]. (Naive persona↔outcome correlation is a Phase-3 refinement.)"""
+    from itertools import zip_longest
+
+    seq: list[tuple[str, dict]] = []
+    for triple in zip_longest(per_bin["worse"], per_bin["unchanged"], per_bin["better"]):
+        for b, o in zip(BIN_ORDER, triple):
+            if o is not None:
+                seq.append((b, o))
+    return seq
+
+
+def _validate_records_as_agents(records: list[dict]) -> None:
+    """LOAD-BEARING: construct a throwaway Agent per record (trimmed persona + dummy reaction) to prove
+    every record satisfies the frozen grounding invariant (sim ⇒ exactly one id + outcome + trigger_t;
+    inferred ⇒ none) BEFORE 2.5b builds ~200 real Agents from this sidecar. Raises on any violation."""
+    for r in records:
+        p = r["persona"]
+        kw: dict = {"grounding": r["grounding"], "persona": Persona(id=p["id"], label=p["label"]),
+                    "reaction": Reaction(**_DUMMY_REACTION)}
+        if r["grounding"] == "sim":
+            if "vehicle_id" in r:
+                kw["vehicle_id"] = r["vehicle_id"]
+            if "person_id" in r:
+                kw["person_id"] = r["person_id"]
+            kw["outcome"] = Outcome(**r["outcome"])
+            kw["trigger_t"] = r["trigger_t"]
+        Agent(**kw)  # pydantic ValidationError if the invariant is violated
+
+
+def build_instrumented_multimodal(outcomes_path: Path, counts: dict[str, int], unchanged_band: float,
+                                  car_tail_k: int) -> dict:
+    """Sample instrumented travelers from BOTH populations of the multi-modal v0.3.0 artifact + the
+    per-mode outcomes sidecar, plus inferred stakeholder voices. Returns the instrumented payload."""
+    side = json.loads(outcomes_path.read_text(encoding="utf-8"))
+    scenario_run_id, baseline_run_id = side["scenario_run_id"], side["baseline_run_id"]
+
+    artifact = trajectory_io.load_artifact(RUNS_DIR / f"{scenario_run_id}.json")
+    entity = {v.id: v for v in artifact.vehicles}  # cars + bikes
+    entity.update({p.id: p for p in artifact.persons})  # peds (distinct id space)
+    by_mode = personas_by_mode()
+
+    records: list[dict] = []
+    selected_bin_counts: dict[str, dict[str, int]] = {}
+    for mode in SIM_MODES:
+        outs = [o for o in side["modes"][mode]["outcomes"] if o["id"] in entity]
+        bins = bin_outcomes(outs, unchanged_band)  # keys on o["delta_seconds"]
+        per_bin = _select_mode(bins, counts[mode], car_tail_k if mode == "car" else 0)
+        selected_bin_counts[mode] = {b: len(per_bin[b]) for b in BIN_ORDER}
+        pool, pin = by_mode.get(mode, []), MODE_PIN[mode]
+        for i, (_b, o) in enumerate(_interleave(per_bin)):  # interleaved → persona doesn't track delta
+            persona = pool[i % len(pool)]
+            ent = entity[o["id"]]
+            outcome5 = {k: o[k] for k in OUTCOME_FIELDS}
+            Outcome.model_validate(outcome5)  # shape guard — drops straight into Agent.outcome in 2.5b
+            records.append({
+                "grounding": "sim", "mode": mode, pin: o["id"],
+                "persona": persona.model_dump(), "outcome": outcome5,
+                "trigger_t": worst_moment(ent.timestamps, ent.speeds),
+            })
+
+    inferred = by_mode.get("inferred", [])
+    for i in range(counts["inferred"]):  # ~12 inferred voices, round-robin (no pin/outcome/trigger_t)
+        persona = inferred[i % len(inferred)]
+        records.append({
+            "grounding": "inferred", "mode": "inferred",
+            "persona": persona.model_dump(), "stakeholder": persona.stakeholder,
+        })
+
+    _validate_records_as_agents(records)  # fail here, not 200 LLM calls deep in 2.5b
+    return {
+        "scenario_run_id": scenario_run_id, "baseline_run_id": baseline_run_id,
+        "requested": counts, "unchanged_band": unchanged_band,
+        "selected_bin_counts": selected_bin_counts, "instrumented": records,
+    }
+
+
+def _print_report_multimodal(payload: dict, out_path: Path) -> None:
+    by_mode = personas_by_mode()
+    recs = payload["instrumented"]
+    print("\n" + "=" * 74)
+    print("INSTRUMENTED MULTI-MODAL SAMPLE")
+    print("=" * 74)
+    print(f"scenario run : {payload['scenario_run_id']}   requested: {payload['requested']}")
+    print("roster (16 personas):")
+    for m in ("car", "bicycle", "pedestrian", "inferred"):
+        print(f"  {m:11}: " + ", ".join(p.label for p in by_mode.get(m, [])))
+    print("-" * 74)
+    print("realized mode x outcome-bin counts (sign band ±{:.0f}s; empty bike/ped 'worse' expected — "
+          "their time deltas are ~0):".format(payload["unchanged_band"]))
+    print(f"  {'mode':<12} {'worse':>6} {'unchanged':>10} {'better':>7} {'total':>6}")
+    for mode in SIM_MODES:
+        c = payload["selected_bin_counts"][mode]
+        tot = c["worse"] + c["unchanged"] + c["better"]
+        flag = "  (worse empty — expected)" if c["worse"] == 0 and mode != "car" else ""
+        if mode == "car" and c["worse"] == 0:
+            flag = "  WARNING: car worse bin empty (unexpected)"
+        print(f"  {mode:<12} {c['worse']:>6} {c['unchanged']:>10} {c['better']:>7} {tot:>6}{flag}")
+    n_inf = sum(1 for r in recs if r["grounding"] == "inferred")
+    print(f"  {'inferred':<12} {'—':>6} {'—':>10} {'—':>7} {n_inf:>6}")
+    print("-" * 74)
+    print("examples — one sim per mode + 2 inferred:")
+    for mode in SIM_MODES:
+        r = next((x for x in recs if x.get("mode") == mode), None)
+        if r:
+            pid = r.get("vehicle_id") or r.get("person_id")
+            print(f"  [{mode:<10}] {r['persona']['id']:<19} pin={pid:<8} "
+                  f"delta={r['outcome']['delta_seconds']:>7.1f}s  trigger_t={r['trigger_t']:>7.1f}s")
+    for r in [x for x in recs if x["grounding"] == "inferred"][:2]:
+        print(f"  [inferred  ] {r['persona']['id']:<19} stakeholder={r['stakeholder']}  (no pin/outcome/trigger_t)")
+    print("=" * 74)
+    print(f"instrumented set : contract/runs/{out_path.name}   (feeds 2.5b reactions -> ~{len(recs)} agents)")
+
+
 def _print_report(payload: dict, selected: list[tuple[str, dict]], out_path: Path) -> None:
     counts = payload["selected_bin_counts"]
     print("\n" + "=" * 64)
@@ -228,20 +378,34 @@ def _print_report(payload: dict, selected: list[tuple[str, dict]], out_path: Pat
 def main() -> None:
     ap = argparse.ArgumentParser(description="Sample instrumented travelers spanning outcome bins.")
     ap.add_argument("--outcomes", default=None, help="outcomes-*.json (default: newest in contract/runs)")
-    ap.add_argument("--n", type=int, default=DEFAULT_N, help="number of instrumented travelers")
     ap.add_argument("--unchanged-band", type=float, default=DEFAULT_BAND, help="|delta| <= band is unchanged")
+    ap.add_argument("--n", type=int, default=DEFAULT_N, help="legacy (flat outcomes) sample size")
+    # multi-modal per-mode counts:
+    ap.add_argument("--n-car", type=int, default=120)
+    ap.add_argument("--n-bike", type=int, default=40)
+    ap.add_argument("--n-ped", type=int, default=40)
+    ap.add_argument("--n-inferred", type=int, default=12)
+    ap.add_argument("--car-tail-k", type=int, default=5, help="force-include the top-k worst drivers by delta")
     args = ap.parse_args()
 
     outcomes_path = Path(args.outcomes) if args.outcomes else newest_outcomes()
     print(f"[in] outcomes: {outcomes_path.name}")
+    side = json.loads(outcomes_path.read_text(encoding="utf-8"))
 
+    if "modes" in side:  # Phase-2 multi-modal outcomes sidecar
+        counts = {"car": args.n_car, "bicycle": args.n_bike, "pedestrian": args.n_ped, "inferred": args.n_inferred}
+        payload = build_instrumented_multimodal(outcomes_path, counts, args.unchanged_band, args.car_tail_k)
+        ts = payload["scenario_run_id"].split("-")[-1]
+        out_path = RUNS_DIR / f"instrumented-{ts}.json"
+        out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        _print_report_multimodal(payload, out_path)
+        return
+
+    # Legacy Phase-1 flat-outcomes path (speed_limit harness) — unchanged.
     payload, selected = build_instrumented(outcomes_path, args.n, args.unchanged_band)
-
-    # Pair the instrumented file with its scenario run (idempotent: re-runs overwrite same file).
     ts = payload["scenario_run_id"].split("-", 1)[1]
     out_path = RUNS_DIR / f"instrumented-{ts}.json"
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
     _print_report(payload, selected, out_path)
 
 

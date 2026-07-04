@@ -166,13 +166,17 @@ class Conflict(BaseModel):
 class ScorecardCell(BaseModel):
     """v0.3.0+. One scorecard cell: a central ``value`` (POSITIVE = worse) plus an OPTIONAL
     ``affected_share`` (fraction of the group adversely affected, 0..1) that conveys CONCENTRATION —
-    e.g. a median value near 0 with a high share = concentrated cost, not "no effect". Both fields are
-    optional & nullable so the whole cell can be None (no signal) and ``exclude_none`` stays safe."""
+    e.g. a median value near 0 with a high share = concentrated cost, not "no effect". ``confidence``
+    (v0.3.0+) flags trust: ``"measured"`` (from the sim) vs ``"low"`` (heuristic/estimate/not-robust),
+    with an optional ``note`` (e.g. a materiality cutoff or a robustness caveat). All fields optional &
+    nullable so the whole cell can be None (no signal) and ``exclude_none`` stays safe."""
 
     model_config = ConfigDict(extra="forbid")
 
     value: float | None = None
     affected_share: float | None = Field(default=None, ge=0, le=1)
+    confidence: Literal["measured", "low"] | None = None
+    note: str | None = None
 
 
 class ScorecardGroup(BaseModel):

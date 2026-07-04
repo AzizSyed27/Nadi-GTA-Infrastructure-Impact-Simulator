@@ -34,9 +34,13 @@ from contract_models import Scorecard, ScorecardCell, ScorecardGroup  # noqa: E4
 RUNS_DIR = trajectory_io.RUNS_DIR
 WEB_PUBLIC = ROOT / "web" / "public"
 
-# A traveler more than this many seconds slower in the scenario is "adversely affected". 0.5 s matches
-# the harness's loser threshold (and the ~36% car share). Near-noise, so we ALWAYS report it with the share.
-LOSER_THRESHOLD_S = 0.5
+# The scorecard's affected_share now uses a MATERIAL cutoff: a traveler >30 s slower is meaningfully hit.
+# (The 0.5 s "loser" threshold gave a near-noise 36% for cars that collapsed to ~3% at >30 s — the honest
+# concentration story is a small hard-hit tail, majority unaffected. 2.5-close-out re-labels to this.)
+MATERIALITY_CUTOFF_S = 30.0
+# Robustness caveat baked into the safety cells: the precursor showed every per-group safety-delta sign
+# flips across seeds 42/43/44 — the number is a magnitude, NOT a directional claim.
+_SAFETY_NOTE = "sign not stable across seeds 42/43/44; directional claim not supported"
 
 # The seven canonical groups: three sim-grounded (have trips) + four inferred (no simulated trip).
 SIM_GROUPS = ("car_commuter", "cyclist", "pedestrian")
@@ -65,13 +69,17 @@ def _group_of_entity(eid: str) -> str:
 
 
 def _travel_cell(outcomes: list[dict]) -> ScorecardCell | None:
-    """MEASURED. Central value = median per-traveler delta; affected_share = fraction > LOSER_THRESHOLD_S.
-    The share is what stops a car median near 0 from reading as 'no effect'."""
+    """MEASURED. Central value = median per-traveler delta; affected_share = fraction MATERIALLY hit
+    (>MATERIALITY_CUTOFF_S slower). Median-near-0 + a small material share is the honest concentration
+    story — a small hard-hit tail, majority unaffected."""
     deltas = [o["delta_seconds"] for o in outcomes]
     if not deltas:
         return None
-    share = sum(1 for d in deltas if d > LOSER_THRESHOLD_S) / len(deltas)
-    return ScorecardCell(value=round(statistics.median(deltas), 3), affected_share=round(share, 3))
+    share = sum(1 for d in deltas if d > MATERIALITY_CUTOFF_S) / len(deltas)
+    return ScorecardCell(
+        value=round(statistics.median(deltas), 3), affected_share=round(share, 3),
+        confidence="measured", note=f"affected_share = fraction of this group's travelers >{MATERIALITY_CUTOFF_S:.0f}s slower",
+    )
 
 
 def _severity_sums(conflicts: list[dict]) -> dict[str, float]:
@@ -95,12 +103,14 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
     base_s, scen_s = _severity_sums(base_conflicts), _severity_sums(scen_conflicts)
 
     def safety_cell(key: str) -> ScorecardCell:
-        return ScorecardCell(value=round(scen_s[key] - base_s[key], 3))
+        # confidence LOW: the sign flips across seeds (precursor) — a magnitude, not a directional claim.
+        return ScorecardCell(value=round(scen_s[key] - base_s[key], 3), confidence="low", note=_SAFETY_NOTE)
 
     access = _ACCESS_HEURISTIC.get(change.get("type"), {})
 
     def access_cell(group: str) -> ScorecardCell | None:
-        return ScorecardCell(value=access[group]) if group in access else None
+        # confidence LOW: the entire access column is a rule-based heuristic, not measured.
+        return ScorecardCell(value=access[group], confidence="low", note="rule-based estimate") if group in access else None
 
     groups = [
         ScorecardGroup(group="car_commuter", grounding="sim", travel_time_delta=tt["car_commuter"],
@@ -135,10 +145,10 @@ def _resolve(run_id: str | None) -> tuple[Path, str]:
     return art, ts
 
 
-def _fmt_cell(cell, measured: bool) -> str:
+def _fmt_cell(cell) -> str:
     if cell is None:
         return "—"
-    tag = "MEAS" if measured else "EST"
+    tag = {"measured": "MEAS", "low": "LOW"}.get(cell.confidence, "?")
     share = f", {cell.affected_share:.0%} affected" if cell.affected_share is not None else ""
     return f"{cell.value:+.2f}{share} [{tag}]"
 
@@ -174,19 +184,19 @@ def main() -> None:
     # ---- report ----
     print("=" * 92)
     print(f"PER-STAKEHOLDER SCORECARD — {art_path.name}   (sign: POSITIVE = worse; — = null/N.A.)")
-    print(f"  affected_share threshold: traveler > {LOSER_THRESHOLD_S}s slower  |  bca: null (v0)")
+    print(f"  affected_share threshold: traveler > {MATERIALITY_CUTOFF_S:.0f}s slower  |  bca: null (v0)")
     print("-" * 92)
     print(f"  {'group':<15} {'grnd':<9} {'travel_time':<26} {'safety':<16} {'access':<14}")
     for g in reloaded.scorecard.groups:
-        sim = g.grounding == "sim"
         print(f"  {g.group:<15} {g.grounding:<9} "
-              f"{_fmt_cell(g.travel_time_delta, sim):<26} "
-              f"{_fmt_cell(g.safety_delta, sim and g.group in [f'{x}' for x in SIM_GROUPS]):<16} "
-              f"{_fmt_cell(g.access_delta, False):<14}")
+              f"{_fmt_cell(g.travel_time_delta):<26} "
+              f"{_fmt_cell(g.safety_delta):<16} "
+              f"{_fmt_cell(g.access_delta):<14}")
     print("-" * 92)
-    print("  MEAS = measured from the sim | EST = estimated. NOTE: the ENTIRE access column is a")
-    print("  heuristic estimate (all groups). local_resident safety is inferred (corridor-wide). safety")
-    print("  values are a dimensionless severity-sum delta — a relative aggregate, not a crash count/rate.")
+    print("  [MEAS] = measured from the sim | [LOW] = low confidence (heuristic / not seed-robust).")
+    print("  The ENTIRE access column is a heuristic estimate (all groups). SAFETY signs flip across")
+    print("  seeds 42/43/44 — a magnitude, not a directional claim; values are a dimensionless")
+    print("  severity-sum delta (a relative aggregate), never a crash count/rate.")
     print("=" * 92)
     car = next(g for g in reloaded.scorecard.groups if g.group == "car_commuter")
     print(f"[car concentration] median {car.travel_time_delta.value:+.1f}s but "
