@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 
-import type { Scorecard, ScorecardCell, ScorecardGroup } from '@/lib/types';
+import type { Scorecard, ScorecardGroup } from '@/lib/types';
 import { GROUP_LABEL, OTHER_VOICES_GROUP, SCORECARD_GROUP_ORDER } from '@/lib/personaGroups';
+import { BETTER, chipInferred, chipSim, ScoreCell, WORSE } from '@/lib/scorecardStyles';
 
 /**
  * The per-STAKEHOLDER scorecard (7 groups × travel_time / safety / access). Honesty is the whole point:
@@ -18,53 +19,6 @@ interface ScorecardPanelProps {
   scorecard: Scorecard | undefined;
   activeGroup: string | null;
   onSelectGroup: (group: string) => void;
-}
-
-const WORSE = '#c64545';
-const BETTER = '#3caa5a';
-const NEUTRAL = '#6b7280';
-
-function signColor(value: number): string {
-  return value > 0 ? WORSE : value < 0 ? BETTER : NEUTRAL;
-}
-
-function fmtSigned(value: number, unit: string): string {
-  const s = value > 0 ? '+' : value < 0 ? '−' : '';
-  return `${s}${Math.abs(value).toFixed(unit === 's' ? 1 : 2)}${unit}`;
-}
-
-/** Render one cell. `kind` decides the honesty treatment. */
-function Cell({ cell, kind }: { cell: ScorecardCell | null | undefined; kind: 'travel' | 'safety' | 'access' }) {
-  if (!cell || cell.value == null) {
-    return (
-      <div style={cellBox} data-testid="scorecard-cell">
-        <span style={{ color: '#c2c7cf' }}>—</span>
-      </div>
-    );
-  }
-  const badge = cell.confidence === 'measured' ? 'MEAS' : 'LOW';
-  const low = cell.confidence !== 'measured';
-
-  let valueEl: React.ReactNode;
-  if (kind === 'safety') {
-    // Magnitude only — direction not claimed (seed-unstable sign). Neutral, no sign color.
-    valueEl = <span style={{ color: NEUTRAL }}>±{Math.abs(cell.value).toFixed(2)}</span>;
-  } else if (kind === 'travel') {
-    valueEl = <span style={{ color: signColor(cell.value) }}>{fmtSigned(cell.value, 's')}</span>;
-  } else {
-    // access — directional heuristic, sign-colored but muted (it's an estimate).
-    valueEl = <span style={{ color: signColor(cell.value) }}>{fmtSigned(cell.value, '')}</span>;
-  }
-
-  return (
-    <div style={{ ...cellBox, ...(low ? cellLow : null) }} title={cell.note ?? undefined} data-testid="scorecard-cell">
-      <div style={cellValRow}>{valueEl}</div>
-      {kind === 'travel' && cell.affected_share != null && (
-        <div style={cellSub}>{Math.round(cell.affected_share * 100)}% &gt;30s</div>
-      )}
-      <span style={badge === 'MEAS' ? badgeMeas : badgeLow}>{badge}</span>
-    </div>
-  );
 }
 
 export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup }: ScorecardPanelProps) {
@@ -122,9 +76,9 @@ export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup }: Scorec
                     {g?.grounding ?? 'inferred'}
                   </span>
                 </span>
-                <Cell cell={g?.travel_time_delta} kind="travel" />
-                <Cell cell={g?.safety_delta} kind="safety" />
-                <Cell cell={g?.access_delta} kind="access" />
+                <ScoreCell cell={g?.travel_time_delta} kind="travel" />
+                <ScoreCell cell={g?.safety_delta} kind="safety" />
+                <ScoreCell cell={g?.access_delta} kind="access" />
               </button>
             );
           })}
@@ -200,43 +154,6 @@ const groupRow: React.CSSProperties = {
 const groupRowActive: React.CSSProperties = { background: '#e8f0fe', border: '1px solid #c7dbfb' };
 const groupLabelCol: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center', paddingLeft: 4 };
 const groupName: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#1f2937' };
-const cellBox: React.CSSProperties = {
-  position: 'relative',
-  background: '#f3f4f6',
-  borderRadius: 8,
-  padding: '6px 4px 5px',
-  textAlign: 'center',
-  minHeight: 34,
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'center',
-  fontVariantNumeric: 'tabular-nums',
-};
-const cellLow: React.CSSProperties = { background: '#f7f7f8', opacity: 0.72 };
-const cellValRow: React.CSSProperties = { fontSize: 13, fontWeight: 600 };
-const cellSub: React.CSSProperties = { fontSize: 9, color: '#8a8a8a', marginTop: 1 };
-const badgeBase: React.CSSProperties = {
-  position: 'absolute',
-  top: 2,
-  right: 3,
-  fontSize: 7,
-  fontWeight: 700,
-  letterSpacing: 0.3,
-  padding: '0 2px',
-  borderRadius: 3,
-};
-const badgeMeas: React.CSSProperties = { ...badgeBase, color: '#2f855a', background: '#e3f3e9' };
-const badgeLow: React.CSSProperties = { ...badgeBase, color: '#9aa0a6', background: '#ececee' };
-const chipBase: React.CSSProperties = {
-  fontSize: 9,
-  letterSpacing: 0.2,
-  borderRadius: 5,
-  padding: '0 5px',
-  alignSelf: 'flex-start',
-};
-const chipSim: React.CSSProperties = { ...chipBase, color: '#3f6212', background: '#ecf6dd' };
-const chipInferred: React.CSSProperties = { ...chipBase, color: '#6b7280', background: '#eef1f4' };
 const otherRow: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',

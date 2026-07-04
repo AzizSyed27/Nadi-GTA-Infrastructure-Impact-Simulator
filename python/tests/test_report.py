@@ -1,0 +1,212 @@
+"""Tests for the Phase-3.1 report generator's HONESTY MECHANICS (no LLM / network needed).
+
+The report's credibility rests on two deterministic guards; these lock them in:
+  * the POST-GENERATION AUDIT (`audit_prose`) — catches digits / safety-direction / tally / crash words in
+    LLM prose, and lets qualitative texture through;
+  * the CODE-RENDERED FACT CHECK (`verify_facts`) — catches OUR OWN number-rendering bugs (a sign flip or
+    miscount the prose audit can't see), plus the ± safety render and the cross-seed-verdict run/change guard.
+
+Run:  python -m pytest python/tests/test_report.py -v
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
+import report  # noqa: E402
+from contract_models import (  # noqa: E402
+    Change, Meta, Scenario, Scorecard, ScorecardCell, ScorecardGroup, TrajectoryArtifact, Vehicle,
+)
+
+RUNS_DIR = REPO_ROOT / "contract" / "runs"
+
+
+# --------------------------------------------------------------------------------------------------
+# Audit rules — each catches its violation; qualitative texture passes clean.
+# --------------------------------------------------------------------------------------------------
+
+def _rules(text: str) -> set[str]:
+    return {r for r, _ in report.audit_prose(text)}
+
+
+def test_audit_catches_digits():
+    assert "digits" in _rules("The delay is about 30 seconds for some drivers.")
+    assert not report.audit_prose("Most drivers are unaffected, but a small group is markedly slower.")
+
+
+def test_audit_catches_safety_direction():
+    assert "safety_direction" in _rules("The change made the street safer for everyone.")
+    assert "safety_direction" in _rules("Conflicts increased sharply at the junction.")
+    assert "safety_direction" in _rules("The change reduced collisions along the block.")
+    # qualitative concern with no direction claim is clean
+    assert not _rules("Some drivers worry about losing a lane near the school.")
+    # NOT a false positive: the direction word modifies ACCESS, not the (co-mentioned) safety signal
+    assert not _rules("A safety signal exists but its direction is uncertain, while access is slightly improved.")
+    assert not _rules("Business owners show no measurable safety signal, but access is slightly worse.")
+
+
+def test_audit_catches_tally_but_allows_texture():
+    assert "tally" in _rules("The majority oppose the change.")
+    assert "tally" in _rules("A referendum would settle whether to build it.")
+    assert "tally" in _rules("There was overwhelming support from residents.")
+    # describing the RANGE of reactions qualitatively is section 3's whole job — must stay clean
+    assert not _rules("Some residents welcome calmer streets, while others are wary of losing a lane.")
+    assert not _rules("A recurring hope is that the corridor becomes more inviting; some remain skeptical.")
+
+
+def test_audit_catches_crash_words_but_allows_disclaimer():
+    assert "crash" in _rules("This change will cause more accidents on the corridor.")
+    # a pure disclaimer that names what it refuses to claim is allowlisted
+    assert not _rules("This tool cannot predict crashes or their probability.")
+
+
+# --------------------------------------------------------------------------------------------------
+# Cell rendering — ± magnitude for safety, signed for travel/access, POSITIVE = worse.
+# --------------------------------------------------------------------------------------------------
+
+def _cell(value, share=None, conf="low"):
+    return ScorecardCell(value=value, affected_share=share, confidence=conf, note="n")
+
+
+def test_safety_renders_as_magnitude_no_direction():
+    s = report.render_cell(_cell(6.579), "safety")
+    assert s == "±6.58 [LOW]"
+    assert "+" not in s and "-" not in s and "−" not in s  # never a direction
+    assert report.render_cell(None, "safety") == "—"
+
+
+def test_travel_and_access_render_signed():
+    assert report.render_cell(_cell(0.0, share=0.033, conf="measured"), "travel") == "+0.0s, 3.3% >30s [MEAS]"
+    assert report.render_cell(_cell(0.5), "access") == "+0.50 [LOW]"        # POSITIVE = worse
+    assert report.render_cell(_cell(-1.0), "access") == "-1.00 [LOW]"       # negative = better (ASCII minus in .md)
+
+
+def test_sparse_gloss_never_denies_a_magnitude_the_table_shows():
+    # A safety-only group (like local_resident, safety ±7.35) must NOT be glossed as "no signal" — the LLM
+    # sometimes did; the deterministic gloss acknowledges the magnitude and refuses only the direction.
+    safety_only = ScorecardGroup(group="local_resident", grounding="inferred", travel_time_delta=None,
+                                 safety_delta=ScorecardCell(value=7.35, confidence="low", note="unstable"),
+                                 access_delta=None)
+    g = report._deterministic_gloss(safety_only, "Local residents")
+    assert "magnitude is present" in g and "direction is not" in g
+    assert "no measurable" not in g.lower() and "no signal" not in g.lower()
+
+    access_only = ScorecardGroup(group="business_owner", grounding="inferred", travel_time_delta=None,
+                                 safety_delta=None, access_delta=ScorecardCell(value=0.5, confidence="low", note="est"))
+    assert "slightly worse" in report._deterministic_gloss(access_only, "Business owners")  # +0.5 = worse
+
+    empty = ScorecardGroup(group="accessibility", grounding="inferred")
+    assert "enough measurable signal" in report._deterministic_gloss(empty, "Accessibility")
+
+
+def test_valence_resolves_direction_so_the_gloss_cannot_invert_it():
+    assert "worse" in report.cell_valence(_cell(0.5), "access")             # +0.5 access = worse
+    assert "better" in report.cell_valence(_cell(-1.0), "access")           # -1.0 access = better
+    assert "direction is not claimed" in report.cell_valence(_cell(7.35), "safety")
+    assert report.cell_valence(None, "access") == "no measurable signal"
+    tail = report.cell_valence(_cell(0.0, share=0.033, conf="measured"), "travel")
+    assert "small group is markedly slower" in tail
+
+
+# --------------------------------------------------------------------------------------------------
+# A fixture artifact + outcomes (hermetic — no run on disk needed).
+# --------------------------------------------------------------------------------------------------
+
+def _artifact() -> TrajectoryArtifact:
+    change = Change(type="bike_lane", target_edge="E1", target_lane=1, value_mps=None,
+                    description="Converted a car lane to a bike lane")
+    meta = Meta(run_id="scen-TEST", network="corridor.net.xml", bbox=[-79.3, 43.7, -79.1, 43.8],
+                sim_start=0.0, sim_end=100.0, step_length=1.0, created_at="2026-07-04T00:00:00+00:00",
+                scenario=Scenario(baseline_run_id="base-TEST", change=change))
+    groups = [
+        ScorecardGroup(group="car_commuter", grounding="sim",
+                       travel_time_delta=ScorecardCell(value=0.0, affected_share=0.033, confidence="measured", note="tt"),
+                       safety_delta=ScorecardCell(value=6.5, confidence="low", note="safety unstable"),
+                       access_delta=ScorecardCell(value=0.33, confidence="low", note="est")),
+        ScorecardGroup(group="cyclist", grounding="sim",
+                       travel_time_delta=ScorecardCell(value=0.0, affected_share=0.0, confidence="measured", note="tt"),
+                       safety_delta=ScorecardCell(value=6.8, confidence="low", note="safety unstable"),
+                       access_delta=ScorecardCell(value=-1.0, confidence="low", note="est")),
+    ]
+    return TrajectoryArtifact(schema_version="0.3.0", meta=meta,
+                              vehicles=[Vehicle(id="c1", type="car", path=[[-79.2, 43.75], [-79.2, 43.76]],
+                                                timestamps=[0.0, 1.0], speeds=[1.0, 1.0])],
+                              scorecard=Scorecard(groups=groups, bca=None))
+
+
+def _outcomes() -> dict:
+    return {
+        "scenario_run_id": "scen-TEST", "baseline_run_id": "base-TEST",
+        "connectivity_severed_edges": [], "reroute": {"cars_rerouted": 0, "cars_matched": 300},
+        "modes": {m: {"counts": {"total_demand": d}} for m, d in
+                  (("car", 300), ("bicycle", 82), ("pedestrian", 129))},
+    }
+
+
+def test_verify_facts_passes_on_consistent_render():
+    art, out = _artifact(), _outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)  # must not raise
+    assert facts["demand"] == {"car": 300, "bicycle": 82, "pedestrian": 129}
+    assert facts["tail_share_pct"] == 3.3
+
+
+def test_fact_check_catches_a_miscounted_number():
+    art, out = _artifact(), _outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["demand"]["car"] = 301  # a rendering bug the PROSE audit could never see
+    with pytest.raises(AssertionError, match="demand"):
+        report.verify_facts(facts, art, out)
+
+
+def test_fact_check_catches_a_flipped_tail_share():
+    art, out = _artifact(), _outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["tail_share_pct"] = 33.0  # decimal slip (×10)
+    with pytest.raises(AssertionError, match="tail_share_pct"):
+        report.verify_facts(facts, art, out)
+
+
+# --------------------------------------------------------------------------------------------------
+# Cross-seed verdict guard — only trusted when run_id AND change match this artifact.
+# --------------------------------------------------------------------------------------------------
+
+def test_verdict_guard_rejects_a_mismatched_run(tmp_path, monkeypatch):
+    art = _artifact()
+    # point report at a temp runs dir and write a verdict for a DIFFERENT run/change
+    monkeypatch.setattr(report, "RUNS_DIR", tmp_path)
+    (tmp_path / "robustness-verdict-TS.json").write_text(json.dumps({
+        "scenario_run_id": "some-other-run", "target_edge": "E9",
+        "car_tail": {"range_gt30": [0.02, 0.03]},
+    }), encoding="utf-8")
+    assert report._load_verdict("TS", art) is None  # mismatch → qualitative fallback
+
+    # a MATCHING verdict is accepted
+    (tmp_path / "robustness-verdict-OK.json").write_text(json.dumps({
+        "scenario_run_id": "scen-TEST", "target_edge": "E1",
+        "car_tail": {"range_gt30": [0.023, 0.033], "seeds": [42, 43, 44]},
+    }), encoding="utf-8")
+    got = report._load_verdict("OK", art)
+    assert got is not None and got["range_gt30"] == [0.023, 0.033]
+
+
+# --------------------------------------------------------------------------------------------------
+# Section-3 bucketing + bounded sentiment-spread sample.
+# --------------------------------------------------------------------------------------------------
+
+def test_spread_sample_is_bounded_and_sorted():
+    class _A:
+        def __init__(self, s):
+            self.reaction = type("R", (), {"sentiment": s})()
+    agents = [_A(s) for s in (0.5, -0.9, 0.1, -0.3, 0.8, -0.6, 0.0, 0.9, -0.1, 0.4)]
+    out = report._spread_sample(agents, 4)
+    assert len(out) <= 4
+    sentiments = [a.reaction.sentiment for a in out]
+    assert sentiments == sorted(sentiments)  # spans worst→best in order
+    assert sentiments[0] == -0.9 and sentiments[-1] == 0.9  # includes the extremes

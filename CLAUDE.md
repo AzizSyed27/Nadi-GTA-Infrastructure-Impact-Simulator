@@ -54,6 +54,28 @@ that pins ~12 persona agents to winner/loser travelers, an LLM reaction layer (p
 Groq default) that voices each as an INDIVIDUAL anticipated reaction, all assembled into a v0.2.0
 artifact and played back on the map with sentiment-colored instrumented dots, a click-through panel,
 and a live comment feed keyed to each traveler's worst moment.
+
+**Phase 2 — IN PROGRESS.** The artifact is now **v0.3.0** (contract bumped, both sides updated): a
+per-STAKEHOLDER **scorecard** (7 groups × travel_time / safety / access) with per-cell honesty metadata
+— `confidence` (`measured`/`low`) + a `note` — plus safety surrogates and conflict events; the agent pass
+scaled to ~212 voices across three grounding kinds (vehicle-pinned, person-pinned, and INFERRED community
+voices that have no simulated trajectory). Frontend (steps 2.6a/2.6b) renders it end to end:
+- Discriminated agent union (`SimVehicleAgent | SimPersonAgent | inferred Agent`); background peds + person-
+  pinned instrumented agents drawn from `persons[]`; time-synced conflict pulses ("near-miss events observed
+  in this run", never "danger added by the change").
+- A collapsible **ScorecardPanel** (right rail): confidence badges are load-bearing — `[LOW]` cells muted,
+  **safety rendered as `±magnitude` with NO direction color** (the sign is seed-unstable per the cell's own
+  note), travel_time sign-colored + "N% >30s", notes on hover, seed-caveat tooltip on the safety column.
+- **CommentFeed at 212**: sim voices pop at `trigger_t`; inferred community voices interleave on a
+  render-time synthetic clock (evenly spaced + deterministic jitter, NO fake `trigger_t` written to data),
+  styled distinctly ("— community perspective", no map-dot link); cap 50 + "show earlier".
+- The **scorecard→feed join** (click a group row → filter the feed to that group's voices; `skeptical_taxpayer`
+  has no scorecard row → "Other voices" affordance) and the reverse join (click a pinned feed row → `flyTo` +
+  flash its dot). REFERENDUM GUARD is a hard UI rule: NO stance tallies / sentiment averages / vote counters
+  anywhere (the old "N of M travelers" feed denominator was removed).
+- Client-side `web/lib/personaGroups.ts` maps persona id → group / mode-icon / label (runtime `agent.persona`
+  is trimmed to `{id, label}` only, so the mapping cannot come from the artifact).
+
 Next: Phase 2 — social-graph opinion propagation (OASIS) + the report agent's GraphRAG memory (two
 distinct graphs; see the locked decisions). Agents still preview, never a verdict.
 

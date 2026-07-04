@@ -15,6 +15,7 @@ import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
 import { AgentPanel } from '@/components/AgentPanel';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
+import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { activeAt, agentId, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
 
@@ -56,6 +57,7 @@ export default function MapView() {
   const [showAllConflicts, setShowAllConflicts] = useState(true);
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
+  const [showReport, setShowReport] = useState(false); // full-screen Report view (toggled from the map)
   const mapRef = useRef<MapRef | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -361,9 +363,32 @@ export default function MapView() {
         onSeek={setCurrentTime}
         vehicleCount={artifact.vehicles.length}
       />
+
+      <button style={reportBtn} onClick={() => setShowReport(true)} data-testid="open-report">
+        📄 Report
+      </button>
+      {showReport && <ReportPanel onClose={() => setShowReport(false)} />}
     </div>
   );
 }
+
+// Top-left affordance to open the full-screen Report view (the generated per-run report).
+const reportBtn: React.CSSProperties = {
+  position: 'absolute',
+  top: 16,
+  left: 16,
+  zIndex: 25,
+  border: '1px solid #d7dbe0',
+  background: 'rgba(255,255,255,0.96)',
+  borderRadius: 10,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+  padding: '8px 12px',
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#374151',
+  fontFamily: 'system-ui, sans-serif',
+  cursor: 'pointer',
+};
 
 // Top-right rail: scorecard stacked ABOVE the agent panel. Pointer-transparent so map clicks pass
 // through the gaps; each child card re-enables pointer events on itself.

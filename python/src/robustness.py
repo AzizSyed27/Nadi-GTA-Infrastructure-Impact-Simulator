@@ -75,6 +75,7 @@ def _seed42() -> dict:
     outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
     return {
         "seed": 42, "ts": ts, "permissive": False,
+        "scenario_run_id": art["meta"]["run_id"],
         "ssm_base": RUNS_DIR / f"multimodal-baseline-{ts}.ssm.xml",
         "ssm_scen": RUNS_DIR / f"multimodal-scenario-{ts}.ssm.xml",
         "ped_base": _peds(base["conflicts"]), "ped_scen": _peds(art["conflicts"]),
@@ -190,11 +191,15 @@ def materiality_table(outcomes: dict) -> None:
         print(f"| {group} | {n} | {shares[0]:.0%} | {shares[1]:.0%} | {shares[2]:.0%} |")
 
 
-def cross_seed_car_tail(seed42: dict) -> None:
+def cross_seed_car_tail(seed42: dict) -> dict:
     """2.5 close-out — is the travel-time SHAPE ('a small hard-hit tail, majority unaffected') stable
     across seeds, even though the safety SIGN is not? Parse-only: seed 42 from its outcomes sidecar,
     seeds 43/44 from the tripinfo already on disk (robustness-{baseline,scenario}-s<N>.tripinfo.xml)
-    joined per-mode. Reports the CAR affected_share at the >30 s and >60 s material cutoffs."""
+    joined per-mode. Reports the CAR affected_share at the >30 s and >60 s material cutoffs.
+
+    Returns the structured verdict (per-seed shares + the [lo, hi] ranges + the verdict sentence) so the
+    caller can PERSIST it — 3.1's report.py reads the range instead of re-deriving it (it is otherwise
+    stdout-only). Prints the same table it always did."""
     demand = {"car": sh.count_demand(sh.ROUTES), "bicycle": sh.count_demand(sh.BIKE_ROUTES),
               "pedestrian": sh.count_persons(sh.PED_ROUTES)}
 
@@ -213,15 +218,26 @@ def cross_seed_car_tail(seed42: dict) -> None:
           "affected_share = fraction of matched cars slower than the cutoff.\n")
     print("| seed | matched cars | car >30s | car >60s |")
     print("|---|---|---|---|")
-    shares30 = []
+    per_seed = []
     for seed, outc in rows:
         n, s30, s60 = car_shares(outc)
-        shares30.append(s30)
+        per_seed.append({"seed": seed, "matched_cars": n, "share_gt30": round(s30, 5), "share_gt60": round(s60, 5)})
         print(f"| {seed} | {n} | {s30:.1%} | {s60:.1%} |")
-    lo, hi = min(shares30), max(shares30)
-    print(f"\n**Verdict:** across seeds 42/43/44 the car >30 s share sits in [{lo:.1%}, {hi:.1%}] — a small "
-          f"hard-hit tail with the vast majority unaffected. The SHAPE (concentrated cost, not broad) is "
-          f"STABLE across seeds, even though the safety-delta SIGN is not.")
+    s30s = [r["share_gt30"] for r in per_seed]
+    s60s = [r["share_gt60"] for r in per_seed]
+    lo, hi = min(s30s), max(s30s)
+    verdict = (f"across seeds 42/43/44 the car >30 s share sits in [{lo:.1%}, {hi:.1%}] — a small "
+               f"hard-hit tail with the vast majority unaffected. The SHAPE (concentrated cost, not broad) is "
+               f"STABLE across seeds, even though the safety-delta SIGN is not.")
+    print(f"\n**Verdict:** {verdict}")
+    return {
+        "seeds": [42] + NEW_SEEDS,
+        "materiality_s": 30,
+        "per_seed": per_seed,
+        "range_gt30": [lo, hi],
+        "range_gt60": [min(s60s), max(s60s)],
+        "verdict": verdict,
+    }
 
 
 def main() -> None:
@@ -247,8 +263,19 @@ def main() -> None:
     seed_table(all_seeds)
     threshold_table(seeds_new, seed42)
     materiality_table(seed42["outcomes"])
-    cross_seed_car_tail(seed42)
+    tail = cross_seed_car_tail(seed42)
     print("\n(seed 42 comparability: re-parse at TTC 3.0 reproduces the 2.4b scorecard — validated.)")
+
+    # PERSIST the cross-seed verdict so 3.1's report.py can READ the range (otherwise stdout-only). Stamp it
+    # with the run id AND the change/target_edge — the seed-43/44 tripinfo is not ts-stamped, so report.py's
+    # guard confirms this verdict was produced for the SAME change before trusting it (else it degrades).
+    verdict = {"scenario_run_id": seed42["scenario_run_id"],
+               "change": change.model_dump(mode="json"), "target_edge": target_edge,
+               "car_tail": tail}
+    verdict_path = RUNS_DIR / f"robustness-verdict-{seed42['ts']}.json"
+    verdict_path.write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+    print(f"\n[verdict] persisted -> {verdict_path.name}  (car >30s range {tail['range_gt30'][0]:.1%}"
+          f"–{tail['range_gt30'][1]:.1%})")
 
 
 if __name__ == "__main__":
