@@ -50,15 +50,14 @@ export function AgentPanel({ agent, onClose }: { agent: PinnedSimAgent | null; o
 }
 
 const panel: React.CSSProperties = {
-  position: 'absolute',
-  top: 70,
-  right: 16,
-  width: 300,
+  // Positioned by the parent right-rail (2.6b) — relative so the close button still anchors to it.
+  position: 'relative',
+  width: '100%',
   padding: '16px 18px',
   borderRadius: 12,
   background: 'rgba(255,255,255,0.97)',
   boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
-  zIndex: 20,
+  pointerEvents: 'auto',
   fontFamily: 'system-ui, sans-serif',
 };
 const close: React.CSSProperties = {

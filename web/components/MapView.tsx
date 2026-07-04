@@ -8,14 +8,15 @@ import { ScatterplotLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import type { Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
+import type { Agent, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
 import { AgentPanel } from '@/components/AgentPanel';
+import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
-import { activeAt, agentId, positionAtCached, sentimentColor } from '@/lib/viz';
+import { activeAt, agentId, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
 
 // Token-free CARTO positron style (no API key).
 const POSITRON = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
@@ -53,7 +54,10 @@ export default function MapView() {
   const [currentTime, setCurrentTime] = useState(0);
   const [selected, setSelected] = useState<PinnedSimAgent | null>(null);
   const [showAllConflicts, setShowAllConflicts] = useState(true);
+  const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
+  const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
   const mapRef = useRef<MapRef | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +72,11 @@ export default function MapView() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Clear any pending flash timer on unmount.
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
   }, []);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
@@ -109,7 +118,32 @@ export default function MapView() {
 
   // Agents for the time-keyed comment feed = the pinned ones (all carry trigger_t).
   const pinnedAgents = useMemo(() => pinned.map((p) => p.agent), [pinned]);
+  // Inferred (community) voices — no trip, no dot; the feed interleaves them on a synthetic clock.
+  const inferredAgents = useMemo<Agent[]>(
+    () => (artifact?.agents ?? []).filter((a) => a.grounding === 'inferred'),
+    [artifact],
+  );
+  // agentId → pinned entry, for the reverse join (feed row → fly to that traveler's dot).
+  const pinnedById = useMemo(() => {
+    const m: Record<string, Pinned> = {};
+    for (const p of pinned) m[agentId(p.agent)] = p;
+    return m;
+  }, [pinned]);
   const conflicts = useMemo(() => artifact?.conflicts ?? [], [artifact]);
+
+  // Reverse join: fly to (and briefly ring) a pinned agent's dot at its worst moment (trigger_t position).
+  const onLocate = useCallback(
+    (a: PinnedSimAgent) => {
+      const p = pinnedById[agentId(a)];
+      if (!p) return;
+      const [lon, lat] = positionAt(p.path, p.timestamps, a.trigger_t);
+      mapRef.current?.getMap().flyTo({ center: [lon, lat], zoom: 14, duration: 800 });
+      setFlashId(agentId(a));
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlashId(null), 1300);
+    },
+    [pinnedById],
+  );
 
   // Near-miss tooltip — hover on a conflict dot/pulse. Ordinal framing ONLY (never a rate/probability).
   const getTooltip = useCallback((info: PickingInfo) => {
@@ -244,6 +278,21 @@ export default function MapView() {
     updateTriggers: { getPosition: t, getRadius: t }, // NOT getFillColor — sentiment is static
   });
 
+  // 5) Flash ring (reverse join): a transient white ring at a located agent's worst-moment position.
+  const flashData = flashId && pinnedById[flashId] ? [pinnedById[flashId]] : [];
+  const flashRing = new ScatterplotLayer<Pinned>({
+    id: 'flash-ring',
+    data: flashData,
+    getPosition: (d) => positionAt(d.path, d.timestamps, d.agent.trigger_t),
+    filled: false,
+    stroked: true,
+    getLineColor: [40, 90, 200, 230],
+    getLineWidth: 2.5,
+    lineWidthUnits: 'pixels',
+    getRadius: 18,
+    radiusUnits: 'pixels',
+  });
+
   const layers: Layer[] = [
     trails,
     backgroundVehicleDots,
@@ -251,6 +300,7 @@ export default function MapView() {
     conflictDots,
     conflictPulses,
     instrumentedDots,
+    flashRing,
   ];
 
   return (
@@ -280,11 +330,24 @@ export default function MapView() {
       <ScenarioHeader scenario={meta.scenario} />
       <CommentFeed
         agents={pinnedAgents}
+        inferred={inferredAgents}
         currentTime={t}
+        simStart={meta.sim_start}
+        simEnd={meta.sim_end}
+        filterGroup={feedGroup}
+        onClearFilter={() => setFeedGroup(null)}
         onSelect={setSelected}
+        onLocate={onLocate}
         selectedId={selected ? agentId(selected) : null}
       />
-      <AgentPanel agent={selected} onClose={() => setSelected(null)} />
+      <div style={rightRail}>
+        <ScorecardPanel
+          scorecard={artifact.scorecard}
+          activeGroup={feedGroup}
+          onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
+        />
+        <AgentPanel agent={selected} onClose={() => setSelected(null)} />
+      </div>
       <ConflictLegend
         count={conflicts.length}
         activeCount={activeConflicts.length}
@@ -301,6 +364,22 @@ export default function MapView() {
     </div>
   );
 }
+
+// Top-right rail: scorecard stacked ABOVE the agent panel. Pointer-transparent so map clicks pass
+// through the gaps; each child card re-enables pointer events on itself.
+const rightRail: React.CSSProperties = {
+  position: 'absolute',
+  top: 70,
+  right: 16,
+  width: 340,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+  maxHeight: 'calc(100vh - 160px)',
+  overflowY: 'auto',
+  zIndex: 20,
+  pointerEvents: 'none',
+};
 
 const loading: React.CSSProperties = {
   position: 'absolute',

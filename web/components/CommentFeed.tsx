@@ -1,61 +1,151 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
-import type { PinnedSimAgent } from '@/lib/types';
+import type { Agent, PinnedSimAgent } from '@/lib/types';
 import { agentId, sentimentHex } from '@/lib/viz';
+import { GROUP_LABEL, groupOfAgent, modeIcon } from '@/lib/personaGroups';
 
 interface CommentFeedProps {
+  /** Sim-grounded agents (carry trigger_t — pop at their worst moment). */
   agents: PinnedSimAgent[];
+  /** Inferred community agents (no trigger_t — interleaved on a synthetic render-time clock). */
+  inferred: Agent[];
   currentTime: number;
+  simStart: number;
+  simEnd: number;
+  /** When set, show only voices whose group matches (the scorecard→feed join). */
+  filterGroup: string | null;
+  onClearFilter: () => void;
   onSelect: (agent: PinnedSimAgent) => void;
+  /** Reverse join: pan/flash a pinned agent's dot. */
+  onLocate: (agent: PinnedSimAgent) => void;
   selectedId?: string | null;
 }
 
+const CAP = 50; // render the most-recent N; the rest hide behind "show earlier"
+
+type FeedItem =
+  | { key: string; when: number; kind: 'sim'; agent: PinnedSimAgent }
+  | { key: string; when: number; kind: 'community'; agent: Agent };
+
+/** Deterministic 0..1 hash of a string — for stable per-voice jitter (NOT Math.random, which would
+ *  reshuffle every frame). */
+function hash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10000) / 10000;
+}
+
 /**
- * Live ticker. Each agent's comment appears once playback crosses its `trigger_t` (the traveler's
- * worst-traffic moment). Derived from `currentTime` each render, so scrubbing back — or the timeline
- * looping to the start — empties/refills it automatically (no stale buffer). Newest on top; clicking a
- * row opens that traveler's panel.
+ * Live ticker of anticipated reactions. Sim voices pop as playback crosses their `trigger_t`; inferred
+ * COMMUNITY voices are assigned synthetic, evenly-spaced display times across the sim window AT RENDER
+ * (the artifact carries no fake trigger_t) and interleave with a distinct "community perspective" style.
+ * Clicking a group row in the scorecard filters this feed to that group. NO tallies, NO stance averages —
+ * this is voices over time, never a vote.
  */
-export function CommentFeed({ agents, currentTime, onSelect, selectedId }: CommentFeedProps) {
-  const fired = useMemo(
-    () => agents.filter((a) => a.trigger_t <= currentTime).sort((a, b) => b.trigger_t - a.trigger_t),
-    [agents, currentTime],
+export function CommentFeed(props: CommentFeedProps) {
+  const { agents, inferred, currentTime, simStart, simEnd, filterGroup, onClearFilter, onSelect, onLocate, selectedId } =
+    props;
+  const [expanded, setExpanded] = useState(false);
+
+  // Synthetic display clock for inferred voices — evenly spaced + small deterministic jitter so they
+  // don't land on a mechanical cadence. Recomputed only when the inferred set / window changes.
+  const communityItems = useMemo<FeedItem[]>(() => {
+    const n = inferred.length;
+    if (n === 0) return [];
+    const spacing = (simEnd - simStart) / (n + 1);
+    return inferred.map((a, i) => {
+      const key = `inf:${agentId(a)}:${i}`;
+      const base = simStart + spacing * (i + 1);
+      const jitter = (hash01(key) - 0.5) * spacing * 0.6;
+      const when = Math.min(simEnd, Math.max(simStart, base + jitter));
+      return { key, when, kind: 'community', agent: a };
+    });
+  }, [inferred, simStart, simEnd]);
+
+  const simItems = useMemo<FeedItem[]>(
+    () => agents.map((a) => ({ key: `sim:${agentId(a)}`, when: a.trigger_t, kind: 'sim', agent: a })),
+    [agents],
   );
 
-  if (agents.length === 0) return null;
+  const fired = useMemo(() => {
+    const all = [...simItems, ...communityItems].filter((it) => it.when <= currentTime);
+    const scoped = filterGroup ? all.filter((it) => groupOfAgent(it.agent) === filterGroup) : all;
+    return scoped.sort((a, b) => b.when - a.when);
+  }, [simItems, communityItems, currentTime, filterGroup]);
+
+  if (agents.length === 0 && inferred.length === 0) return null;
+
+  const shown = expanded ? fired : fired.slice(0, CAP);
+  const hiddenCount = fired.length - shown.length;
 
   return (
     <div style={wrap} data-testid="comment-feed">
       <div style={head}>
-        ANTICIPATED REACTIONS{' '}
-        <span style={{ color: '#9aa0a6' }}>
-          {fired.length} of {agents.length} travelers so far
-        </span>
+        <span>ANTICIPATED REACTIONS</span>
+        {filterGroup && (
+          <button style={chip} onClick={onClearFilter} data-testid="feed-filter-chip">
+            showing: {GROUP_LABEL[filterGroup] ?? filterGroup} <span style={chipX}>×</span>
+          </button>
+        )}
       </div>
       <div style={list}>
-        {fired.length === 0 ? (
-          <div style={empty}>Press play — reactions pop as each traveler hits their worst moment.</div>
+        {shown.length === 0 ? (
+          <div style={empty}>
+            {filterGroup
+              ? `No ${GROUP_LABEL[filterGroup] ?? filterGroup} voices yet — keep playing.`
+              : 'Press play — reactions pop as each traveler hits their worst moment.'}
+          </div>
         ) : (
-          fired.map((a, i) => (
-            <button
-              key={agentId(a)}
-              data-testid="comment-row"
-              onClick={() => onSelect(a)}
-              style={{
-                ...row,
-                ...(i === 0 ? rowFresh : null),
-                ...(agentId(a) === selectedId ? rowSelected : null),
-              }}
-            >
-              <span style={dot(sentimentHex(a.reaction.sentiment))} />
-              <span style={rowText}>
-                <span style={rowLabel}>{a.persona.label}</span>
-                <span style={rowComment}>{a.reaction.comment}</span>
-              </span>
-            </button>
-          ))
+          <>
+            {shown.map((it, i) =>
+              it.kind === 'sim' ? (
+                <button
+                  key={it.key}
+                  data-testid="comment-row"
+                  onClick={() => {
+                    onSelect(it.agent);
+                    onLocate(it.agent);
+                  }}
+                  style={{
+                    ...row,
+                    ...(i === 0 ? rowFresh : null),
+                    ...(agentId(it.agent) === selectedId ? rowSelected : null),
+                  }}
+                >
+                  <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
+                  <span style={rowText}>
+                    <span style={rowLabel}>
+                      <span style={icon}>{modeIcon(it.agent.persona.id)}</span>
+                      {it.agent.persona.label}
+                    </span>
+                    <span style={rowComment}>{it.agent.reaction.comment}</span>
+                  </span>
+                </button>
+              ) : (
+                <div key={it.key} data-testid="community-row" style={communityRow}>
+                  <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
+                  <span style={rowText}>
+                    <span style={rowLabel}>
+                      <span style={icon}>{modeIcon(it.agent.persona.id)}</span>
+                      {it.agent.persona.label}
+                      <span style={communityTag}>— community perspective</span>
+                    </span>
+                    <span style={rowComment}>{it.agent.reaction.comment}</span>
+                  </span>
+                </div>
+              ),
+            )}
+            {hiddenCount > 0 && (
+              <button style={showEarlier} onClick={() => setExpanded(true)} data-testid="show-earlier">
+                show earlier ({hiddenCount})
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -78,6 +168,10 @@ const wrap: React.CSSProperties = {
   overflow: 'hidden',
 };
 const head: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
   padding: '8px 12px',
   fontSize: 11,
   fontWeight: 700,
@@ -85,6 +179,19 @@ const head: React.CSSProperties = {
   color: '#374151',
   borderBottom: '1px solid #eee',
 };
+const chip: React.CSSProperties = {
+  border: 'none',
+  background: '#e8f0fe',
+  color: '#1f4e9c',
+  borderRadius: 6,
+  padding: '2px 7px',
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: 0.2,
+  cursor: 'pointer',
+  textTransform: 'none',
+};
+const chipX: React.CSSProperties = { marginLeft: 2, fontWeight: 700 };
 const list: React.CSSProperties = { overflowY: 'auto', padding: 6 };
 const empty: React.CSSProperties = { padding: '10px 8px', fontSize: 12, color: '#9aa0a6' };
 const row: React.CSSProperties = {
@@ -99,11 +206,34 @@ const row: React.CSSProperties = {
   borderRadius: 8,
   cursor: 'pointer',
 };
+const communityRow: React.CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'flex-start',
+  width: '100%',
+  padding: '7px 8px 7px 7px',
+  borderRadius: 8,
+  borderLeft: '3px solid #b79bd6',
+  background: '#f7f4fb',
+  marginBottom: 1,
+};
 const rowFresh: React.CSSProperties = { background: '#fff7e6' };
 const rowSelected: React.CSSProperties = { background: '#e8f0fe' };
 const rowText: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 };
-const rowLabel: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#1f2937' };
+const rowLabel: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#1f2937', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' };
+const icon: React.CSSProperties = { fontSize: 12 };
+const communityTag: React.CSSProperties = { fontSize: 10, fontWeight: 500, color: '#7c5aa8', letterSpacing: 0.1 };
 const rowComment: React.CSSProperties = { fontSize: 12, color: '#4b5563', lineHeight: 1.35 };
+const showEarlier: React.CSSProperties = {
+  width: '100%',
+  border: 'none',
+  background: 'transparent',
+  color: '#6b7280',
+  fontSize: 11,
+  fontWeight: 600,
+  padding: '8px 6px',
+  cursor: 'pointer',
+};
 
 function dot(color: string): React.CSSProperties {
   return { width: 10, height: 10, borderRadius: '50%', background: color, marginTop: 3, flex: '0 0 auto' };
