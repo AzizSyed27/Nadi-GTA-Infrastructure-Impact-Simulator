@@ -180,6 +180,10 @@ def main() -> None:
     trajectory_io.dump_artifact(artifact, path=art_path)
     reloaded = trajectory_io.load_artifact(art_path)  # round-trip proof
     (WEB_PUBLIC / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    # 2.6a: also write a STABLE alias so the frontend can hard-code /latest.json instead of a brittle
+    # timestamped filename. scorecard.py is the pipeline's final web/public writer, so latest.json here
+    # always mirrors the fully-assembled + scorecard-injected artifact.
+    (WEB_PUBLIC / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
 
     # ---- report ----
     print("=" * 92)
@@ -202,7 +206,7 @@ def main() -> None:
     print(f"[car concentration] median {car.travel_time_delta.value:+.1f}s but "
           f"{car.travel_time_delta.affected_share:.0%} adversely affected — a concentrated cost, not 'no effect'.")
     print(f"[artifact] scorecard injected + validated ({len(reloaded.scorecard.groups)} groups) -> "
-          f"contract/runs/{art_path.name} (+ web/public copy)")
+          f"contract/runs/{art_path.name} (+ web/public copy + web/public/latest.json alias)")
 
 
 if __name__ == "__main__":

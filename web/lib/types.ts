@@ -117,18 +117,44 @@ export interface Agent {
 }
 
 /**
- * A sim-grounded agent pinned to a VEHICLE — the shape the current map playback renders
- * (vehicle_id + outcome + trigger_t all guaranteed). Narrow an `Agent` with `isInstrumentedAgent`.
- * (Pedestrian-pinned sim agents and inferred agents are handled by later steps, not the map yet.)
+ * v0.3.0 agent kinds as an honest discriminated union over `grounding` + which pin is present.
+ * The map renders a moving, clickable dot for the two PINNED-sim kinds (they carry a trajectory +
+ * outcome + trigger_t); inferred agents have no trip, so no dot (they voice a corridor-wide reaction).
  */
-export type InstrumentedAgent = Agent & {
+export type SimVehicleAgent = Agent & {
+  grounding: 'sim';
   vehicle_id: string;
   outcome: Outcome;
   trigger_t: number;
 };
+export type SimPersonAgent = Agent & {
+  grounding: 'sim';
+  person_id: string;
+  outcome: Outcome;
+  trigger_t: number;
+};
+/** A sim agent pinned to a real simulated traveler (vehicle OR person) — the clickable-dot kinds. */
+export type PinnedSimAgent = SimVehicleAgent | SimPersonAgent;
+
+export function isSimVehicleAgent(a: Agent): a is SimVehicleAgent {
+  return a.grounding === 'sim' && a.vehicle_id != null && a.outcome != null && a.trigger_t != null;
+}
+export function isSimPersonAgent(a: Agent): a is SimPersonAgent {
+  return a.grounding === 'sim' && a.person_id != null && a.outcome != null && a.trigger_t != null;
+}
+/** A pinned sim agent (vehicle- or person-backed): has a trajectory, an outcome and a trigger_t. */
+export function isPinnedSim(a: Agent): a is PinnedSimAgent {
+  return isSimVehicleAgent(a) || isSimPersonAgent(a);
+}
+
+/**
+ * DEPRECATED for the render gate (2.6a): the VEHICLE-only narrowing kept from 2.3 for back-compat.
+ * The map now renders all pinned-sim agents via `isPinnedSim`; prefer `PinnedSimAgent`.
+ */
+export type InstrumentedAgent = SimVehicleAgent;
 
 export function isInstrumentedAgent(a: Agent): a is InstrumentedAgent {
-  return a.vehicle_id != null && a.outcome != null && a.trigger_t != null;
+  return isSimVehicleAgent(a);
 }
 
 /** v0.3.0+. A safety-SURROGATE event (never a crash prediction). Under-constrained; 2.4 tightens. */

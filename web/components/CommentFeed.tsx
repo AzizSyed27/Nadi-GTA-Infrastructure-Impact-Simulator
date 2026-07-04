@@ -2,13 +2,13 @@
 
 import { useMemo } from 'react';
 
-import type { InstrumentedAgent } from '@/lib/types';
-import { sentimentHex } from '@/lib/viz';
+import type { PinnedSimAgent } from '@/lib/types';
+import { agentId, sentimentHex } from '@/lib/viz';
 
 interface CommentFeedProps {
-  agents: InstrumentedAgent[];
+  agents: PinnedSimAgent[];
   currentTime: number;
-  onSelect: (agent: InstrumentedAgent) => void;
+  onSelect: (agent: PinnedSimAgent) => void;
   selectedId?: string | null;
 }
 
@@ -40,13 +40,13 @@ export function CommentFeed({ agents, currentTime, onSelect, selectedId }: Comme
         ) : (
           fired.map((a, i) => (
             <button
-              key={a.vehicle_id}
+              key={agentId(a)}
               data-testid="comment-row"
               onClick={() => onSelect(a)}
               style={{
                 ...row,
                 ...(i === 0 ? rowFresh : null),
-                ...(a.vehicle_id === selectedId ? rowSelected : null),
+                ...(agentId(a) === selectedId ? rowSelected : null),
               }}
             >
               <span style={dot(sentimentHex(a.reaction.sentiment))} />

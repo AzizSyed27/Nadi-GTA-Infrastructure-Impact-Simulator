@@ -1,12 +1,14 @@
 'use client';
 
-import type { InstrumentedAgent } from '@/lib/types';
+import type { PinnedSimAgent } from '@/lib/types';
 import { minutes, sentimentHex, signedMinutes } from '@/lib/viz';
 
-/** Side panel for a clicked instrumented traveler: persona, before/after numbers, full comment. */
-export function AgentPanel({ agent, onClose }: { agent: InstrumentedAgent | null; onClose: () => void }) {
+/** Side panel for a clicked instrumented traveler: persona, before/after numbers, full comment.
+ *  Handles both pinned-sim kinds — vehicle-backed (driving) and person-backed (walking). */
+export function AgentPanel({ agent, onClose }: { agent: PinnedSimAgent | null; onClose: () => void }) {
   if (!agent) return null;
   const { persona, outcome, reaction } = agent;
+  const walking = agent.person_id != null;
   const worse = outcome.delta_seconds > 0;
   const deltaColor = outcome.delta_seconds > 0 ? '#c64545' : outcome.delta_seconds < 0 ? '#3caa5a' : '#6b7280';
 
@@ -15,7 +17,9 @@ export function AgentPanel({ agent, onClose }: { agent: InstrumentedAgent | null
       <button style={close} onClick={onClose} aria-label="Close">
         ×
       </button>
-      <div style={kicker}>INSTRUMENTED TRAVELER</div>
+      <div style={kicker}>
+        INSTRUMENTED TRAVELER <span style={chip}>{walking ? '🚶 walking' : '🚗 driving'}</span>
+      </div>
       <div style={label}>{persona.label}</div>
 
       <div style={row}>
@@ -73,6 +77,18 @@ const kicker: React.CSSProperties = {
   letterSpacing: 0.6,
   textTransform: 'uppercase',
   color: '#9aa0a6',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+const chip: React.CSSProperties = {
+  fontSize: 10,
+  letterSpacing: 0.2,
+  textTransform: 'none',
+  color: '#4b5563',
+  background: '#eef1f4',
+  borderRadius: 6,
+  padding: '1px 6px',
 };
 const label: React.CSSProperties = { fontSize: 17, fontWeight: 700, color: '#1f2937', margin: '2px 0 10px' };
 const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 };

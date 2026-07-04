@@ -1,8 +1,16 @@
 // Pure visualization helpers for the playback (no React / deck imports — easy to reason about + test).
 
-import type { LonLat } from '@/lib/types';
+import type { Agent, LonLat } from '@/lib/types';
 
 export type RGB = [number, number, number];
+
+/**
+ * A stable id for any agent kind, for React keys + selection matching. Vehicle-pinned agents key on
+ * their vehicle_id, person-pinned on person_id, and inferred (unpinned) fall back to the persona id.
+ */
+export function agentId(a: Agent): string {
+  return a.vehicle_id ?? a.person_id ?? a.persona.id;
+}
 
 // Diverging sentiment scale: -1 red → 0 amber → +1 green.
 const NEG: RGB = [214, 69, 69];
@@ -37,6 +45,30 @@ export function positionAt(path: LonLat[], ts: number[], t: number): LonLat {
   if (t >= ts[n - 1]) return path[n - 1];
   let i = 1;
   while (i < n && ts[i] < t) i++;
+  const f = (t - ts[i - 1]) / (ts[i] - ts[i - 1]);
+  const a = path[i - 1];
+  const b = path[i];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+}
+
+// PERFORMANCE (2.6a): the real artifact has long trajectories (vehicles ~555 pts, pedestrians ~1359,
+// max 3654). The naive positionAt rescans from index 1 every call, so per-frame cost grows with sim-time
+// and janks at real scale (~511 entities). This cache remembers each entity's last bracket index —
+// monotonic during forward play (amortized O(1)), and self-resets on a backward scrub. Keyed on the
+// (stable) timestamps array identity, so it needs no external bookkeeping.
+const _idxHint = new WeakMap<number[], number>();
+
+/** Same as `positionAt`, but O(1) amortized during forward playback via a per-entity index hint. */
+export function positionAtCached(path: LonLat[], ts: number[], t: number): LonLat {
+  const n = ts.length;
+  if (n === 0) return [0, 0];
+  if (t <= ts[0]) return path[0];
+  if (t >= ts[n - 1]) return path[n - 1];
+  let i = _idxHint.get(ts) ?? 1;
+  if (i < 1 || i >= n) i = 1;
+  if (ts[i - 1] > t) i = 1; // scrubbed back before the cached bracket — reset and re-scan forward
+  while (i < n && ts[i] < t) i++;
+  _idxHint.set(ts, i);
   const f = (t - ts[i - 1]) / (ts[i] - ts[i - 1]);
   const a = path[i - 1];
   const b = path[i];
