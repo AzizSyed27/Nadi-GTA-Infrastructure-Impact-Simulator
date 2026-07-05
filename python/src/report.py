@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import shutil
 from datetime import datetime, timezone
@@ -647,6 +648,9 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     facts = gather_facts(artifact, outcomes, verdict)
     verify_facts(facts, artifact, outcomes)  # A4b — fail loudly before spending any LLM tokens
 
+    # The report pipeline is DeepSeek-tuned (bigger prompts, ~13 slot calls, prefix caching). Default to it
+    # so `python report.py` just works — Gemini's free tier can't handle the load. An explicit PROVIDER wins.
+    os.environ.setdefault("PROVIDER", "deepseek")
     client, provider, model = get_client()
     if hasattr(client, "_max_tokens"):  # raise the OpenAI-compat cap for synthesis (keeps get_client's key/v4 path)
         client._max_tokens = REPORT_MAX_TOKENS

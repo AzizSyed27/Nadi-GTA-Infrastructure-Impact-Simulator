@@ -1,0 +1,275 @@
+"""Phase 3.2 — the interactive report agent's CORPUS + per-run LightRAG index.
+
+Turns a finished run (artifact + sidecars + the 3.1 report facts) into ~230 small retrieval documents and
+builds a per-run LightRAG index at ``contract/runs/index-<ts>/``. `server.py` queries that index and runs a
+guarded generation over the retrieved context (the same honesty rules the report obeys).
+
+TWO GRAPHS, ONE JOB (CLAUDE.md): this is the report agent's GraphRAG MEMORY over the run corpus — NOT the
+OASIS social graph. Everything here is deterministic + LLM-free EXCEPT the index build, where LightRAG runs
+its own entity/relationship extraction (bound to DeepSeek) at insert time.
+
+Design notes learned from the Step-0 gate:
+  * Attribution is NATIVE: we pass ``ainsert(texts, file_paths=source_ids)`` and read the ``file_path`` back
+    from ``aquery_data`` — no source tag embedded in the doc text (which would pollute the embedding/graph).
+  * LightRAG canonicalizes a file_path to its BASENAME, so source ids must be slash-free. We use ``__`` as the
+    field separator (persona ids themselves contain single ``_``), e.g. ``voice__time_pressed__veh12``.
+  * LightRAG/torch imports live INSIDE the build functions so importing this module (and unit-testing
+    ``build_corpus``) needs neither torch nor a network.
+
+Run AFTER report.py:
+    python python/src/report_agent.py                 # newest run
+    python python/src/report_agent.py --run-id <id> --rebuild
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import tempfile
+from pathlib import Path
+
+import llm_provider
+import personas as personas_mod
+import report
+import trajectory_io
+from contract_models import TrajectoryArtifact
+
+RUNS_DIR = report.RUNS_DIR
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBED_DIM = 384  # all-MiniLM-L6-v2 — FIXED once an index is built
+MAX_LLM_ASYNC = 4  # insert-time DeepSeek concurrency (keep modest to dodge rate limits)
+
+# WINDOWS/ONEDRIVE GOTCHA: the repo lives under a OneDrive-synced folder, and OneDrive grabs a handle on
+# freshly-created .tmp files, which breaks LightRAG's atomic write (tmp -> os.replace) with WinError 5. So the
+# index (a rebuildable artifact, not source) is stored OUTSIDE the synced tree under %LOCALAPPDATA%. Override
+# with NADI_INDEX_ROOT if you want it elsewhere. Build and server both resolve via index_dir()/newest_index().
+INDEX_ROOT = Path(os.environ.get("NADI_INDEX_ROOT")
+                  or os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "nadi-report-agent"
+
+# sim travel mode → scorecard group (inferred voices use their persona.stakeholder directly).
+MODE_TO_GROUP = {"car": "car_commuter", "bicycle": "cyclist", "pedestrian": "pedestrian"}
+
+
+def _persona_specs() -> dict[str, object]:
+    return {p.id: p for p in personas_mod.load_personas()}
+
+
+def _group_of(spec, grounding: str) -> str:
+    if spec is None:
+        return "other"
+    if grounding == "inferred":
+        return getattr(spec, "stakeholder", None) or "other"
+    return MODE_TO_GROUP.get(getattr(spec, "mode", "car"), "other")
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+
+
+def _doc(source: str, title: str, body: str) -> dict:
+    """One corpus doc. `source` is a slash-free, ``__``-separated citation handle (becomes the file_path)."""
+    return {"source": source, "text": f"{title}\n{body}"}
+
+
+# ===================================================================================================
+# Corpus (deterministic, LLM-free) — ~230 docs
+# ===================================================================================================
+
+def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | None) -> list[dict]:
+    facts = report.gather_facts(artifact, outcomes, verdict)
+    specs = _persona_specs()
+    docs: list[dict] = []
+
+    # --- one doc per agent (voice): persona, group, grounding, stance, outcome summary, verbatim comment ---
+    for i, a in enumerate(artifact.agents):
+        spec = specs.get(a.persona.id)
+        group = _group_of(spec, a.grounding)
+        glabel = report.GROUP_LABEL.get(group, group)
+        pin = a.vehicle_id or a.person_id or f"idx{i}"
+        grounded = ("a simulated traveler on the corridor" if a.grounding == "sim"
+                    else "an inferred community voice (no measured trip on the corridor)")
+        lines = [
+            f"Stakeholder group: {glabel}.",
+            f"Persona: {a.persona.label} (id {a.persona.id}) — {grounded}.",
+            f"Anticipated stance toward the change: {a.reaction.stance} (sentiment {a.reaction.sentiment:+.2f}).",
+        ]
+        if a.outcome is not None:
+            o = a.outcome
+            lines.append(f"Trip travel time: baseline {o.baseline_duration:.0f}s -> scenario "
+                         f"{o.scenario_duration:.0f}s (change {o.delta_seconds:+.0f}s).")
+        lines.append(f'Anticipated reaction, verbatim: "{a.reaction.comment}"')
+        docs.append(_doc(f"voice__{a.persona.id}__{pin}", f"Voice — {a.persona.label} [{glabel}]", "\n".join(lines)))
+
+    # --- one doc per scorecard row (with confidence + verbatim note) ---
+    for gid in report.GROUP_ORDER:
+        g = facts["by_group"].get(gid)
+        glabel = report.GROUP_LABEL[gid]
+        lines = [f"Per-stakeholder scorecard row for {glabel} (grounding: {g.grounding if g else 'inferred'}). "
+                 "Sign convention: POSITIVE = worse for the group."]
+        for label, cell, kind in (("Travel time", g.travel_time_delta if g else None, "travel"),
+                                   ("Safety (surrogate near-miss)", g.safety_delta if g else None, "safety"),
+                                   ("Access", g.access_delta if g else None, "access")):
+            note = f" Note: {cell.note}" if (cell and getattr(cell, "note", None)) else ""
+            lines.append(f"{label}: {report.render_cell(cell, kind)} — {report.cell_valence(cell, kind)}.{note}")
+        docs.append(_doc(f"scorecard__{gid}", f"Scorecard row — {glabel}", "\n".join(lines)))
+
+    # --- the change ---
+    ch = facts["change"]
+    lane = f", lane {ch.target_lane}" if ch.target_lane is not None else ""
+    docs.append(_doc("change", "The proposed change being previewed",
+                     f"{ch.description}. Change type: {ch.type}. Target edge {ch.target_edge}{lane}. "
+                     f"Demand simulated on the corridor: {facts['demand']['car']} cars, "
+                     f"{facts['demand']['bicycle']} bicycles, {facts['demand']['pedestrian']} pedestrians. "
+                     f"In-run adaptation: {facts['cars_rerouted']} cars rerouted within the run."))
+
+    # --- robustness / cross-seed verdict ---
+    if verdict:
+        per = "; ".join(f"seed {r['seed']}: {r['share_gt30'] * 100:.1f}% of cars over 30s slower"
+                        for r in verdict.get("per_seed", []))
+        body = f"{verdict.get('verdict', '')} Per-seed car travel-time tail — {per}."
+    else:
+        body = report._cross_seed_sentence(facts)
+    docs.append(_doc("robustness", "Cross-seed robustness of the travel-time tail", body))
+
+    # --- limitations (one doc per caveat, so a safety-direction question retrieves the safety caveat) ---
+    for c in report.build_caveats(facts):
+        docs.append(_doc(f"limitation__{_slug(c['title'])}", f"Limitation — {c['title']}", c["body"]))
+
+    # --- conflict (surrogate safety) summary: counts by type + ordinal severity framing ---
+    docs.append(_conflict_doc(artifact))
+    return docs
+
+
+def _conflict_doc(artifact: TrajectoryArtifact) -> dict:
+    from collections import Counter
+    conflicts = artifact.conflicts or []
+    by_type = Counter(c.type for c in conflicts)
+    top = sorted(conflicts, key=lambda c: c.severity, reverse=True)[:5]
+    lines = [
+        f"Total near-miss events observed in this run: {len(conflicts)}. These are SURROGATE safety measures "
+        "(time-to-collision, post-encroachment-time, hard braking) — they are NOT crashes and NOT a crash "
+        "prediction. Severity is ORDINAL: higher = more severe in this run, never a rate or probability. The "
+        "direction of the safety change is not claimed (it is not stable across random seeds).",
+        "Counts by event type: " + (", ".join(f"{t}: {n}" for t, n in by_type.most_common()) or "none") + ".",
+    ]
+    if top:
+        lines.append("Most severe events observed (ordinal severity): "
+                     + "; ".join(f"{c.type} at severity {c.severity:.2f}" for c in top) + ".")
+    return _doc("conflicts", "Near-miss (surrogate safety) event summary", "\n".join(lines))
+
+
+# ===================================================================================================
+# Source-handle → human label (used by server.py to render the "drew on…" sources line)
+# ===================================================================================================
+
+def _persona_labels() -> dict[str, str]:
+    return {p.id: p.label for p in personas_mod.load_personas()}
+
+
+def friendly_source(handle: str) -> str:
+    """Turn a citation handle (the retrieved file_path) into a human label for the answer's sources line."""
+    parts = handle.split("__")
+    kind = parts[0]
+    if kind == "voice" and len(parts) >= 2:
+        return f"{_persona_labels().get(parts[1], parts[1])} (voice)"
+    if kind == "scorecard" and len(parts) >= 2:
+        return f"{report.GROUP_LABEL.get(parts[1], parts[1])} scorecard row"
+    if kind == "limitation" and len(parts) >= 2:
+        return f"Limitation: {parts[1].replace('_', ' ')}"
+    return {"change": "The proposed change", "robustness": "Cross-seed robustness",
+            "conflicts": "Near-miss event summary"}.get(kind, handle)
+
+
+# ===================================================================================================
+# Index build + resolution (LightRAG / torch imported lazily here)
+# ===================================================================================================
+
+def make_rag(working_dir: Path | str):
+    """Shared LightRAG factory (used by the index build AND by server.py) — DeepSeek LLM + local MiniLM embed."""
+    from functools import partial
+
+    from lightrag import LightRAG
+    from lightrag.llm.hf import hf_embed
+    from lightrag.llm.openai import openai_complete_if_cache
+    from lightrag.utils import EmbeddingFunc
+    from transformers import AutoModel, AutoTokenizer
+
+    llm_provider._load_env()
+    _, _, key_env, _ = llm_provider.PROVIDER_PRESETS["deepseek"]
+    ds_key = os.environ.get(key_env)
+    if not ds_key:
+        raise SystemExit(f"{key_env} is not set (put it in python/.env).")
+
+    async def llm_func(prompt, system_prompt=None, history_messages=None, keyword_extraction=False, **kwargs):
+        return await openai_complete_if_cache(
+            "deepseek-chat", prompt, system_prompt=system_prompt, history_messages=history_messages or [],
+            api_key=ds_key, base_url="https://api.deepseek.com/v1", **kwargs)
+
+    tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL)
+    embed_model = AutoModel.from_pretrained(EMBED_MODEL)
+    return LightRAG(
+        working_dir=str(working_dir), llm_model_func=llm_func, llm_model_name="deepseek-chat",
+        llm_model_max_async=MAX_LLM_ASYNC,
+        embedding_func=EmbeddingFunc(embedding_dim=EMBED_DIM, max_token_size=512,
+                                     func=partial(hf_embed.func, tokenizer=tokenizer, embed_model=embed_model)))
+
+
+def index_dir(ts: str) -> Path:
+    return INDEX_ROOT / f"index-{ts}"
+
+
+def newest_index() -> tuple[Path, str] | None:
+    if not INDEX_ROOT.exists():
+        return None
+    dirs = sorted(INDEX_ROOT.glob("index-*"))
+    if not dirs:
+        return None
+    d = dirs[-1]
+    return d, d.name.replace("index-", "")
+
+
+def build_index(run_id: str | None = None, rebuild: bool = False) -> tuple[Path, int]:
+    import asyncio
+    import shutil
+
+    art_path, ts = report._resolve(run_id)
+    artifact = trajectory_io.load_artifact(art_path)
+    outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
+    if outcomes.get("scenario_run_id") != artifact.meta.run_id:
+        raise SystemExit(f"run-id mismatch: outcomes {outcomes.get('scenario_run_id')!r} != "
+                         f"artifact {artifact.meta.run_id!r}")
+    verdict = report._load_verdict(ts, artifact)
+
+    docs = build_corpus(artifact, outcomes, verdict)
+    wd = index_dir(ts)
+    if rebuild and wd.exists():
+        shutil.rmtree(wd)
+    wd.mkdir(parents=True, exist_ok=True)
+    print(f"[report_agent] run={artifact.meta.run_id} · {len(docs)} corpus docs · indexing into {wd} …")
+
+    async def run() -> None:
+        rag = make_rag(wd)
+        await rag.initialize_storages()
+        try:
+            # Re-runnable: LightRAG's doc_status skips already-indexed docs; --rebuild wipes first.
+            await rag.ainsert([d["text"] for d in docs], file_paths=[d["source"] for d in docs])
+        finally:
+            await rag.finalize_storages()
+
+    asyncio.run(run())
+    print(f"[report_agent] done — {len(docs)} docs indexed at {wd}")
+    return wd, len(docs)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Build the per-run LightRAG index for the report agent (Phase 3.2).")
+    ap.add_argument("--run-id", default=None, help="artifact stem (default: newest multimodal-scenario)")
+    ap.add_argument("--rebuild", action="store_true", help="delete any existing index-<ts>/ first")
+    args = ap.parse_args()
+    build_index(args.run_id, rebuild=args.rebuild)
+
+
+if __name__ == "__main__":
+    main()

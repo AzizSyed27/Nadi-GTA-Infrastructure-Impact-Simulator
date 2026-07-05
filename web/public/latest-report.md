@@ -4,7 +4,7 @@
 
 ## 1. What was tested
 
-This report previews a proposed change where one general-traffic lane on a Toronto corridor would become a bicycle-only lane. The study looks at how this reallocation of road space could affect drivers, cyclists, and nearby residents and businesses.
+This report previews a proposed change where one of the car lanes on the corridor would become a bicycle-only lane. The text explores how drivers, cyclists, and nearby residents might experience this shift in road space.
 
 - **Change:** Converted lane 1 of edge 660176957#0 to a bicycle-only lane (edge `660176957#0`, lane 1)
 - **Corridor / network:** `corridor.net.xml` — one Toronto corridor
@@ -33,9 +33,9 @@ This report previews a proposed change where one general-traffic lane on a Toron
 **Travel-time tail (cars):** median about no change; 3.3% of cars are >30s slower. Across seeds 42/43/44 this share stays in [2.3%, 3.3%] — a small hard-hit tail, with the vast majority of cars unaffected.
 
 **Per-group reading:**
-- **Car commuters:** Most car commuters are unaffected, but a small group of specific commuters absorbs a real delay, and access is slightly worse.
-- **Cyclists:** Cyclists see no typical travel time change, slightly better access with low confidence, and a safety near-miss magnitude present but directionally not claimed.
-- **Pedestrians:** Pedestrians see no change in typical travel time, may experience a subtle improvement in access, though the safety signal is too uncertain to interpret.
+- **Car commuters:** Most car commuters see no change in typical travel time, though a small group is markedly slower, and overall access is slightly worse.
+- **Cyclists:** Cyclists see no consistent change in trip time, while some routes gain slightly easier access, though the safety picture remains unclear.
+- **Pedestrians:** Pedestrians see slightly better access to destinations, though typical travel time is unchanged and the safety picture is unclear.
 - **Local residents:** A near-miss magnitude is present for this group, but its direction is not seed-stable and is not claimed here — the table shows the magnitude only.
 - **Business owners:** Access is estimated to be slightly worse for this group, from a low-confidence rule-based estimate.
 - **Accessibility:** There isn't enough measurable signal in this run to characterize how this change affects accessibility.
@@ -47,9 +47,9 @@ This report previews a proposed change where one general-traffic lane on a Toron
 
 ### Drivers
 
-Some drivers worry that removing a car lane could add time to their trips, affecting their work or schedules. Others are relieved that their own commute times stay the same and hope the street outside their home or near the school will become quieter. A few express unease about the direction of the change, even if it doesn't affect them personally.
+Drivers and travelers are focused on travel time impacts, with many relieved if their commute remains unchanged. A few express concern about removing a car lane, while others welcome potential calmer streets or improved conditions near schools. The tension is between those wary of any lane reduction and those who see a trade-off as acceptable if their own time isn't affected.
 
-> “That extra 1.8 minutes might not sound like much, but for me it's less trips per hour and more angry passengers. This lane change is just going to slow me down and cost me money.”
+> “I mean, it's barely a blip on my time, so I can't get too worked up over it. Still, taking away a car lane feels like it's heading in the wrong direction, you know?”
 > — Rideshare / delivery driver (simulated persona)
 
 > “Since my drive time stays about the same, I'm not too bothered by the change—and honestly, if it means less speeding and noise outside my front door, I might even be a little happier with the trade-off.”
@@ -57,37 +57,37 @@ Some drivers worry that removing a car lane could add time to their trips, affec
 
 ### Cyclists
 
-Cyclists welcome the protected bike lane as a long-awaited improvement that reduces stress from car traffic without slowing them down. Many express relief at no longer being squeezed by cars, and some say they would start using the corridor regularly for the first time. The shared hope is for a calmer, less harried ride.
+Cyclists broadly welcome the protected bike lane, emphasizing reduced stress from car traffic and a greater sense of safety, even when travel times remain unchanged. Many express relief at no longer being squeezed or dodged by cars, and some new or cautious riders indicate they would start using the corridor regularly. The recurring hope is for a calmer, more predictable ride without worrying about side mirrors or doors.
 
-> “Same travel time but way less stress from cars zooming past me? That's a win in my book. I'll take a calmer ride any day.”
+> “Finally, a dedicated bike lane means I can fly without dodging side mirrors and doors — same speed but way less stress, so that's a win for my sanity and my paycheck.”
 > — Bicycle delivery courier (simulated persona)
 
-> “I'm thrilled about the protected bike lane—I'd feel much safer biking here and might actually start using this corridor regularly instead of avoiding it.”
+> “I’m thrilled — a protected bike lane is exactly what I needed to feel safe biking here, and since my trip time stays the same, it’s a total win.”
 > — Cautious newer rider (simulated persona)
 
 ### Pedestrians
 
-Many walk-to-transit commuters are neutral, noting their own trip remains unchanged. A recurring hope is that the bike lane will calm traffic and make crossing streets feel less stressful, especially for those with children. Some supporters explicitly welcome a small time trade-off for that perceived benefit.
+Walkers to transit are largely indifferent or supportive, as their travel times are mostly unchanged. A recurring hope is that a bike lane might calm traffic, making street crossings feel more comfortable for families. There is little tension, as most see no downside for themselves.
 
-> “Well, if my walking time and bus schedule aren't affected, I don't really mind the change—it's fine by me.”
-> — Walk-to-transit commuter (simulated persona)
+> “Well, if it doesn't slow me down and might calm traffic for my crossings, that sounds fine by me.”
+> — Senior who walks everywhere (simulated persona)
 
 > “I'm happy about this change—any move that calms traffic and makes crossings safer for my kids is a win in my book, even if my walk time stays the same.”
 > — School-run parent on foot (simulated persona)
 
 ### Community voices
 
-Business owners along the corridor worry that replacing parking with bike lanes will hurt curb access for customers and deliveries, while residents and some advocates hope the change will slow traffic and make the street more livable. Transit users express concern about potential delays to bus service but are open to benefits if traffic calming doesn't slow their commute. A recurring tension is between those who prioritize parking and car access for commerce and those who want a calmer, more pedestrian- and bike-friendly street.
+A recurring tension is between business owners who fear losing curb access and long-time residents who welcome slower traffic and a more neighborhood feel. Some wheelchair users and transit riders raise concerns about crossing accessibility and bus reliability, while others hope the change could calm traffic. The debate is not just about bikes but about whose needs the street should prioritize.
 
-> “This bike lane is going to kill my business—my customers need to park right out front, and deliveries will be a nightmare.”
+> “I'm worried this bike lane will take away parking spots my customers need to stop and shop—my business depends on that curb access.”
 > — Small business owner (community perspective, not a measured traveler)
 
-> “I've lived here for years, and anything that slows down traffic and makes the street safer for walking and biking is welcome in my book — I'm tired of the noise and speed.”
+> “I've lived here for 30 years and I'm all for anything that slows down traffic and makes the street feel more like home. Fewer cars racing by will be a welcome change.”
 > — Long-time corridor resident (community perspective, not a measured traveler)
 
 ## 4. What this analysis cannot tell you
 
-The following limits define what this preview can and cannot claim, and should be read alongside the findings.
+The following limits define what this preview can and cannot assert, and should be considered together with the findings.
 
 - **Safety direction is not established.** The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported”. Do not read the safety column as 'the change made things safer or more dangerous'.
 - **Surrogate measures are not crash predictions.** Safety here means trajectory-derived surrogates (time-to-collision, hard braking, blocked junctions), counted as near-miss events observed in this run. They are not crashes, and this tool does not predict crashes, injuries, or their probability.
@@ -101,5 +101,5 @@ The following limits define what this preview can and cannot claim, and should b
 - **Runs:** scenario `multimodal-scenario-20260702T044134Z`, baseline `multimodal-baseline-20260702T044134Z`
 - **Seeds:** 42, 43, 44
 - **Thresholds:** time-to-collision 3.0s, vehicle PET 2.0s, pedestrian PET 5.0s, delay materiality >30s
-- **Generated:** 2026-07-04T19:05:57.374053+00:00 · deepseek/deepseek-chat
+- **Generated:** 2026-07-05T03:19:25.361559+00:00 · deepseek/deepseek-chat
 - **Audit:** passed — 13 slots (9 LLM-audited: 7 clean, 2 corrected on retry, 0 unresolved; 4 code-rendered).
