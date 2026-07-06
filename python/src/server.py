@@ -83,10 +83,16 @@ async def lifespan(app: FastAPI):
         if served and served != run_id:
             print(f"[server] WARNING: index run {run_id!r} != report run {served!r} — rebuild the index for "
                   f"the current report (python report_agent.py).")
-        rag = report_agent.make_rag(wd)
-        await rag.initialize_storages()
-        _STATE.update(rag=rag, client=_deepseek_client(), run_id=run_id, index_ts=ts)
-        print(f"[server] loaded index {ts} · serving run {run_id}")
+        try:
+            rag = report_agent.make_rag(wd)  # checks the embedding pin before loading the model
+        except report_agent.EmbeddingPinMismatch as e:
+            # Hard-stop, but LEGIBLE (both configs named) and without an ugly async traceback — mirror the
+            # graceful no-index boot: refuse to serve, /api/chat will report why.
+            print(f"[server] EMBEDDING PIN MISMATCH — refusing to serve: {e}")
+        else:
+            await rag.initialize_storages()
+            _STATE.update(rag=rag, client=_deepseek_client(), run_id=run_id, index_ts=ts)
+            print(f"[server] loaded index {ts} · serving run {run_id}")
     yield
     if _STATE["rag"] is not None:
         await _STATE["rag"].finalize_storages()

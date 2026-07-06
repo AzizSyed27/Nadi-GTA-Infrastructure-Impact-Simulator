@@ -304,12 +304,15 @@ def _is_transient(e: Exception) -> bool:
     return code in _TRANSIENT
 
 
-async def _call(client: LLMClient, system: str, user: str, wire: type[BaseModel], attempts: int = 4) -> dict:
-    """One structured generation with the reaction-layer retry policy (transient backoff + one parse retry)."""
+async def _call(client: LLMClient, system: str, user: str, wire: type[BaseModel], attempts: int = 4,
+                temperature: float = 0.3) -> dict:
+    """One structured generation with the reaction-layer retry policy (transient backoff + one parse retry).
+    temperature defaults to 0.3 — the report + chat agent want DETERMINISTIC facts (reactions.py calls
+    generate_json directly and keeps the 0.8 default for persona variety)."""
     last: Exception | None = None
     for i in range(attempts):
         try:
-            raw = await client.generate_json(system=system, user=user, schema=wire)
+            raw = await client.generate_json(system=system, user=user, schema=wire, temperature=temperature)
             return wire.model_validate(raw).model_dump()
         except Exception as e:  # noqa: BLE001 — provider SDK errors vary; classify by attribute
             last = e

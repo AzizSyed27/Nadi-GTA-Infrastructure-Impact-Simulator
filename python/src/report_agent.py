@@ -39,6 +39,7 @@ from contract_models import TrajectoryArtifact
 RUNS_DIR = report.RUNS_DIR
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 EMBED_DIM = 384  # all-MiniLM-L6-v2 — FIXED once an index is built
+EMBED_BACKEND = "hf"  # lightrag.llm.hf.hf_embed
 MAX_LLM_ASYNC = 4  # insert-time DeepSeek concurrency (keep modest to dodge rate limits)
 
 # WINDOWS/ONEDRIVE GOTCHA: the repo lives under a OneDrive-synced folder, and OneDrive grabs a handle on
@@ -183,11 +184,49 @@ def friendly_source(handle: str) -> str:
 
 
 # ===================================================================================================
+# Embedding PIN — the vector store is built at a FIXED (model, dim). LightRAG's vdb files record the dim but
+# NOT the model, so a same-dim model swap would silently corrupt retrieval. Pin (model, dim, backend) explicitly
+# and refuse to open an index whose embedder no longer matches.
+# ===================================================================================================
+
+class EmbeddingPinMismatch(Exception):
+    """Raised when an existing index was built with a different embedder than the current one."""
+
+
+def embedding_meta() -> dict:
+    return {"model": EMBED_MODEL, "dim": EMBED_DIM, "backend": EMBED_BACKEND}
+
+
+def _pin_path(working_dir: Path | str) -> Path:
+    return Path(working_dir) / "embedding_meta.json"
+
+
+def write_embedding_pin(working_dir: Path | str) -> None:
+    _pin_path(working_dir).write_text(json.dumps(embedding_meta(), indent=2), encoding="utf-8")
+
+
+def check_embedding_pin(working_dir: Path | str) -> None:
+    """Assert the current embedder matches this index's pin. Missing pin = legacy/fresh index → no-op. On any
+    mismatch, raise loudly with BOTH configs named."""
+    path = _pin_path(working_dir)
+    if not path.is_file():
+        return
+    pinned = json.loads(path.read_text(encoding="utf-8"))
+    current = embedding_meta()
+    if pinned != current:
+        raise EmbeddingPinMismatch(
+            f"embedding config mismatch for {Path(working_dir).name}: index was built with {pinned}, but the "
+            f"current embedder is {current}. Rebuild the index (report_agent.py --rebuild) or restore the "
+            f"matching embedder.")
+
+
+# ===================================================================================================
 # Index build + resolution (LightRAG / torch imported lazily here)
 # ===================================================================================================
 
 def make_rag(working_dir: Path | str):
-    """Shared LightRAG factory (used by the index build AND by server.py) — DeepSeek LLM + local MiniLM embed."""
+    """Shared LightRAG factory (used by the index build AND by server.py) — DeepSeek LLM + local MiniLM embed.
+    Refuses to open an index whose embedding pin no longer matches (checked BEFORE loading the model)."""
     from functools import partial
 
     from lightrag import LightRAG
@@ -196,6 +235,7 @@ def make_rag(working_dir: Path | str):
     from lightrag.utils import EmbeddingFunc
     from transformers import AutoModel, AutoTokenizer
 
+    check_embedding_pin(working_dir)  # fail cheap (before torch) on a mismatched embedder
     llm_provider._load_env()
     _, _, key_env, _ = llm_provider.PROVIDER_PRESETS["deepseek"]
     ds_key = os.environ.get(key_env)
@@ -247,6 +287,7 @@ def build_index(run_id: str | None = None, rebuild: bool = False) -> tuple[Path,
     if rebuild and wd.exists():
         shutil.rmtree(wd)
     wd.mkdir(parents=True, exist_ok=True)
+    write_embedding_pin(wd)  # pin the embedder so a later mismatched open fails loudly
     print(f"[report_agent] run={artifact.meta.run_id} · {len(docs)} corpus docs · indexing into {wd} …")
 
     async def run() -> None:
@@ -268,7 +309,10 @@ def main() -> None:
     ap.add_argument("--run-id", default=None, help="artifact stem (default: newest multimodal-scenario)")
     ap.add_argument("--rebuild", action="store_true", help="delete any existing index-<ts>/ first")
     args = ap.parse_args()
-    build_index(args.run_id, rebuild=args.rebuild)
+    try:
+        build_index(args.run_id, rebuild=args.rebuild)
+    except EmbeddingPinMismatch as e:  # print the named-configs message cleanly, no traceback
+        raise SystemExit(f"[report_agent] {e}")
 
 
 if __name__ == "__main__":

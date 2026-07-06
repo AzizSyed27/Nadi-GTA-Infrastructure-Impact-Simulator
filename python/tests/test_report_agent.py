@@ -10,9 +10,12 @@ Run:  python -m pytest python/tests/test_report_agent.py -v
 
 from __future__ import annotations
 
+import json
 import sys
 from collections import Counter
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
@@ -101,6 +104,26 @@ def test_friendly_source_labels():
     assert report_agent.friendly_source("limitation__safety_direction_is_not_established").startswith("Limitation:")
     assert report_agent.friendly_source("change") == "The proposed change"
     assert report_agent.friendly_source("conflicts") == "Near-miss event summary"
+
+
+def test_embedding_pin_roundtrip_and_mismatch(tmp_path):
+    # a freshly-written pin matches the current embedder → no-op
+    report_agent.write_embedding_pin(tmp_path)
+    assert json.loads((tmp_path / "embedding_meta.json").read_text())["dim"] == report_agent.EMBED_DIM
+    report_agent.check_embedding_pin(tmp_path)  # must not raise
+
+    # a missing pin (legacy/fresh index) is graceful — no raise
+    report_agent.check_embedding_pin(tmp_path / "nonexistent")
+
+    # a pin built with a DIFFERENT embedder (wrong model AND dim) fails loudly, naming BOTH configs
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "embedding_meta.json").write_text(json.dumps({"model": "some-other-model", "dim": 768, "backend": "hf"}))
+    with pytest.raises(report_agent.EmbeddingPinMismatch) as ei:
+        report_agent.check_embedding_pin(other)
+    msg = str(ei.value)
+    assert "some-other-model" in msg and "768" in msg  # the pinned config
+    assert report_agent.EMBED_MODEL in msg and "384" in msg  # the current config
 
 
 def test_chat_constitution_carries_the_rules():

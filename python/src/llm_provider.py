@@ -45,9 +45,11 @@ PROVIDER_PRESETS: dict[str, tuple[str, str, str, str]] = {
 
 @runtime_checkable
 class LLMClient(Protocol):
-    """One method: turn (system, user, schema) into a JSON object as a dict."""
+    """One method: turn (system, user, schema) into a JSON object as a dict. ``temperature`` is per-CALL
+    (default 0.8 for persona-variety reactions; the report/agent pipeline passes 0.3 for deterministic facts)."""
 
-    async def generate_json(self, *, system: str, user: str, schema: type[BaseModel]) -> dict:
+    async def generate_json(self, *, system: str, user: str, schema: type[BaseModel],
+                            temperature: float = 0.8) -> dict:
         ...
 
 
@@ -87,7 +89,8 @@ class GeminiAdapter:
         self._model = model
         self.usage = {"prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "completion_tokens": 0, "calls": 0}
 
-    async def generate_json(self, *, system: str, user: str, schema: type[BaseModel]) -> dict:
+    async def generate_json(self, *, system: str, user: str, schema: type[BaseModel],
+                            temperature: float = 0.8) -> dict:
         from google.genai import types
 
         resp = await self._client.aio.models.generate_content(
@@ -97,7 +100,7 @@ class GeminiAdapter:
                 system_instruction=system,
                 response_mime_type="application/json",
                 response_schema=schema,  # Gemini wants the LOOSE schema (no additionalProperties)
-                temperature=0.8,
+                temperature=temperature,
             ),
         )
         parsed = getattr(resp, "parsed", None)
@@ -132,7 +135,8 @@ class OpenAICompatAdapter:
         self._max_tokens = max_tokens
         self.usage = _empty_usage()
 
-    async def generate_json(self, *, system: str, user: str, schema: type[BaseModel]) -> dict:
+    async def generate_json(self, *, system: str, user: str, schema: type[BaseModel],
+                            temperature: float = 0.8) -> dict:
         if self._json_mode == "json_object":
             response_format: dict = {"type": "json_object"}  # best-effort; prompt carries "json" + example
         else:
@@ -147,7 +151,7 @@ class OpenAICompatAdapter:
                 {"role": "user", "content": user},
             ],
             response_format=response_format,
-            temperature=0.8,
+            temperature=temperature,
             max_tokens=self._max_tokens,  # prevents mid-JSON truncation (DeepSeek json_object caveat)
             extra_body=self._extra_body,
         )

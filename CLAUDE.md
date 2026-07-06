@@ -40,10 +40,17 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   an `LLMClient` Protocol + two adapters — `GeminiAdapter` (google-genai) and `OpenAICompatAdapter`
   (the `openai` SDK pointed at any OpenAI-compatible `base_url`). One `PROVIDER_PRESETS` table
   (base_url, default_model, key_env) covers Groq / DeepSeek / OpenAI / Cerebras / Mistral / Kimi.
-  **Recommended default: Groq** (`openai/gpt-oss-20b`) — free tier + strict structured JSON. Select
-  via env `PROVIDER` / `MODEL`; key from `.env` (e.g. `GROQ_API_KEY`, `GEMINI_API_KEY`). Gemini's
-  free tier is tiny (flash = 20 req/day) and flash-lite is often 503. No model id hardcoded from
-  memory — confirm via docs-researcher.
+  **Layer default: Groq** (`openai/gpt-oss-20b`) — free tier + strict structured JSON. Select via env
+  `PROVIDER` / `MODEL`; key from `.env` (e.g. `GROQ_API_KEY`, `GEMINI_API_KEY`). **The report + agent pipeline
+  (`report.py`, `server.py`) PINS DeepSeek** (longer prompts, ~13 slot calls, prefix caching) — it defaults to
+  `deepseek` when `PROVIDER` is unset, so `DEEPSEEK_API_KEY` must be in `python/.env`. Generation temperature is
+  per-call: `report._call` uses 0.3 (deterministic facts); `reactions.py` keeps 0.8 (persona variety). Gemini's
+  free tier is tiny (flash = 20 req/day) and flash-lite is often 503. No model id hardcoded from memory —
+  confirm via docs-researcher.
+- **Windows-native gotchas (LightRAG):** the per-run RAG index lives under `%LOCALAPPDATA%\nadi-report-agent\`,
+  NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
+  (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation
+  handles must be slash-free — we use `__` separators (e.g. `voice__shop_owner__v9`).
 - Use Plan Mode for any non-trivial change: present the plan + files to touch, wait for approval.
 - Small commits.
 
@@ -55,29 +62,39 @@ Groq default) that voices each as an INDIVIDUAL anticipated reaction, all assemb
 artifact and played back on the map with sentiment-colored instrumented dots, a click-through panel,
 and a live comment feed keyed to each traveler's worst moment.
 
-**Phase 2 — IN PROGRESS.** The artifact is now **v0.3.0** (contract bumped, both sides updated): a
-per-STAKEHOLDER **scorecard** (7 groups × travel_time / safety / access) with per-cell honesty metadata
-— `confidence` (`measured`/`low`) + a `note` — plus safety surrogates and conflict events; the agent pass
-scaled to ~212 voices across three grounding kinds (vehicle-pinned, person-pinned, and INFERRED community
-voices that have no simulated trajectory). Frontend (steps 2.6a/2.6b) renders it end to end:
-- Discriminated agent union (`SimVehicleAgent | SimPersonAgent | inferred Agent`); background peds + person-
-  pinned instrumented agents drawn from `persons[]`; time-synced conflict pulses ("near-miss events observed
-  in this run", never "danger added by the change").
-- A collapsible **ScorecardPanel** (right rail): confidence badges are load-bearing — `[LOW]` cells muted,
-  **safety rendered as `±magnitude` with NO direction color** (the sign is seed-unstable per the cell's own
-  note), travel_time sign-colored + "N% >30s", notes on hover, seed-caveat tooltip on the safety column.
-- **CommentFeed at 212**: sim voices pop at `trigger_t`; inferred community voices interleave on a
-  render-time synthetic clock (evenly spaced + deterministic jitter, NO fake `trigger_t` written to data),
-  styled distinctly ("— community perspective", no map-dot link); cap 50 + "show earlier".
-- The **scorecard→feed join** (click a group row → filter the feed to that group's voices; `skeptical_taxpayer`
-  has no scorecard row → "Other voices" affordance) and the reverse join (click a pinned feed row → `flyTo` +
-  flash its dot). REFERENDUM GUARD is a hard UI rule: NO stance tallies / sentiment averages / vote counters
-  anywhere (the old "N of M travelers" feed denominator was removed).
-- Client-side `web/lib/personaGroups.ts` maps persona id → group / mode-icon / label (runtime `agent.persona`
-  is trimmed to `{id, label}` only, so the mapping cannot come from the artifact).
+**Phase 2 — COMPLETE.** The artifact is **v0.3.0** (contract bumped, both sides): a per-STAKEHOLDER **scorecard**
+(7 groups × travel_time / safety / access) with per-cell honesty metadata — `confidence` (`measured`/`low`) + a
+`note` — plus safety surrogates and conflict events; the agent pass scaled to ~212 voices across three grounding
+kinds (vehicle-pinned, person-pinned, INFERRED community voices with no trajectory). Frontend renders it end to
+end: the discriminated agent union + background peds + time-synced conflict pulses ("near-miss events observed in
+this run", never "danger added"); a collapsible **ScorecardPanel** (load-bearing confidence badges, **safety as
+`±magnitude` with NO direction**, notes/seed-caveat); a **CommentFeed at 212** (sim voices at `trigger_t` +
+inferred community voices on a render-time synthetic clock); the **scorecard→feed join** + reverse `flyTo`; and a
+hard **REFERENDUM GUARD** (no stance tallies / sentiment averages / vote counters). `web/lib/personaGroups.ts`
+maps persona id → group/mode/label client-side (runtime `agent.persona` is `{id,label}` only).
 
-Next: Phase 2 — social-graph opinion propagation (OASIS) + the report agent's GraphRAG memory (two
-distinct graphs; see the locked decisions). Agents still preview, never a verdict.
+**Phase 3 — COMPLETE.** A credibility-first report + an interactive agent over it.
+- **3.1 report (`report.py`):** a deterministic 5-section skeleton where the LLM fills ONLY marked narrative
+  slots; ALL numbers are code-rendered. A post-generation **honesty audit** (`audit_prose`: no digits / no safety
+  direction / no vote-tally / no crash words — retry once, else fail loudly) + a **code-rendered fact check**
+  (guards our own numbers) + safety as `±magnitude`. Writes `contract/runs/report-<ts>.{md,json}` +
+  `web/public/latest-report.*`. Sparse inferred rows get a deterministic gloss (the LLM can't deny a magnitude the
+  table shows). DeepSeek-default, temp 0.3.
+- **3.2 interactive agent (`report_agent.py` + `server.py`):** a per-run **LightRAG** index over ~230 corpus docs
+  (one per voice + scorecard rows + change + robustness + caveats + conflict summary) at `%LOCALAPPDATA%`, LLM
+  bound to DeepSeek + **local MiniLM embeddings** (dim 384, pinned in `embedding_meta.json`). A minimal FastAPI
+  backend — `GET /api/report`, `POST /api/chat` — retrieves via `aquery_data` (native `file_path` citations) then
+  runs a **guarded generation reusing the SAME `report.audit_prose`** (retry → caveat-only fallback). Answers are
+  digit-free, cite sources, and refuse honestly ("did it get safer?" → the caveat). A chat panel lives in the
+  Report view. The two graphs stay distinct: this is GraphRAG memory, NOT the OASIS social graph.
+
+**v0.4.0 riders (reserved, forward-looking — NOT yet in the contract):**
+- Persona gains optional `mode` / `stakeholder` on the wire, so `web/lib/personaGroups.ts` becomes *derivation*
+  from the artifact instead of a hand-maintained duplicate of `python/src/personas.json`.
+- A reserved slot for the **OASIS social block** (opinion propagation over the social graph).
+
+Next: **Phase 4 — social-graph opinion propagation (OASIS)** — the second graph (NOT GraphRAG; see the locked
+decisions). Agents still preview, never a verdict.
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
@@ -89,5 +106,12 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   PROVIDER=groq python python/src/reactions.py     # LLM reactions -> v0.2.0 artifact (GROQ_API_KEY in .env)
   ```
   Then point `web/components/MapView.tsx` `ARTIFACT_URL` at the new `/scenario-<ts>.json`.
-- **Frontend:** `cd web && npm run dev`  → http://localhost:3000
-- **Tests:** `python -m pytest python/tests` (golden spine + v0.2.0 agent invariants)
+- **Report + agent spine** (Phase 3; extra deps in `python/requirements-agent.txt`; DeepSeek default,
+  `DEEPSEEK_API_KEY` in `python/.env`):
+  ```bash
+  python python/src/report.py                      # 5-section report (md+json) -> web/public/latest-report.*
+  python python/src/report_agent.py                # build the per-run LightRAG index (under %LOCALAPPDATA%)
+  cd python/src && uvicorn server:app --port 8000  # agent backend: GET /api/report, POST /api/chat
+  ```
+- **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
+- **Tests:** `python -m pytest python/tests` (golden spine + agent/report honesty invariants)
