@@ -103,6 +103,16 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         lines.append(f'Anticipated reaction, verbatim: "{a.reaction.comment}"')
         docs.append(_doc(f"voice__{a.persona.id}__{pin}", f"Voice — {a.persona.label} [{glabel}]", "\n".join(lines)))
 
+    # --- v0.4.0 social posts: CLEAN cascade content only. Events marked audit_status="excluded" by the
+    #     immutability/audit guard MUST NOT leak into the clean corpus (they stay in the artifact for provenance).
+    if artifact.social is not None:
+        for cascade in artifact.social.cascades:
+            for step in cascade.steps:
+                for ev in step.events:
+                    if ev.content and ev.audit_status == "clean":
+                        docs.append(_doc(f"social__{ev.agent}__{cascade.cascade_id}__{step.step}",
+                                         f"Social post — {ev.agent}", ev.content))
+
     # --- one doc per scorecard row (with confidence + verbatim note) ---
     for gid in report.GROUP_ORDER:
         g = facts["by_group"].get(gid)

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nadi.local/contract/trajectory_schema.json",
   "title": "Trajectory Artifact",
-  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid.",
+  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
@@ -17,13 +17,28 @@
         "confidence": {"enum": ["measured", "low", null]},
         "note": {"type": ["string", "null"]}
       }
+    },
+    "socialEvent": {
+      "description": "One social action inside a cascade step (v0.4.0). Agent keys use the frontend agentId convention (vehicle_id ?? person_id ?? persona.id). content is OPTIONAL (a like carries none). exposed_via = how the actor came to see the target (a follow edge vs the recommender); null/absent = origin/unprompted. audit_status: 'excluded' means the immutability/audit guard removed it from the clean corpus (it stays in the artifact for provenance, but consumers must not treat it as clean content).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent", "action", "audit_status"],
+      "properties": {
+        "agent": {"type": "string", "minLength": 1},
+        "action": {"enum": ["post", "comment", "like", "repost", "follow"]},
+        "target_agent": {"type": "string", "minLength": 1},
+        "target_post": {"type": "string", "minLength": 1},
+        "content": {"type": "string"},
+        "exposed_via": {"enum": ["follow", "recsys", null]},
+        "audit_status": {"enum": ["clean", "excluded"]}
+      }
     }
   },
   "allOf": [
     {
-      "$comment": "v0.3.0 requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0 — keeping the bump additive.",
+      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0 or 0.4.0 — keeping the bumps additive.",
       "if": {
-        "properties": {"schema_version": {"const": "0.3.0"}},
+        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -41,8 +56,8 @@
   ],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. 0.3.0 is current; 0.1.0 and 0.2.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures and the agent grounding field).",
-      "enum": ["0.1.0", "0.2.0", "0.3.0"]
+      "description": "Semantic version of THIS contract. 0.4.0 is current; 0.1.0/0.2.0/0.3.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures and the agent grounding field).",
+      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0"]
     },
     "meta": {
       "type": "object",
@@ -193,7 +208,16 @@
             "required": ["id", "label"],
             "properties": {
               "id": {"type": "string", "minLength": 1},
-              "label": {"type": "string", "minLength": 1}
+              "label": {"type": "string", "minLength": 1},
+              "mode": {
+                "description": "OPTIONAL (v0.4.0+). Travel mode this persona speaks for. Lets the frontend DERIVE the stakeholder group from the artifact instead of a hand-maintained persona->group map.",
+                "enum": ["car", "bicycle", "pedestrian", "inferred"]
+              },
+              "stakeholder": {
+                "description": "OPTIONAL (v0.4.0+). Stakeholder group this persona voices (e.g. \"local_resident\", \"business_owner\"). Present mainly for inferred personas; sim personas usually derive their group from mode.",
+                "type": "string",
+                "minLength": 1
+              }
             }
           },
           "outcome": {
@@ -301,6 +325,116 @@
         "bca": {
           "description": "OPTIONAL & NULLABLE. Supplementary benefit-cost context. null for v0 (a runtime lane change has no construction/maintenance cost model — the DISTRIBUTION is the point). Deliberately unshaped; a later step defines its structure.",
           "type": ["object", "null"]
+        }
+      }
+    },
+    "social": {
+      "description": "OPTIONAL (v0.4.0+). Opinion-propagation over a social graph — the OASIS SECOND graph, distinct from the report agent's GraphRAG. A PREVIEW of who shifts whom and the texture of the argument, NEVER a referendum/verdict. Agent keys use the frontend agentId convention (vehicle_id ?? person_id ?? persona.id). Deliberately under-constrained (a later step tightens the derived fields).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mechanism"],
+      "properties": {
+        "mechanism": {
+          "description": "How opinions propagate. 'oasis' = the CAMEL/OASIS social-media simulation. 'neighbor_pass' is reserved for a lighter deliberation-loop alternative.",
+          "enum": ["oasis", "neighbor_pass"]
+        },
+        "graph": {
+          "description": "OPTIONAL. The social graph the cascade ran over.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["edges"],
+          "properties": {
+            "edges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["from", "to", "kind"],
+                "properties": {
+                  "from": {"description": "agentId of the follower / influenced node.", "type": "string", "minLength": 1},
+                  "to": {"description": "agentId of the followee / influencing node.", "type": "string", "minLength": 1},
+                  "kind": {
+                    "description": "Why the edge exists: 'homophily' (similar stance/mode), 'geography' (same corridor area), 'cross' (a deliberately cross-cutting tie).",
+                    "enum": ["homophily", "geography", "cross"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "cascades": {
+          "description": "OPTIONAL. One or more propagation cascades, each a sequence of timesteps of social events.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["cascade_id", "steps"],
+            "properties": {
+              "cascade_id": {"type": "string", "minLength": 1},
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["step", "events"],
+                  "properties": {
+                    "step": {"type": "integer", "minimum": 0},
+                    "events": {"type": "array", "items": {"$ref": "#/$defs/socialEvent"}}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "trajectories": {
+          "description": "OPTIONAL. Per-agent opinion trajectory over cascade steps (the MOVEMENT, not just final state). 'shifted' = the stance moved; 'influenced_by' names agentIds whose content plausibly moved it.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["agent", "points"],
+            "properties": {
+              "agent": {"type": "string", "minLength": 1},
+              "derived_by": {
+                "description": "How the trajectory was derived. 'stance_scoring' = a deterministic post-hoc stance/sentiment scoring of the agent's activity.",
+                "enum": ["stance_scoring"]
+              },
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["step", "stance"],
+                  "properties": {
+                    "step": {"type": "integer", "minimum": 0},
+                    "stance": {"enum": ["supportive", "neutral", "opposed"]},
+                    "sentiment": {"type": "number", "minimum": -1, "maximum": 1}
+                  }
+                }
+              },
+              "shifted": {"type": "boolean"},
+              "influenced_by": {"type": "array", "items": {"type": "string", "minLength": 1}}
+            }
+          }
+        },
+        "argument_reach": {
+          "description": "OPTIONAL (code-computed). How far each argument spread: how many agents it reached in a cascade.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["argument", "cascade_id", "reached"],
+            "properties": {
+              "argument": {"type": "string", "minLength": 1},
+              "cascade_id": {"type": "string", "minLength": 1},
+              "reached": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "excluded_count": {
+          "description": "OPTIONAL. Number of events the post-hoc audit/immutability guard marked audit_status=\"excluded\".",
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

@@ -1,0 +1,223 @@
+{
+  "schema_version": "0.4.0",
+  "meta": {
+    "run_id": "sample-v0_4_0",
+    "network": "corridor.net.xml",
+    "bbox": [-79.276, 43.733, -79.172, 43.792],
+    "sim_start": 0.0,
+    "sim_end": 120.0,
+    "step_length": 1.0,
+    "created_at": "2026-07-07T00:00:00+00:00",
+    "scenario": {
+      "baseline_run_id": "sample-v0_4_0-baseline",
+      "change": {
+        "type": "bike_lane",
+        "target_edge": "E1",
+        "target_lane": 1,
+        "description": "Converted lane 1 of edge E1 to a bicycle-only lane"
+      }
+    }
+  },
+  "vehicles": [
+    {
+      "id": "v1",
+      "type": "car",
+      "path": [[-79.25, 43.75], [-79.24, 43.76]],
+      "timestamps": [0.0, 60.0],
+      "speeds": [8.0, 6.0]
+    },
+    {
+      "id": "v2",
+      "type": "bicycle",
+      "path": [[-79.25, 43.751], [-79.24, 43.761]],
+      "timestamps": [0.0, 55.0],
+      "speeds": [5.0, 5.0]
+    }
+  ],
+  "persons": [
+    {
+      "id": "p1",
+      "type": "pedestrian",
+      "path": [[-79.252, 43.749], [-79.248, 43.752]],
+      "timestamps": [0.0, 90.0],
+      "speeds": [1.3, 1.3]
+    }
+  ],
+  "agents": [
+    {
+      "grounding": "sim",
+      "vehicle_id": "v1",
+      "persona": {"id": "time_pressed", "label": "Time-pressed commuter", "mode": "car"},
+      "outcome": {
+        "baseline_duration": 240.0,
+        "scenario_duration": 300.0,
+        "delta_seconds": 60.0,
+        "baseline_timeloss": 20.0,
+        "scenario_timeloss": 60.0
+      },
+      "reaction": {
+        "comment": "Losing a car lane adds over a minute to my drive — that wrecks my tight morning schedule.",
+        "sentiment": -0.8,
+        "stance": "opposed"
+      },
+      "trigger_t": 60.0
+    },
+    {
+      "grounding": "sim",
+      "vehicle_id": "v2",
+      "persona": {"id": "bike_commuter", "label": "Daily bike commuter", "mode": "bicycle"},
+      "outcome": {
+        "baseline_duration": 300.0,
+        "scenario_duration": 294.0,
+        "delta_seconds": -6.0,
+        "baseline_timeloss": 15.0,
+        "scenario_timeloss": 12.0
+      },
+      "reaction": {
+        "comment": "My ride is about the same time but finally protected — no more getting squeezed by cars.",
+        "sentiment": 0.9,
+        "stance": "supportive"
+      },
+      "trigger_t": 55.0
+    },
+    {
+      "grounding": "sim",
+      "person_id": "p1",
+      "persona": {"id": "senior_walker", "label": "Senior who walks everywhere", "mode": "pedestrian"},
+      "outcome": {
+        "baseline_duration": 480.0,
+        "scenario_duration": 485.0,
+        "delta_seconds": 5.0,
+        "baseline_timeloss": 30.0,
+        "scenario_timeloss": 32.0
+      },
+      "reaction": {
+        "comment": "My walk is about the same; calmer traffic at the crossing would be welcome.",
+        "sentiment": 0.1,
+        "stance": "neutral"
+      },
+      "trigger_t": 90.0
+    },
+    {
+      "grounding": "inferred",
+      "persona": {"id": "shop_owner", "label": "Small business owner", "mode": "inferred", "stakeholder": "business_owner"},
+      "reaction": {
+        "comment": "Taking the curb lane threatens the parking my customers rely on to stop and shop.",
+        "sentiment": -0.6,
+        "stance": "opposed"
+      }
+    },
+    {
+      "grounding": "inferred",
+      "persona": {"id": "longtime_resident", "label": "Long-time corridor resident", "mode": "inferred", "stakeholder": "local_resident"},
+      "reaction": {
+        "comment": "Anything that slows the speeding and calms this street is welcome — I have lived here for years.",
+        "sentiment": 0.8,
+        "stance": "supportive"
+      }
+    }
+  ],
+  "conflicts": [
+    {"t": 42.0, "lon": -79.245, "lat": 43.758, "type": "rear_end", "severity": 0.3, "ttc": 2.4, "entities": ["v1", "v2"]}
+  ],
+  "scorecard": {
+    "groups": [
+      {
+        "group": "car_commuter",
+        "grounding": "sim",
+        "travel_time_delta": {"value": 0.0, "affected_share": 0.033, "confidence": "measured", "note": "affected_share = fraction of this group's travelers >30s slower"},
+        "safety_delta": {"value": 6.5, "confidence": "low", "note": "sign not stable across seeds 42/43/44; directional claim not supported"},
+        "access_delta": {"value": 0.33, "confidence": "low", "note": "rule-based estimate"}
+      },
+      {
+        "group": "business_owner",
+        "grounding": "inferred",
+        "access_delta": {"value": 0.5, "confidence": "low", "note": "rule-based estimate"}
+      }
+    ]
+  },
+  "social": {
+    "mechanism": "oasis",
+    "graph": {
+      "edges": [
+        {"from": "longtime_resident", "to": "v2", "kind": "homophily"},
+        {"from": "p1", "to": "shop_owner", "kind": "geography"},
+        {"from": "v1", "to": "v2", "kind": "cross"}
+      ]
+    },
+    "cascades": [
+      {
+        "cascade_id": "c1",
+        "steps": [
+          {
+            "step": 0,
+            "events": [
+              {"agent": "v1", "action": "post", "target_post": "post_v1_c1", "content": "Losing a car lane adds over a minute to my drive — that wrecks my tight morning schedule.", "audit_status": "clean"},
+              {"agent": "v2", "action": "post", "target_post": "post_v2_c1", "content": "My ride is about the same time but finally protected — no more getting squeezed by cars.", "audit_status": "clean"},
+              {"agent": "shop_owner", "action": "post", "target_post": "post_shop_c1", "content": "Taking the curb lane threatens the parking my customers rely on.", "audit_status": "clean"}
+            ]
+          },
+          {
+            "step": 1,
+            "events": [
+              {"agent": "v2", "action": "like", "target_agent": "v1", "target_post": "post_v1_c1", "exposed_via": "follow", "audit_status": "clean"},
+              {"agent": "shop_owner", "action": "comment", "target_agent": "v2", "target_post": "post_v2_c1", "content": "Glad your ride improved, but curbside parking for shops still needs a solution.", "exposed_via": "recsys", "audit_status": "clean"}
+            ]
+          },
+          {
+            "step": 2,
+            "events": [
+              {"agent": "v1", "action": "comment", "target_agent": "shop_owner", "target_post": "post_shop_c1", "content": "Agreed — the delay stings, and losing parking would hit local shops too.", "exposed_via": "follow", "audit_status": "clean"},
+              {"agent": "v1", "action": "post", "target_post": "post_v1_c1_dup", "content": "Reposting: this lane change costs drivers real time every morning.", "audit_status": "excluded"}
+            ]
+          }
+        ]
+      },
+      {
+        "cascade_id": "c2",
+        "steps": [
+          {
+            "step": 0,
+            "events": [
+              {"agent": "longtime_resident", "action": "post", "target_post": "post_res_c2", "content": "Calmer streets after years of speeding — this is overdue for the neighbourhood.", "audit_status": "clean"}
+            ]
+          },
+          {
+            "step": 1,
+            "events": [
+              {"agent": "p1", "action": "like", "target_agent": "longtime_resident", "target_post": "post_res_c2", "exposed_via": "follow", "audit_status": "clean"}
+            ]
+          }
+        ]
+      }
+    ],
+    "trajectories": [
+      {
+        "agent": "v1",
+        "derived_by": "stance_scoring",
+        "points": [
+          {"step": 0, "stance": "opposed", "sentiment": -0.8},
+          {"step": 1, "stance": "opposed", "sentiment": -0.7},
+          {"step": 2, "stance": "neutral", "sentiment": -0.2}
+        ],
+        "shifted": true,
+        "influenced_by": ["v2", "shop_owner"]
+      },
+      {
+        "agent": "v2",
+        "derived_by": "stance_scoring",
+        "points": [
+          {"step": 0, "stance": "supportive", "sentiment": 0.9},
+          {"step": 2, "stance": "supportive", "sentiment": 0.9}
+        ],
+        "shifted": false,
+        "influenced_by": []
+      }
+    ],
+    "argument_reach": [
+      {"argument": "curbside parking loss hurts local shops", "cascade_id": "c1", "reached": 3},
+      {"argument": "calmer streets are overdue", "cascade_id": "c2", "reached": 2}
+    ],
+    "excluded_count": 1
+  }
+}

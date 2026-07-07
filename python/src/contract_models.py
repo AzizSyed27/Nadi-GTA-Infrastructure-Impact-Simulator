@@ -8,8 +8,13 @@ v0.3.0 (additive over v0.2.0): adds optional top-level ``persons`` (pedestrian t
 ``conflicts`` (safety surrogates), and ``scorecard`` (per-stakeholder outcome); adds
 ``Change.target_lane``; adds an agent ``grounding`` discriminator ("sim" vs "inferred") with the
 sim/inferred field-presence invariant enforced HERE (the schema stays loose, requiring ``grounding``
-only for 0.3.0 artifacts). v0.2.0/v0.1.0 artifacts still load: ``grounding`` defaults to "sim", so a
+only for 0.3.0/0.4.0 artifacts). v0.2.0/v0.1.0 artifacts still load: ``grounding`` defaults to "sim", so a
 grounding-less v0.2.0 agent (vehicle_id + outcome + trigger_t) parses and satisfies the invariant.
+
+v0.4.0 (additive over v0.3.0): adds optional ``Persona.mode`` / ``Persona.stakeholder`` (so the frontend
+can DERIVE the stakeholder group from the artifact), and an optional top-level ``social`` block — the OASIS
+opinion-propagation SECOND graph (graph edges, cascades of events, per-agent opinion trajectories,
+argument reach). A PREVIEW, never a verdict. All v0.3.0 artifacts still load.
 """
 
 from __future__ import annotations
@@ -18,8 +23,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Current contract version emitted by new runs. The schema also accepts "0.1.0"/"0.2.0" for back-compat reads.
-SCHEMA_VERSION: Literal["0.3.0"] = "0.3.0"
+# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.3.0" for back-compat reads.
+SCHEMA_VERSION: Literal["0.4.0"] = "0.4.0"
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
@@ -90,6 +95,8 @@ class Persona(BaseModel):
 
     id: str
     label: str
+    mode: Literal["car", "bicycle", "pedestrian", "inferred"] | None = None  # v0.4.0+, optional
+    stakeholder: str | None = None  # v0.4.0+, optional (mainly inferred personas)
 
 
 class Outcome(BaseModel):
@@ -202,14 +209,106 @@ class Scorecard(BaseModel):
     bca: dict | None = None
 
 
+# ---- v0.4.0: the OASIS social-opinion-propagation block (the SECOND graph, NOT the report GraphRAG) ----
+# Agent keys throughout use the frontend agentId convention: vehicle_id ?? person_id ?? persona.id.
+
+class SocialEdge(BaseModel):
+    """One social-graph edge. ``from`` is a Python keyword, so it is stored as ``from_`` with a wire alias —
+    dump_artifact serializes with by_alias=True so it emits/reads "from"."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    to: str
+    kind: Literal["homophily", "geography", "cross"]
+
+
+class SocialGraph(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    edges: list[SocialEdge] = Field(default_factory=list)
+
+
+class SocialEvent(BaseModel):
+    """One social action in a cascade step. ``content`` optional (likes carry none). ``exposed_via`` = how the
+    actor came to see the target (follow edge vs recommender); None = origin/unprompted. ``audit_status``
+    'excluded' = removed from the clean corpus by the immutability/audit guard (kept for provenance)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent: str
+    action: Literal["post", "comment", "like", "repost", "follow"]
+    target_agent: str | None = None
+    target_post: str | None = None
+    content: str | None = None
+    exposed_via: Literal["follow", "recsys"] | None = None
+    audit_status: Literal["clean", "excluded"]
+
+
+class CascadeStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    step: int = Field(ge=0)
+    events: list[SocialEvent] = Field(default_factory=list)
+
+
+class Cascade(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cascade_id: str
+    steps: list[CascadeStep] = Field(default_factory=list)
+
+
+class TrajectoryPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    step: int = Field(ge=0)
+    stance: Literal["supportive", "neutral", "opposed"]
+    sentiment: float | None = Field(default=None, ge=-1, le=1)
+
+
+class OpinionTrajectory(BaseModel):
+    """Per-agent opinion movement over cascade steps — the MOVEMENT, not just final state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent: str
+    derived_by: Literal["stance_scoring"] | None = None
+    points: list[TrajectoryPoint] = Field(default_factory=list)
+    shifted: bool | None = None
+    influenced_by: list[str] = Field(default_factory=list)
+
+
+class ArgumentReach(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    argument: str
+    cascade_id: str
+    reached: int = Field(ge=0)
+
+
+class Social(BaseModel):
+    """v0.4.0+. Opinion propagation over a social graph (OASIS). A PREVIEW of who shifts whom, never a verdict."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mechanism: Literal["oasis", "neighbor_pass"]
+    graph: SocialGraph | None = None
+    cascades: list[Cascade] = Field(default_factory=list)
+    trajectories: list[OpinionTrajectory] = Field(default_factory=list)
+    argument_reach: list[ArgumentReach] = Field(default_factory=list)
+    excluded_count: int | None = Field(default=None, ge=0)
+
+
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0/0.2.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.3.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.3.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.4.0).
+    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0"] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional
     agents: list[Agent] = Field(default_factory=list)  # v0.2.0+, optional
     conflicts: list[Conflict] = Field(default_factory=list)  # v0.3.0+, optional
     scorecard: Scorecard | None = None  # v0.3.0+, optional
+    social: Social | None = None  # v0.4.0+, optional

@@ -88,10 +88,12 @@ maps persona id → group/mode/label client-side (runtime `agent.persona` is `{i
   digit-free, cite sources, and refuse honestly ("did it get safer?" → the caveat). A chat panel lives in the
   Report view. The two graphs stay distinct: this is GraphRAG memory, NOT the OASIS social graph.
 
-**v0.4.0 riders (reserved, forward-looking — NOT yet in the contract):**
-- Persona gains optional `mode` / `stakeholder` on the wire, so `web/lib/personaGroups.ts` becomes *derivation*
-  from the artifact instead of a hand-maintained duplicate of `python/src/personas.json`.
-- A reserved slot for the **OASIS social block** (opinion propagation over the social graph).
+**v0.4.0 riders (LANDED in the contract at Step 4.1 — additive over v0.3.0):**
+- Persona gained optional `mode` / `stakeholder` on the wire, so `web/lib/personaGroups.ts` can become
+  *derivation* from the artifact (the frontend swap lands in 4.3) instead of a hand-maintained duplicate.
+- The optional top-level **`social{}` block** (OASIS opinion propagation: graph edges, cascades of events,
+  per-agent opinion trajectories, argument reach) — the SECOND graph, distinct from the report GraphRAG. A
+  deterministic immutability checker (`social_checks.py`) guards post↔outcome sign-consistency.
 
 Next: **Phase 4 — social-graph opinion propagation (OASIS)** — the second graph (NOT GraphRAG; see the locked
 decisions). Agents still preview, never a verdict.

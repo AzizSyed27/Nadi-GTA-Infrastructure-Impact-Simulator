@@ -74,6 +74,10 @@ export interface Person {
 export interface Persona {
   id: string;
   label: string;
+  /** v0.4.0+. Travel mode this persona speaks for — lets the frontend DERIVE the stakeholder group. */
+  mode?: 'car' | 'bicycle' | 'pedestrian' | 'inferred';
+  /** v0.4.0+. Stakeholder group this persona voices (mainly inferred personas). */
+  stakeholder?: string;
 }
 
 /** Quantitative baseline-vs-scenario outcome for one traveler (seconds). */
@@ -201,6 +205,75 @@ export interface Scorecard {
   bca?: Record<string, unknown>;
 }
 
+// ---- v0.4.0: the OASIS social-opinion-propagation block (the SECOND graph, NOT the report GraphRAG) ----
+// Agent keys use the frontend agentId convention: vehicle_id ?? person_id ?? persona.id (see viz.agentId).
+
+export type Mechanism = 'oasis' | 'neighbor_pass';
+export type EdgeKind = 'homophily' | 'geography' | 'cross';
+export type SocialAction = 'post' | 'comment' | 'like' | 'repost' | 'follow';
+export type ExposedVia = 'follow' | 'recsys';
+export type AuditStatus = 'clean' | 'excluded';
+
+/** One social-graph edge (follower `from` -> followee `to`). */
+export interface SocialEdge {
+  from: string;
+  to: string;
+  kind: EdgeKind;
+}
+export interface SocialGraph {
+  edges: SocialEdge[];
+}
+
+/** One social action in a cascade step. `content` absent for likes; `exposed_via` absent = origin/unprompted. */
+export interface SocialEvent {
+  agent: string;
+  action: SocialAction;
+  target_agent?: string;
+  target_post?: string;
+  content?: string;
+  exposed_via?: ExposedVia | null;
+  /** 'excluded' = removed from the clean corpus by the immutability/audit guard (kept for provenance). */
+  audit_status: AuditStatus;
+}
+export interface CascadeStep {
+  step: number;
+  events: SocialEvent[];
+}
+export interface Cascade {
+  cascade_id: string;
+  steps: CascadeStep[];
+}
+
+export interface TrajectoryPoint {
+  step: number;
+  stance: Stance;
+  sentiment?: number;
+}
+/** Per-agent opinion movement over cascade steps — the MOVEMENT, not just final state. */
+export interface OpinionTrajectory {
+  agent: string;
+  derived_by?: 'stance_scoring';
+  points: TrajectoryPoint[];
+  shifted?: boolean;
+  influenced_by?: string[];
+}
+
+export interface ArgumentReach {
+  argument: string;
+  cascade_id: string;
+  reached: number;
+}
+
+/** v0.4.0+. Opinion propagation over a social graph (OASIS). A PREVIEW of who shifts whom, never a verdict. */
+export interface Social {
+  mechanism: Mechanism;
+  graph?: SocialGraph;
+  cascades?: Cascade[];
+  trajectories?: OpinionTrajectory[];
+  argument_reach?: ArgumentReach[];
+  excluded_count?: number;
+}
+
 export interface TrajectoryArtifact {
   schema_version: string;
   meta: Meta;
@@ -213,4 +286,6 @@ export interface TrajectoryArtifact {
   conflicts?: Conflict[];
   /** v0.3.0+, optional. */
   scorecard?: Scorecard;
+  /** v0.4.0+, optional. The OASIS opinion-propagation second graph. */
+  social?: Social;
 }

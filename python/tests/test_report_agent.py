@@ -21,8 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
 import report_agent  # noqa: E402
 from contract_models import (  # noqa: E402
-    Agent, Change, Meta, Outcome, Persona, Reaction, Scenario, Scorecard, ScorecardCell, ScorecardGroup,
-    TrajectoryArtifact, Vehicle,
+    Agent, Cascade, CascadeStep, Change, Meta, Outcome, Persona, Reaction, Scenario, Scorecard, ScorecardCell,
+    ScorecardGroup, Social, SocialEvent, TrajectoryArtifact, Vehicle,
 )
 
 
@@ -124,6 +124,20 @@ def test_embedding_pin_roundtrip_and_mismatch(tmp_path):
     msg = str(ei.value)
     assert "some-other-model" in msg and "768" in msg  # the pinned config
     assert report_agent.EMBED_MODEL in msg and "384" in msg  # the current config
+
+
+def test_excluded_social_events_filtered():
+    """v0.4.0: a social event with audit_status='excluded' must NOT reach the clean corpus (test at the
+    build_corpus layer). The clean event's content appears; the excluded event's content does not."""
+    art = _artifact()
+    art.social = Social(mechanism="oasis", cascades=[Cascade(cascade_id="c1", steps=[CascadeStep(step=0, events=[
+        SocialEvent(agent="v1", action="post", content="CLEAN_MARKER a calmer street is welcome", audit_status="clean"),
+        SocialEvent(agent="v1", action="post", content="EXCLUDED_MARKER this must not leak", audit_status="excluded"),
+    ])])])
+    docs = report_agent.build_corpus(art, _outcomes(), verdict=None)
+    text = " ".join(d["text"] for d in docs)
+    assert "CLEAN_MARKER" in text, "clean social content must reach the corpus"
+    assert "EXCLUDED_MARKER" not in text, "excluded social content must NOT leak into the clean corpus"
 
 
 def test_chat_constitution_carries_the_rules():

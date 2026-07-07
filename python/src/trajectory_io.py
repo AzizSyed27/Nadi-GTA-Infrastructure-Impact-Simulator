@@ -47,7 +47,8 @@ def dump_artifact(artifact: TrajectoryArtifact, path: str | Path | None = None) 
     """
     # exclude_none: optional fields (meta.scenario, change.value_mps) are OMITTED when absent rather
     # than emitted as JSON null — the schema types them as object/number, so null would fail validation.
-    data = artifact.model_dump(mode="json", exclude_none=True)
+    # by_alias: the v0.4.0 SocialEdge stores `from` as `from_` (a Python keyword) and must emit it as "from".
+    data = artifact.model_dump(mode="json", exclude_none=True, by_alias=True)
     validate_artifact(data)  # never write an artifact that violates the frozen contract
     out = Path(path) if path is not None else RUNS_DIR / f"{artifact.meta.run_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)

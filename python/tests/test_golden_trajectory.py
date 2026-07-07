@@ -33,6 +33,7 @@ GOLDEN_PATH = Path(__file__).resolve().parent / "golden_trajectory.json"
 # Committed, hand-authored fixtures (always present, never skip) — contract-shape canaries.
 SAMPLE_PATH = REPO_ROOT / "web" / "public" / "sample_v0_2_0.json"
 SAMPLE_V3_PATH = REPO_ROOT / "web" / "public" / "sample_v0_3_0.json"
+SAMPLE_V4_PATH = REPO_ROOT / "web" / "public" / "sample_v0_4_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -347,6 +348,72 @@ def test_scorecard_cells_roundtrip() -> None:
     # 2.5: confidence + note are the newest optional cell fields — they must survive exclude_none too.
     assert rt_car.confidence == car_tt.confidence, "confidence must survive the round-trip"
     assert rt_car.note == car_tt.note, "note must survive the round-trip"
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0 contract (additive over v0.3.0): optional persona.mode/stakeholder + the social{} block.
+# Existing v0.2.0/v0.3.0 tests above are UNCHANGED and still run against the (now-bumped) schema — that IS
+# the back-compat proof: the enum keeps older artifacts valid.
+# ---------------------------------------------------------------------------
+
+
+def test_v0_4_0_sample() -> None:
+    """The committed v0.4.0 sample validates (schema + model) and every new structure is well-formed."""
+    assert SAMPLE_V4_PATH.is_file(), f"committed v0.4.0 sample missing: {SAMPLE_V4_PATH}"
+    raw = json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))
+    trajectory_io.validate_artifact(raw)  # (1) schema
+    art = trajectory_io.load_artifact(SAMPLE_V4_PATH)  # (2) model (enforces the grounding invariant too)
+    assert raw["schema_version"] == "0.4.0"
+
+    # persona riders present.
+    assert any(a.persona.mode is not None for a in art.agents), "expected persona.mode on some agents"
+    assert any(a.persona.stakeholder is not None for a in art.agents), "expected persona.stakeholder on some agents"
+
+    social = art.social
+    assert social is not None and social.mechanism == "oasis"
+    assert len(social.cascades) == 2, "sample exercises 2 cascades"
+    assert {e.kind for e in social.graph.edges} == {"homophily", "geography", "cross"}, "all 3 edge kinds"
+    assert any(t.shifted for t in social.trajectories), "expected at least one shifted trajectory"
+    # exposure covers both a follow edge and the recommender.
+    vias = {ev.exposed_via for c in social.cascades for s in c.steps for ev in s.events}
+    assert "follow" in vias and "recsys" in vias, "expected both follow and recsys exposure"
+
+
+def test_v0_4_0_excluded_count_matches() -> None:
+    """Cross-field invariant a consumer will assume: social.excluded_count == #events marked 'excluded'."""
+    art = trajectory_io.load_artifact(SAMPLE_V4_PATH)
+    excluded = sum(1 for c in art.social.cascades for s in c.steps for e in s.events if e.audit_status == "excluded")
+    assert excluded == 1, "sample has exactly one excluded event"
+    assert art.social.excluded_count == excluded, "excluded_count must match the excluded events"
+
+
+def test_v0_4_0_out_of_enum_stance_rejected() -> None:
+    """NEGATIVE: a trajectory point with an out-of-enum stance must fail schema validation."""
+    raw = json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))
+    raw["social"]["trajectories"][0]["points"][0]["stance"] = "wishy-washy"  # not in the enum
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+
+
+def test_v0_4_0_semantic_roundtrip() -> None:
+    """load -> dump -> reload: the parsed dicts are EQUAL and the dump re-validates (incl. the `from` alias)."""
+    src = json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))
+    art = trajectory_io.load_artifact(SAMPLE_V4_PATH)
+    out = RUNS_DIR / "_rt_v0_4_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)  # validates on write
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)  # re-validate + model round-trip
+    finally:
+        out.unlink(missing_ok=True)
+    assert redumped["social"]["graph"]["edges"][0].get("from"), "the `from` alias must serialize as 'from'"
+    assert src == redumped, "semantic round-trip must be equal"
+
+
+def test_v0_2_0_and_v0_3_0_still_validate_under_v0_4_0_schema() -> None:
+    """Explicit back-compat: older samples validate against the bumped schema (the enum keeps them)."""
+    trajectory_io.validate_artifact(json.loads(SAMPLE_PATH.read_text(encoding="utf-8")))
+    trajectory_io.validate_artifact(json.loads(SAMPLE_V3_PATH.read_text(encoding="utf-8")))
 
 
 def _write_golden() -> None:

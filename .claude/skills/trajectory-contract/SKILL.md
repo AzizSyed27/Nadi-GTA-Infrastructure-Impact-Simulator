@@ -11,9 +11,18 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 ## Cardinal rules
 1. **Positions are ALWAYS `[lon, lat]` (WGS84)** — never SUMO internal x/y. (Wrong → dots in the ocean.)
 2. **The schema is FROZEN.** Do not change field names/types/shape without **bumping `schema_version`**
-   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.3.0`**.
-   `schema_version` is an **enum `["0.1.0", "0.2.0", "0.3.0"]`** — 0.3.0 is what new runs emit; older
+   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.4.0`**.
+   `schema_version` is an **enum `["0.1.0", "0.2.0", "0.3.0", "0.4.0"]`** — 0.4.0 is what new runs emit; older
    versions are accepted for back-compat reads (they simply omit the newer optional structures).
+   **v0.4.0 added, ADDITIVELY (all optional, no renames):** optional `persona.mode`
+   (`car|bicycle|pedestrian|inferred`) + `persona.stakeholder` (so the frontend can DERIVE the group), and an
+   optional top-level **`social`** block — the OASIS opinion-propagation SECOND graph (graph edges,
+   cascades of events, per-agent opinion trajectories, argument reach). A PREVIEW, never a verdict; distinct
+   from the report agent's GraphRAG. Agent keys use the frontend agentId convention
+   (`vehicle_id ?? person_id ?? persona.id`). A `SocialEdge`'s `from` is a Python keyword → stored as `from_`
+   with a wire alias; `dump_artifact` uses `by_alias=True`. Every v0.3.0 artifact stays valid. A deterministic
+   IMMUTABILITY checker (`python/src/social_checks.py`) guards that a post never claims a trip direction that
+   contradicts the agent's measured `delta_seconds` sign.
    **v0.2.0 added, ADDITIVELY:** optional `meta.scenario` + optional top-level `agents`.
    **v0.3.0 added, ADDITIVELY (all optional, no renames):** top-level `persons[]` (pedestrian
    trajectories, same per-entity shape as `vehicles`), `conflicts[]` (safety SURROGATES — never crash
@@ -21,8 +30,8 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
    and an agent **`grounding`** discriminator (`"sim"` | `"inferred"`) with `person_id` — so `vehicle_id`,
    `person_id`, `outcome`, `trigger_t` are now all OPTIONAL on an agent. `vehicles` is unchanged; every
    v0.1.0/v0.2.0 artifact stays valid.
-   - **`grounding` is enforced by a schema `if/then`** (required only when `schema_version == "0.3.0"`), so
-     old grounding-less agents keep validating. The **sim/inferred field-presence invariant** (sim ⇒
+   - **`grounding` is enforced by a schema `if/then`** (required when `schema_version` is `"0.3.0"` or
+     `"0.4.0"`), so old grounding-less agents keep validating. The **sim/inferred field-presence invariant** (sim ⇒
      exactly one of vehicle_id/person_id + outcome + trigger_t; inferred ⇒ none) is enforced in the MODEL,
      not the schema. The pydantic `Agent` defaults `grounding="sim"` so v0.2.0 agents still model-load.
    - **Uniform scorecard sign: POSITIVE = WORSE for the group.** Group deltas are optional & nullable
@@ -52,9 +61,32 @@ Artifacts are emitted to `contract/runs/<run_id>.json` (see the `run-sim` skill)
    field changes are picked up automatically).
 4. Re-emit a run (`run-sim` skill) and confirm `load_artifact()` still validates.
 
-## Schema reference (schema_version 0.3.0) — keep both worlds consistent with THIS
-Top level: `{ schema_version, meta, vehicles }` required; **`persons`, `agents`, `conflicts`, `scorecard`
-all optional**. `schema_version` is `{"enum": ["0.1.0", "0.2.0", "0.3.0"]}`.
+## Schema reference (schema_version 0.4.0) — keep both worlds consistent with THIS
+Top level: `{ schema_version, meta, vehicles }` required; **`persons`, `agents`, `conflicts`, `scorecard`,
+`social` all optional**. `schema_version` is `{"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0"]}`.
+
+**v0.4.0 additions (all optional, additive):**
+```json
+"persona": { "id": "...", "label": "...", "mode": "car|bicycle|pedestrian|inferred", "stakeholder": "business_owner" },
+"social": {
+  "mechanism": "oasis",                                  // required; "neighbor_pass" reserved
+  "graph": { "edges": [ { "from": "agentId", "to": "agentId", "kind": "homophily|geography|cross" } ] },
+  "cascades": [ { "cascade_id": "c1", "steps": [ { "step": 0, "events": [
+    { "agent": "agentId", "action": "post|comment|like|repost|follow", "target_agent": "?", "target_post": "?",
+      "content": "?", "exposed_via": "follow|recsys|null", "audit_status": "clean|excluded" } ] } ] } ],
+  "trajectories": [ { "agent": "agentId", "derived_by": "stance_scoring",
+    "points": [ { "step": 0, "stance": "supportive|neutral|opposed", "sentiment": 0.5 } ],
+    "shifted": true, "influenced_by": ["agentId"] } ],
+  "argument_reach": [ { "argument": "...", "cascade_id": "c1", "reached": 3 } ],
+  "excluded_count": 1
+}
+// social requires mechanism; event requires agent+action+audit_status (content optional — likes carry none).
+// A full example lives at contract/runs/sample_v0_4_0.json (+ web/public/). excluded events stay for provenance
+// but MUST NOT reach the clean corpus (report_agent.build_corpus filters them).
+```
+
+### Schema reference (v0.3.0 additions, still valid):
+`schema_version` also accepts `"0.3.0"`.
 
 **v0.3.0 additions (all optional, additive):**
 ```json
