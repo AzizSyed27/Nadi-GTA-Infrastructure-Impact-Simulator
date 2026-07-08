@@ -51,6 +51,16 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
   (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation
   handles must be slash-free — we use `__` separators (e.g. `voice__shop_owner__v9`).
+- **Windows-native gotchas (OASIS/CAMEL):** OASIS runs in a **separate `oasis` conda env (python 3.11)** —
+  camel-oasis 0.2.5 pins `<3.12`, so it CANNOT run in base miniconda 3.13. That is a real **two-env boundary**:
+  the 4.2 producer must call it as a subprocess / second service, not an in-process import. `import oasis` from
+  base fails. Four traps that cost time in 4.0: (1) `generate_twitter_agent_graph` builds NODES but does NOT wire
+  the CSV `following_agentid_list` edges — wire them with `AgentGraph.add_edge` or exposure is recsys-only, not
+  graph-driven; (2) run via **`conda run --no-capture-output -n oasis …`** (plain `conda run` buffers stdout and
+  re-encodes through cp1252, crashing on agents' non-ASCII text — the run still completes + writes its JSON); (3)
+  OASIS scratch (profile CSV + sqlite DB) lives under `%LOCALAPPDATA%\nadi-oasis-spike\`, NOT the OneDrive tree
+  (same atomic-write hazard); (4) `cairocffi`'s native libcairo is absent on this box but is viz-only — `import
+  oasis` and a full run work without it.
 - Use Plan Mode for any non-trivial change: present the plan + files to touch, wait for approval.
 - Small commits.
 
@@ -95,8 +105,21 @@ maps persona id → group/mode/label client-side (runtime `agent.persona` is `{i
   per-agent opinion trajectories, argument reach) — the SECOND graph, distinct from the report GraphRAG. A
   deterministic immutability checker (`social_checks.py`) guards post↔outcome sign-consistency.
 
-Next: **Phase 4 — social-graph opinion propagation (OASIS)** — the second graph (NOT GraphRAG; see the locked
-decisions). Agents still preview, never a verdict.
+**Phase 4 — IN PROGRESS (the OASIS social graph — the SECOND graph, NOT GraphRAG; agents still preview).**
+- **4.0 OASIS spike — COMPLETE (verdict: GO).** `python/src/oasis_spike.py` proved all five exit criteria + a
+  propagation check on real personas: installs/runs native Windows in a dedicated **`oasis` conda env (python
+  3.11; camel-oasis 0.2.5 pins <3.12)**; DeepSeek bound via CAMEL `ModelFactory` (`ModelPlatformType.DEEPSEEK`);
+  grounded 2.5b reactions as seed posts; per-agent opinion trajectory extractable from the OASIS sqlite `trace`
+  table; **graph-driven propagation confirmed** (follow edges wired via `AgentGraph.add_edge`); cost ≈ **$1.16**
+  for a 212-agent × 5-step full cascade (~$0.12 at activation 0.1). Evidence: `contract/runs/oasis-spike-<ts>.json`.
+- **4.1 contract v0.4.0 — COMPLETE (frozen, additive).** persona `mode`/`stakeholder` + the top-level `social{}`
+  block (see the v0.4.0-riders note above); both serializers mirrored + `sample_v0_4_0.json` + negative tests +
+  `social_checks.py` immutability checker (post↔outcome sign-consistency); 38 pytest green; guard restored.
+
+Next: **Phase 4.2 — the OASIS producer** (emit a real `social{}` block from a run into the artifact, running the
+immutability guard to set each event's `audit_status`), then **4.3 — frontend** (make `web/lib/personaGroups.ts`
+*derive* group/mode from `persona.mode`/`stakeholder`; render the social graph / cascades / opinion trajectories).
+Agents still preview, never a verdict.
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
@@ -114,6 +137,10 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   python python/src/report.py                      # 5-section report (md+json) -> web/public/latest-report.*
   python python/src/report_agent.py                # build the per-run LightRAG index (under %LOCALAPPDATA%)
   cd python/src && uvicorn server:app --port 8000  # agent backend: GET /api/report, POST /api/chat
+  ```
+- **OASIS social spike** (Phase 4.0; the `oasis` conda env — python 3.11, camel-oasis 0.2.5, NOT base):
+  ```bash
+  conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
 - **Tests:** `python -m pytest python/tests` (golden spine + agent/report honesty invariants)
