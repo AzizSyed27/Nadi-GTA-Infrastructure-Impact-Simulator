@@ -168,7 +168,7 @@
             "step": 2,
             "events": [
               {"agent": "v1", "action": "comment", "target_agent": "shop_owner", "target_post": "post_shop_c1", "content": "Agreed — the delay stings, and losing parking would hit local shops too.", "exposed_via": "follow", "audit_status": "clean"},
-              {"agent": "v1", "action": "post", "target_post": "post_v1_c1_dup", "content": "Reposting: this lane change costs drivers real time every morning.", "audit_status": "excluded"}
+              {"agent": "v1", "action": "post", "target_post": "post_v1_c1_dup", "content": "Reposting: this lane change costs drivers real time every morning.", "audit_status": "excluded", "excluded_by": ["immutability"]}
             ]
           }
         ]
@@ -194,6 +194,7 @@
     "trajectories": [
       {
         "agent": "v1",
+        "cascade_id": "c1",
         "derived_by": "stance_scoring",
         "points": [
           {"step": 0, "stance": "opposed", "sentiment": -0.8},
@@ -205,6 +206,7 @@
       },
       {
         "agent": "v2",
+        "cascade_id": "c1",
         "derived_by": "stance_scoring",
         "points": [
           {"step": 0, "stance": "supportive", "sentiment": 0.9},

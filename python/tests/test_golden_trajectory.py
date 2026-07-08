@@ -227,7 +227,10 @@ def test_multimodal_artifact_valid() -> None:
     if not runs:
         pytest.skip("No multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.")
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
-    assert art.schema_version == "0.3.0"
+    # 0.3.0 as produced by scenario_harness; bumped to 0.4.0 once propagation.py enriches it with social{}.
+    assert art.schema_version in ("0.3.0", "0.4.0")
+    if art.social is not None:
+        assert art.schema_version == "0.4.0", "an artifact carrying a social{} block must be v0.4.0"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -391,6 +394,27 @@ def test_v0_4_0_out_of_enum_stance_rejected() -> None:
     """NEGATIVE: a trajectory point with an out-of-enum stance must fail schema validation."""
     raw = json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))
     raw["social"]["trajectories"][0]["points"][0]["stance"] = "wishy-washy"  # not in the enum
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+
+
+def test_v0_4_0_additive_fields_exercised() -> None:
+    """The 4.2 additive touch: trajectories carry cascade_id, excluded events carry excluded_by[rule]."""
+    art = trajectory_io.load_artifact(SAMPLE_V4_PATH)
+    assert any(t.cascade_id for t in art.social.trajectories), "expected cascade_id on a trajectory"
+    excluded = [e for c in art.social.cascades for s in c.steps for e in s.events if e.audit_status == "excluded"]
+    assert excluded and all(e.excluded_by for e in excluded), "excluded events must name the rule(s) in excluded_by"
+    assert all(isinstance(r, str) and r for e in excluded for r in e.excluded_by)
+
+
+def test_v0_4_0_excluded_by_must_be_string_array() -> None:
+    """NEGATIVE: excluded_by must be an array of strings, not a bare string."""
+    raw = json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))
+    for c in raw["social"]["cascades"]:
+        for s in c["steps"]:
+            for e in s["events"]:
+                if e.get("audit_status") == "excluded":
+                    e["excluded_by"] = "immutability"  # WRONG: string, not [string]
     with pytest.raises(SchemaValidationError):
         trajectory_io.validate_artifact(raw)
 

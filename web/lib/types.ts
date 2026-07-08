@@ -234,6 +234,8 @@ export interface SocialEvent {
   exposed_via?: ExposedVia | null;
   /** 'excluded' = removed from the clean corpus by the immutability/audit guard (kept for provenance). */
   audit_status: AuditStatus;
+  /** v0.4.0: when 'excluded', the audit-rule names that excluded it (e.g. 'safety_direction', 'immutability'). */
+  excluded_by?: string[];
 }
 export interface CascadeStep {
   step: number;
@@ -253,6 +255,8 @@ export interface TrajectoryPoint {
 export interface OpinionTrajectory {
   agent: string;
   derived_by?: 'stance_scoring';
+  /** v0.4.0: the cascade this trajectory is scored over (absent = the reference cascade). */
+  cascade_id?: string;
   points: TrajectoryPoint[];
   shifted?: boolean;
   influenced_by?: string[];

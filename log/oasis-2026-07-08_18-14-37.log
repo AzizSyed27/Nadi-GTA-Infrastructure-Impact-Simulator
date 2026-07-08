@@ -1,0 +1,13 @@
+2026-07-08 18:14:45,144 - oasis.env - INFO - update rec table.
+2026-07-08 18:14:50,199 - oasis.env - INFO - performed all actions.
+2026-07-08 18:14:50,223 - oasis.env - INFO - update rec table.
+2026-07-08 18:14:58,902 - oasis.env - INFO - performed all actions.
+2026-07-08 18:14:59,116 - oasis.env - INFO - update rec table.
+2026-07-08 18:15:07,905 - oasis.env - INFO - performed all actions.
+2026-07-08 18:15:07,938 - oasis.env - INFO - update rec table.
+2026-07-08 18:15:16,772 - oasis.env - INFO - performed all actions.
+2026-07-08 18:15:16,806 - oasis.env - INFO - update rec table.
+2026-07-08 18:15:24,743 - oasis.env - INFO - performed all actions.
+2026-07-08 18:15:24,779 - oasis.env - INFO - update rec table.
+2026-07-08 18:15:34,032 - oasis.env - INFO - performed all actions.
+2026-07-08 18:15:34,043 - oasis.env - INFO - Simulation finished! Please check the results in the database: C:\Users\azizs\AppData\Local\nadi-oasis-cascade\cascade-c3.db. Note that the trace table stored all the actions of the agents.

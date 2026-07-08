@@ -30,7 +30,12 @@
         "target_post": {"type": "string", "minLength": 1},
         "content": {"type": "string"},
         "exposed_via": {"enum": ["follow", "recsys", null]},
-        "audit_status": {"enum": ["clean", "excluded"]}
+        "audit_status": {"enum": ["clean", "excluded"]},
+        "excluded_by": {
+          "description": "OPTIONAL (v0.4.0, additive). When audit_status is 'excluded', the audit-rule names that excluded this event ('safety_direction' | 'tally' | 'crash' | 'immutability') — per-rule provenance kept in the data, not only logged.",
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
       }
     }
   },
@@ -395,6 +400,7 @@
             "required": ["agent", "points"],
             "properties": {
               "agent": {"type": "string", "minLength": 1},
+              "cascade_id": {"description": "OPTIONAL (v0.4.0, additive). The cascade this trajectory is scored over (absent = the reference cascade).", "type": "string", "minLength": 1},
               "derived_by": {
                 "description": "How the trajectory was derived. 'stance_scoring' = a deterministic post-hoc stance/sentiment scoring of the agent's activity.",
                 "enum": ["stance_scoring"]

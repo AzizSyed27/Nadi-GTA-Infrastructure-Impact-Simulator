@@ -243,6 +243,8 @@ class SocialEvent(BaseModel):
     content: str | None = None
     exposed_via: Literal["follow", "recsys"] | None = None
     audit_status: Literal["clean", "excluded"]
+    # v0.4.0 additive: when 'excluded', the audit-rule names that excluded it (per-rule provenance in-data).
+    excluded_by: list[str] | None = None
 
 
 class CascadeStep(BaseModel):
@@ -274,6 +276,9 @@ class OpinionTrajectory(BaseModel):
 
     agent: str
     derived_by: Literal["stance_scoring"] | None = None
+    # v0.4.0 additive: which cascade this trajectory is scored over (absent = the reference cascade, so the
+    # frozen sample stays valid). Lets divergence be shown per-cascade without a version bump.
+    cascade_id: str | None = None
     points: list[TrajectoryPoint] = Field(default_factory=list)
     shifted: bool | None = None
     influenced_by: list[str] = Field(default_factory=list)
