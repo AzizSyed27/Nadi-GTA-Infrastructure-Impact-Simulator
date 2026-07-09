@@ -113,6 +113,48 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                         docs.append(_doc(f"social__{ev.agent}__{cascade.cascade_id}__{step.step}",
                                          f"Social post — {ev.agent}", ev.content))
 
+    # --- v0.4.0 discourse: per-cascade ENGAGED-reach + MOVEMENT summaries, the divergence verdict, and the
+    #     exclusion breakdown. Deliberately framed MOVEMENT-not-position: the new movement data must NOT let the
+    #     chat launder shifts into a directional verdict past the tally guard (so every doc carries the
+    #     "movement, never a vote / cascades diverge" caveat inline). Reuses report.discourse_facts (code-only).
+    dfacts = report.discourse_facts(artifact)
+    if dfacts is not None:
+        for cid in dfacts["cascade_ids"]:
+            rows = sorted(dfacts["reach"].get(cid, []), key=lambda r: r["reached"], reverse=True)
+            ranked = "; ".join(
+                f"{r['argument']}: {r['reached']} responses across {r['post_count']} posts"
+                + (f" ({r['per_post']} per post)" if r["per_post"] is not None else "")
+                for r in rows)
+            docs.append(_doc(f"engaged_reach__{cid}", f"Argument engagement — cascade {cid}",
+                "Engaged-reach = the number of unique agents who ACTED ON (liked, commented on, or reposted) a "
+                "post making the argument — who were moved to respond, NOT merely how many were shown it. Under "
+                "the neutral random recommender used here, exposure-based reach saturates to everyone and is not "
+                "reported; engaged-reach also partly reflects how much an argument was posted (response volume), "
+                f"so read it with the per-post figure. In cascade {cid}: {ranked}."))
+            s = dfacts["shifts"][cid]
+            byg = ", ".join(f"{g}: {n}" for g, n in s["by_group"].items()) or "none"
+            docs.append(_doc(f"movement__{cid}", f"Opinion movement — cascade {cid}",
+                f"In this one simulated cascade ({cid}), {s['movers']} agents' DERIVED stance moved during the "
+                f"discussion: {s['hardened']} hardened, {s['warmed']} warmed, by group — {byg}. This is MOVEMENT "
+                "(who reconsidered), never a final position, a head-count, or a vote. Cascades are illustrative "
+                "and diverge: who shifts varies from run to run, so this is never what the community decides."))
+        dom = ", ".join(f"{cid}: {arg}" for cid, arg in dfacts["dominant"].items())
+        docs.append(_doc("divergence", "Do the cascades agree? (divergence)",
+            "Across the independent simulated cascades, the argument that drew the most response "
+            + ("DIFFERED — the cascades DIVERGE on which argument travels furthest"
+               if dfacts["diverge"] else "was CONSISTENT across runs")
+            + f" (most-answered per cascade — {dom}). 'Travels furthest' means drew the most RESPONSE "
+            "(engaged-reach), which under the neutral random recommender partly tracks posting volume; "
+            "exposure-reach saturates and is not used. These are illustrative unfoldings, not a forecast of "
+            "what the community will decide."))
+        if dfacts["excluded_count"]:
+            eb = ", ".join(f"{r}: {n}" for r, n in dfacts["excluded_by"].items())
+            docs.append(_doc("exclusions", "Posts withheld by the honesty guard",
+                f"{dfacts['excluded_count']} social posts were withheld from this corpus by the post-hoc guard, "
+                f"by rule — {eb}. Excluded content is kept in the artifact only for provenance and is NOT in this "
+                "corpus. An exclusion is the honesty guard working — a post that claimed a safety direction, made "
+                "a vote/tally, named crashes, or contradicted the agent's own measured trip."))
+
     # --- one doc per scorecard row (with confidence + verbatim note) ---
     for gid in report.GROUP_ORDER:
         g = facts["by_group"].get(gid)
@@ -189,8 +231,13 @@ def friendly_source(handle: str) -> str:
         return f"{report.GROUP_LABEL.get(parts[1], parts[1])} scorecard row"
     if kind == "limitation" and len(parts) >= 2:
         return f"Limitation: {parts[1].replace('_', ' ')}"
+    if kind == "engaged_reach" and len(parts) >= 2:
+        return f"Argument engagement (cascade {parts[1]})"
+    if kind == "movement" and len(parts) >= 2:
+        return f"Opinion movement (cascade {parts[1]})"
     return {"change": "The proposed change", "robustness": "Cross-seed robustness",
-            "conflicts": "Near-miss event summary"}.get(kind, handle)
+            "conflicts": "Near-miss event summary", "divergence": "Cascade divergence",
+            "exclusions": "Posts withheld by the guard"}.get(kind, handle)
 
 
 # ===================================================================================================

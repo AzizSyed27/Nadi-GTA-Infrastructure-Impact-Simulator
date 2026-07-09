@@ -266,6 +266,8 @@ export interface ArgumentReach {
   argument: string;
   cascade_id: string;
   reached: number;
+  /** v0.4.0: clean posts making this argument. reached/post_count = actions-per-post (volume-confound read). */
+  post_count?: number;
 }
 
 /** v0.4.0+. Opinion propagation over a social graph (OASIS). A PREVIEW of who shifts whom, never a verdict. */

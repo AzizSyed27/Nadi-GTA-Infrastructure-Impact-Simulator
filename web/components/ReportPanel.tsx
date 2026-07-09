@@ -26,6 +26,29 @@ interface Caveat {
   title: string;
   body: string;
 }
+interface ReachRow {
+  argument: string;
+  reached: number;
+  post_count: number | null;
+  per_post: number | null;
+}
+interface CascadeShift {
+  movers: number;
+  by_group: Record<string, number>;
+  hardened: number;
+  warmed: number;
+}
+interface Discourse {
+  synthesis: string;
+  quotes: { label: string; comment: string }[];
+  cascade_ids: string[];
+  reach: Record<string, ReachRow[]>;
+  dominant: Record<string, string | null>;
+  diverge: boolean;
+  shifts: Record<string, CascadeShift>;
+  excluded_count: number;
+  excluded_by: Record<string, number>;
+}
 interface AuditEntry {
   slot: string;
   status: 'clean' | 'resolved_on_retry' | 'failed';
@@ -51,6 +74,7 @@ interface Report {
     what_tested: { framing: string };
     who_affected: { glosses: Record<string, string> };
     what_they_say: { groups: SynthGroup[] };
+    discourse: Discourse | null;
     cannot_tell: { intro: string; caveats: Caveat[] };
   };
   audit: { passed: boolean; slots_checked: number; summary: string; log: AuditEntry[] };
@@ -168,8 +192,82 @@ export function ReportPanel({ onClose }: { onClose: () => void }) {
               </div>
             ))}
 
-            {/* 4. What this analysis cannot tell you */}
-            <h2 style={h2}>4. What this analysis cannot tell you</h2>
+            {/* 4. How discourse might unfold (v0.4.0 social cascade) */}
+            {report.sections.discourse && (
+              <div data-testid="report-discourse">
+                <h2 style={h2}>4. How discourse might unfold</h2>
+                <div style={subtle}>
+                  Simulated cascades over the seeded reactions — illustrative unfoldings, never a forecast or a
+                  vote. Movement, not a final position.
+                </div>
+                <p style={para}>{report.sections.discourse.synthesis}</p>
+
+                <h3 style={h3}>Which argument drew the most response</h3>
+                <div style={subtle}>
+                  unique agents who acted on a post making it; “/post” normalizes for how much it was posted
+                </div>
+                {report.sections.discourse.cascade_ids.map((cid) => (
+                  <div key={cid} style={{ marginTop: 8 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>cascade {cid}</div>
+                    <ul style={facts}>
+                      {[...(report.sections.discourse!.reach[cid] ?? [])]
+                        .sort((a, b) => b.reached - a.reached)
+                        .map((r) => (
+                          <li key={r.argument} data-testid="report-reach-row">
+                            {r.argument} — <b>{r.reached}</b>
+                            {r.post_count ? ` (${r.post_count} posts, ${r.per_post}/post)` : ''}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                ))}
+
+                <h3 style={h3}>Who moved</h3>
+                <div style={subtle}>
+                  derived stance transitions within each cascade — movement, per cascade, never summed
+                </div>
+                <ul style={facts}>
+                  {report.sections.discourse.cascade_ids.map((cid) => {
+                    const s = report.sections.discourse!.shifts[cid];
+                    const by = Object.entries(s.by_group).map(([g, n]) => `${g}: ${n}`).join(', ') || 'none';
+                    return (
+                      <li key={cid}>
+                        <b>cascade {cid}:</b> {s.movers} agents moved (by group — {by}); {s.hardened} hardened,{' '}
+                        {s.warmed} warmed.
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p style={para}>
+                  <b>Across cascades:</b> the most-answered argument{' '}
+                  {report.sections.discourse.diverge
+                    ? 'differed across runs — the cascades diverge on which argument travels furthest'
+                    : 'was consistent across runs'}
+                  . Engagement is response volume under neutral surfacing, not persuasion (see limitations).
+                </p>
+                {report.sections.discourse.excluded_count > 0 && (
+                  <p style={para}>
+                    <b>Withheld by the guard:</b> {report.sections.discourse.excluded_count} posts were excluded (
+                    {Object.entries(report.sections.discourse.excluded_by)
+                      .map(([r, n]) => `${r}: ${n}`)
+                      .join(', ')}
+                    ). An exclusion is the honesty guard working.
+                  </p>
+                )}
+                <div style={subtle}>A middle-ground moment from the cascade (verbatim):</div>
+                {report.sections.discourse.quotes.map((q, i) => (
+                  <blockquote key={i} style={quoteSim}>
+                    <div style={quoteText}>“{q.comment}”</div>
+                    <div style={quoteAttr}>
+                      — {q.label} <span style={tagSim}>simulated cascade utterance</span>
+                    </div>
+                  </blockquote>
+                ))}
+              </div>
+            )}
+
+            {/* 5. What this analysis cannot tell you */}
+            <h2 style={h2}>5. What this analysis cannot tell you</h2>
             <p style={para}>{report.sections.cannot_tell.intro}</p>
             <div style={caveatWrap} data-testid="report-caveats">
               {report.sections.cannot_tell.caveats.map((c, i) => (

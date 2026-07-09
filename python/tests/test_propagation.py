@@ -119,25 +119,31 @@ def test_parse_cascade_buckets_and_uses_agentid_map_not_db_columns() -> None:
     assert follow["step"] == 1 and follow["target_agent"] == "shop_owner"
 
 
-# --------------------------------------------------------------------------- argument_reach
-def test_argument_reach_counts_unique_exposed_agents() -> None:
+# --------------------------------------------------------------------------- engaged_reach
+def test_engaged_reach_counts_unique_actors_and_normalizes_by_volume() -> None:
     parsed = {
         "events": [
-            {"action": "post", "content": "The parking out front matters to me.", "audit_status": "clean",
-             "_post_id": 10, "_uid": 0},
-            {"action": "post", "content": "Losing that parking spot hurts.", "audit_status": "excluded",
-             "_post_id": 11, "_uid": 1},  # excluded -> must NOT contribute
+            # two CLEAN parking posts; one EXCLUDED parking post (must not count as making the argument).
+            {"action": "post", "content": "The parking out front matters.", "audit_status": "clean",
+             "_post_id": 10, "agent": "a0"},
+            {"action": "post", "content": "Curb parking for my shop is the issue.", "audit_status": "clean",
+             "_post_id": 11, "agent": "a1"},
+            {"action": "post", "content": "Losing parking is unacceptable.", "audit_status": "excluded",
+             "_post_id": 12, "agent": "a9"},
+            # actors who ACT ON those posts: likes/comments/reposts carrying target_post.
+            {"action": "like", "target_post": "10", "agent": "a2"},
+            {"action": "comment", "target_post": "10", "content": "agreed", "audit_status": "clean", "agent": "a3"},
+            {"action": "like", "target_post": "11", "agent": "a2"},           # a2 again -> still one unique actor
+            {"action": "like", "target_post": "12", "agent": "a4"},           # acts on the EXCLUDED post -> ignored
+            {"action": "repost", "target_post": "99", "agent": "a5"},         # non-family post -> ignored
         ],
-        "post_author": {10: 0, 11: 1},
-        "rec_snapshots": [{"label": "s", "exposures": [[2, 10], [3, 10]]}],  # rows 2,3 saw post 10
     }
-    edges = {(4, 0): "homophily"}  # row 4 follows row 0 (the author) -> follow-edge exposure to post 10
-    aid_by_row = {"0": "a0", "2": "a2", "3": "a3", "4": "a4"}
-    reaches = P.argument_reach(parsed, edges, "c1", aid_by_row)
-    parking = next(r for r in reaches if r.argument == "parking / curb")
-    # reached = author(0) + recsys(2,3) + follower(4) = 4 unique; the excluded post contributes nothing.
-    assert parking.reached == 4
-    assert all(r.cascade_id == "c1" for r in reaches)
+    diag = P.engaged_reach(parsed, "c1")
+    parking = next(d for d in diag if d["argument"] == "parking / curb")
+    assert parking["post_count"] == 2, "two CLEAN parking posts (the excluded one does not make the argument)"
+    assert parking["reached"] == 2, "unique actors a2,a3 on posts 10/11; a2 dedup'd; a4 (excluded post) ignored"
+    assert parking["actions_per_post"] == 1.0  # 2 reached / 2 posts
+    assert all(d["cascade_id"] == "c1" for d in diag)
 
 
 # --------------------------------------------------------------------------- build_graph determinism (SUMO)

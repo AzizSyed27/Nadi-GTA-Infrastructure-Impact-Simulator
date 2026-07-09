@@ -217,8 +217,8 @@
       }
     ],
     "argument_reach": [
-      {"argument": "curbside parking loss hurts local shops", "cascade_id": "c1", "reached": 3},
-      {"argument": "calmer streets are overdue", "cascade_id": "c2", "reached": 2}
+      {"argument": "curbside parking loss hurts local shops", "cascade_id": "c1", "reached": 3, "post_count": 2},
+      {"argument": "calmer streets are overdue", "cascade_id": "c2", "reached": 2, "post_count": 1}
     ],
     "excluded_count": 1
   }

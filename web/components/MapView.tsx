@@ -13,11 +13,15 @@ import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
+import { DiscourseFeed } from '@/components/DiscourseFeed';
+import { CascadeSelector } from '@/components/CascadeSelector';
+import { ArgumentEngagementPanel } from '@/components/ArgumentEngagementPanel';
 import { AgentPanel } from '@/components/AgentPanel';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { activeAt, agentId, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
+import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
 // Token-free CARTO positron style (no API key).
 const POSITRON = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
@@ -58,12 +62,16 @@ export default function MapView() {
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
   const [showReport, setShowReport] = useState(false); // full-screen Report view (toggled from the map)
+  const [mode, setMode] = useState<'playback' | 'discourse'>('playback'); // sim-time playback ⇄ social cascade
+  const [cascadeId, setCascadeId] = useState<string | null>(null); // selected cascade in discourse mode
   const mapRef = useRef<MapRef | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(ARTIFACT_URL)
+    // no-store: latest.json is a large (~20MB), frequently-rewritten alias — don't HTTP-cache it (avoids
+    // serving a stale artifact, and sidesteps chromium ERR_CACHE_WRITE_FAILURE on the large body).
+    fetch(ARTIFACT_URL, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data: TrajectoryArtifact) => {
         if (cancelled) return;
@@ -132,6 +140,25 @@ export default function MapView() {
     return m;
   }, [pinned]);
   const conflicts = useMemo(() => artifact?.conflicts ?? [], [artifact]);
+
+  // v0.4.0 social cascade (the discourse phase). All social render paths select via lib/social helpers,
+  // which apply the load-bearing clean-filter — excluded content can never reach a component here.
+  const social = artifact?.social ?? null;
+  const socialIds = useMemo(() => (social ? cascadeIds(social) : []), [social]);
+  const lookup = useMemo(() => (artifact ? agentLookup(artifact) : {}), [artifact]);
+  const activeCascade = cascadeId ?? socialIds[0] ?? null;
+  const selCascade = useMemo(
+    () => (social && activeCascade ? cascadeById(social, activeCascade) : undefined),
+    [social, activeCascade],
+  );
+  const selTrajectories = useMemo(
+    () => (social && activeCascade ? trajectoriesForCascade(social, activeCascade) : []),
+    [social, activeCascade],
+  );
+  const selReach = useMemo(
+    () => (social && activeCascade ? reachForCascade(social, activeCascade) : []),
+    [social, activeCascade],
+  );
 
   // Reverse join: fly to (and briefly ring) a pinned agent's dot at its worst moment (trigger_t position).
   const onLocate = useCallback(
@@ -330,39 +357,76 @@ export default function MapView() {
       </Map>
 
       <ScenarioHeader scenario={meta.scenario} />
-      <CommentFeed
-        agents={pinnedAgents}
-        inferred={inferredAgents}
-        currentTime={t}
-        simStart={meta.sim_start}
-        simEnd={meta.sim_end}
-        filterGroup={feedGroup}
-        onClearFilter={() => setFeedGroup(null)}
-        onSelect={setSelected}
-        onLocate={onLocate}
-        selectedId={selected ? agentId(selected) : null}
-      />
-      <div style={rightRail}>
-        <ScorecardPanel
-          scorecard={artifact.scorecard}
-          activeGroup={feedGroup}
-          onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
-        />
-        <AgentPanel agent={selected} onClose={() => setSelected(null)} />
-      </div>
-      <ConflictLegend
-        count={conflicts.length}
-        activeCount={activeConflicts.length}
-        showAll={showAllConflicts}
-        onToggle={() => setShowAllConflicts((s) => !s)}
-      />
-      <Timeline
-        simStart={meta.sim_start}
-        simEnd={meta.sim_end}
-        currentTime={t}
-        onSeek={setCurrentTime}
-        vehicleCount={artifact.vehicles.length}
-      />
+
+      {socialIds.length > 0 && (
+        <div style={modeToggle} data-testid="mode-toggle">
+          <button
+            style={{ ...modeBtn, ...(mode === 'playback' ? modeBtnActive : null) }}
+            onClick={() => setMode('playback')}
+            data-testid="mode-playback"
+          >
+            ▶ Playback
+          </button>
+          <button
+            style={{ ...modeBtn, ...(mode === 'discourse' ? modeBtnActive : null) }}
+            onClick={() => setMode('discourse')}
+            data-testid="mode-discourse"
+          >
+            💬 Discourse
+          </button>
+        </div>
+      )}
+
+      {mode === 'playback' ? (
+        <>
+          <CommentFeed
+            agents={pinnedAgents}
+            inferred={inferredAgents}
+            currentTime={t}
+            simStart={meta.sim_start}
+            simEnd={meta.sim_end}
+            filterGroup={feedGroup}
+            onClearFilter={() => setFeedGroup(null)}
+            onSelect={setSelected}
+            onLocate={onLocate}
+            selectedId={selected ? agentId(selected) : null}
+          />
+          <div style={rightRail}>
+            <ScorecardPanel
+              scorecard={artifact.scorecard}
+              activeGroup={feedGroup}
+              onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
+            />
+            <AgentPanel agent={selected} onClose={() => setSelected(null)} />
+          </div>
+          <ConflictLegend
+            count={conflicts.length}
+            activeCount={activeConflicts.length}
+            showAll={showAllConflicts}
+            onToggle={() => setShowAllConflicts((s) => !s)}
+          />
+          <Timeline
+            simStart={meta.sim_start}
+            simEnd={meta.sim_end}
+            currentTime={t}
+            onSeek={setCurrentTime}
+            vehicleCount={artifact.vehicles.length}
+          />
+        </>
+      ) : (
+        <>
+          <DiscourseFeed
+            cascade={selCascade}
+            trajectories={selTrajectories}
+            lookup={lookup}
+            cascadeId={activeCascade ?? ''}
+          />
+          <div style={rightRail}>
+            <CascadeSelector ids={socialIds} active={activeCascade ?? ''} onSelect={setCascadeId} />
+            <ArgumentEngagementPanel rows={selReach} />
+          </div>
+        </>
+      )}
 
       <button style={reportBtn} onClick={() => setShowReport(true)} data-testid="open-report">
         📄 Report
@@ -389,6 +453,34 @@ const reportBtn: React.CSSProperties = {
   fontFamily: 'system-ui, sans-serif',
   cursor: 'pointer',
 };
+
+// Mode toggle (Playback ⇄ Discourse) — top center. Only shown when the artifact carries a social{} block.
+const modeToggle: React.CSSProperties = {
+  position: 'absolute',
+  top: 16,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 25,
+  display: 'flex',
+  gap: 4,
+  background: 'rgba(255,255,255,0.96)',
+  border: '1px solid #d7dbe0',
+  borderRadius: 10,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+  padding: 3,
+};
+const modeBtn: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  borderRadius: 8,
+  padding: '6px 12px',
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#6b7280',
+  fontFamily: 'system-ui, sans-serif',
+  cursor: 'pointer',
+};
+const modeBtnActive: React.CSSProperties = { background: '#1f4e9c', color: '#fff' };
 
 // Top-right rail: scorecard stacked ABOVE the agent panel. Pointer-transparent so map clicks pass
 // through the gaps; each child card re-enables pointer events on itself.

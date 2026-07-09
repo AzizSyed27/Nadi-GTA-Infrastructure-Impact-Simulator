@@ -226,6 +226,15 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
     if (th["ttc_s"], th["veh_pet_s"], th["ped_pet_s"]) != (TTC_THRESHOLD_S, VEH_PET_THRESHOLD_S, PED_PET_THRESHOLD_S):
         problems.append("thresholds != module constants")
 
+    # v0.4.0 discourse invariants a consumer (and Section 4) assumes about artifact.social.
+    if artifact.social is not None:
+        ev = [e for c in artifact.social.cascades for s in c.steps for e in s.events]
+        n_excluded = sum(1 for e in ev if e.audit_status == "excluded")
+        if artifact.social.excluded_count is not None and artifact.social.excluded_count != n_excluded:
+            problems.append(f"social.excluded_count {artifact.social.excluded_count} != actual {n_excluded}")
+        if any(e.audit_status == "excluded" and not e.excluded_by for e in ev):
+            problems.append("some excluded social events carry no excluded_by rule")
+
     if problems:
         raise AssertionError("FACT CHECK FAILED (code-rendered numbers inconsistent with sources):\n  - "
                              + "\n  - ".join(problems))
@@ -491,11 +500,11 @@ async def slot_caveat_intro(client, audit_log) -> str:
 # Code-rendered caveat skeleton (Section 4) — MANDATORY, non-trimmable
 # ===================================================================================================
 
-def build_caveats(facts: dict) -> list[dict]:
+def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
     safety_note = next((g.safety_delta.note for g in facts["by_group"].values()
                         if g.safety_delta and g.safety_delta.note), "sign not stable across seeds")
     rerouted = facts["cars_rerouted"]
-    return [
+    caveats = [
         {"title": "Safety direction is not established",
          "body": f"The safety surrogate is reported as a magnitude only — its direction is not claimed: "
                  f"“{safety_note}”. Do not read the safety column as 'the change made things safer or "
@@ -521,6 +530,140 @@ def build_caveats(facts: dict) -> list[dict]:
          "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), "
                  "labelled low-confidence — an estimate to reason about, not a measurement."},
     ]
+    if has_discourse:
+        caveats += [
+            {"title": "Cascades are illustrative unfoldings",
+             "body": "The discourse section shows independent simulated cascades over the same seeded "
+                     "reactions. They are illustrative, not forecasts — the same opinions cascaded differently "
+                     "across runs (who engages and who shifts varies run to run), so read them as texture, "
+                     "never as what the community will decide."},
+            {"title": "Argument spread is response volume under neutral surfacing",
+             "body": "The recommender that decides which posts agents see is a neutral random-surfacing stand-in "
+                     "(the interest-based recommender is unavailable at this scale), so an argument's engagement "
+                     "partly reflects how much it was posted, not only its pull. Exposure-based reach saturates "
+                     "under random surfacing and is not reported; the engaged figures are 'drew the most "
+                     "response', shown with a per-post normalization."},
+        ]
+    return caveats
+
+
+# ===================================================================================================
+# Section 4 — "How discourse might unfold" (the OASIS social cascade). ALL numbers code-rendered from
+# artifact.social; the LLM fills only a narrative slot + picks a verbatim CASCADE quote by id.
+# ===================================================================================================
+
+_STANCE_RANK = {"supportive": 1, "neutral": 0, "opposed": -1}
+# a persona's travel mode → the scorecard group it voices (mirrors personaGroups.ts / scorecard groups)
+_MODE_GROUP = {"car": "car_commuter", "bicycle": "cyclist", "pedestrian": "pedestrian"}
+# compromise/synthesis flavour — biases the quote pick-list toward middle-ground utterances (LLM still chooses)
+_COMPROMISE_HINTS = ("rather", "worth it", "as long as", "if it", "trade", "fair", "both", "calmer",
+                     "i can live", "i'll take", "quieter", "safer for")
+
+
+def discourse_facts(artifact: TrajectoryArtifact) -> dict | None:
+    """Code-rendered facts for Section 4 from artifact.social. Returns None when there is no social block."""
+    social = artifact.social
+    if social is None or not social.cascades:
+        return None
+    from collections import Counter
+
+    specs = {p.id: p for p in personas_mod.load_personas()}
+
+    def group_of(pid: str | None) -> str:
+        spec = specs.get(pid or "")
+        if spec is None:
+            return "other"
+        if spec.mode in _MODE_GROUP:
+            return _MODE_GROUP[spec.mode]
+        return spec.stakeholder or "other"
+
+    aid_persona: dict[str, str] = {}
+    aid_label: dict[str, str] = {}
+    for a in artifact.agents:
+        aid = a.vehicle_id or a.person_id or a.persona.id
+        aid_persona.setdefault(aid, a.persona.id)
+        aid_label.setdefault(aid, a.persona.label)
+
+    cascade_ids = [c.cascade_id for c in social.cascades]
+    ref = cascade_ids[0]
+
+    reach: dict[str, list[dict]] = {}
+    for r in social.argument_reach:
+        reach.setdefault(r.cascade_id, []).append({
+            "argument": r.argument, "reached": r.reached, "post_count": r.post_count,
+            "per_post": round(r.reached / r.post_count, 2) if r.post_count else None})
+    dominant = {cid: (max(rows, key=lambda x: x["reached"])["argument"] if rows else None)
+                for cid, rows in reach.items()}
+
+    shifts: dict[str, dict] = {}
+    for cid in cascade_ids:
+        trs = [t for t in social.trajectories if (t.cascade_id or ref) == cid]
+        byg: Counter = Counter()
+        hardened = warmed = movers = 0
+        for t in trs:
+            if not t.shifted:
+                continue
+            movers += 1
+            byg[group_of(aid_persona.get(t.agent))] += 1
+            pts = t.points or []
+            if len(pts) >= 2:
+                d = _STANCE_RANK.get(pts[-1].stance, 0) - _STANCE_RANK.get(pts[0].stance, 0)
+                if d < 0:
+                    hardened += 1
+                elif d > 0:
+                    warmed += 1
+        shifts[cid] = {"movers": movers, "by_group": dict(byg), "hardened": hardened, "warmed": warmed}
+
+    excluded = [e for c in social.cascades for s in c.steps for e in s.events if e.audit_status == "excluded"]
+    excl_by = dict(Counter(r for e in excluded for r in (e.excluded_by or [])))
+
+    # verbatim-quote pick-list: CLEAN step>=1 CASCADE utterances (NOT round-0 reactions). Compromise-flavoured
+    # first, then stable-sorted so the sample is deterministic. label comes from the agentId join (label ONLY).
+    utter: list[tuple[str, str]] = []
+    for c in social.cascades:
+        for s in c.steps:
+            if s.step < 1:
+                continue
+            for e in s.events:
+                if e.content and e.audit_status == "clean" and e.action in ("post", "comment"):
+                    utter.append((e.agent, e.content))
+    utter.sort(key=lambda x: (0 if any(k in x[1].lower() for k in _COMPROMISE_HINTS) else 1, x[1]))
+    seen: set[str] = set()
+    sample: list[dict] = []
+    for aid, content in utter:
+        if content in seen:
+            continue
+        seen.add(content)
+        sample.append({"agent": aid, "label": aid_label.get(aid, aid), "content": content})
+        if len(sample) >= SYNTH_SAMPLE:
+            break
+
+    return {
+        "cascade_ids": cascade_ids, "n_cascades": len(cascade_ids), "reach": reach, "dominant": dominant,
+        "diverge": len({v for v in dominant.values() if v}) > 1, "shifts": shifts,
+        "excluded_count": len(excluded), "excluded_by": excl_by, "sample": sample,
+        "movers_range": [min(s["movers"] for s in shifts.values()), max(s["movers"] for s in shifts.values())],
+    }
+
+
+async def slot_discourse(client, dfacts: dict, audit_log: list[dict]) -> dict:
+    """One narrative paragraph (audited) + a verbatim CASCADE quote chosen by id. The LLM never types the
+    quote — it picks an index into the clean-cascade sample; code injects event.content verbatim."""
+    sample = dfacts["sample"]
+    listing = "\n".join(f"[{i}] {s['content']}" for i, s in enumerate(sample, 1)) or "[none]"
+    system = _FRAMING + _json_instr(
+        '{"synthesis": "<2-4 plain sentences on how the conversation might unfold — MOVEMENT and texture, '
+        'never a final for/against split, NO numbers>", "representative_comment_ids": [<1 or 2 ids>]}')
+    user = ("These are utterances from a SIMULATED social cascade over the seeded reactions (one illustrative "
+            "unfolding). Describe, as anticipation, how the conversation might unfold — who engages, where "
+            "middle-ground appears — WITHOUT any head-count or final position. Then pick the 1-2 ids that best "
+            "show a middle-ground / compromise moment.\n\nUTTERANCES:\n" + listing)
+    obj = await _slot(client, system, user, _SynthWire, "synthesis", "discourse", audit_log)
+    ids = [i for i in obj["representative_comment_ids"] if isinstance(i, int) and 1 <= i <= len(sample)][:2]
+    if not ids and sample:
+        ids = [1]
+    quotes = [{"label": sample[i - 1]["label"], "comment": sample[i - 1]["content"]} for i in ids]
+    return {"synthesis": obj["synthesis"].strip(), "quotes": quotes}
 
 
 # ===================================================================================================
@@ -537,7 +680,54 @@ def _cross_seed_sentence(facts: dict) -> str:
             "with the vast majority of cars unaffected (exact cross-seed range not available for this run).")
 
 
-def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta) -> str:
+def render_discourse_md(dfacts: dict, discourse: dict) -> list[str]:
+    """Section 4 markdown — ALL numbers code-rendered from dfacts; only `discourse.synthesis`/`quotes` are LLM."""
+    L: list[str] = ["## 4. How discourse might unfold", ""]
+    L.append("*One or more SIMULATED cascades over the seeded reactions — illustrative unfoldings, never a "
+             "forecast or a vote. Movement, not a final position.*")
+    L.append("")
+    L.append(discourse["synthesis"])
+    L.append("")
+    # engaged-reach per cascade
+    L.append("**Which argument drew the most response** (unique agents who acted on a post making it; "
+             "“/post” normalizes for how much it was posted):")
+    for cid in dfacts["cascade_ids"]:
+        rows = sorted(dfacts["reach"].get(cid, []), key=lambda x: x["reached"], reverse=True)
+        cells = "; ".join(
+            f"{r['argument']} — {r['reached']}"
+            + (f" ({r['post_count']} posts, {r['per_post']}/post)" if r["post_count"] else "")
+            for r in rows)
+        L.append(f"- *cascade {cid}:* {cells}")
+    L.append("")
+    # movement by group per cascade (transitions, never a final split; never summed across cascades)
+    L.append("**Who moved** (derived stance transitions within each cascade — movement, not a final position; "
+             "counts are per cascade and are not added across cascades):")
+    for cid in dfacts["cascade_ids"]:
+        s = dfacts["shifts"][cid]
+        by = ", ".join(f"{g}: {n}" for g, n in s["by_group"].items()) or "none"
+        L.append(f"- *cascade {cid}:* {s['movers']} agents moved (by group — {by}); "
+                 f"{s['hardened']} hardened, {s['warmed']} warmed.")
+    L.append("")
+    verdict = ("differed across runs — the cascades DIVERGE on which argument travels furthest"
+               if dfacts["diverge"] else "was consistent across runs")
+    L.append(f"**Across cascades:** the most-answered argument {verdict}. Engagement is response volume under "
+             "neutral surfacing, not persuasion (see limitations).")
+    if dfacts["excluded_count"]:
+        by = ", ".join(f"{r}: {n}" for r, n in dfacts["excluded_by"].items())
+        L.append("")
+        L.append(f"**Withheld by the guard:** {dfacts['excluded_count']} posts were excluded from this section "
+                 f"and the chat corpus (by rule — {by}). An exclusion is the honesty guard working.")
+    if discourse["quotes"]:
+        L.append("")
+        L.append("*A middle-ground moment from the cascade (verbatim):*")
+        for q in discourse["quotes"]:
+            L.append(f"> “{q['comment']}”")
+            L.append(f"> — {q['label']} (simulated cascade utterance)")
+            L.append("")
+    return L
+
+
+def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta, dfacts=None, discourse=None) -> str:
     change = facts["change"]
     lane = f", lane {change.target_lane}" if change.target_lane is not None else ""
     L: list[str] = []
@@ -611,7 +801,10 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
             L.append(f"> — {q['label']} ({tag})")
             L.append("")
 
-    L.append("## 4. What this analysis cannot tell you")
+    if dfacts is not None and discourse is not None:
+        L.extend(render_discourse_md(dfacts, discourse))
+
+    L.append("## 5. What this analysis cannot tell you")
     L.append("")
     L.append(caveat_intro)
     L.append("")
@@ -674,8 +867,10 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     for bk in BUCKET_ORDER:
         if buckets[bk]:
             syntheses[bk] = await slot_synthesis(client, bk, buckets[bk], audit_log)
+    dfacts = discourse_facts(artifact)  # v0.4.0 social cascade — None on older artifacts
+    discourse = await slot_discourse(client, dfacts, audit_log) if dfacts else None
     caveat_intro = await slot_caveat_intro(client, audit_log)
-    caveats = build_caveats(facts)
+    caveats = build_caveats(facts, has_discourse=dfacts is not None)
 
     resolved = sum(1 for e in audit_log if e["status"] == "resolved_on_retry")
     clean = sum(1 for e in audit_log if e["status"] == "clean")
@@ -715,13 +910,19 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
                 "groups": [{"key": bk, "label": BUCKET_LABEL[bk], **syntheses[bk]}
                            for bk in BUCKET_ORDER if bk in syntheses],
             },
+            "discourse": ({"synthesis": discourse["synthesis"], "quotes": discourse["quotes"],
+                           "cascade_ids": dfacts["cascade_ids"], "reach": dfacts["reach"],
+                           "dominant": dfacts["dominant"], "diverge": dfacts["diverge"],
+                           "shifts": dfacts["shifts"], "excluded_count": dfacts["excluded_count"],
+                           "excluded_by": dfacts["excluded_by"]} if dfacts else None),
             "cannot_tell": {"intro": caveat_intro, "caveats": caveats},
         },
         "audit": {"passed": True, "slots_checked": len(audit_log), "summary": audit_summary, "log": audit_log},
         "sources": sources,
     }
 
-    md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta)
+    md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
+                         dfacts=dfacts, discourse=discourse)
 
     md_path = RUNS_DIR / f"report-{ts}.md"
     json_path = RUNS_DIR / f"report-{ts}.json"

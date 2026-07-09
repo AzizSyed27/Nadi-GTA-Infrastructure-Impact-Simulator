@@ -397,33 +397,29 @@ async def score_trajectories(parsed_by_cascade: dict, nodes: list[dict], client)
 
 
 # ==================================================================================================
-# 3d. ARGUMENT REACH (code, no llm)
+# 3d. ENGAGED-REACH (code, no llm)
 # ==================================================================================================
-def argument_reach(parsed: str, edges: dict, cascade_id: str, aid_by_row: dict) -> list[ArgumentReach]:
-    followers_of: dict[int, set[int]] = defaultdict(set)
-    for (f, t) in edges:
-        followers_of[t].add(f)
-    rec = {(u, p) for snap in parsed["rec_snapshots"] for (u, p) in snap["exposures"]}
-    # CLEAN posts only, keyed by family.
-    clean_posts = [e for e in parsed["events"] if e["action"] in ("post", "repost")
-                   and e.get("content") and e.get("audit_status") == "clean"]
-    out: list[ArgumentReach] = []
+# ENGAGED-reach, NOT exposure-reach: reached = unique agents who ACTED ON (liked / commented / reposted) a
+# clean post making the argument — "moved to respond, not merely shown". Exposure-reach (agents merely SHOWN a
+# post via rec/follow) saturates to everyone under the RANDOM recsys and cannot discriminate; it is retired
+# here and mentioned only in the report limitations. The diagnostics also return post_count + actions-per-post
+# so the volume-confound (engagement tracking post-VOLUME rather than persuasiveness) is a read-off.
+def engaged_reach(parsed: dict, cascade_id: str) -> list[dict]:
+    """Per-family engaged-reach diagnostics: {argument, cascade_id, reached, post_count, actions_per_post}.
+    Needs only each event's target_post + post content + audit_status — no graph/SUMO, no rec snapshots."""
+    events = parsed["events"]
+    # A post "makes" an argument if it is a CLEAN post/repost whose content matches the family terms.
+    clean_posts = [e for e in events if e["action"] in ("post", "repost") and e.get("content")
+                   and e.get("audit_status") == "clean" and e.get("_post_id") is not None]
+    # Acting ON a post = a like/comment/repost carrying that post as target_post (target_post is a str id).
+    actions = [e for e in events if e["action"] in ("like", "comment", "repost") and e.get("target_post")]
+    out: list[dict] = []
     for family, terms in KEYWORD_FAMILIES.items():
-        pids, authors = set(), set()
-        for e in clean_posts:
-            low = e["content"].lower()
-            if any(term in low for term in terms):
-                if e.get("_post_id") is not None:
-                    pids.add(e["_post_id"])
-                authors.add(e["_uid"])
-        reached_uids: set[int] = set(authors)  # authors are trivially "reached"
-        for pid in pids:
-            reached_uids |= {u for (u, p) in rec if p == pid}
-            au = parsed["post_author"].get(pid)
-            if au is not None:
-                reached_uids |= followers_of.get(au, set())
-        reached = len({aid_by_row.get(str(u), u) for u in reached_uids})
-        out.append(ArgumentReach(argument=family, cascade_id=cascade_id, reached=reached))
+        fam_pids = {str(e["_post_id"]) for e in clean_posts if any(t in e["content"].lower() for t in terms)}
+        actors = {e["agent"] for e in actions if e.get("target_post") in fam_pids}
+        pc, reached = len(fam_pids), len(actors)
+        out.append({"argument": family, "cascade_id": cascade_id, "reached": reached, "post_count": pc,
+                    "actions_per_post": round(reached / pc, 2) if pc else 0.0})
     return out
 
 
@@ -489,7 +485,7 @@ def _usd(prompt_tokens: int, completion_tokens: int) -> float:
 
 
 def report(cascade_raws: list[dict], scoring_usage: dict, graph_stats: dict, assemble_stats: dict,
-           trajectories: list[OpinionTrajectory], reaches: list[ArgumentReach], nodes: list[dict]) -> None:
+           trajectories: list[OpinionTrajectory], reach_diag: dict[str, list[dict]], nodes: list[dict]) -> None:
     n_cascades = len(cascade_raws)
     print("\n" + "=" * 88)
     print(f"PROPAGATION — {n_cascades} cascade(s) over {len(nodes)} agents")
@@ -532,22 +528,67 @@ def report(cascade_raws: list[dict], scoring_usage: dict, graph_stats: dict, ass
     print(f"\nexcluded_count: {assemble_stats['excluded_count']} "
           f"(immutability violations: {len(assemble_stats['immutability_violations'])})")
 
-    # argument reach table + divergence verdict.
-    print("\n--- ARGUMENT REACH (within each simulated cascade) ---")
-    by_cid: dict[str, dict[str, int]] = defaultdict(dict)
-    for rr in reaches:
-        by_cid[rr.cascade_id][rr.argument] = rr.reached
-    for cid, fam in by_cid.items():
-        top = max(fam, key=fam.get) if fam else "-"
-        print(f"[{cid}] " + " | ".join(f"{a}:{n}" for a, n in fam.items()) + f"   -> dominant: {top!r}")
-    dominants = {cid: (max(fam, key=fam.get) if fam else None) for cid, fam in by_cid.items()}
-    if len(set(dominants.values())) > 1:
-        print(f"VERDICT: cascades DIVERGE — dominant arguments differ across runs: {dominants}")
-    elif dominants:
-        print(f"VERDICT: cascades CONVERGE on {next(iter(dominants.values()))!r}")
+    _report_reach(reach_diag)
+
+
+def _report_reach(reach_diag: dict[str, list[dict]]) -> None:
+    """Engaged-reach gate table: reached / post_count / actions-per-post per family, so the volume-confound is
+    a read-off. Divergence verdict by dominant-reached AND (normalized) dominant-actions-per-post."""
+    print("\n--- ENGAGED-REACH (unique agents who ACTED ON a post making the argument; within each cascade) ---")
+    print("    columns: reached (engaged agents) / posts (clean posts making it) / act-per-post (reached/posts)")
+    dom_reached: dict[str, str | None] = {}
+    dom_norm: dict[str, str | None] = {}
+    for cid, diag in reach_diag.items():
+        cells = " | ".join(f"{d['argument']}: {d['reached']}/{d['post_count']}/{d['actions_per_post']}"
+                           for d in diag)
+        top_r = max(diag, key=lambda d: d["reached"])["argument"] if diag else None
+        top_n = max(diag, key=lambda d: d["actions_per_post"])["argument"] if diag else None
+        dom_reached[cid], dom_norm[cid] = top_r, top_n
+        print(f"[{cid}] {cells}")
+        print(f"      dominant by reached: {top_r!r} | dominant by act-per-post (volume-normalized): {top_n!r}")
+    # divergence verdict on the ENGAGED metric (dominant by reached across cascades).
+    vals = [v for v in dom_reached.values() if v]
+    if len(set(vals)) > 1:
+        print(f"VERDICT: cascades DIVERGE — dominant argument differs across runs: {dom_reached}")
+    elif vals:
+        print(f"VERDICT: cascades CONVERGE on {vals[0]!r} (by engaged-reach)")
+    # volume-confound read-off: if reached-dominant != normalized-dominant, engagement tracks volume.
+    confounded = [cid for cid in reach_diag if dom_reached.get(cid) != dom_norm.get(cid)]
+    if confounded:
+        print(f"NOTE: reached-lead != per-post-lead in {confounded} — engagement partly tracks post VOLUME; "
+              "reframe as 'which argument drew the most response', not 'moved people'.")
 
 
 # ==================================================================================================
+def recompute_reach(run_id: str, art_path: Path) -> None:
+    """Step-0 recompute: engaged-reach from the SAVED raw dumps -> update social.argument_reach IN PLACE.
+    No OASIS, no LLM, no graph/SUMO — needs only each event's target_post + post content + audit_status."""
+    artifact = trajectory_io.load_artifact(art_path)
+    if artifact.social is None or not artifact.social.cascades:
+        raise SystemExit("artifact has no social cascades — run the producer first.")
+    reach_diag: dict[str, list[dict]] = {}
+    new_reaches: list[ArgumentReach] = []
+    for cascade in artifact.social.cascades:
+        cid = cascade.cascade_id
+        raw_path = SCRATCH / f"cascade-{cid}.raw.json"
+        if not raw_path.exists():
+            raise SystemExit(f"missing saved raw dump for {cid}: {raw_path} — re-run the producer (--reuse-raw).")
+        raw = json.loads(raw_path.read_text(encoding="utf-8"))
+        parsed = parse_cascade(raw, {})   # empty edges: engaged-reach ignores exposure/edges entirely
+        apply_audit(parsed["events"])     # sets audit_status — only CLEAN posts count as making an argument
+        diag = engaged_reach(parsed, cid)
+        reach_diag[cid] = diag
+        new_reaches.extend(ArgumentReach(argument=d["argument"], cascade_id=cid, reached=d["reached"],
+                                          post_count=d["post_count"]) for d in diag)
+    artifact.social.argument_reach = new_reaches
+    trajectory_io.dump_artifact(artifact, path=art_path)  # revalidates against the frozen schema
+    trajectory_io.load_artifact(art_path)                 # round-trip proof
+    (WEB_PUBLIC / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    (WEB_PUBLIC / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"[propagation] recomputed ENGAGED-reach for {len(reach_diag)} cascade(s) -> {art_path.name} + latest.json")
+    _report_reach(reach_diag)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="OASIS propagation orchestrator (Phase 4.2)")
     ap.add_argument("--cascades", type=int, default=3, help="number of independent cascades (run 1 FIRST)")
@@ -558,11 +599,18 @@ def main() -> None:
     ap.add_argument("--reuse-raw", action="store_true",
                     help="reuse existing per-cascade raw OASIS output (skip the subprocess) — redo only the "
                          "base-env post-processing (parse/score/guards/reach/assemble) without re-paying OASIS")
+    ap.add_argument("--recompute-reach", action="store_true",
+                    help="ONLY recompute social.argument_reach as ENGAGED-reach from the saved raw dumps and "
+                         "update the artifact in place (no OASIS, no LLM, no graph/SUMO). Prints the gate table.")
     args = ap.parse_args()
 
     SCRATCH.mkdir(parents=True, exist_ok=True)
     run_id = args.run_id or json.loads((WEB_PUBLIC / "latest.json").read_text(encoding="utf-8"))["meta"]["run_id"]
     art_path = RUNS_DIR / f"{run_id}.json"
+
+    if args.recompute_reach:
+        recompute_reach(run_id, art_path)
+        return
     artifact = trajectory_io.load_artifact(art_path)
     if artifact.meta.scenario is None:
         raise SystemExit("artifact has no scenario/change — nothing for the corridor geography edges to key on")
@@ -601,13 +649,17 @@ def main() -> None:
     print(f"[propagation] stance scoring via {provider}/{model}", flush=True)
     trajectories = asyncio.run(score_trajectories(parsed_by_cascade, nodes, client))
 
-    # argument reach per cascade.
+    # engaged-reach per cascade (diagnostics for the gate + ArgumentReach for the contract).
+    reach_diag: dict[str, list[dict]] = {}
     reaches: list[ArgumentReach] = []
     for cid, parsed in parsed_by_cascade.items():
-        reaches.extend(argument_reach(parsed, edges, cid, parsed["aid_by_row"]))
+        diag = engaged_reach(parsed, cid)
+        reach_diag[cid] = diag
+        reaches.extend(ArgumentReach(argument=d["argument"], cascade_id=cid, reached=d["reached"],
+                                     post_count=d["post_count"]) for d in diag)
 
     assemble_stats = assemble(artifact, run_id, edges, nodes, parsed_by_cascade, trajectories, reaches)
-    report(cascade_raws, client.usage, graph_stats, assemble_stats, trajectories, reaches, nodes)
+    report(cascade_raws, client.usage, graph_stats, assemble_stats, trajectories, reach_diag, nodes)
 
     if args.cascades == 1:
         print("\n" + "!" * 88)

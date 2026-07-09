@@ -21,8 +21,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
 import report_agent  # noqa: E402
 from contract_models import (  # noqa: E402
-    Agent, Cascade, CascadeStep, Change, Meta, Outcome, Persona, Reaction, Scenario, Scorecard, ScorecardCell,
-    ScorecardGroup, Social, SocialEvent, TrajectoryArtifact, Vehicle,
+    Agent, ArgumentReach, Cascade, CascadeStep, Change, Meta, OpinionTrajectory, Outcome, Persona, Reaction,
+    Scenario, Scorecard, ScorecardCell, ScorecardGroup, Social, SocialEvent, TrajectoryArtifact,
+    TrajectoryPoint, Vehicle,
 )
 
 
@@ -138,6 +139,44 @@ def test_excluded_social_events_filtered():
     text = " ".join(d["text"] for d in docs)
     assert "CLEAN_MARKER" in text, "clean social content must reach the corpus"
     assert "EXCLUDED_MARKER" not in text, "excluded social content must NOT leak into the clean corpus"
+
+
+def test_discourse_corpus_docs_are_movement_not_position():
+    """v0.4.0 step 4.3: per-cascade engaged-reach + movement docs, divergence + exclusions docs. The movement
+    docs MUST be framed movement-not-position (so chat can't launder shifts into a directional verdict), and
+    the engaged-reach doc MUST carry the metric definition + the saturation note."""
+    art = _artifact()
+    art.social = Social(
+        mechanism="oasis",
+        cascades=[Cascade(cascade_id="c1", steps=[CascadeStep(step=1, events=[
+            SocialEvent(agent="v42", action="post", content="I'd rather lose a minute than risk the kids.",
+                        audit_status="clean"),
+            SocialEvent(agent="v42", action="post", content="claims safer", audit_status="excluded",
+                        excluded_by=["safety_direction"]),
+        ])])],
+        trajectories=[OpinionTrajectory(agent="v42", cascade_id="c1", derived_by="stance_scoring", shifted=True,
+                                        points=[TrajectoryPoint(step=0, stance="opposed"),
+                                                TrajectoryPoint(step=1, stance="neutral")])],
+        argument_reach=[ArgumentReach(argument="delay / slower", cascade_id="c1", reached=40, post_count=20),
+                        ArgumentReach(argument="calmer / quieter", cascade_id="c1", reached=30, post_count=8)],
+        excluded_count=1)
+    docs = {d["source"]: d["text"] for d in report_agent.build_corpus(art, _outcomes(), verdict=None)}
+
+    assert "engaged_reach__c1" in docs and "movement__c1" in docs
+    assert "divergence" in docs and "exclusions" in docs
+    # engaged-reach doc: metric definition + saturation note.
+    er = docs["engaged_reach__c1"].lower()
+    assert "acted on" in er and "saturat" in er and "per post" in er
+    # movement doc: explicitly movement-not-position (never a vote / cascades diverge).
+    mv = docs["movement__c1"].lower()
+    assert "movement" in mv and "never a" in mv and ("vote" in mv or "verdict" in mv)
+    # exclusions doc: the per-rule breakdown, not the excluded content.
+    assert "safety_direction" in docs["exclusions"] and "claims safer" not in docs["exclusions"]
+    # friendly labels for the new handles.
+    assert report_agent.friendly_source("engaged_reach__c1").startswith("Argument engagement")
+    assert report_agent.friendly_source("movement__c1").startswith("Opinion movement")
+    assert report_agent.friendly_source("divergence") == "Cascade divergence"
+    assert report_agent.friendly_source("exclusions") == "Posts withheld by the guard"
 
 
 def test_chat_constitution_carries_the_rules():

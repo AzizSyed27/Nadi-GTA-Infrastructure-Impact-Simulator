@@ -1,13 +1,13 @@
 {
   "report_version": "3.1",
-  "generated_at": "2026-07-06T01:40:34.681818+00:00",
+  "generated_at": "2026-07-09T00:05:51.035145+00:00",
   "provider": "deepseek",
   "model": "deepseek-chat",
   "usage": {
-    "prompt_cache_hit_tokens": 8192,
-    "prompt_cache_miss_tokens": 660,
-    "completion_tokens": 666,
-    "calls": 11
+    "prompt_cache_hit_tokens": 4480,
+    "prompt_cache_miss_tokens": 5969,
+    "completion_tokens": 772,
+    "calls": 12
   },
   "run": {
     "scenario_run_id": "multimodal-scenario-20260702T044134Z",
@@ -174,7 +174,7 @@
   },
   "sections": {
     "what_tested": {
-      "framing": "This report previews a proposed change on one Toronto corridor where a general-traffic lane would become a bicycle-only lane. The text anticipates how people might react and what the change could mean, without offering a verdict or prediction."
+      "framing": "This report previews how converting one general-traffic lane into a bicycle-only lane on the corridor would affect people who drive, cycle, walk, and use transit. The change is being tested to see how it shifts travel patterns and street activity. The following sections describe the anticipated reactions and potential impacts."
     },
     "who_affected": {
       "group_order": [
@@ -196,9 +196,9 @@
         "transit_riders": "Transit riders"
       },
       "glosses": {
-        "car_commuter": "Most car commuters see no change in travel time, but a small group experiences a noticeable slowdown, while access becomes slightly worse.",
-        "cyclist": "Cyclists see no measurable change in typical travel time, a slight improvement in access, and a safety signal that is present but directionally uncertain.",
-        "pedestrian": "Pedestrians see slightly better access with no change in typical travel time, though the safety signal is too unstable to interpret.",
+        "car_commuter": "Most car commuters see no change in travel time, but a small group experiences noticeably slower trips, while access becomes slightly worse.",
+        "cyclist": "Cyclists see no measurable change in typical travel time, a slight improvement in access with low confidence, and a near-miss magnitude whose direction is not claimed.",
+        "pedestrian": "Pedestrians see slightly better access with no change in typical travel time, though a safety signal is present but directionally unreliable.",
         "local_resident": "A near-miss magnitude is present for this group, but its direction is not seed-stable and is not claimed here — the table shows the magnitude only.",
         "business_owner": "Access is estimated to be slightly worse for this group, from a low-confidence rule-based estimate.",
         "accessibility": "There isn't enough measurable signal in this run to characterize how this change affects accessibility.",
@@ -210,16 +210,16 @@
         {
           "key": "drivers",
           "label": "Drivers",
-          "synthesis": "Drivers are primarily concerned with how the change affects their travel time, with many neutral as long as their commute stays the same. A few opposed see any lane reduction as a step in the wrong direction, while supportive voices welcome calmer streets and better conditions near schools. The tension is between those who prioritize keeping traffic moving and those who value a more pleasant street environment.",
+          "synthesis": "Drivers are primarily concerned about any increase in travel time, with some worried about lost income or tight schedules. Those whose commute remains unchanged are generally neutral or supportive, especially if the change brings calmer streets or safety benefits near schools. A few oppose the lane removal on principle, even if their time is barely affected.",
           "quotes": [
             {
               "label": "Rideshare / delivery driver",
-              "comment": "I mean, it's barely a blip on my time, so I can't get too worked up over it. Still, taking away a car lane feels like it's heading in the wrong direction, you know?",
+              "comment": "That extra 1.8 minutes might not sound like much, but for me it's less trips per hour and more angry passengers. This lane change is just going to slow me down and cost me money.",
               "grounding": "sim"
             },
             {
-              "label": "Resident who drives the corridor",
-              "comment": "Since my drive time stays about the same, I'm not too bothered by the change—and honestly, if it means less speeding and noise outside my front door, I might even be a little happier with the trade-off.",
+              "label": "Safety-conscious driver-parent",
+              "comment": "I'm glad the travel time stays the same—that means the street can be safer for my kids crossing near the school without making my drive worse.",
               "grounding": "sim"
             }
           ],
@@ -228,16 +228,16 @@
         {
           "key": "cyclists",
           "label": "Cyclists",
-          "synthesis": "Cyclists overwhelmingly welcome the protected bike lane, citing reduced stress from car traffic and a greater sense of safety. Many note that travel time remains unchanged, making the change a clear benefit. A recurring hope is that the lane will encourage more regular use of the corridor, especially among those who previously avoided it.",
+          "synthesis": "Cyclists overwhelmingly welcome the protected bike lane, citing reduced stress from car traffic and a sense of safety that would encourage regular use. Many note that travel time remains unchanged, making the change a clear win. A recurring hope is to focus on riding or deliveries without dodging cars.",
           "quotes": [
             {
-              "label": "Cautious newer rider",
-              "comment": "I'm thrilled about the protected bike lane—I'd feel much safer biking here and might actually start using this corridor regularly instead of avoiding it.",
+              "label": "Bicycle delivery courier",
+              "comment": "Same travel time but way less stress from cars zooming past me? That's a win in my book. I'll take a calmer ride any day.",
               "grounding": "sim"
             },
             {
-              "label": "Bicycle delivery courier",
-              "comment": "Finally, a dedicated bike lane means I can fly without dodging side mirrors and doors — same speed but way less stress, so that's a win for my sanity and my paycheck.",
+              "label": "Cautious newer rider",
+              "comment": "I'm thrilled about the protected bike lane—I'd feel much safer biking here and might actually start using this corridor regularly instead of avoiding it.",
               "grounding": "sim"
             }
           ],
@@ -246,7 +246,7 @@
         {
           "key": "pedestrians",
           "label": "Pedestrians",
-          "synthesis": "Some travelers are neutral because their walking time to the bus stop remains unchanged. Others welcome the bike lane, hoping it will slow traffic and make crossing the street feel less hurried, especially for those with children. A few note a slight time savings that eases their bus connection.",
+          "synthesis": "Some travelers are neutral because their walking time to the bus stop and bus schedule remain unchanged. Others welcome the bike lane, hoping it will slow traffic and make crossing the street more comfortable, especially for those with children. A few note a slight time savings that eases their bus connection.",
           "quotes": [
             {
               "label": "Walk-to-transit commuter",
@@ -255,7 +255,7 @@
             },
             {
               "label": "School-run parent on foot",
-              "comment": "I'm happy about this change—any move that calms traffic and makes crossings safer for my kids is a win in my book, even if my walk time stays the same.",
+              "comment": "I'm all for it—slower traffic and a bike lane should make crossing the street much less scary for me and the kids.",
               "grounding": "sim"
             }
           ],
@@ -264,7 +264,7 @@
         {
           "key": "community",
           "label": "Community voices",
-          "synthesis": "Business owners fear losing curb access and parking, which they say is essential for customers and deliveries. Some residents worry about impacts on transit reliability and accessibility for people with disabilities. Others welcome the change, hoping it will slow traffic and make the street feel more like a neighborhood.",
+          "synthesis": "Business owners fear losing curb access and parking, which they say is essential for customers and deliveries. Some residents worry about slower bus service and accessibility barriers for wheelchair users. Others welcome the change, hoping it will calm traffic and make the street feel more like a neighborhood.",
           "quotes": [
             {
               "label": "Small business owner",
@@ -273,13 +273,174 @@
             },
             {
               "label": "Long-time corridor resident",
-              "comment": "I've lived here for years, and anything that slows down traffic and makes the street safer for walking and biking is welcome in my book — I'm tired of the noise and speed.",
+              "comment": "I've lived here for 30 years and I'm all for anything that slows down traffic and makes the street feel more like home. Fewer cars racing by will be a welcome change.",
               "grounding": "inferred"
             }
           ],
           "sample_size": 12
         }
       ]
+    },
+    "discourse": {
+      "synthesis": "Drivers who earn per trip voice frustration that small delays add up to lost income, while others welcome calmer streets for a more relaxed commute or easier crossings. A middle-ground appears around the idea that modest time trade-offs are acceptable near schools, though drivers remain concerned about cumulative earnings impact.",
+      "quotes": [
+        {
+          "label": "Safety-conscious driver-parent",
+          "comment": "Absolutely this. I drive past the school every morning and I'll gladly take an extra minute if it means I don't have to hold my breath every time a kid darts between parked cars. Speed isn't everything."
+        },
+        {
+          "label": "Rideshare / delivery driver",
+          "comment": "\"Only an extra 6 seconds\" — I hear that every time they tweak something on this corridor. Multiply that by 30-40 trips a day and you're talking real money out of my pocket. You get a quieter street, I get a worse earnings report. Easy for folks who aren't paid per trip to shrug it off."
+        }
+      ],
+      "cascade_ids": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "reach": {
+        "c1": [
+          {
+            "argument": "parking / curb",
+            "reached": 3,
+            "post_count": 3,
+            "per_post": 1.0
+          },
+          {
+            "argument": "delay / slower",
+            "reached": 131,
+            "post_count": 69,
+            "per_post": 1.9
+          },
+          {
+            "argument": "protected lane",
+            "reached": 157,
+            "post_count": 85,
+            "per_post": 1.85
+          },
+          {
+            "argument": "calmer / quieter",
+            "reached": 85,
+            "post_count": 24,
+            "per_post": 3.54
+          },
+          {
+            "argument": "cost / tax",
+            "reached": 13,
+            "post_count": 4,
+            "per_post": 3.25
+          }
+        ],
+        "c2": [
+          {
+            "argument": "parking / curb",
+            "reached": 7,
+            "post_count": 3,
+            "per_post": 2.33
+          },
+          {
+            "argument": "delay / slower",
+            "reached": 146,
+            "post_count": 72,
+            "per_post": 2.03
+          },
+          {
+            "argument": "protected lane",
+            "reached": 139,
+            "post_count": 86,
+            "per_post": 1.62
+          },
+          {
+            "argument": "calmer / quieter",
+            "reached": 77,
+            "post_count": 25,
+            "per_post": 3.08
+          },
+          {
+            "argument": "cost / tax",
+            "reached": 6,
+            "post_count": 5,
+            "per_post": 1.2
+          }
+        ],
+        "c3": [
+          {
+            "argument": "parking / curb",
+            "reached": 4,
+            "post_count": 4,
+            "per_post": 1.0
+          },
+          {
+            "argument": "delay / slower",
+            "reached": 162,
+            "post_count": 69,
+            "per_post": 2.35
+          },
+          {
+            "argument": "protected lane",
+            "reached": 145,
+            "post_count": 86,
+            "per_post": 1.69
+          },
+          {
+            "argument": "calmer / quieter",
+            "reached": 99,
+            "post_count": 24,
+            "per_post": 4.12
+          },
+          {
+            "argument": "cost / tax",
+            "reached": 12,
+            "post_count": 4,
+            "per_post": 3.0
+          }
+        ]
+      },
+      "dominant": {
+        "c1": "protected lane",
+        "c2": "delay / slower",
+        "c3": "delay / slower"
+      },
+      "diverge": true,
+      "shifts": {
+        "c1": {
+          "movers": 63,
+          "by_group": {
+            "car_commuter": 52,
+            "pedestrian": 10,
+            "transit_riders": 1
+          },
+          "hardened": 38,
+          "warmed": 25
+        },
+        "c2": {
+          "movers": 58,
+          "by_group": {
+            "car_commuter": 53,
+            "pedestrian": 5
+          },
+          "hardened": 39,
+          "warmed": 19
+        },
+        "c3": {
+          "movers": 66,
+          "by_group": {
+            "car_commuter": 54,
+            "pedestrian": 10,
+            "transit_riders": 1,
+            "accessibility": 1
+          },
+          "hardened": 37,
+          "warmed": 29
+        }
+      },
+      "excluded_count": 94,
+      "excluded_by": {
+        "safety_direction": 43,
+        "immutability": 42,
+        "tally": 1,
+        "crash": 8
+      }
     },
     "cannot_tell": {
       "intro": "The following limits bound what this preview can and cannot claim, and should be read alongside the findings.",
@@ -307,14 +468,22 @@
         {
           "title": "The access column is a rule-based estimate",
           "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), labelled low-confidence — an estimate to reason about, not a measurement."
+        },
+        {
+          "title": "Cascades are illustrative unfoldings",
+          "body": "The discourse section shows independent simulated cascades over the same seeded reactions. They are illustrative, not forecasts — the same opinions cascaded differently across runs (who engages and who shifts varies run to run), so read them as texture, never as what the community will decide."
+        },
+        {
+          "title": "Argument spread is response volume under neutral surfacing",
+          "body": "The recommender that decides which posts agents see is a neutral random-surfacing stand-in (the interest-based recommender is unavailable at this scale), so an argument's engagement partly reflects how much it was posted, not only its pull. Exposure-based reach saturates under random surfacing and is not reported; the engaged figures are 'drew the most response', shown with a per-post normalization."
         }
       ]
     }
   },
   "audit": {
     "passed": true,
-    "slots_checked": 13,
-    "summary": "passed — 13 slots (9 LLM-audited: 7 clean, 2 corrected on retry, 0 unresolved; 4 code-rendered).",
+    "slots_checked": 14,
+    "summary": "passed — 14 slots (10 LLM-audited: 8 clean, 2 corrected on retry, 0 unresolved; 4 code-rendered).",
     "log": [
       {
         "slot": "framing",
@@ -358,13 +527,8 @@
       },
       {
         "slot": "synthesis:drivers",
-        "status": "resolved_on_retry",
-        "violations": [
-          {
-            "rule": "safety_direction",
-            "sentence": "Some opposed see any lane reduction as a step in the wrong direction, while supportive voices welcome calmer streets and improved safety near schools."
-          }
-        ]
+        "status": "clean",
+        "violations": []
       },
       {
         "slot": "synthesis:cyclists",
@@ -377,7 +541,7 @@
         "violations": [
           {
             "rule": "safety_direction",
-            "sentence": "A recurring hope is that the bike lane will calm traffic, making street crossings feel safer, especially for those with children."
+            "sentence": "A recurring hope is that the bike lane will calm traffic and make crossing streets feel safer, especially for those with children."
           }
         ]
       },
@@ -385,6 +549,20 @@
         "slot": "synthesis:community",
         "status": "clean",
         "violations": []
+      },
+      {
+        "slot": "discourse",
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "safety_direction",
+            "sentence": "Drivers express concern about cumulative delays affecting their income, while non-drivers welcome calmer streets for safer crossings and less stressful commutes."
+          },
+          {
+            "rule": "safety_direction",
+            "sentence": "A middle-ground emerges around the idea that small time trade-offs are acceptable when they improve safety, especially near schools, though drivers remain skeptical about the cumulative impact on earnings."
+          }
+        ]
       },
       {
         "slot": "caveat_intro",

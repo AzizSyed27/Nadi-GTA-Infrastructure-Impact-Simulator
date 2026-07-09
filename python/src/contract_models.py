@@ -290,6 +290,9 @@ class ArgumentReach(BaseModel):
     argument: str
     cascade_id: str
     reached: int = Field(ge=0)
+    # v0.4.0 additive: clean posts making this argument. reached/post_count = actions-per-post, which exposes
+    # the volume-confound (engaged-reach partly tracks how much an argument was POSTED, not just its pull).
+    post_count: int | None = Field(default=None, ge=0)
 
 
 class Social(BaseModel):

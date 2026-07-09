@@ -424,7 +424,7 @@
           }
         },
         "argument_reach": {
-          "description": "OPTIONAL (code-computed). How far each argument spread: how many agents it reached in a cascade.",
+          "description": "OPTIONAL (code-computed). ENGAGED-reach: unique agents who ACTED ON a post making the argument (moved to respond, not merely shown), per cascade.",
           "type": "array",
           "items": {
             "type": "object",
@@ -433,7 +433,8 @@
             "properties": {
               "argument": {"type": "string", "minLength": 1},
               "cascade_id": {"type": "string", "minLength": 1},
-              "reached": {"type": "integer", "minimum": 0}
+              "reached": {"type": "integer", "minimum": 0},
+              "post_count": {"description": "OPTIONAL (v0.4.0, additive). Clean posts making this argument; reached/post_count = actions-per-post, exposing the volume-confound.", "type": "integer", "minimum": 0}
             }
           }
         },

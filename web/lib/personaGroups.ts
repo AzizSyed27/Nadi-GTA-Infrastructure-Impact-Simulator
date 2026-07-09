@@ -3,7 +3,7 @@
 // persona id. Mirrors python/src/personas.json + scorecard.py's group ids. Sign/values live in the
 // artifact's scorecard; this file is purely the id→{group, mode, label} lookup the front-end joins on.
 
-import type { Agent } from '@/lib/types';
+import type { Agent, Persona } from '@/lib/types';
 
 /** The seven scorecard groups (canonical render order — matches the artifact's scorecard.groups order). */
 export const SCORECARD_GROUP_ORDER = [
@@ -81,6 +81,27 @@ export function modeIcon(personaId: string): string {
   return MODE_ICON[PERSONA_MODE[personaId] ?? 'community'];
 }
 
+// v0.4.0+ artifact mode ('car'|'bicycle'|'pedestrian'|'inferred') → the scorecard group id it voices.
+const MODE_TO_GROUP: Record<string, string> = {
+  car: 'car_commuter',
+  bicycle: 'cyclist',
+  pedestrian: 'pedestrian',
+};
+
+/** DERIVE a persona's group. Prefer the artifact's own persona.mode/stakeholder (v0.4.0+, when the producer
+ *  emits them); fall back to the hardcoded PERSONA_GROUP map (v0.3.0 artifacts); then the unknown-id null. */
+export function groupOfPersona(p: Persona): string | null {
+  if (p.mode && p.mode !== 'inferred' && MODE_TO_GROUP[p.mode]) return MODE_TO_GROUP[p.mode];
+  if (p.stakeholder) return p.stakeholder; // inferred personas carry the group id verbatim
+  return PERSONA_GROUP[p.id] ?? null;
+}
+
+/** Mode icon derived from the artifact persona.mode when present, else the id-based fallback. */
+export function modeIconOf(p: Persona): string {
+  if (p.mode) return MODE_ICON[p.mode === 'inferred' ? 'community' : (p.mode as PersonaMode)];
+  return modeIcon(p.id);
+}
+
 /** Human-friendly group labels (scorecard rows, filter chip). Includes the no-row "taxpayer" bucket. */
 export const GROUP_LABEL: Record<string, string> = {
   car_commuter: 'Car commuters',
@@ -93,7 +114,8 @@ export const GROUP_LABEL: Record<string, string> = {
   taxpayer: 'Other voices',
 };
 
-/** The group an agent's voice belongs to (or null if its persona id is unmapped — never expected). */
+/** The group an agent's voice belongs to (or null if unmapped — never expected). Derives from the artifact
+ *  persona (mode/stakeholder) when present, else the hardcoded map. */
 export function groupOfAgent(a: Agent): string | null {
-  return PERSONA_GROUP[a.persona.id] ?? null;
+  return groupOfPersona(a.persona);
 }
