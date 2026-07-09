@@ -13,20 +13,26 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # bare imports work regardless of cwd
+SRC = Path(__file__).resolve().parent
+sys.path.insert(0, str(SRC))  # bare imports work regardless of cwd
 import llm_provider  # noqa: E402
+import network_edit  # noqa: E402  (SUMO junctions + the new_road patch)
 import report  # noqa: E402
 import report_agent  # noqa: E402
+import run_state  # noqa: E402
 
 LATEST_REPORT = report.WEB_PUBLIC / "latest-report.json"
+HARNESS = SRC / "scenario_harness.py"
 
 # The chat CONSTITUTION = the report's four hard rules (reused verbatim) + chat-specific answer rules.
 CHAT_CONSTITUTION = report._FRAMING + (
@@ -196,3 +202,120 @@ async def chat(req: ChatReq):
     context = _build_context(chunks, entities, relations)
     answer, audit = await _guarded_answer(q, context, sources)
     return {"answer": answer, "sources": sources, "run_id": _STATE["run_id"], "audit": audit}
+
+
+# ===================================================================================================
+# Phase 5.1 — the EDIT / JOB-RUNNER API. SUMO + the enrich pipelines run as SUBPROCESSES (libsumo global
+# state + torch/OASIS make in-process unsafe); a single in-process lock serializes ALL jobs (simulate + enrich).
+# ===================================================================================================
+_JUNCTIONS: dict = {"all": None}  # cache the (slow) 23MB net read across /api/junctions calls
+
+
+class SimChange(BaseModel):
+    type: str = "new_road"
+    from_junction: str
+    to_junction: str
+    lanes: int = 1
+    speed_mps: float = 13.9
+    bidirectional: bool = False
+    description: str | None = None
+
+
+class SimulateReq(BaseModel):
+    change: SimChange
+
+
+class EnrichReq(BaseModel):
+    stage: str  # voices | report | discourse
+
+
+def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str) -> None:
+    """Run one or more subprocesses sequentially under the held lock; reconcile state; always release."""
+    try:
+        for cmd in cmds:
+            proc = subprocess.run(cmd, cwd=str(SRC), capture_output=True, text=True)
+            if proc.returncode != 0:
+                st = run_state.read(run_id)
+                if not st or st.get("status") != "failed":
+                    run_state.set_stage(run_id, "failed", f"{label} failed: {(proc.stderr or '')[-280:]}")
+                return
+        st = run_state.read(run_id)  # the pipeline sets its own terminal "done"; enrich sets it here.
+        if label != "simulate":
+            run_state.set_stage(run_id, "done", f"{label} complete")
+    finally:
+        run_state.release()
+
+
+@app.get("/api/junctions")
+async def junctions(bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat")):
+    """Existing junction snap targets for the editor."""
+    if _JUNCTIONS["all"] is None:
+        _JUNCTIONS["all"] = network_edit.list_junctions(None)  # cache the full net read
+    js = _JUNCTIONS["all"]
+    if bbox:
+        b = [float(x) for x in bbox.split(",")]
+        js = [j for j in js if b[0] <= j["lon"] <= b[2] and b[1] <= j["lat"] <= b[3]]
+    return {"junctions": js, "count": len(js)}
+
+
+@app.post("/api/simulate")
+async def simulate(req: SimulateReq, bg: BackgroundTasks):
+    """Validate a new_road edit, mint a run id, and launch the quant pipeline as a background subprocess."""
+    ch = req.change
+    if ch.type != "new_road":
+        raise HTTPException(400, f"only new_road is supported via the API for now, got {ch.type!r}")
+    if not (ch.from_junction and ch.to_junction and ch.lanes and ch.speed_mps):
+        raise HTTPException(400, "new_road requires from_junction, to_junction, lanes, speed_mps")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    if not run_state.try_acquire(run_id):  # synchronous, race-free reject-if-active
+        raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
+    run_state.set_stage(run_id, "queued", "queued", description=ch.description or f"New road {ch.from_junction}->{ch.to_junction}",
+                        change=ch.model_dump())
+    cmd = [sys.executable, str(HARNESS), "--change-type", "new_road", "--run-ts", ts,
+           "--from-junction", ch.from_junction, "--to-junction", ch.to_junction,
+           "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps),
+           "--description", ch.description or f"New road {ch.from_junction}->{ch.to_junction}"]
+    if ch.bidirectional:
+        cmd.append("--bidirectional")
+    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate")
+    return {"run_id": run_id}
+
+
+@app.get("/api/runs")
+async def runs():
+    return {"runs": [{"id": s["run_id"], "description": s.get("description", ""), "status": s.get("status"),
+                      "stage": s.get("stage"), "started_at": s.get("started_at")} for s in run_state.list_all()]}
+
+
+@app.get("/api/runs/{run_id}/status")
+async def run_status(run_id: str):
+    st = run_state.read(run_id)
+    if st is None:
+        raise HTTPException(404, f"no such run {run_id!r}")
+    return st
+
+
+@app.post("/api/runs/{run_id}/enrich")
+async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
+    """Launch an existing enrich pipeline (voices | report | discourse) against a completed run."""
+    st = run_state.read(run_id)
+    if st is None:
+        raise HTTPException(404, f"no such run {run_id!r}")
+    ts = run_id.replace("multimodal-scenario-", "")
+    py = sys.executable
+    if req.stage == "voices":
+        cmds = [[py, str(SRC / "sampler.py"), "--outcomes", str(run_state.RUNS_DIR / f"outcomes-{ts}.json")],
+                [py, str(SRC / "reactions.py"), "--instrumented", str(run_state.RUNS_DIR / f"instrumented-{ts}.json")]]
+    elif req.stage == "report":
+        cmds = [[py, str(SRC / "report.py"), "--run-id", run_id],
+                [py, str(SRC / "report_agent.py"), "--run-id", run_id, "--rebuild"]]
+    elif req.stage == "discourse":
+        cmds = [[py, str(SRC / "propagation.py"), "--run-id", run_id, "--cascades", "3"]]
+    else:
+        raise HTTPException(400, f"unknown enrich stage {req.stage!r} (voices|report|discourse)")
+    if not run_state.try_acquire(run_id):
+        raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
+    run_state.set_stage(run_id, f"enrich:{req.stage}", f"running {req.stage}")
+    bg.add_task(_run_subprocess_job, run_id, cmds, f"enrich:{req.stage}")
+    return {"run_id": run_id, "stage": req.stage}

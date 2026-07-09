@@ -200,6 +200,10 @@ def test_build_graph_is_deterministic_and_sparse() -> None:
         pytest.skip("latest artifact carries no scenario/change")
     nodes = P.build_nodes(art)
     target = art.meta.scenario.change.target_edge
+    # 5.1: a new_road's target_edge lives in the per-run PATCHED net, not the canonical net build_graph reads,
+    # so geography edges are (correctly) skipped — this determinism/geography test needs a runtime-change run.
+    if not sumolib.net.readNet(str(run_sim.NET)).hasEdge(target):
+        pytest.skip("latest artifact is a new_road run (target edge not in canonical net) — geography skipped")
     e1, s1 = P.build_graph(nodes, target, seed=42)
     e2, s2 = P.build_graph(nodes, target, seed=42)
     assert e1 == e2 and s1 == s2, "same seed must reproduce the graph exactly"

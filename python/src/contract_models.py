@@ -41,6 +41,14 @@ class Change(BaseModel):
     target_lane: int | None = None  # v0.3.0+, optional (lane-scoped changes like bike_lane)
     value_mps: float | None = Field(default=None, ge=0)
     description: str
+    # 5.1: optional GEOMETRY for a new_road (snap to EXISTING junction ids). Schema stays loose; network_edit
+    # validates their presence for type "new_road" (a new_road without geometry fails the pipeline, not the
+    # schema). For new_road, target_edge is the MINTED new-edge id.
+    from_junction: str | None = None
+    to_junction: str | None = None
+    lanes: int | None = Field(default=None, ge=1)
+    speed_mps: float | None = Field(default=None, ge=0)
+    bidirectional: bool | None = None
 
 
 class Scenario(BaseModel):

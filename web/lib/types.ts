@@ -28,6 +28,13 @@ export interface Change {
   /** Numeric parameter in SI units (e.g. new speed limit in m/s). */
   value_mps?: number;
   description: string;
+  /** 5.1: geometry for a new_road (snap to existing junction ids). Optional on the wire; required by the
+   *  pipeline for type 'new_road'. For new_road, target_edge is the minted new-edge id. */
+  from_junction?: string;
+  to_junction?: string;
+  lanes?: number;
+  speed_mps?: number;
+  bidirectional?: boolean;
 }
 
 /** The scenario a run represents, vs. a baseline run. Absent for plain baseline runs. */

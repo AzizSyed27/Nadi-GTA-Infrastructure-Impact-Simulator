@@ -56,7 +56,14 @@ _ACCESS_HEURISTIC = {
         "pedestrian": -0.1,     # marginally better (buffer from traffic)
         "business_owner": 0.5,  # loses curbside (coarse ordinal, not precise)
     },
+    # 5.1: a new_road adds a route option — drivers gain access (NEGATIVE = better). We do NOT reuse the
+    # bike_lane rules (a different change). Every other group is honestly null-with-note (no heuristic yet).
+    "new_road": {
+        "car_commuter": -0.5,   # a new through-route improves driver connectivity
+    },
 }
+# change types whose non-heuristic'd groups should still render a NULL cell WITH a note (vs an absent cell).
+_NULL_WITH_NOTE = {"new_road"}
 
 
 def _group_of_entity(eid: str) -> str:
@@ -106,11 +113,16 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
         # confidence LOW: the sign flips across seeds (precursor) — a magnitude, not a directional claim.
         return ScorecardCell(value=round(scen_s[key] - base_s[key], 3), confidence="low", note=_SAFETY_NOTE)
 
-    access = _ACCESS_HEURISTIC.get(change.get("type"), {})
+    ctype = change.get("type")
+    access = _ACCESS_HEURISTIC.get(ctype, {})
 
     def access_cell(group: str) -> ScorecardCell | None:
         # confidence LOW: the entire access column is a rule-based heuristic, not measured.
-        return ScorecardCell(value=access[group], confidence="low", note="rule-based estimate") if group in access else None
+        if group in access:
+            return ScorecardCell(value=access[group], confidence="low", note="rule-based estimate")
+        if ctype in _NULL_WITH_NOTE:  # honest: a null magnitude WITH a note, not a silently-absent cell
+            return ScorecardCell(value=None, confidence="low", note="no access heuristic for this change type yet")
+        return None
 
     groups = [
         ScorecardGroup(group="car_commuter", grounding="sim", travel_time_delta=tt["car_commuter"],

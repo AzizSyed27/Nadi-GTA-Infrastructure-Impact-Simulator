@@ -140,6 +140,7 @@ def apply_change(change: Change, target_lane: int | None = None) -> None:
 def simulate(
     change: Change | None = None,
     tripinfo_path: str | Path | None = None,
+    net_override: str | Path | None = None,
 ) -> tuple[dict[str, dict], float, float]:
     """Run ``corridor.sumocfg`` headless and record per-vehicle lon/lat trajectories.
 
@@ -156,6 +157,8 @@ def simulate(
 
     # Override the cfg's end=1000 so vehicles departing near 897s actually finish.
     args = [str(SUMO_BINARY), "-c", str(CFG), "--end", str(MAX_T)]
+    if net_override is not None:  # 5.1: scenario runs on a per-run patched net (new_road); --net-file wins over cfg
+        args += ["--net-file", str(net_override)]
     if tripinfo_path is not None:
         args += ["--tripinfo-output", str(tripinfo_path)]
     conn.start(args)

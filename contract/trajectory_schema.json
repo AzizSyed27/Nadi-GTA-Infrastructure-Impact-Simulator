@@ -120,6 +120,26 @@
                   "description": "Human-readable summary of the change.",
                   "type": "string",
                   "minLength": 1
+                },
+                "from_junction": {
+                  "description": "OPTIONAL (5.1). For a new_road: the existing SUMO junction id the road departs. Schema stays loose; the pipeline requires it for type new_road.",
+                  "type": "string", "minLength": 1
+                },
+                "to_junction": {
+                  "description": "OPTIONAL (5.1). For a new_road: the existing SUMO junction id the road arrives at.",
+                  "type": "string", "minLength": 1
+                },
+                "lanes": {
+                  "description": "OPTIONAL (5.1). For a new_road: number of lanes per direction.",
+                  "type": "integer", "minimum": 1
+                },
+                "speed_mps": {
+                  "description": "OPTIONAL (5.1). For a new_road: design speed in m/s.",
+                  "type": "number", "minimum": 0
+                },
+                "bidirectional": {
+                  "description": "OPTIONAL (5.1). For a new_road: if true, build two directed edges (both directions).",
+                  "type": "boolean"
                 }
               }
             }

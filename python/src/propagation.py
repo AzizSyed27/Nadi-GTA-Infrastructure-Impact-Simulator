@@ -153,15 +153,23 @@ def build_graph(nodes: list[dict], target_edge: str, seed: int) -> tuple[dict, d
 
     # geography — trips that pass within PROXIMITY_M of the changed edge.
     net = sumolib.net.readNet(str(run_sim.NET))
-    shape = net.getEdge(target_edge).getShape()
     geo_rows: list[int] = []
-    for n in nodes:
-        if not n["path"]:
-            continue
-        mind = min((_dist_point_to_polyline(*net.convertLonLat2XY(lon, lat), shape) for lon, lat in n["path"]),
-                   default=float("inf"))
-        if mind <= PROXIMITY_M:
-            geo_rows.append(n["row"])
+    if not net.hasEdge(target_edge):
+        # 5.1: a new_road's target_edge lives only in the per-run PATCHED net, not the canonical net we read
+        # here — geography edges (proximity to the changed corridor edge) can't be keyed on it. Degrade
+        # gracefully (homophily + cross still build) rather than crash. Refining this to the patched net is a
+        # later pass.
+        print(f"[propagation] target_edge {target_edge!r} not in the canonical net (new_road?) — "
+              "skipping geography edges", flush=True)
+    else:
+        shape = net.getEdge(target_edge).getShape()
+        for n in nodes:
+            if not n["path"]:
+                continue
+            mind = min((_dist_point_to_polyline(*net.convertLonLat2XY(lon, lat), shape) for lon, lat in n["path"]),
+                       default=float("inf"))
+            if mind <= PROXIMITY_M:
+                geo_rows.append(n["row"])
     for r in geo_rows:
         others = [x for x in geo_rows if x != r]
         for t in rng.sample(others, min(GEO_K, len(others))):

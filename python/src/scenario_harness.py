@@ -253,7 +253,7 @@ def _record(records: dict, eid: str, mode: str, pos, speed: float, t: float, xy_
 
 def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripinfo_path: Path,
                         vehroute_path: Path, ssm_path: Path, seed: int = DEFAULT_SEED,
-                        ssm_thresholds: str | None = None):
+                        ssm_thresholds: str | None = None, net_override: Path | None = None):
     """Run corridor.multimodal.sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
     once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
@@ -268,6 +268,7 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
     ssm_th = ssm_thresholds if ssm_thresholds is not None else f"{SSM_TTC_THRESHOLD} {SSM_PET_THRESHOLD} {SSM_DRAC_THRESHOLD}"
     args = [
         str(run_sim.SUMO_BINARY), "-c", str(MULTIMODAL_CFG), "--end", str(MULTIMODAL_MAX_T),
+        *(["--net-file", str(net_override)] if net_override is not None else []),  # 5.1: per-run patched net
         "--tripinfo-output", str(tripinfo_path), "--vehroute-output", str(vehroute_path),
         "--device.ssm.file", str(ssm_path),
         "--device.ssm.probability", "1",
@@ -391,6 +392,12 @@ def reroute_count(base_vehroute: Path, scen_vehroute: Path, car_ids: list[str]) 
     matched = [vid for vid in car_ids if vid in base and vid in scen]
     rerouted = sum(1 for vid in matched if base[vid] != scen[vid])
     return rerouted, len(matched)
+
+
+def count_on_new_edges(scen_vehroute: Path, new_edge_ids: list[str]) -> int:
+    """THE new_road number: how many vehicles' final (driven) scenario route traverses a minted new edge."""
+    new = set(new_edge_ids)
+    return sum(1 for edges in parse_final_routes(scen_vehroute).values() if new & set(edges.split()))
 
 
 # ======================================================================================
@@ -609,7 +616,7 @@ def compute_ped_conflicts(xy_tracks: dict, net, bbox: list[float]) -> list[dict]
 
 def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: str, baseline_run_id: str,
                               change: Change, target_lane: int, bbox: list[float], sim_end: float,
-                              step: float) -> TrajectoryArtifact:
+                              step: float, scenario_network_name: str | None = None) -> TrajectoryArtifact:
     """Assemble the FIRST real v0.3.0 artifact from multi-modal trajectories + scenario conflicts.
     scorecard stays None (2.4b), agents stays [] (2.6). Ocean-guards a sample vehicle position."""
     vehicles = [
@@ -633,7 +640,7 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
     return TrajectoryArtifact(
         schema_version="0.3.0",
         meta=Meta(
-            run_id=run_id, network=run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
+            run_id=run_id, network=scenario_network_name or run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
             step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
             scenario=Scenario(baseline_run_id=baseline_run_id, change=change),
         ),
@@ -670,14 +677,15 @@ def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | N
     )
 
 
-def run_pair_multimodal(change: Change, target_lane: int, net) -> dict:
-    """Baseline (no change) then scenario (bike_lane applied), SAME multimodal demand + IDENTICAL
-    rerouting + SSM. Emits tripinfo + vehroute + SSM per run; computes per-run conflicts (SSM
-    vehicle-vehicle + post-hoc ped-vehicle). The SCENARIO trajectories are returned for the caller to
-    promote to the real v0.3.0 artifact (so we do NOT write a provisional scenario file); the BASELINE
-    provisional trajectories are kept for 2.4b."""
-    bbox = run_sim.net_bbox(run_sim.NET)  # net is identical across runs; lane perms change only in-sim
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None = None,
+                        scenario_net_path: Path | None = None, on_stage=None) -> dict:
+    """Baseline (no change) then scenario, SAME multimodal demand + IDENTICAL rerouting + SSM. For a runtime
+    change (bike_lane/speed_limit) both runs share the canonical net and the change is applied in-sim. For a
+    GEOMETRY change (new_road) the SCENARIO run uses ``scenario_net_path`` (the patched net) with NO runtime
+    edit — the net IS the change; baseline stays canonical. ``ts`` may be supplied so the job runner can track
+    a known run id. Returns the scenario trajectories + per-run conflicts for the caller to promote."""
+    bbox = run_sim.net_bbox(run_sim.NET)  # canonical geo-ref; the patched net is geo-identical (gauntlet proved it)
+    ts = ts or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base_id, scen_id = f"multimodal-baseline-{ts}", f"multimodal-scenario-{ts}"
     paths = {
         "base_ti": RUNS_DIR / f"{base_id}.tripinfo.xml", "scen_ti": RUNS_DIR / f"{scen_id}.tripinfo.xml",
@@ -685,7 +693,11 @@ def run_pair_multimodal(change: Change, target_lane: int, net) -> dict:
         "base_ssm": RUNS_DIR / f"{base_id}.ssm.xml", "scen_ssm": RUNS_DIR / f"{scen_id}.ssm.xml",
     }
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    # scenario conflicts resolve edges against the SCENARIO net (the new edge exists only there).
+    scen_net = sumolib.net.readNet(str(scenario_net_path)) if scenario_net_path is not None else net
 
+    if on_stage:
+        on_stage("baseline")
     print(f"\n=== BASELINE run ({base_id}) — no change, rerouting + SSM ON ===")
     recs_b, end_b, step_b, rem_b, xy_b = simulate_multimodal(
         None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"])
@@ -695,10 +707,18 @@ def run_pair_multimodal(change: Change, target_lane: int, net) -> dict:
     print(f"[baseline] sim_end={end_b:.0f}s remaining={rem_b}  entities={len(recs_b)}  "
           f"conflicts: {len(conf_b['ssm'])} veh + {len(conf_b['ped'])} ped")
 
+    if on_stage:
+        on_stage("scenario")
     print(f"\n=== SCENARIO run ({scen_id}) — {change.description}, rerouting + SSM ON ===")
-    recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
-        change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"], ssm_path=paths["scen_ssm"])
-    conf_s = {"ssm": parse_ssm(paths["scen_ssm"], net, bbox), "ped": compute_ped_conflicts(xy_s, net, bbox)}
+    if scenario_net_path is not None:  # new_road: the net IS the change (no runtime apply_change)
+        recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
+            None, None, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
+            ssm_path=paths["scen_ssm"], net_override=scenario_net_path)
+    else:
+        recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
+            change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
+            ssm_path=paths["scen_ssm"])
+    conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": compute_ped_conflicts(xy_s, scen_net, bbox)}
     print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={len(recs_s)}  "
           f"conflicts: {len(conf_s['ssm'])} veh + {len(conf_s['ped'])} ped")
 
@@ -957,16 +977,103 @@ def _run_bike_lane(args) -> None:
     print(f"[artifact] copied to web/public/{web_copy.name}")
 
 
+def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: list[str]) -> tuple[str, int]:
+    """Shared new_road QUANT pipeline (CLI + server): baseline (canonical) + scenario (patched net) + per-mode
+    outcomes + conflicts + reroute + scorecard, all under a KNOWN ts. Writes the v0.3.0 artifact, sidecars,
+    and latest.json. Returns (scenario_run_id, cars_on_new_road). No LLM, no enrich."""
+    import scorecard
+    import run_state
+
+    run_id = f"multimodal-scenario-{ts}"
+    net = sumolib.net.readNet(str(run_sim.NET))  # canonical (baseline)
+    ids = run_pair_multimodal(change, None, net, ts=ts, scenario_net_path=scenario_net_path,
+                              on_stage=lambda s: run_state.set_stage(run_id, s))
+
+    demand = {"car": count_demand(ROUTES), "bicycle": count_demand(BIKE_ROUTES), "pedestrian": count_persons(PED_ROUTES)}
+    buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
+    run_state.set_stage(run_id, "analysis", "joining outcomes + conflicts + scorecard")
+    car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
+    rerouted, reroute_matched = reroute_count(ids["base_vr"], ids["scen_vr"], car_ids)
+    on_new = count_on_new_edges(ids["scen_vr"], new_edge_ids)  # THE number
+
+    conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
+    artifact = build_multimodal_artifact(
+        ids["recs_s"], conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
+        target_lane=None, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
+        scenario_network_name=scenario_net_path.name)
+    art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
+
+    (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
+        json.dumps({"baseline_run_id": ids["base_id"], "conflicts": ids["conf_b"]["ssm"] + ids["conf_b"]["ped"]}, indent=2),
+        encoding="utf-8")
+    (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
+        "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
+        "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": [],
+        "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched, "cars_on_new_road": on_new},
+        "modes": buckets}, indent=2), encoding="utf-8")
+
+    # scorecard inject + latest.json (reuse scorecard.compute_scorecard; scenario conflicts on the patched net).
+    sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
+                                     change.model_dump(exclude_none=True))
+    art2 = trajectory_io.load_artifact(art_path)
+    art2.scorecard = sc
+    trajectory_io.dump_artifact(art2, path=art_path)
+    trajectory_io.load_artifact(art_path)  # round-trip proof
+    web = run_sim.ROOT / "web" / "public"
+    (web / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    (web / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    run_state.set_stage(run_id, "done", f"cars_on_new_road={on_new}", scenario_run_id=ids["scen_id"],
+                        cars_on_new_road=on_new, cars_rerouted=rerouted)
+    print(f"[run_quant] {ids['scen_id']} — cars_on_new_road={on_new} (rerouted {rerouted}/{reroute_matched}); "
+          f"scorecard injected; latest.json updated")
+    return ids["scen_id"], on_new
+
+
+def _run_new_road(args) -> None:
+    """5.1 CLI: patch a new_road between two existing junctions, then run the quant pipeline headless. Emits
+    run-state (regen/baseline/scenario/analysis/done/failed) so the job runner can track a KNOWN --run-ts."""
+    import network_edit
+    import run_state
+
+    a, b = args.from_junction, args.to_junction
+    if not (a and b):
+        raise SystemExit("new_road needs --from-junction and --to-junction")
+    change = Change(type="new_road", target_edge=f"nr_{a}_{b}", from_junction=a, to_junction=b,
+                    lanes=args.lanes, speed_mps=args.speed_mps, bidirectional=args.bidirectional,
+                    description=args.description or f"New road from junction {a} to {b}")
+    ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    try:
+        run_state.set_stage(run_id, "regen", f"patching net: {change.description}",
+                            description=change.description, change=change.model_dump(exclude_none=True))
+        patched, new_edge_ids, stats = network_edit.patch_network(change, run_id)
+        print(f"[new_road] patched net {patched.name} + gauntlet OK: {stats}")
+        scen_id, on_new = run_quant(change, ts, patched, new_edge_ids)
+        print(f"\n[new_road] DONE — scenario {scen_id}; cars that took the new road: {on_new}")
+    except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
+        run_state.set_stage(run_id, "failed", str(e)[:300])
+        raise
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Baseline-vs-scenario SUMO harness (multi-modal bike_lane / speed_limit).")
-    ap.add_argument("--change-type", choices=["bike_lane", "speed_limit"], default="bike_lane",
-                    help="bike_lane = Phase-2 multi-modal (default); speed_limit = Phase-1 cars-only")
+    ap.add_argument("--change-type", choices=["bike_lane", "speed_limit", "new_road"], default="bike_lane",
+                    help="bike_lane = Phase-2 multi-modal (default); speed_limit = Phase-1 cars-only; new_road = 5.1")
     ap.add_argument("--target-edge", default=None, help="SUMO edge id to change (default: auto-pick busiest)")
     ap.add_argument("--target-lane", type=int, default=None, help="lane index to convert (bike_lane; default: curbside car lane)")
     ap.add_argument("--speed-mps", type=float, default=DEFAULT_SPEED_MPS, help="new max speed in m/s (speed_limit)")
+    # new_road geometry (5.1)
+    ap.add_argument("--from-junction", default=None, help="new_road: existing junction id the road departs")
+    ap.add_argument("--to-junction", default=None, help="new_road: existing junction id the road arrives at")
+    ap.add_argument("--lanes", type=int, default=1, help="new_road: lanes per direction")
+    ap.add_argument("--bidirectional", action="store_true", help="new_road: build both directions")
+    ap.add_argument("--description", default=None)
+    ap.add_argument("--run-ts", default=None, help="use this timestamp as the run id (the job runner passes it)")
     args = ap.parse_args()
     if args.change_type == "speed_limit":
         _run_speed_limit(args)
+    elif args.change_type == "new_road":
+        _run_new_road(args)
     else:
         _run_bike_lane(args)
 
