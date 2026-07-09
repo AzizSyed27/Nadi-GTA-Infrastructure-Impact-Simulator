@@ -39,7 +39,7 @@ from contract_models import (ArgumentReach, Cascade, CascadeStep, OpinionTraject
                              SocialEvent, SocialGraph, TrajectoryPoint)
 from llm_provider import get_client
 from personas import load_personas
-from report import audit_prose
+from report import audit_prose_cascade  # persona-voice safety calibration (4.4); NOT the blunt system-voice rule
 from social_checks import agent_id_of, check_immutability
 
 # NOTE: sumolib / run_sim / scenario_harness are imported LAZILY inside build_graph() only — they require
@@ -320,19 +320,25 @@ def parse_cascade(raw: dict, edges: dict) -> dict:
 # 3b. GUARDS (deterministic audit) + 3c. TRAJECTORIES (temp-0 stance scoring)
 # ==================================================================================================
 def apply_audit(events: list[dict]) -> int:
-    """Audit NEW (step>=1) content-bearing events. Seeds (step 0) are exempt — verbatim accepted reactions.
-    Gate on safety_direction/tally/crash (+immutability later); the 'digits' rule is dropped for chatter.
-    Sets audit_status + excluded_by on each event. Returns the count excluded here."""
+    """Audit NEW (step>=1) content-bearing events with the PERSONA-voice calibration (audit_prose_cascade):
+    first-person safety hope/conditional is licensed, an assertion-of-accomplished-fact is not. Seeds (step 0)
+    are exempt. 'digits' is dropped for chatter; immutability is applied later. FULLY RECOMPUTES each event's
+    content-rule status (idempotent — safe to re-run over an already-audited artifact in --reaudit). Returns
+    the count excluded here (content rules only, before immutability)."""
     excluded = 0
     for e in events:
-        e.setdefault("audit_status", "clean")
         if e["step"] == 0 or not e.get("content"):
-            continue  # seed or no content -> clean by construction
-        rules = sorted({r for (r, _s) in audit_prose(e["content"]) if r != "digits"})
+            e["audit_status"] = "clean"  # seed or no content -> clean by construction
+            e.pop("excluded_by", None)
+            continue
+        rules = sorted({r for (r, _s) in audit_prose_cascade(e["content"]) if r != "digits"})
         if rules:
             e["audit_status"] = "excluded"
             e["excluded_by"] = rules
             excluded += 1
+        else:
+            e["audit_status"] = "clean"
+            e.pop("excluded_by", None)
     return excluded
 
 
@@ -589,6 +595,85 @@ def recompute_reach(run_id: str, art_path: Path) -> None:
     _report_reach(reach_diag)
 
 
+def reaudit(run_id: str, art_path: Path) -> None:
+    """Phase 4.4 re-apply (no OASIS, no LLM): re-run the content audit over EVERY cascade content event with the
+    refined persona-voice safety calibration, then re-run the immutability guard, and update audit_status /
+    excluded_by / excluded_count IN PLACE. Justified over the 'raw dumps' path because the artifact retains
+    every content-bearing event (clean + excluded) — same population, and it preserves trajectories/reach/graph
+    untouched. Reports before->after per rule + recovered-clean vs reclassified-to-immutability."""
+    from collections import Counter
+
+    artifact = trajectory_io.load_artifact(art_path)
+    if artifact.social is None or not artifact.social.cascades:
+        raise SystemExit("artifact has no social cascades — run the producer first.")
+
+    before = Counter()
+    sd_before = []  # events currently excluded SOLELY by safety_direction — the population we may recover
+    dict_events, refs = [], []
+    for cascade in artifact.social.cascades:
+        for step in cascade.steps:
+            for ev in step.events:
+                if ev.audit_status == "excluded":
+                    for r in (ev.excluded_by or []):
+                        before[r] += 1
+                    if ev.excluded_by == ["safety_direction"]:
+                        sd_before.append(ev)
+                dict_events.append({"step": step.step, "content": ev.content, "action": ev.action})
+                refs.append(ev)
+
+    audited = sum(1 for e in dict_events if e["step"] >= 1 and e.get("content"))
+    assert audited == 797, f"expected 797 content-bearing step>=1 events (the full population), got {audited}"
+
+    apply_audit(dict_events)  # recompute content-rule audit (refined safety) into the dicts
+    for e, ev in zip(dict_events, refs):
+        ev.audit_status = e["audit_status"]
+        ev.excluded_by = e.get("excluded_by")  # None when cleared
+
+    # immutability on the (content-reset) artifact — recovered utterances tripping _SLOWER can reclassify here.
+    viol_keys = {(v["cascade_id"], v["step"], v["agent"], v["content"]) for v in check_immutability(artifact)}
+    for c in artifact.social.cascades:
+        for st in c.steps:
+            for ev in st.events:
+                if (c.cascade_id, st.step, ev.agent, ev.content) in viol_keys:
+                    ev.audit_status = "excluded"
+                    ev.excluded_by = sorted(set((ev.excluded_by or []) + ["immutability"]))
+
+    excluded_now = [ev for c in artifact.social.cascades for st in c.steps for ev in st.events
+                    if ev.audit_status == "excluded"]
+    after = Counter(r for ev in excluded_now for r in (ev.excluded_by or []))
+    artifact.social.excluded_count = len(excluded_now)
+
+    # categorize the previously-safety_direction events by their NEW fate.
+    recovered, reclassified, stayed = [], [], []
+    for ev in sd_before:
+        if ev.audit_status == "clean":
+            recovered.append(ev)
+        elif "immutability" in (ev.excluded_by or []):
+            reclassified.append(ev)
+        else:
+            stayed.append(ev)
+
+    trajectory_io.dump_artifact(artifact, path=art_path)  # revalidates
+    trajectory_io.load_artifact(art_path)                 # round-trip proof
+    (WEB_PUBLIC / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    (WEB_PUBLIC / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    print("\n" + "=" * 72)
+    print(f"RE-AUDIT (persona-voice safety) — {art_path.name} + latest.json")
+    print("=" * 72)
+    print(f"content-bearing step>=1 events audited: {audited} (== 797, full population)")
+    print(f"excluded_count: {sum(before.values())} -> {len(excluded_now)}")
+    print(f"  by rule BEFORE: {dict(before)}")
+    print(f"  by rule AFTER : {dict(after)}")
+    print(f"\nof the {len(sd_before)} safety_direction exclusions:")
+    print(f"  recovered -> clean       : {len(recovered)}")
+    print(f"  reclassified -> immutability: {len(reclassified)}")
+    print(f"  stayed safety_direction  : {len(stayed)}")
+    for label, lst in (("recovered", recovered), ("reclassified", reclassified), ("stayed", stayed)):
+        if lst:
+            print(f"  e.g. [{label}] {lst[0].content[:130]!r}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="OASIS propagation orchestrator (Phase 4.2)")
     ap.add_argument("--cascades", type=int, default=3, help="number of independent cascades (run 1 FIRST)")
@@ -602,6 +687,9 @@ def main() -> None:
     ap.add_argument("--recompute-reach", action="store_true",
                     help="ONLY recompute social.argument_reach as ENGAGED-reach from the saved raw dumps and "
                          "update the artifact in place (no OASIS, no LLM, no graph/SUMO). Prints the gate table.")
+    ap.add_argument("--reaudit", action="store_true",
+                    help="ONLY re-run the content audit (refined persona-voice safety, 4.4) + immutability over "
+                         "the existing artifact in place (no OASIS, no LLM). Reports the before->after breakdown.")
     args = ap.parse_args()
 
     SCRATCH.mkdir(parents=True, exist_ok=True)
@@ -610,6 +698,9 @@ def main() -> None:
 
     if args.recompute_reach:
         recompute_reach(run_id, art_path)
+        return
+    if args.reaudit:
+        reaudit(run_id, art_path)
         return
     artifact = trajectory_io.load_artifact(art_path)
     if artifact.meta.scenario is None:

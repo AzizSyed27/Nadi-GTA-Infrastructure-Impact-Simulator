@@ -302,6 +302,72 @@ def audit_prose(text: str) -> list[tuple[str, str]]:
 
 
 # ===================================================================================================
+# PERSONA-VOICE safety calibration — cascade content ONLY (propagation.apply_audit). NOT the blunt rule.
+# Two contexts, two calibrations (the `digits` precedent): the blunt `_safety_direction` above governs
+# SYSTEM voice (report/chat) where any safety+direction pairing is forbidden and stays here UNCHANGED. In a
+# cascade, content is already persona-attributed and framed "one simulated cascade — not a prediction", so a
+# first-person hope/value/conditional ("if it means safer crossings", "my kids' safety matters more", "I'd
+# feel safer") is licensed anticipation — the same speech act round-0 seeds were exempted to voice — while an
+# assertion-of-accomplished-fact ("it's safer now", "has gotten safer since") or evidential framing ("the data
+# show it's safer") is NOT. Over-firing is the high-cost error here (it deletes synthesis moments); we
+# default-license and exclude only the two harmful forms.
+_EVIDENTIAL = re.compile(
+    r"\b(data|study|studies|research|statistic\w*|evidence|proven|measurabl\w*|"
+    r"records?\s+show\w*|numbers?\s+show\w*|studies?\s+show\w*|shown\s+to\s+be)\b", re.I)
+# A realized SAFETY assertion: a copula / realization verb (or a realization time-marker) ADJACENT to a safety
+# valence ADJECTIVE — "it is safer", "made the corner more dangerous", "safer now", "safer these days".
+_SAFETY_VAL = r"(?:safer|safe|unsafe|dangerous|riskier|calmer)"
+_REALIZED_SAFETY = re.compile(
+    r"\b(?:is|are|'s|’s|was|were|been|becam\w*|becom\w*|got|gotten|getting|made|turn\w*|ended up)\W+"
+    rf"(?:\w+\W+){{0,3}}{_SAFETY_VAL}\b"  # {0,3} catches "made the corner more dangerous"
+    rf"|\b{_SAFETY_VAL}\W+(?:\w+\W+){{0,1}}(?:now|these days|already|nowadays|since (?:the|this|they))\b", re.I)
+# License FRAMES (irrealis / persona voice): conditional, modal, desiderative, evaluative, opinion-hedge,
+# feeling. NB: "makes" is deliberately NOT here (it reads as causal assertion) — "if …" carries those cases.
+_LICENSE = re.compile(
+    r"\b(if|as long as|unless|would|'d|’d|could|might|may|means?|meaning|"
+    r"hope\w*|hoping|want\w*|wish\w*|rather|prefer\w*|worth|matters?|care\w*|no-?brainer|"
+    r"i think|i reckon|i guess|in my book|as far as i'?m concerned|to me|imo|"
+    r"feel\w*|glad|hopeful|love|peace of mind)\b", re.I)
+
+
+def _persona_safety_excluded(sentence: str) -> bool:
+    """Cascade-context safety verdict. True = exclude. A safety-direction MENTION is licensed by default
+    (persona anticipation); it is excluded ONLY when it invents evidence, or asserts an accomplished-fact
+    safety direction without a conditional/evaluative/hedge frame."""
+    if not _safety_direction(sentence):
+        return False  # no safety-direction mention at all — nothing to judge
+    if _EVIDENTIAL.search(sentence):
+        return True  # invents evidence ("the data show it's safer") — a system-voice move, never licensed
+    if _REALIZED_SAFETY.search(sentence) and not _LICENSE.search(sentence):
+        return True  # unhedged, non-conditional assertion the change HAS produced a direction
+    return False  # first-person hope / value / conditional — licensed anticipation
+
+
+def audit_prose_cascade(text: str) -> list[tuple[str, str]]:
+    """Persona-voice variant of `audit_prose` for CASCADE content: identical digits/tally/crash/allow rules,
+    but the safety rule is the persona-calibrated `_persona_safety_excluded`. The blunt `audit_prose` is
+    UNCHANGED and remains the guard for report/chat system voice."""
+    viol: list[tuple[str, str]] = []
+    for s in _sentences(text):
+        if _DIGIT.search(s):
+            viol.append(("digits", s))
+        if _ALLOW.search(s):
+            continue
+        if _persona_safety_excluded(s):
+            viol.append(("safety_direction", s))
+        if _TALLY.search(s):
+            viol.append(("tally", s))
+        if _CRASH.search(s):
+            viol.append(("crash", s))
+    seen, out = set(), []
+    for v in viol:
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
+# ===================================================================================================
 # LLM plumbing
 # ===================================================================================================
 

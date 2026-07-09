@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 import propagation as P
+import report
 import trajectory_io
 
 REPO = Path(__file__).resolve().parents[2]
@@ -43,11 +44,15 @@ def test_build_nodes_dedupes_inferred_never_collapses_sim() -> None:
 
 
 # --------------------------------------------------------------------------- apply_audit
-def test_apply_audit_drops_digits_keeps_safety_and_sets_excluded_by() -> None:
+def test_apply_audit_persona_safety_calibration_and_excluded_by() -> None:
+    """Phase 4.4: apply_audit uses the PERSONA-voice safety calibration. First-person hope/conditional about
+    safety is LICENSED (the round-0 speech act); an assertion-of-accomplished-fact is EXCLUDED. digits dropped;
+    tally kept; seeds (step 0) exempt."""
     events = [
-        {"step": 0, "action": "post", "content": "This makes my street feel safer already."},  # seed: exempt
+        {"step": 0, "action": "post", "content": "The street is safer now, plain and simple."},  # seed: exempt
         {"step": 1, "action": "post", "content": "I reckon I'll lose 5 minutes each morning now."},  # digits only
-        {"step": 1, "action": "comment", "content": "Honestly this makes the corner safer for everyone."},  # safety
+        {"step": 1, "action": "comment", "content": "If it slows the cars, the kids are safer crossing — I'm all for it."},  # LICENSED persona hope
+        {"step": 1, "action": "post", "content": "The street is safer now, plain and simple."},  # EXCLUDED assertion
         {"step": 1, "action": "post", "content": "The parking out front is my real worry."},  # clean
         {"step": 1, "action": "post", "content": "The majority of us clearly oppose it."},  # tally
         {"step": 1, "action": "like", "content": None},  # no content
@@ -56,11 +61,45 @@ def test_apply_audit_drops_digits_keeps_safety_and_sets_excluded_by() -> None:
 
     assert events[0]["audit_status"] == "clean", "step-0 seed is exempt from re-audit"
     assert events[1]["audit_status"] == "clean", "digit-only chatter is NOT excluded (digits rule dropped)"
-    assert events[2]["audit_status"] == "excluded" and events[2]["excluded_by"] == ["safety_direction"]
-    assert events[3]["audit_status"] == "clean"
-    assert events[4]["audit_status"] == "excluded" and events[4]["excluded_by"] == ["tally"]
-    assert events[5]["audit_status"] == "clean"
+    assert events[2]["audit_status"] == "clean", "first-person conditional safety hope is LICENSED (4.4)"
+    assert events[3]["audit_status"] == "excluded" and events[3]["excluded_by"] == ["safety_direction"], \
+        "an assertion-of-accomplished-fact safety direction is still EXCLUDED"
+    assert events[4]["audit_status"] == "clean"
+    assert events[5]["audit_status"] == "excluded" and events[5]["excluded_by"] == ["tally"]
+    assert events[6]["audit_status"] == "clean"
     assert excluded == 2
+
+
+def test_cascade_safety_fixtures() -> None:
+    """Phase 4.4: every LABELED fixture gets the tuned rule's decision. The 43 real exclusions are frozen
+    (40 recover / 3 stay-excluded); the independent MUST-EXCLUDE (evidential/realized assertions) is where the
+    rule's teeth are proven, MUST-LICENSE (persona irrealis) where its licence is."""
+    fx = json.loads((REPO / "python" / "tests" / "fixtures" / "cascade_safety.json").read_text(encoding="utf-8"))
+
+    def excluded(t: str) -> bool:
+        return "safety_direction" in [r for r, _ in report.audit_prose_cascade(t)]
+
+    fails = []
+    for e in fx["real_43"]:
+        if excluded(e["content"]) != (e["expect"] == "exclude"):
+            fails.append((f"real/{e['expect']}", e["content"][:80]))
+    for t in fx["must_exclude"]:
+        if not excluded(t):
+            fails.append(("must_exclude-LEAKED", t))
+    for t in fx["must_license"]:
+        if excluded(t):
+            fails.append(("must_license-OVERFIRED", t))
+    assert not fails, "cascade-safety fixtures mis-decided:\n  " + "\n  ".join(map(str, fails))
+    ex = sum(1 for e in fx["real_43"] if e["expect"] == "exclude")
+    assert len(fx["real_43"]) == 43 and ex == 3, "expected 40 recover / 3 stay-excluded of the 43"
+
+
+def test_blunt_audit_prose_unchanged_for_system_voice() -> None:
+    """The two-context firewall: the BLUNT audit_prose (report/chat SYSTEM voice) must STILL flag persona-hope
+    safety — the 4.4 calibration is cascade-only. Guards against a refactor leaking into the blunt path."""
+    hope = "If it slows the cars, the kids are safer crossing."
+    assert "safety_direction" in [r for r, _ in report.audit_prose(hope)], "blunt rule must still fire (unchanged)"
+    assert "safety_direction" not in [r for r, _ in report.audit_prose_cascade(hope)], "cascade rule licenses it"
 
 
 # --------------------------------------------------------------------------- parse_cascade / bucketing

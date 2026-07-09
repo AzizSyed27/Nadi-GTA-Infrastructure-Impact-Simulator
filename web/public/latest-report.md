@@ -4,7 +4,7 @@
 
 ## 1. What was tested
 
-This report previews how converting one general-traffic lane into a bicycle-only lane on the corridor would affect people who drive, cycle, walk, and use transit. The change is being tested to see how it shifts travel patterns and street activity. The following sections describe the anticipated reactions and potential impacts.
+This report previews a proposed change where one general-traffic lane on the corridor would become a bicycle-only lane. The text anticipates how people might react and what the change could mean for different users of the street.
 
 - **Change:** Converted lane 1 of edge 660176957#0 to a bicycle-only lane (edge `660176957#0`, lane 1)
 - **Corridor / network:** `corridor.net.xml` — one Toronto corridor
@@ -34,8 +34,8 @@ This report previews how converting one general-traffic lane into a bicycle-only
 
 **Per-group reading:**
 - **Car commuters:** Most car commuters see no change in travel time, but a small group experiences noticeably slower trips, while access becomes slightly worse.
-- **Cyclists:** Cyclists see no measurable change in typical travel time, a slight improvement in access with low confidence, and a near-miss magnitude whose direction is not claimed.
-- **Pedestrians:** Pedestrians see slightly better access with no change in typical travel time, though a safety signal is present but directionally unreliable.
+- **Cyclists:** Cyclists see no measurable change in typical travel time, a slight improvement in access, and a safety signal whose direction is not claimed.
+- **Pedestrians:** Pedestrians see slightly better access with no change in typical travel time, though a near-miss magnitude is present but directionally uncertain.
 - **Local residents:** A near-miss magnitude is present for this group, but its direction is not seed-stable and is not claimed here — the table shows the magnitude only.
 - **Business owners:** Access is estimated to be slightly worse for this group, from a low-confidence rule-based estimate.
 - **Accessibility:** There isn't enough measurable signal in this run to characterize how this change affects accessibility.
@@ -47,7 +47,7 @@ This report previews how converting one general-traffic lane into a bicycle-only
 
 ### Drivers
 
-Drivers are primarily concerned about any increase in travel time, with some worried about lost income or tight schedules. Those whose commute remains unchanged are generally neutral or supportive, especially if the change brings calmer streets or safety benefits near schools. A few oppose the lane removal on principle, even if their time is barely affected.
+Drivers are primarily focused on travel time impacts, with many neutral as long as their commute doesn't worsen. A recurring hope is that the change could calm traffic and improve conditions near schools or homes, while some worry about losing a lane and potential slowdowns. Tensions exist between those who see benefits for safety and those who oppose any change that might slow them down.
 
 > “That extra 1.8 minutes might not sound like much, but for me it's less trips per hour and more angry passengers. This lane change is just going to slow me down and cost me money.”
 > — Rideshare / delivery driver (simulated persona)
@@ -57,39 +57,39 @@ Drivers are primarily concerned about any increase in travel time, with some wor
 
 ### Cyclists
 
-Cyclists overwhelmingly welcome the protected bike lane, citing reduced stress from car traffic and a sense of safety that would encourage regular use. Many note that travel time remains unchanged, making the change a clear win. A recurring hope is to focus on riding or deliveries without dodging cars.
+Cyclists overwhelmingly welcome the protected bike lane, citing reduced stress from car traffic and a greater sense of safety. Many note that travel time remains unchanged, making the change a clear improvement. A recurring hope is that the lane will encourage more regular cycling on the corridor.
 
 > “Same travel time but way less stress from cars zooming past me? That's a win in my book. I'll take a calmer ride any day.”
 > — Bicycle delivery courier (simulated persona)
 
-> “I'm thrilled about the protected bike lane—I'd feel much safer biking here and might actually start using this corridor regularly instead of avoiding it.”
+> “I'm a cautious new rider, so having a protected bike lane here makes me feel much safer—I'd actually use this corridor regularly now instead of avoiding it.”
 > — Cautious newer rider (simulated persona)
 
 ### Pedestrians
 
 Some travelers are neutral because their walking time to the bus stop and bus schedule remain unchanged. Others welcome the bike lane, hoping it will slow traffic and make crossing the street more comfortable, especially for those with children. A few note a slight time savings that eases their bus connection.
 
-> “Well, if my walking time and bus schedule aren't affected, I don't really mind the change—it's fine by me.”
-> — Walk-to-transit commuter (simulated persona)
+> “Well, if it doesn't slow me down and might calm traffic for my crossings, that sounds fine by me.”
+> — Senior who walks everywhere (simulated persona)
 
-> “I'm all for it—slower traffic and a bike lane should make crossing the street much less scary for me and the kids.”
+> “I'm happy about this change—any move that calms traffic and makes crossings safer for my kids is a win in my book, even if my walk time stays the same.”
 > — School-run parent on foot (simulated persona)
 
 ### Community voices
 
-Business owners fear losing curb access and parking, which they say is essential for customers and deliveries. Some residents worry about slower bus service and accessibility barriers for wheelchair users. Others welcome the change, hoping it will calm traffic and make the street feel more like a neighborhood.
+Business owners fear losing curb access for customers and deliveries, while some residents worry about traffic and tax costs. Others hope the change will calm traffic and make the street more livable. Transit users are concerned about bus reliability, and some pedestrians with disabilities highlight the need for accessible design.
 
 > “I'm worried this bike lane will take away parking spots my customers need to stop and shop—my business depends on that curb access.”
 > — Small business owner (community perspective, not a measured traveler)
 
-> “I've lived here for 30 years and I'm all for anything that slows down traffic and makes the street feel more like home. Fewer cars racing by will be a welcome change.”
+> “I've lived here for years, and anything that slows down traffic and makes the street safer for walking and biking is welcome in my book — I'm tired of the noise and speed.”
 > — Long-time corridor resident (community perspective, not a measured traveler)
 
 ## 4. How discourse might unfold
 
 *One or more SIMULATED cascades over the seeded reactions — illustrative unfoldings, never a forecast or a vote. Movement, not a final position.*
 
-Drivers who earn per trip voice frustration that small delays add up to lost income, while others welcome calmer streets for a more relaxed commute or easier crossings. A middle-ground appears around the idea that modest time trade-offs are acceptable near schools, though drivers remain concerned about cumulative earnings impact.
+Drivers focused on earnings describe how small delays compound across many trips, while people who walk, bike, or drive near schools emphasize the value of calmer conditions. Some drivers acknowledge the trade-off but feel the cost falls on them, while others who also drive accept the extra time for greater ease. The conversation circles around whose time is valued and whether the change benefits everyone fairly.
 
 **Which argument drew the most response** (unique agents who acted on a post making it; “/post” normalizes for how much it was posted):
 - *cascade c1:* protected lane — 157 (85 posts, 1.85/post); delay / slower — 131 (69 posts, 1.9/post); calmer / quieter — 85 (24 posts, 3.54/post); cost / tax — 13 (4 posts, 3.25/post); parking / curb — 3 (3 posts, 1.0/post)
@@ -103,14 +103,14 @@ Drivers who earn per trip voice frustration that small delays add up to lost inc
 
 **Across cascades:** the most-answered argument differed across runs — the cascades DIVERGE on which argument travels furthest. Engagement is response volume under neutral surfacing, not persuasion (see limitations).
 
-**Withheld by the guard:** 94 posts were excluded from this section and the chat corpus (by rule — safety_direction: 43, immutability: 42, tally: 1, crash: 8). An exclusion is the honesty guard working.
+**Withheld by the guard:** 57 posts were excluded from this section and the chat corpus (by rule — immutability: 45, tally: 1, safety_direction: 3, crash: 8). An exclusion is the honesty guard working.
 
 *A middle-ground moment from the cascade (verbatim):*
-> “Absolutely this. I drive past the school every morning and I'll gladly take an extra minute if it means I don't have to hold my breath every time a kid darts between parked cars. Speed isn't everything.”
-> — Safety-conscious driver-parent (simulated cascade utterance)
-
 > “"Only an extra 6 seconds" — I hear that every time they tweak something on this corridor. Multiply that by 30-40 trips a day and you're talking real money out of my pocket. You get a quieter street, I get a worse earnings report. Easy for folks who aren't paid per trip to shrug it off.”
 > — Rideshare / delivery driver (simulated cascade utterance)
+
+> “Absolutely this. I drive past the school every morning and I'll gladly take an extra minute if it means I don't have to hold my breath every time a kid darts between parked cars. Speed isn't everything.”
+> — Safety-conscious driver-parent (simulated cascade utterance)
 
 ## 5. What this analysis cannot tell you
 
@@ -130,5 +130,5 @@ The following limits bound what this preview can and cannot claim, and should be
 - **Runs:** scenario `multimodal-scenario-20260702T044134Z`, baseline `multimodal-baseline-20260702T044134Z`
 - **Seeds:** 42, 43, 44
 - **Thresholds:** time-to-collision 3.0s, vehicle PET 2.0s, pedestrian PET 5.0s, delay materiality >30s
-- **Generated:** 2026-07-09T00:05:51.035145+00:00 · deepseek/deepseek-chat
+- **Generated:** 2026-07-09T17:19:26.830080+00:00 · deepseek/deepseek-chat
 - **Audit:** passed — 14 slots (10 LLM-audited: 8 clean, 2 corrected on retry, 0 unresolved; 4 code-rendered).

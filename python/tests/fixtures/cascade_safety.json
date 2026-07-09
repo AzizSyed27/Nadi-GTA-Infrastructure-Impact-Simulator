@@ -1,0 +1,201 @@
+{
+  "_doc": "Phase 4.4 cascade safety_direction fixtures. 'real_43' = the 43 originally-excluded contents, frozen with the refined rule's verdict (40 license / 3 exclude). 'must_exclude'/'must_license' = independent synthetic teeth (evidential/realized assertions vs persona irrealis).",
+  "real_43": [
+    {
+      "content": "This is exactly what I'm thinking. I walk to my bus stop every day and crossing a busy street is the worst part. If fewer car lanes means a safer crossing, I'm all for it even if it adds a few seconds.",
+      "expect": "license"
+    },
+    {
+      "content": "Same here. I weave through traffic all day on deliveries, and a dedicated lane that doesn't slow my roll? That's a win. Fewer near-misses means more drops done.",
+      "expect": "license"
+    },
+    {
+      "content": "That's exactly how I feel. I drive through this corridor and I'm always watching for kids near the school. If anything calms the traffic down, I'm all for it even if it adds a couple minutes. My kids' safety matters way more than my arrival time.",
+      "expect": "license"
+    },
+    {
+      "content": "Exactly this. As a bike courier I'm out there all day, and getting squeezed by cars isn't just annoying — it's dangerous. 0.1 min for a protected lane? That's a no-brainer.",
+      "expect": "exclude",
+      "note": "experiential 'it's dangerous' (current squeeze) — unhedged present copula; kept excluded to preserve teeth vs 'it's safer'"
+    },
+    {
+      "content": "Exactly this. I'm doing school drop-off every morning on a tight schedule. If my travel time stays the same AND it's safer around the school, that's a win I can get behind. But the moment that extra minute creeps in, I'm going to be frustrated.",
+      "expect": "license"
+    },
+    {
+      "content": "Same here. I'm a newer rider and I'm always nervous around cars. Anything that makes things safer for people on bikes or on foot is a win in my book.",
+      "expect": "license"
+    },
+    {
+      "content": "Exactly this. People forget that slower doesn't always mean worse - sometimes it means everyone gets home safer.",
+      "expect": "license"
+    },
+    {
+      "content": "That's exactly my take too. I'm walking to the bus stop along this corridor every morning, and if it calms the traffic speeding past, that makes my crossing safer. As long as my walk time doesn't balloon, I'll take less aggressive drivers any day.",
+      "expect": "license"
+    },
+    {
+      "content": "Six seconds is nothing when it means a safer crossing for the little ones. I drive past a school every day and I'm always watching for kids darting out. Slower traffic = peace of mind.",
+      "expect": "license"
+    },
+    {
+      "content": "I feel the same way. I drive my kid to school along that corridor and I'd rather take an extra minute or two than worry about someone speeding past. The slower pace is worth it if it means kids crossing near the school are safer.",
+      "expect": "license"
+    },
+    {
+      "content": "As someone who walks everywhere, slower traffic near schools means safer crossings for me too. I take my time crossing the street and every bit of calm helps. A minute slower for cars is a world of difference for us on foot.",
+      "expect": "license"
+    },
+    {
+      "content": "Same here. I'd rather creep along and know the kids near the school are safer than race through and hope nobody steps out. Safety over speed, always.",
+      "expect": "license"
+    },
+    {
+      "content": "This is exactly it for me. I'm walking to the bus stop every morning and those crossings are where I lose the most time and patience. Calmer traffic means I'm not standing there waiting for a gap, watching my bus pull away. Safer crossings help me catch my ride.",
+      "expect": "license"
+    },
+    {
+      "content": "This is what I'm hoping for too. My walk to the bus stop takes me across this corridor, and if traffic calms down even a little, those crossings feel less like a gamble. Safer crossing means I'm not missing my bus because I'm waiting forever for a gap in traffic.",
+      "expect": "license"
+    },
+    {
+      "content": "I feel that torn feeling. But from my saddle, a lane that keeps me out of the door zone and away from side mirrors? That's time saved in a different way — fewer near-misses means I'm not shaking it off for the next block. If I can keep my pace up AND not have to dodge parked cars, that's a win on both sides of the handlebars.",
+      "expect": "license"
+    },
+    {
+      "content": "That's it. No more squeezing, no more door prizes. Same time, fewer near-misses means more drops done without the close calls. I know every gap on this corridor and a protected lane is still faster than dodging side mirrors.",
+      "expect": "license"
+    },
+    {
+      "content": "Same boat here. I'm doing the school run every morning and watching the clock the whole time. As long as my travel time stays the same, safer crossings near the school is a no-brainer. I've got a tight window between drop-off and my shift start, so any delay would be a problem — but if it's the same time with less worry about kids near the road, I'll take it.",
+      "expect": "license"
+    },
+    {
+      "content": "That's what I'm hoping too. I cross streets slowly on foot, and when cars whip around corners fast, it's scary. If slowing traffic down makes it safer near schools, I'm all for it.",
+      "expect": "license"
+    },
+    {
+      "content": "Same here - I'm doing the school run every morning and I'm always watching out for kids near the school. If this change doesn't add time to my already tight schedule, I'm all for anything that makes that stretch safer. Every second counts when you're racing the clock to get to work after drop-off.",
+      "expect": "license"
+    },
+    {
+      "content": "A minute faster AND less delay? That's music to my ears. Every gap I can slip through without a near-miss means more drops done and less adrenaline dumping. This is exactly the kind of change I'm here for.",
+      "expect": "license"
+    },
+    {
+      "content": "Safer crossings is exactly what I care about on my walk to the bus stop. Every second I spend waiting to cross or dodging traffic is a second I might miss my bus. If this change makes crossing easier, I'm interested.",
+      "expect": "license"
+    },
+    {
+      "content": "Same here. As someone riding this route daily, slower traffic means fewer close calls with drivers. Glad it's helping pedestrians feel safer crossing too — we're all just trying to get where we're going in one piece.",
+      "expect": "license"
+    },
+    {
+      "content": "I feel the same way. I drive past the school every day too and I'd rather take a few extra minutes than worry about kids darting into traffic. Slower streets are safer streets in my book.",
+      "expect": "license"
+    },
+    {
+      "content": "This is exactly how I feel. I drive past the school every morning and I'd rather take an extra minute or two if it means drivers are paying more attention and kids are safer crossing. Speed isn't everything.",
+      "expect": "license"
+    },
+    {
+      "content": "I appreciate this perspective. As someone who drives through here, I'd rather traffic slow down a bit if it means folks who walk—especially seniors and kids—feel safer crossing. We all share these streets.",
+      "expect": "license"
+    },
+    {
+      "content": "Same here — as another walk-to-transit commuter, what I really care about is whether I can cross the street safely to catch my bus. If slower traffic means safer crossings, that's a win for me.",
+      "expect": "license"
+    },
+    {
+      "content": "I get this completely. I'm doing school drop-off and racing to my shift every morning — I watch every minute like it's gold. If my timing stays the same, I can't really argue. And honestly, knowing the street near the school is a bit safer for the kids crossing? That's hard to be mad about. Same route, same clock, just a little less stress about what's happening outside the car.",
+      "expect": "exclude",
+      "note": "'knowing the street is a bit safer' — frames safety as established fact (realized copula), borderline"
+    },
+    {
+      "content": "I saw that comment from another new rider below and I feel the same way. I'm a cautious newer rider and honestly, riding next to moving cars is the scariest part of my day. A lane that makes me feel safer without adding time? That's exactly what I need to actually start biking this route more often.",
+      "expect": "license"
+    },
+    {
+      "content": "As someone who walks to the bus stop along this corridor, safer crossings near the school matter to me too. Every time I cross I'm watching the clock, worried a long wait means missing my bus. If this change makes crossing less of a gamble, that's a win in my book.",
+      "expect": "license"
+    },
+    {
+      "content": "I drive this corridor every day and I get that tension. I want safer streets too, but I've also got my routine timing down to a science. If it doesn't mess with my commute, fine. But I've been burned by \"shouldn't slow you down\" promises before.",
+      "expect": "license"
+    },
+    {
+      "content": "As someone who just started biking, seeing people talk about safer crossings and calmer traffic makes me hopeful. I'd love to use this corridor more, but only if there's real separation from cars. A protected lane is the whole reason I'd even consider riding here.",
+      "expect": "license"
+    },
+    {
+      "content": "I feel exactly the same way. I don't mind taking a few extra minutes if it means kids near the school are safer. But I'm worried too—if they don't add speed bumps or something, people will just race down the next block instead. I need to see real measures that actually calm traffic, not just move it around.",
+      "expect": "license"
+    },
+    {
+      "content": "That's what I'm thinking too — I walk to the bus stop every morning and safer crossings near the school would make that walk a lot less stressful.",
+      "expect": "license"
+    },
+    {
+      "content": "Glad to hear it! Safer biking means calmer traffic all around — that's good for those of us on foot with kids too.",
+      "expect": "license"
+    },
+    {
+      "content": "Glad you'd feel safer, but more bikes in this corridor means more obstacles to navigate around, more unpredictable stops, and more time lost per trip. I'm already fighting the clock on every single delivery.",
+      "expect": "license"
+    },
+    {
+      "content": "Amen to that. I see parents crossing with their kids every morning near the school and it's nerve-wracking. Slower traffic is safer traffic as far as I'm concerned.",
+      "expect": "license"
+    },
+    {
+      "content": "That's exactly how I feel. I'll gladly take a few extra minutes if it means the streets near the school are calmer. My kids' safety matters way more than saving time.",
+      "expect": "license"
+    },
+    {
+      "content": "This. I walk my kids to school along this corridor twice a day. A few extra seconds on my walk is nothing compared to not feeling my heart race every time we step off the kerb. Safer crossings are everything.",
+      "expect": "license"
+    },
+    {
+      "content": "As someone walking to the bus stop on this corridor, safer crossings are what I care about most. If this bike lane means cars slow down and I'm not dodging traffic to get across to my stop, that's a win for my morning routine.",
+      "expect": "license"
+    },
+    {
+      "content": "Exactly this. As someone walking to the bus stop every day, safer street crossings are what I care about most. If the bus timing stays the same and I feel less rushed crossing, that's a solid win.",
+      "expect": "license"
+    },
+    {
+      "content": "This. I drive the corridor every day with my kid in the back, and every time I pass near the school I'm slowing way down anyway. If a bike lane calms things down and means fewer cars jockeying around, I'll happily take an extra minute or two. My kid's safety matters more than shaving time off my trip.",
+      "expect": "license"
+    },
+    {
+      "content": "That comment from user 6 hits close to home. I've seen it happen before too — they promise it won't change anything, and then suddenly my delivery drivers can't find a place to park, my customers are circling the block, and I'm the one paying for it. I want safer streets too, but I can't run a shop without curb access.",
+      "expect": "license"
+    },
+    {
+      "content": "Calmer traffic helps, but I need to know: does the crossing have dropped kerbs at both sides? Is the crossing time long enough for someone pushing a wheelchair or using a walker? A crossing that's safer for cars but still has a 6-inch kerb or a short timer is still a barrier for me and my cane.",
+      "expect": "exclude",
+      "note": "'a crossing that's safer for cars …' — realized copula assertion, though the point is critical; borderline"
+    }
+  ],
+  "must_exclude": [
+    "The data show it's safer now.",
+    "Records show fewer near-misses since the lane went in.",
+    "It's safer now, no question.",
+    "The street has gotten safer since the lane.",
+    "This made the corner more dangerous.",
+    "Honestly it's just safer these days.",
+    "I think the data shows it's safer."
+  ],
+  "must_license": [
+    "I think it's safer now.",
+    "If it means safer crossings, I'm all for it.",
+    "I'd feel safer crossing here.",
+    "My kids' safety matters more than my arrival time.",
+    "Safer crossings are everything to me.",
+    "As long as it stays safe for the kids near the school, I'm fine with it.",
+    "I'd rather creep along and know the kids near the school are safer.",
+    "Slower streets are safer streets in my book.",
+    "A lane that makes me feel safer without adding time sounds good.",
+    "Worth it to me if it means safer crossings for the little ones."
+  ]
+}
