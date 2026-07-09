@@ -28,7 +28,12 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - `python/` — simulation + (later) agents. SUMO via libsumo, FastAPI, the sampler, OASIS/CAMEL, LightRAG.
 - `web/`    — Next.js + React + TS frontend. deck.gl + MapLibre.
 - The boundary is the FROZEN TRAJECTORY CONTRACT in `contract/`. Do NOT change the contract
-  schema without bumping its version and updating BOTH sides. A hook blocks edits to it.
+  schema without bumping its version and updating BOTH sides.
+  - **Guard mode = ask:** a PreToolUse hook (`.claude/hooks/guard.py`) raises an approval prompt on
+    Write/Edit/MultiEdit to `contract/` (and `.env`) — make deliberate contract changes through the Write/Edit
+    tool and approve in the moment (schema verified against the Claude Code hooks docs).
+  - **Known limitation:** Bash/runtime writes to `contract/` bypass the hook (its matcher only covers
+    Write/Edit/MultiEdit) — conventionally BANNED, policed by plan review.
 
 ## Conventions
 - Python: conda env `gta-sim`, ruff (format + lint), pyright (types), pytest. Windows-native dev.

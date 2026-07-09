@@ -38,9 +38,12 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
      (`null`/absent = no signal / no trip). New structures are deliberately under-constrained (2.4 tightens).
 3. `path`, `timestamps`, `speeds` are **index-aligned** per vehicle (same length, same order).
 4. `timestamps` are **simulation seconds** (matches deck.gl `currentTime`/`trailLength` units on the web side).
-5. `contract/` is **write-guarded by a PreToolUse hook** (`.claude/hooks/guard.py`) — edits via the
-   Write/Edit tools are blocked (exit 2). For a deliberate version bump, temporarily disable that hook
-   in `.claude/settings.json`, make the change, re-enable. (Runtime writes from Python aren't tool-guarded.)
+5. `contract/` is **write-guarded by a PreToolUse hook** (`.claude/hooks/guard.py`) that now **ASKS** — a
+   Write/Edit/MultiEdit to `contract/` raises an in-the-moment permission prompt. **The legitimate path is
+   simply: use the Write/Edit tool and APPROVE the prompt** (still bump `schema_version` + mirror both sides).
+   The old comment-out-`settings.json` dance is **RETIRED** — the hook is always on. **Bash/runtime writes to
+   `contract/` are PROHIBITED by convention**: the matcher only covers Write/Edit/MultiEdit, so a Bash+Python
+   heredoc slips under the guard — that is a **process violation policed by plan review**, not a clever route.
 
 ## Where the (de)serializers live
 | World | File | What it does |
@@ -55,6 +58,8 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 Artifacts are emitted to `contract/runs/<run_id>.json` (see the `run-sim` skill). `contract/runs/` is gitignored.
 
 ## To extend the contract (the only correct procedure)
+0. Make every `contract/` edit through the **Write/Edit tool** and **approve the guard's ask prompt** — never
+   through Bash/Python (that bypasses the guard and is a banned process violation, per cardinal rule 5).
 1. Bump `schema_version` (e.g. `0.1.0` → `0.2.0`) in `contract/trajectory_schema.json`.
 2. Mirror the change in `python/src/contract_models.py` AND `web/lib/types.ts` (and any consumer).
 3. Update `python/src/trajectory_io.py` only if validation logic changes (it reads the schema file, so
