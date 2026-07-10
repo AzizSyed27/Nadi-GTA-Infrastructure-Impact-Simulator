@@ -869,112 +869,67 @@ def _print_report(change: Change, counts: dict, outcomes: list[dict], side_name:
 
 
 def _run_speed_limit(args) -> None:
-    """Phase-1 path (preserved): cars-only static-route speed_limit harness."""
+    """5.2b: STAGED, multimodal speed_limit (runtime change → NO regen), via ``run_quant_runtime`` so the job
+    runner + RunCard work exactly like new_road. (Upgraded from the Phase-1 cars-only path so the scorecard is
+    uniform; the legacy cars-only ``run_pair``/``join_outcomes``/``_print_report`` + sampler flat-branch are now
+    vestigial — noted for later deletion, NOT removed here.)"""
+    import run_state
+
     if args.target_edge:
         target_edge = args.target_edge
         print(f"[edge] using provided target edge {target_edge!r}")
     else:
         target_edge, n, length_m = pick_busy_edge(ROUTES, run_sim.NET)
-        print(
-            f"[edge] auto-picked highest vehicle-distance edge {target_edge!r} "
-            f"(traversed by {n} routes, {length_m:.0f} m long)"
-        )
+        print(f"[edge] auto-picked highest vehicle-distance edge {target_edge!r} ({n} routes, {length_m:.0f} m)")
     kmh = args.speed_mps * 3.6
-    change = Change(
-        type="speed_limit",
-        target_edge=target_edge,
-        value_mps=args.speed_mps,
-        description=f"Reduced max speed on edge {target_edge} to {kmh:.0f} km/h",
-    )
-    ids = run_pair(change)
-    total_demand = count_demand(ROUTES)
-    outcomes, counts = join_outcomes(ids["base_tripinfo"], ids["scen_tripinfo"], total_demand)
-    side = RUNS_DIR / f"outcomes-{ids['ts']}.json"
-    side.write_text(
-        json.dumps(
-            {
-                "scenario_run_id": ids["scen_id"],
-                "baseline_run_id": ids["base_id"],
-                "change": change.model_dump(exclude_none=True),
-                "counts": counts,
-                "outcomes": outcomes,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    _print_report(change, counts, outcomes, side.name)
+    change = Change(type="speed_limit", target_edge=target_edge, value_mps=args.speed_mps,
+                    description=args.description or f"Reduced max speed on edge {target_edge} to {kmh:.0f} km/h")
+    ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    try:
+        run_state.set_stage(run_id, "baseline", change.description,  # records change.type for the RunCard
+                            description=change.description, change=change.model_dump(exclude_none=True))
+        res = run_quant_runtime(change, ts, None)
+        print(f"\n[speed_limit] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
+              f"car median delta {res['car_median_delta_s']}s")
+    except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
+        run_state.set_stage(run_id, "failed", str(e)[:300])
+        raise
 
 
 def _run_bike_lane(args) -> None:
-    """Phase-2.2 path: multi-modal harness + bike-lane change with symmetric rerouting."""
+    """5.2b: STAGED multimodal bike-lane (runtime change → NO regen), via ``run_quant_runtime`` — job-runner ready.
+    Eligibility is gated by the SINGLE-SOURCE ``edge_bike_eligibility`` (same rule the live apply_change enforces)."""
+    import network_edit
+    import run_state
+
     if args.target_edge:
         target_edge = args.target_edge
         net = sumolib.net.readNet(str(run_sim.NET))
         print(f"[edge] using provided target edge {target_edge!r} ({_car_lane_count(net, target_edge)} car lanes)")
     else:
         target_edge, n, length_m, net = pick_bike_lane_edge(ROUTES, run_sim.NET, min_car_lanes=2)
-        print(
-            f"[edge] auto-picked busiest edge with >=2 car lanes: {target_edge!r} "
-            f"(traversed by {n} routes, {length_m:.0f} m, {_car_lane_count(net, target_edge)} car lanes)"
-        )
+        print(f"[edge] auto-picked busiest >=2-car-lane edge {target_edge!r} ({n} routes, {length_m:.0f} m)")
+    eligible, reason = network_edit.edge_bike_eligibility(net, target_edge)
+    if not eligible:
+        raise SystemExit(f"[bike_lane] ineligible edge {target_edge!r}: {reason}")
     target_lane = args.target_lane if args.target_lane is not None else curbside_car_lane(net, target_edge)
     severed = connectivity_check(net, target_edge, target_lane)
     print(f"[lane] converting lane {target_lane} (curbside car lane) -> bicycle-only; "
           f"connectivity: {'OK' if not severed else f'SEVERS car turns to {sorted(severed)}'}")
-
-    change = Change(
-        type="bike_lane",
-        target_edge=target_edge,
-        target_lane=target_lane,  # native v0.3.0 Change field
-        description=f"Converted lane {target_lane} of edge {target_edge} to a bicycle-only lane",
-    )
-    ids = run_pair_multimodal(change, target_lane, net)
-
-    demand = {"car": count_demand(ROUTES), "bicycle": count_demand(BIKE_ROUTES), "pedestrian": count_persons(PED_ROUTES)}
-    buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
-    car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
-    rerouted, reroute_matched = reroute_count(ids["base_vr"], ids["scen_vr"], car_ids)
-
-    # ---- Promote the SCENARIO run to the FIRST real v0.3.0 artifact (conflicts filled). ----
-    conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
-    artifact = build_multimodal_artifact(
-        ids["recs_s"], conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"],
-        change=change, target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
-    )
-    art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates on write
-    reloaded = trajectory_io.load_artifact(art_path)  # round-trip: schema + pydantic model
-    web_copy = run_sim.ROOT / "web" / "public" / f"{ids['scen_id']}.json"
-    web_copy.write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
-
-    # Baseline conflicts sidecar for 2.4b (per-group safety delta).
-    (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
-        json.dumps({"baseline_run_id": ids["base_id"], "conflicts": ids["conf_b"]["ssm"] + ids["conf_b"]["ped"]}, indent=2),
-        encoding="utf-8")
-
-    # Per-mode outcomes sidecar (extends Phase-1's shape with per-mode buckets). NOT a contract artifact.
-    side = RUNS_DIR / f"outcomes-{ids['ts']}.json"
-    side.write_text(
-        json.dumps(
-            {
-                "scenario_run_id": ids["scen_id"],
-                "baseline_run_id": ids["base_id"],
-                "change": change.model_dump(exclude_none=True),
-                "connectivity_severed_edges": sorted(severed),
-                "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched},
-                "modes": buckets,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    _print_multimodal_report(change, target_lane, severed, buckets, rerouted, reroute_matched)
-    print(f"outcomes side-file: contract/runs/{side.name}")
-    _print_conflict_report(net, target_edge, ids["conf_b"], ids["conf_s"])
-    print(f"\n[artifact] REAL v0.3.0 written + validated: contract/runs/{art_path.name}  "
-          f"({len(reloaded.vehicles)} vehicles, {len(reloaded.persons)} persons, "
-          f"{len(reloaded.conflicts)} conflicts, scorecard={reloaded.scorecard}, agents={len(reloaded.agents)})")
-    print(f"[artifact] copied to web/public/{web_copy.name}")
+    change = Change(type="bike_lane", target_edge=target_edge, target_lane=target_lane,
+                    description=args.description or f"Converted lane {target_lane} of edge {target_edge} to a bicycle-only lane")
+    ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    try:
+        run_state.set_stage(run_id, "baseline", change.description,
+                            description=change.description, change=change.model_dump(exclude_none=True))
+        res = run_quant_runtime(change, ts, target_lane, severed=severed)
+        print(f"\n[bike_lane] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
+              f"car median delta {res['car_median_delta_s']}s; severed={res['severed']}")
+    except Exception as e:  # noqa: BLE001
+        run_state.set_stage(run_id, "failed", str(e)[:300])
+        raise
 
 
 def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: list[str]) -> tuple[str, int]:
@@ -1027,6 +982,64 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     print(f"[run_quant] {ids['scen_id']} — cars_on_new_road={on_new} (rerouted {rerouted}/{reroute_matched}); "
           f"scorecard injected; latest.json updated")
     return ids["scen_id"], on_new
+
+
+def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed: set | None = None) -> dict:
+    """The RUNTIME twin of ``run_quant`` (speed_limit / bike_lane), shared by the CLI + the job runner. Canonical
+    net for BOTH runs (no netconvert → NO regen stage); the change is applied LIVE in the scenario run. Stages:
+    baseline → scenario → analysis → done. Writes the v0.3.0 artifact + sidecars + scorecard + web/public +
+    latest.json, exactly like ``run_quant``. Returns a dict incl. cars_rerouted + the car-delay summary the
+    RunCard shows (so a legitimate 0-reroute reads as 'absorbed as delay', not failure)."""
+    import scorecard
+    import run_state
+
+    run_id = f"multimodal-scenario-{ts}"
+    net = sumolib.net.readNet(str(run_sim.NET))  # canonical for both runs (runtime change, no patch)
+    ids = run_pair_multimodal(change, target_lane, net, ts=ts,
+                              on_stage=lambda s: run_state.set_stage(run_id, s))  # emits baseline, scenario
+
+    demand = {"car": count_demand(ROUTES), "bicycle": count_demand(BIKE_ROUTES), "pedestrian": count_persons(PED_ROUTES)}
+    buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
+    run_state.set_stage(run_id, "analysis", "joining outcomes + conflicts + scorecard")
+    car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
+    rerouted, reroute_matched = reroute_count(ids["base_vr"], ids["scen_vr"], car_ids)
+
+    conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
+    artifact = build_multimodal_artifact(
+        ids["recs_s"], conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
+        target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"])
+    art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
+
+    (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
+        json.dumps({"baseline_run_id": ids["base_id"], "conflicts": ids["conf_b"]["ssm"] + ids["conf_b"]["ped"]}, indent=2),
+        encoding="utf-8")
+    (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
+        "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
+        "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": sorted(severed or []),
+        "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched}, "modes": buckets}, indent=2),
+        encoding="utf-8")
+
+    sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
+                                     change.model_dump(exclude_none=True))
+    art2 = trajectory_io.load_artifact(art_path)
+    art2.scorecard = sc
+    trajectory_io.dump_artifact(art2, path=art_path)
+    trajectory_io.load_artifact(art_path)  # round-trip proof
+    web = run_sim.ROOT / "web" / "public"
+    (web / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    (web / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    # Car-delay summary for the RunCard (cars often absorb a lane loss as delay, not detour — 2.2 finding).
+    car_out = [o["delta_seconds"] for o in buckets["car"]["outcomes"]]
+    car_median = round(statistics.median(car_out), 1) if car_out else None
+    car_share = round(sum(1 for d in car_out if d > 30) / len(car_out), 3) if car_out else None
+    run_state.set_stage(run_id, "done", f"cars_rerouted={rerouted}; car_median_delta_s={car_median}",
+                        scenario_run_id=ids["scen_id"], cars_rerouted=rerouted,
+                        car_median_delta_s=car_median, car_affected_share=car_share)
+    print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
+          f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json updated")
+    return {"scen_id": ids["scen_id"], "cars_rerouted": rerouted, "car_median_delta_s": car_median,
+            "car_affected_share": car_share, "buckets": buckets, "severed": sorted(severed or [])}
 
 
 def _run_new_road(args) -> None:

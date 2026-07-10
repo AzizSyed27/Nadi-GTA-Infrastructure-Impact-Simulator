@@ -15,8 +15,18 @@ export interface Junction {
   n_out: number;
 }
 
-/** The new_road edit the editor POSTs. Mirrors server.py SimChange (the API accepts only new_road for now). */
-export interface SimChange {
+/** An existing corridor edge from GET /api/edges (the edit-an-edge palette). */
+export interface Edge {
+  id: string;
+  geometry: [number, number][]; // [lon,lat] polyline
+  speed_mps: number;
+  car_lane_count: number;
+  eligible_bike_lane: boolean;
+  eligibility_reason: string; // the backend's words (shown as the greyed tooltip when ineligible)
+}
+
+/** The edits the editor POSTs. Discriminated by `type`; mirrors server.py SimChange dispatch. */
+export interface NewRoadChange {
   type: 'new_road';
   from_junction: string;
   to_junction: string;
@@ -25,6 +35,19 @@ export interface SimChange {
   bidirectional: boolean;
   description?: string;
 }
+export interface SpeedLimitChange {
+  type: 'speed_limit';
+  target_edge: string;
+  value_mps: number;
+  description?: string;
+}
+export interface BikeLaneChange {
+  type: 'bike_lane';
+  target_edge: string;
+  target_lane?: number;
+  description?: string;
+}
+export type SimChange = NewRoadChange | SpeedLimitChange | BikeLaneChange;
 
 export type EnrichStage = 'voices' | 'report' | 'discourse';
 
@@ -46,9 +69,11 @@ export interface RunStatus {
   started_at?: number;
   updated_at?: number;
   description?: string;
-  change?: Record<string, unknown>;
+  change?: { type?: string; target_edge?: string; [k: string]: unknown };
   cars_on_new_road?: number;
   cars_rerouted?: number;
+  car_median_delta_s?: number | null; // runtime changes: median car delay (s); 0-reroute reads as "absorbed as delay"
+  car_affected_share?: number | null; // fraction of cars materially (>30s) slower
 }
 
 /** Uniform result: ok with a value, or a friendly error (status set for HTTP failures like 409). */
@@ -81,7 +106,13 @@ export function getJunctions(bbox?: [number, number, number, number]): Promise<A
   return req(`/api/junctions${q}`);
 }
 
-/** POST /api/simulate — launch a new_road run. 409 if a job is already active. */
+/** GET /api/edges?bbox — existing corridor edges (geometry + speed + car-lane count + bike eligibility). */
+export function getEdges(bbox?: [number, number, number, number]): Promise<ApiResult<{ edges: Edge[]; count: number }>> {
+  const q = bbox ? `?bbox=${bbox.join(',')}` : '';
+  return req(`/api/edges${q}`);
+}
+
+/** POST /api/simulate — launch an edit run (new_road | speed_limit | bike_lane). 409 if a job is already active. */
 export function postSimulate(change: SimChange): Promise<ApiResult<{ run_id: string }>> {
   return req(`/api/simulate`, {
     method: 'POST',

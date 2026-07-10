@@ -209,15 +209,21 @@ async def chat(req: ChatReq):
 # state + torch/OASIS make in-process unsafe); a single in-process lock serializes ALL jobs (simulate + enrich).
 # ===================================================================================================
 _JUNCTIONS: dict = {"all": None}  # cache the (slow) 23MB net read across /api/junctions calls
+_EDGES: dict = {"all": None}  # same, for /api/edges (the edit-an-edge palette)
 
 
 class SimChange(BaseModel):
-    type: str = "new_road"
-    from_junction: str
-    to_junction: str
+    type: str = "new_road"  # new_road | speed_limit | bike_lane
+    # new_road geometry
+    from_junction: str | None = None
+    to_junction: str | None = None
     lanes: int = 1
     speed_mps: float = 13.9
     bidirectional: bool = False
+    # runtime-change fields (speed_limit / bike_lane)
+    target_edge: str | None = None
+    value_mps: float | None = None  # speed_limit new max (m/s)
+    target_lane: int | None = None  # bike_lane lane index (default: curbside car lane)
     description: str | None = None
 
 
@@ -258,26 +264,71 @@ async def junctions(bbox: str | None = Query(None, description="minLon,minLat,ma
     return {"junctions": js, "count": len(js)}
 
 
+@app.get("/api/edges")
+async def edges(bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat")):
+    """Corridor edges for the edit-an-edge palette: geometry + speed + car-lane count + bike eligibility."""
+    if _EDGES["all"] is None:
+        _EDGES["all"] = network_edit.list_edges(None)  # cache the full net read
+    es = _EDGES["all"]
+    if bbox:
+        b = [float(x) for x in bbox.split(",")]
+        es = [e for e in es if any(b[0] <= lon <= b[2] and b[1] <= lat <= b[3] for lon, lat in e["geometry"])]
+    return {"edges": es, "count": len(es)}
+
+
+def _edges_by_id() -> dict:
+    """Edge id -> record from the cached /api/edges list (for existence + bike-eligibility validation)."""
+    if _EDGES["all"] is None:
+        _EDGES["all"] = network_edit.list_edges(None)
+    return {e["id"]: e for e in _EDGES["all"]}
+
+
 @app.post("/api/simulate")
 async def simulate(req: SimulateReq, bg: BackgroundTasks):
-    """Validate a new_road edit, mint a run id, and launch the quant pipeline as a background subprocess."""
+    """Validate an edit (new_road | speed_limit | bike_lane), mint a run id, and launch the quant pipeline as a
+    background subprocess. bike_lane is rejected 400 with the SINGLE-SOURCE eligibility reason if ineligible."""
     ch = req.change
-    if ch.type != "new_road":
-        raise HTTPException(400, f"only new_road is supported via the API for now, got {ch.type!r}")
-    if not (ch.from_junction and ch.to_junction and ch.lanes and ch.speed_mps):
-        raise HTTPException(400, "new_road requires from_junction, to_junction, lanes, speed_mps")
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    py, ts = sys.executable, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"
+
+    if ch.type == "new_road":
+        if not (ch.from_junction and ch.to_junction and ch.lanes and ch.speed_mps):
+            raise HTTPException(400, "new_road requires from_junction, to_junction, lanes, speed_mps")
+        desc = ch.description or f"New road {ch.from_junction}->{ch.to_junction}"
+        cmd = [py, str(HARNESS), "--change-type", "new_road", "--run-ts", ts,
+               "--from-junction", ch.from_junction, "--to-junction", ch.to_junction,
+               "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps), "--description", desc]
+        if ch.bidirectional:
+            cmd.append("--bidirectional")
+    elif ch.type == "speed_limit":
+        if not (ch.target_edge and ch.value_mps):
+            raise HTTPException(400, "speed_limit requires target_edge and value_mps")
+        if ch.target_edge not in _edges_by_id():
+            raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
+        desc = ch.description or f"Speed limit on {ch.target_edge} -> {ch.value_mps} m/s"
+        # `--flag=value` form: SUMO edge ids can start with '-' (reverse edges), which argparse would else
+        # mistake for an option.
+        cmd = [py, str(HARNESS), "--change-type", "speed_limit", "--run-ts", ts,
+               f"--target-edge={ch.target_edge}", "--speed-mps", str(ch.value_mps), "--description", desc]
+    elif ch.type == "bike_lane":
+        if not ch.target_edge:
+            raise HTTPException(400, "bike_lane requires target_edge")
+        edge = _edges_by_id().get(ch.target_edge)
+        if edge is None:
+            raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
+        if not edge["eligible_bike_lane"]:
+            raise HTTPException(400, edge["eligibility_reason"])  # the backend's own words, verbatim
+        desc = ch.description or f"Bike lane on {ch.target_edge}"
+        cmd = [py, str(HARNESS), "--change-type", "bike_lane", "--run-ts", ts,
+               f"--target-edge={ch.target_edge}", "--description", desc]  # =form: edge ids can start with '-'
+        if ch.target_lane is not None:
+            cmd += ["--target-lane", str(ch.target_lane)]
+    else:
+        raise HTTPException(400, f"unsupported change type {ch.type!r} (new_road | speed_limit | bike_lane)")
+
     if not run_state.try_acquire(run_id):  # synchronous, race-free reject-if-active
         raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
-    run_state.set_stage(run_id, "queued", "queued", description=ch.description or f"New road {ch.from_junction}->{ch.to_junction}",
-                        change=ch.model_dump())
-    cmd = [sys.executable, str(HARNESS), "--change-type", "new_road", "--run-ts", ts,
-           "--from-junction", ch.from_junction, "--to-junction", ch.to_junction,
-           "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps),
-           "--description", ch.description or f"New road {ch.from_junction}->{ch.to_junction}"]
-    if ch.bidirectional:
-        cmd.append("--bidirectional")
+    run_state.set_stage(run_id, "queued", "queued", description=desc, change=ch.model_dump(exclude_none=True))
     bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate")
     return {"run_id": run_id}
 

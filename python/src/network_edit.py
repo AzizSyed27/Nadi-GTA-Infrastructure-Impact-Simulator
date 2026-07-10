@@ -208,6 +208,46 @@ def list_junctions(bbox: list[float] | None = None) -> list[dict]:
 
 
 # ==================================================================================================
+# edge listing + bike-lane eligibility (the editor's edit-an-edge palette — Phase 5.2b)
+# ==================================================================================================
+def _car_lane_indices_static(net, edge_id: str) -> list[int]:
+    """Static (sumolib) car-lane indices — the pre-sim mirror of ``run_sim._car_lane_indices`` (live conn)."""
+    return [i for i, lane in enumerate(net.getEdge(edge_id).getLanes()) if lane.allows("passenger")]
+
+
+def edge_bike_eligibility(net, edge_id: str) -> tuple[bool, str]:
+    """Static bike-lane eligibility, deferring to the SINGLE-SOURCE rule ``run_sim.bike_lane_reason`` (the same
+    one the live ``apply_change`` enforces). Returns (eligible, reason): eligible -> reason 'eligible', else the
+    backend's exact words. Used by ``/api/edges`` (the greyed affordance) and ``/api/simulate`` (400 on reject)."""
+    if not net.hasEdge(edge_id):
+        return False, f"edge {edge_id!r} not found in the network"
+    reason = run_sim.bike_lane_reason(_car_lane_indices_static(net, edge_id), edge_id)
+    return (reason is None), (reason or "eligible")
+
+
+def list_edges(bbox: list[float] | None = None) -> list[dict]:
+    """Corridor edges for the editor: {id, geometry [[lon,lat]…], speed_mps, car_lane_count, eligible_bike_lane,
+    eligibility_reason}. Skips internal edges. bbox = [minLon,minLat,maxLon,maxLat] keeps an edge if ANY shape
+    point is inside (the frontend zoom-gates, so city zoom never asks for the whole net)."""
+    net = sumolib.net.readNet(str(run_sim.NET))
+    out: list[dict] = []
+    for edge in net.getEdges(withInternal=False):
+        pts = [net.convertXY2LonLat(x, y) for (x, y) in edge.getShape()]
+        if not pts:
+            continue
+        if bbox and not any(bbox[0] <= lon <= bbox[2] and bbox[1] <= lat <= bbox[3] for lon, lat in pts):
+            continue
+        eid = edge.getID()
+        eligible, reason = edge_bike_eligibility(net, eid)
+        out.append({"id": eid,
+                    "geometry": [[round(lon, 6), round(lat, 6)] for lon, lat in pts],
+                    "speed_mps": round(edge.getSpeed(), 3),
+                    "car_lane_count": len(_car_lane_indices_static(net, eid)),
+                    "eligible_bike_lane": eligible, "eligibility_reason": reason})
+    return out
+
+
+# ==================================================================================================
 def _change_from_args(args) -> Change:
     a, b = args.from_junction, args.to_junction
     return Change(type="new_road", target_edge=f"nr_{a}_{b}", from_junction=a, to_junction=b,

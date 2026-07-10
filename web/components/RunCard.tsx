@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRunStatus, postEnrich, type EnrichStage, type RunStatus } from '@/lib/api';
+import { signedMinutes } from '@/lib/viz';
 
-// The quant pipeline's staged progression (matches scenario_harness run-state writes). Enrich stages
-// ('enrich:voices' etc.) are shown separately below the rail.
-const QUANT_STAGES = ['queued', 'regen', 'baseline', 'scenario', 'analysis', 'done'] as const;
+// The staged progression (matches scenario_harness run-state writes). A new_road run patches the network first
+// (regen); runtime changes (speed_limit / bike_lane) apply live, so they have NO regen stage — the card renders
+// only the stages the run actually has. Enrich stages ('enrich:voices' etc.) are shown separately below.
+const NEWROAD_STAGES = ['queued', 'regen', 'baseline', 'scenario', 'analysis', 'done'] as const;
+const RUNTIME_STAGES = ['queued', 'baseline', 'scenario', 'analysis', 'done'] as const;
 const STAGE_LABEL: Record<string, string> = {
   queued: 'Queued',
   regen: 'Regenerating network',
@@ -108,16 +111,31 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
   const failed = status?.status === 'failed';
   const done = status?.stage === 'done';
   const enriching = stage.startsWith('enrich:');
-  const activeIdx = QUANT_STAGES.indexOf(stage as (typeof QUANT_STAGES)[number]);
+  const isNewRoad = status?.change?.type === 'new_road';
+  const STAGES = isNewRoad ? NEWROAD_STAGES : RUNTIME_STAGES; // runtime changes have NO regen stage
+  const activeIdx = (STAGES as readonly string[]).indexOf(stage);
+
+  // THE number, framed honestly: for a runtime lane/speed change 0-reroute is expected — cars absorb it as
+  // delay, not detour (the 2.2 finding) — so surface the car delay alongside so 0 doesn't read as failure.
+  const rer = status?.cars_rerouted ?? 0;
+  const rerouteLabel = isNewRoad
+    ? `${rer} ${rer === 1 ? 'car' : 'cars'} rerouted onto the new road`
+    : rer === 0
+      ? '0 rerouted — absorbed as delay'
+      : `${rer} ${rer === 1 ? 'car' : 'cars'} rerouted`;
+  const cm = status?.car_median_delta_s;
+  const cs = status?.car_affected_share;
+  const carDelay =
+    cm != null ? `car median ${signedMinutes(cm)}${cs != null ? ` · ${Math.round(cs * 100)}% materially affected` : ''}` : null;
 
   return (
     <div style={card} data-testid="run-card">
       <div style={title}>{done ? 'Run complete' : failed ? 'Run failed' : 'Running…'}</div>
       <div style={sub}>{status?.description || runId}</div>
 
-      {/* staged rail */}
+      {/* staged rail — only the stages this run actually has (runtime changes skip regen) */}
       <ol style={rail} data-testid="run-stages">
-        {QUANT_STAGES.map((s, i) => {
+        {STAGES.map((s, i) => {
           const state = failed ? 'idle' : i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'idle';
           return (
             <li key={s} style={{ ...stageRow, ...(state === 'active' ? stageActive : null) }} data-stage={s} data-state={state}>
@@ -133,9 +151,8 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
 
       {done && (
         <>
-          <div style={theNumber} data-testid="reroute-number">
-            <b>{status?.cars_rerouted ?? 0}</b> {(status?.cars_rerouted ?? 0) === 1 ? 'car' : 'cars'} rerouted onto the new road
-          </div>
+          <div style={theNumber} data-testid="reroute-number">{rerouteLabel}</div>
+          {carDelay && <div style={carDelayLine} data-testid="car-delay">{carDelay}</div>}
           <div style={enrichLabel}>Enrich this run</div>
           <div style={enrichRow} data-testid="enrich-buttons">
             {ENRICH.map((e) => (
@@ -178,7 +195,8 @@ const dot: React.CSSProperties = { width: 9, height: 9, borderRadius: '50%', bac
 const dotDone: React.CSSProperties = { background: '#3caa5a' };
 const dotActive: React.CSSProperties = { background: '#1f4e9c' };
 const enrichNote: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#1f4e9c', fontWeight: 600 };
-const theNumber: React.CSSProperties = { marginTop: 10, fontSize: 13, color: '#374151', lineHeight: 1.4 };
+const theNumber: React.CSSProperties = { marginTop: 10, fontSize: 13, color: '#374151', lineHeight: 1.4, fontWeight: 600 };
+const carDelayLine: React.CSSProperties = { marginTop: 4, fontSize: 12, color: '#6b7280' };
 const enrichLabel: React.CSSProperties = { marginTop: 12, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8a9099' };
 const enrichRow: React.CSSProperties = { marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' };
 const enrichBtn: React.CSSProperties = {

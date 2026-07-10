@@ -88,3 +88,38 @@ def test_list_junctions_returns_geo_targets() -> None:
     js = network_edit.list_junctions()
     assert js and all("id" in j and "lon" in j and "lat" in j for j in js[:5])
     assert all(-80 < j["lon"] < -78 and 43 < j["lat"] < 44 for j in js[:20]), "junctions in the GTA corridor"
+
+
+def test_bike_eligibility_is_single_sourced() -> None:
+    """The static pre-check defers to run_sim.bike_lane_reason — the SAME rule the live apply_change enforces
+    (5.2b). The rule function: < MIN car lanes -> reason string; >= MIN -> None."""
+    assert run_sim.bike_lane_reason([0], "e") is not None
+    assert ">= 2 car lanes" in run_sim.bike_lane_reason([0], "e")
+    assert run_sim.bike_lane_reason([0, 1], "e") is None
+    # the static edge check agrees on real 1-lane / 2-lane edges
+    net = sumolib.net.readNet(str(run_sim.NET))
+    one = two = None
+    for e in net.getEdges(withInternal=False):
+        n = len(network_edit._car_lane_indices_static(net, e.getID()))
+        if n == 1 and one is None:
+            one = e.getID()
+        if n >= 2 and two is None:
+            two = e.getID()
+        if one and two:
+            break
+    if two:
+        assert network_edit.edge_bike_eligibility(net, two) == (True, "eligible")
+    if one:
+        ok, reason = network_edit.edge_bike_eligibility(net, one)
+        assert ok is False and "car lanes" in reason
+    assert network_edit.edge_bike_eligibility(net, "no-such-edge")[0] is False
+
+
+def test_list_edges_shape_and_eligibility() -> None:
+    rows = network_edit.list_edges()
+    keys = {"id", "geometry", "speed_mps", "car_lane_count", "eligible_bike_lane", "eligibility_reason"}
+    assert rows and all(keys <= set(r) for r in rows[:5])
+    assert rows[0]["geometry"] and all(-80 < lon < -78 and 43 < lat < 44 for lon, lat in rows[0]["geometry"][:3])
+    # eligibility flag is exactly the rule applied to the car-lane count (no drift)
+    for r in rows[:80]:
+        assert r["eligible_bike_lane"] == (r["car_lane_count"] >= run_sim.MIN_CAR_LANES_FOR_BIKE)

@@ -79,6 +79,22 @@ def _car_lane_indices(edge_id: str) -> list[int]:
     return out
 
 
+MIN_CAR_LANES_FOR_BIKE = 2  # a bike-lane conversion needs >= this many car lanes so >= 1 remains for cars
+
+
+def bike_lane_reason(car_lane_indices: list[int], edge_id: str) -> str | None:
+    """The SINGLE source of the bike-lane eligibility RULE. Returns None if the edge is eligible
+    (>= ``MIN_CAR_LANES_FOR_BIKE`` car lanes), else the human reason it is not. BOTH the live enforcer
+    (``apply_change``) and the static pre-check (``network_edit.edge_bike_eligibility`` — used by
+    ``/api/edges`` + ``/api/simulate``) call this, so the rule and its wording can never diverge."""
+    if len(car_lane_indices) < MIN_CAR_LANES_FOR_BIKE:
+        return (
+            f"bike_lane needs >= {MIN_CAR_LANES_FOR_BIKE} car lanes on edge {edge_id!r} so >= 1 remains for "
+            f"cars; found {len(car_lane_indices)} ({car_lane_indices}). Refusing to block the edge."
+        )
+    return None
+
+
 def apply_change(change: Change, target_lane: int | None = None) -> None:
     """Apply an infrastructure change to the live ``conn`` simulation. Open dispatch by ``type``.
 
@@ -111,11 +127,9 @@ def apply_change(change: Change, target_lane: int | None = None) -> None:
                 f"target_edge {change.target_edge!r} is not in the network — refusing to no-op silently"
             )
         car_lanes = _car_lane_indices(change.target_edge)
-        if len(car_lanes) < 2:
-            raise ValueError(
-                f"bike_lane needs >= 2 car lanes on edge {change.target_edge!r} so >= 1 remains for cars; "
-                f"found {len(car_lanes)} ({car_lanes}). Refusing to block the edge."
-            )
+        reason = bike_lane_reason(car_lanes, change.target_edge)  # single-source rule (shared w/ the static check)
+        if reason is not None:
+            raise ValueError(reason)
         idx = car_lanes[0] if target_lane is None else target_lane
         if idx not in car_lanes:
             raise ValueError(

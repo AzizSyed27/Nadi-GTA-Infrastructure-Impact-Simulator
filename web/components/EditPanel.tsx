@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import type { Junction } from '@/lib/api';
+import type { Junction, Edge } from '@/lib/api';
 import type { Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { RunSwitcher } from '@/components/RunSwitcher';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
+import { EdgePalette } from '@/components/EdgePalette';
 
 export interface DrawParams {
   lanes: number;
@@ -30,6 +31,12 @@ interface EditPanelProps {
   hasVoices: boolean;
   hasSocial: boolean;
   scorecard: Scorecard | undefined; // the active run's scorecard (shown once its artifact is loaded)
+  // edit-an-edge (5.2b)
+  selectedEdge: Edge | null;
+  canEditEdges: boolean; // zoomed in enough that existing edges are rendered/clickable
+  onEdgeSpeed: (valueMps: number) => void;
+  onEdgeBike: () => void;
+  onEdgeCancel: () => void;
 }
 
 // RATIFIED phase-5 road defaults — a two-way, two-lane, ~50 km/h street (what a planner usually draws, and
@@ -153,6 +160,16 @@ export function EditPanel(props: EditPanelProps) {
             </button>
           </div>
         </>
+      ) : props.selectedEdge ? (
+        <EdgePalette
+          key={props.selectedEdge.id}
+          edge={props.selectedEdge}
+          submitting={submitting}
+          submitError={submitError}
+          onSpeedLimit={props.onEdgeSpeed}
+          onBikeLane={props.onEdgeBike}
+          onCancel={props.onEdgeCancel}
+        />
       ) : (
         <div style={card} data-testid="draw-card">
           <div style={title}>Draw a road</div>
@@ -163,6 +180,13 @@ export function EditPanel(props: EditPanelProps) {
             </div>
           ) : (
             !ptA && <div style={step}>Click a junction on the map to start.</div>
+          )}
+          {!ptA && !props.junctionsDown && (
+            <div style={subStep} data-testid="edge-zoom-hint">
+              {props.canEditEdges
+                ? 'Or click an existing road to change its speed limit / add a bike lane.'
+                : 'Zoom in to click an existing road (speed limit / bike lane).'}
+            </div>
           )}
           {ptA && !ptB && (
             <div style={step}>
@@ -222,6 +246,7 @@ const card: React.CSSProperties = {
 };
 const title: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 8 };
 const step: React.CSSProperties = { fontSize: 12.5, lineHeight: 1.5, color: '#4b5563' };
+const subStep: React.CSSProperties = { fontSize: 12, lineHeight: 1.5, color: '#8a9099', marginTop: 8 };
 const endpoints: React.CSSProperties = { fontSize: 13, marginBottom: 10, color: '#1f4e9c', fontWeight: 600 };
 const field: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6b7280', marginBottom: 8 };
 const input: React.CSSProperties = { border: '1px solid #cbd3dc', borderRadius: 8, padding: '6px 8px', fontSize: 13, color: '#374151' };

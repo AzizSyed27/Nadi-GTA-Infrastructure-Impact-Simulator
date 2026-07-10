@@ -32,6 +32,13 @@ out/
 # --- Generated trajectory artifacts (the contract SCHEMA stays tracked; runs do not) ---
 contract/runs/
 
+# --- Editor-generated web artifacts (5.2b): latest.json is only the current-run pointer, and each editor run
+# writes a per-run <run_id>.json — don't track that churn. NOTE: .gitignore does NOT untrack already-committed
+# files, so the pinned showcase run + the committed test fixtures stay tracked; only NEW runs + latest.json here.
+web/public/latest.json
+web/public/multimodal-scenario-*.json
+web/public/multimodal-baseline-*.json
+
 # --- Claude Code worktrees ---
 .claude/worktrees/
 

@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer, LineLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, LineLayer, PathLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { Agent, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
-import { getJunctions, postSimulate, type Junction, type SimChange } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type SimChange } from '@/lib/api';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -35,6 +35,7 @@ const ARTIFACT_URL = '/latest.json';
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
 const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-seconds, then rests as a dot
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
+const EDGE_ZOOM = 14; // edit mode: only fetch/render existing edges at/above this zoom (city zoom = spaghetti)
 
 /** A sim agent joined to its trajectory (vehicle OR person) — stable across frames; the clickable dots. */
 interface Pinned {
@@ -78,6 +79,9 @@ export default function MapView() {
   // --- edit mode (5.2): draw-a-road + job runner ---
   const [junctions, setJunctions] = useState<Junction[]>([]); // snap targets in the viewport
   const [junctionsDown, setJunctionsDown] = useState(false); // backend unreachable while loading snap targets
+  const [edges, setEdges] = useState<Edge[]>([]); // existing edges in view (zoom-gated) for the edit-an-edge palette
+  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null); // the edge whose palette is open
+  const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
   const [ptA, setPtA] = useState<Junction | null>(null); // first clicked junction
   const [ptB, setPtB] = useState<Junction | null>(null); // second clicked junction → opens the params form
   const [hoverCoord, setHoverCoord] = useState<LonLat | null>(null); // rubber-band endpoint while drawing
@@ -90,16 +94,19 @@ export default function MapView() {
 
   useEffect(() => {
     let cancelled = false;
-    // no-store: latest.json is a large (~20MB), frequently-rewritten alias — don't HTTP-cache it (avoids
-    // serving a stale artifact, and sidesteps chromium ERR_CACHE_WRITE_FAILURE on the large body).
-    fetch(ARTIFACT_URL, { cache: 'no-store' })
+    // `?run=<id>` deep-links a specific run (used by tests to pin a fixture); default is the editor pointer.
+    // no-store: these are large (~20MB), frequently-rewritten aliases — don't HTTP-cache (avoids stale reads +
+    // chromium ERR_CACHE_WRITE_FAILURE on the large body).
+    const run = new URLSearchParams(window.location.search).get('run');
+    const url = run ? `/${run}.json` : ARTIFACT_URL;
+    fetch(url, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data: TrajectoryArtifact) => {
         if (cancelled) return;
         setArtifact(data);
         setCurrentTime(data.meta.sim_start);
       })
-      .catch((e) => console.error(`failed to load ${ARTIFACT_URL}`, e));
+      .catch((e) => console.error(`failed to load ${url}`, e));
     return () => {
       cancelled = true;
     };
@@ -210,18 +217,37 @@ export default function MapView() {
     }
   }, []);
 
-  // On entering edit mode, load junctions once + on each moveend; clear on leaving.
+  // Existing edges for the edit-an-edge palette — ZOOM-GATED (the whole net at city zoom is spaghetti).
+  const fetchEdges = useCallback(async () => {
+    const m = mapRef.current?.getMap();
+    if (!m) return;
+    if (m.getZoom() < EDGE_ZOOM) {
+      setEdges([]); // too coarse — don't fetch or render edges
+      return;
+    }
+    const b = m.getBounds();
+    const res = await getEdges([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+    if (res.ok) setEdges(res.value.edges);
+  }, []);
+
+  // On entering edit mode, load junctions + edges once + on each moveend; track zoom; clear on leaving.
   useEffect(() => {
     if (mode !== 'edit') return;
     fetchJunctions();
+    fetchEdges();
     const m = mapRef.current?.getMap();
     if (!m) return;
-    const onMoveEnd = () => fetchJunctions();
+    setZoom(m.getZoom());
+    const onMoveEnd = () => {
+      fetchJunctions();
+      fetchEdges();
+      setZoom(m.getZoom());
+    };
     m.on('moveend', onMoveEnd);
     return () => {
       m.off('moveend', onMoveEnd);
     };
-  }, [mode, fetchJunctions]);
+  }, [mode, fetchJunctions, fetchEdges]);
 
   // Load a completed run's artifact by id (per-run public copy). RunCard calls this on the `done` edge.
   const loadRun = useCallback(async (id: string) => {
@@ -240,13 +266,22 @@ export default function MapView() {
   // Overlay-level click: snap to the picked junction, else the nearest within SNAP_M; 1st→A, 2nd→B (opens form).
   const onEditClick = useCallback(
     (info: PickingInfo) => {
+      const lid = info.layer?.id;
       const coord = info.coordinate as LonLat | undefined;
-      let j: Junction | null = info.layer?.id === 'snap-targets' ? (info.object as Junction) : null;
-      if (!j && coord) j = nearestWithin(coord, junctions, SNAP_M);
-      if (!j) {
-        setDrawHint('Click nearer a junction.');
+      // Click an existing edge (when NOT mid-draw) → open the edit-an-edge palette.
+      if (lid === 'edit-edges' && info.object && !ptA) {
+        setSelectedEdge(info.object as Edge);
+        setDrawHint(null);
         return;
       }
+      let j: Junction | null = lid === 'snap-targets' ? (info.object as Junction) : null;
+      if (!j && coord) j = nearestWithin(coord, junctions, SNAP_M);
+      if (!j) {
+        if (ptA) setDrawHint('Click nearer a junction.');
+        else setSelectedEdge(null); // empty-space click dismisses an open palette
+        return;
+      }
+      setSelectedEdge(null); // starting/continuing a road draw dismisses the palette
       if (!ptA) {
         setDrawHint(null);
         setPtA(j);
@@ -270,13 +305,28 @@ export default function MapView() {
     [ptA, ptB],
   );
 
-  // Submit the drawn road → POST /api/simulate. On success the run card takes over (it polls + loads on done).
+  // Submit any edit → POST /api/simulate. On success the run card takes over (it polls + loads on done).
+  const submitChange = useCallback(async (change: SimChange) => {
+    setSubmitting(true);
+    setSubmitError(null);
+    const res = await postSimulate(change);
+    setSubmitting(false);
+    if (!res.ok) {
+      setSubmitError(res.error); // includes the 409 lock message + the bike-lane ineligibility reason
+      return;
+    }
+    setActiveRunId(res.value.run_id); // run card polls this; loadRun fires on the done edge
+    setPtA(null);
+    setPtB(null);
+    setHoverCoord(null);
+    setDrawHint(null);
+    setSelectedEdge(null);
+  }, []);
+
   const onSubmitDraw = useCallback(
-    async (p: DrawParams) => {
+    (p: DrawParams) => {
       if (!ptA || !ptB) return;
-      setSubmitting(true);
-      setSubmitError(null);
-      const change: SimChange = {
+      submitChange({
         type: 'new_road',
         from_junction: ptA.id,
         to_junction: ptB.id,
@@ -284,21 +334,24 @@ export default function MapView() {
         speed_mps: p.speed_mps,
         bidirectional: p.bidirectional,
         description: `New road ${ptA.id}->${ptB.id}`,
-      };
-      const res = await postSimulate(change);
-      setSubmitting(false);
-      if (!res.ok) {
-        setSubmitError(res.error);
-        return;
-      }
-      setActiveRunId(res.value.run_id); // run card polls this; loadRun fires on the done edge
-      setPtA(null);
-      setPtB(null);
-      setHoverCoord(null);
-      setDrawHint(null);
+      });
     },
-    [ptA, ptB],
+    [ptA, ptB, submitChange],
   );
+
+  const onEdgeSpeed = useCallback(
+    (valueMps: number) => {
+      if (!selectedEdge) return;
+      submitChange({ type: 'speed_limit', target_edge: selectedEdge.id, value_mps: valueMps,
+        description: `Speed limit on ${selectedEdge.id} -> ${valueMps} m/s` });
+    },
+    [selectedEdge, submitChange],
+  );
+
+  const onEdgeBike = useCallback(() => {
+    if (!selectedEdge) return;
+    submitChange({ type: 'bike_lane', target_edge: selectedEdge.id, description: `Bike lane on ${selectedEdge.id}` });
+  }, [selectedEdge, submitChange]);
 
   const resetDraw = useCallback(() => {
     setPtA(null);
@@ -306,6 +359,7 @@ export default function MapView() {
     setHoverCoord(null);
     setDrawHint(null);
     setSubmitError(null);
+    setSelectedEdge(null);
   }, []);
 
   const drawAnother = useCallback(() => {
@@ -320,12 +374,16 @@ export default function MapView() {
     const w = window as unknown as {
       __nadiEdit?: (lon: number, lat: number) => void;
       __nadiEditHover?: (lon: number, lat: number) => void;
+      __nadiEditEdge?: (edge: Edge) => void;
     };
     w.__nadiEdit = (lon, lat) => onEditClick({ coordinate: [lon, lat] } as PickingInfo);
     w.__nadiEditHover = (lon, lat) => onEditHover({ coordinate: [lon, lat] } as PickingInfo);
+    // Select an existing edge (drives the edit-an-edge palette without a WebGL PathLayer pick).
+    w.__nadiEditEdge = (edge) => onEditClick({ layer: { id: 'edit-edges' }, object: edge } as unknown as PickingInfo);
     return () => {
       delete w.__nadiEdit;
       delete w.__nadiEditHover;
+      delete w.__nadiEditEdge;
     };
   }, [mode, onEditClick, onEditHover]);
 
@@ -477,7 +535,24 @@ export default function MapView() {
     radiusUnits: 'pixels',
   });
 
-  // 6) Edit mode (5.2): junction snap targets + the rubber-band preview line. Only added when drawing.
+  // 6) Edit mode: existing edges (edit-an-edge palette; zoom-gated, blue=bike-eligible, grey=not, orange=selected).
+  const editEdges = new PathLayer<Edge>({
+    id: 'edit-edges',
+    data: edges,
+    getPath: (e) => e.geometry,
+    getColor: (e) =>
+      e.id === selectedEdge?.id ? [240, 130, 30, 235] : e.eligible_bike_lane ? [80, 140, 255, 170] : [150, 156, 165, 150],
+    getWidth: (e) => (e.id === selectedEdge?.id ? 6 : 3),
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+    pickable: true,
+    autoHighlight: true,
+    highlightColor: [255, 255, 255, 80],
+    updateTriggers: { getColor: selectedEdge?.id, getWidth: selectedEdge?.id },
+  });
+
+  // Junction snap targets + the rubber-band preview line. Only added when drawing.
   const snapTargets = new ScatterplotLayer<Junction>({
     id: 'snap-targets',
     data: junctions,
@@ -511,7 +586,7 @@ export default function MapView() {
     conflictPulses,
     instrumentedDots,
     flashRing,
-    ...(mode === 'edit' ? [snapTargets, drawPreview] : []),
+    ...(mode === 'edit' ? [editEdges, snapTargets, drawPreview] : []),
   ];
 
   // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
@@ -605,6 +680,11 @@ export default function MapView() {
           hasVoices={hasVoices}
           hasSocial={hasSocial}
           scorecard={artifact.scorecard}
+          selectedEdge={selectedEdge}
+          canEditEdges={zoom >= EDGE_ZOOM}
+          onEdgeSpeed={onEdgeSpeed}
+          onEdgeBike={onEdgeBike}
+          onEdgeCancel={() => setSelectedEdge(null)}
         />
       ) : effectiveMode === 'playback' ? (
         <>
