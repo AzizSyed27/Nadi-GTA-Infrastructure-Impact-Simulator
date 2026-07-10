@@ -277,7 +277,13 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
         *REROUTING_ARGS,
         "--seed", str(seed),
     ]
-    conn.start(args)
+    # Capture SUMO's own warnings+errors (a rejected patched net closes the connection with no other diagnostic).
+    err_log = Path(f"{tripinfo_path}.sumoerr.log")
+    args += ["--error-log", str(err_log)]
+    try:
+        conn.start(args)
+    except Exception as e:  # noqa: BLE001 — surface SUMO's real reason, not just "Connection closed by SUMO"
+        raise RuntimeError(f"SUMO failed to start: {e} — SUMO error-log: {run_sim._read_tail(err_log)}") from e
     if change is not None:
         run_sim.apply_change(change, target_lane=target_lane)  # after start, before stepping -> in force from t=0
     step = conn.simulation.getDeltaT()
@@ -299,6 +305,8 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                 _record(records, pid, "pedestrian", conn.person.getPosition(pid), conn.person.getSpeed(pid), t, xy_tracks)
         sim_end = conn.simulation.getTime()
         remaining = conn.simulation.getMinExpectedNumber()
+    except Exception as e:  # noqa: BLE001 — a mid-run SUMO crash: attach its error-log so the reason isn't lost
+        raise RuntimeError(f"SUMO run failed mid-sim: {e} — SUMO error-log: {run_sim._read_tail(err_log)}") from e
     finally:
         conn.close()
     if not records:
@@ -893,7 +901,7 @@ def _run_speed_limit(args) -> None:
         print(f"\n[speed_limit] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
-        run_state.set_stage(run_id, "failed", str(e)[:300])
+        run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
         raise
 
 
@@ -928,7 +936,7 @@ def _run_bike_lane(args) -> None:
         print(f"\n[bike_lane] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s; severed={res['severed']}")
     except Exception as e:  # noqa: BLE001
-        run_state.set_stage(run_id, "failed", str(e)[:300])
+        run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
         raise
 
 
@@ -1064,7 +1072,7 @@ def _run_new_road(args) -> None:
         scen_id, on_new = run_quant(change, ts, patched, new_edge_ids)
         print(f"\n[new_road] DONE — scenario {scen_id}; cars that took the new road: {on_new}")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
-        run_state.set_stage(run_id, "failed", str(e)[:300])
+        run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
         raise
 
 

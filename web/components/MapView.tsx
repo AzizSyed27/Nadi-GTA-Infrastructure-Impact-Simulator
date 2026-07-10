@@ -45,6 +45,11 @@ interface Pinned {
   kind: 'vehicle' | 'person';
 }
 
+// Deck's `getCursor` prop MUST be a function — `Deck._updateCursor` calls it every render frame. Passing
+// `undefined` (any non-drawing render) clobbers deck's default and crashes, so we always supply this fallback.
+const DEFAULT_CURSOR = ({ isDragging, isHovering }: { isDragging: boolean; isHovering: boolean }) =>
+  isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab';
+
 /** Attaches a deck.gl MapboxOverlay to the MapLibre map and re-pushes layers + tooltip each render.
  * In edit mode it also receives overlay-level onClick/onHover/getCursor — these fire on EVERY click/move
  * (info.coordinate is populated even on empty-space picks), which is how the two-click draw captures point B. */
@@ -62,7 +67,8 @@ function DeckOverlay({
   getCursor?: (state: { isDragging: boolean; isHovering: boolean }) => string;
 }) {
   const overlay = useControl(() => new MapboxOverlay({ interleaved: false }));
-  overlay.setProps({ layers, getTooltip, onClick, onHover, getCursor });
+  // getCursor is NEVER undefined (would crash deck's per-frame _updateCursor); onClick/onHover may be (deck null-checks).
+  overlay.setProps({ layers, getTooltip, onClick, onHover, getCursor: getCursor ?? DEFAULT_CURSOR });
   return null;
 }
 

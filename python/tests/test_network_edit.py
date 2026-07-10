@@ -84,6 +84,37 @@ def test_patch_gauntlet_canonical_untouched_and_additive() -> None:
             (out_path.parent / name).unlink(missing_ok=True)
 
 
+def test_patch_signalized_junction_pair_passes_sumo_load_probe() -> None:
+    """Regression: a new_road onto a TRAFFIC-LIGHT junction (252423218) used to pass the sumolib gauntlet but be
+    REJECTED by SUMO's loader ('Invalid linkIndex') — `--tls.rebuild` + the SUMO load probe now make it valid.
+    Runs netconvert + a SUMO load probe (~15s). patch_network raises if the probe fails, so success == valid."""
+    a, b = "252423218", "427761305"
+    net = sumolib.net.readNet(str(run_sim.NET))
+    ids = {n.getID() for n in net.getNodes()}
+    if not (a in ids and b in ids):
+        pytest.skip("known TLS junction pair absent (net regenerated)")
+    if net.getNode(a).getType() != "traffic_light":
+        pytest.skip(f"junction {a} is no longer traffic_light — the TLS-rebuild path isn't exercised")
+    change = _new_road(target_edge=f"nr_{a}_{b}", from_junction=a, to_junction=b, bidirectional=True,
+                       speed_mps=13.9, lanes=2, description="pytest tls-rebuild")
+    out_path, edge_ids, stats = network_edit.patch_network(change, "pytest-tls")  # raises if SUMO rejects the net
+    try:
+        assert stats["patched_edges"] - stats["canonical_edges"] == 2
+        assert stats["geo_ref_identical"] and out_path.is_file()
+    finally:
+        for name in ("pytest-tls.net.xml", "pytest-tls.edg.xml", "pytest-tls.con.xml", "pytest-tls.loadprobe.log"):
+            (out_path.parent / name).unlink(missing_ok=True)
+
+
+def test_sumo_load_probe_rejects_an_invalid_net(tmp_path) -> None:
+    """The gauntlet's SUMO load probe must REJECT (raise) a net SUMO can't load — the check that sumolib's
+    lenient read can't make. A malformed net-file stands in for the TLS-linkIndex class of failure."""
+    bad = tmp_path / "bad.net.xml"
+    bad.write_text("<net><junction id='x'/></net>", encoding="utf-8")  # not a loadable SUMO net
+    with pytest.raises(AssertionError, match="rejected by SUMO"):
+        network_edit._sumo_load_probe(bad)
+
+
 def test_list_junctions_returns_geo_targets() -> None:
     js = network_edit.list_junctions()
     assert js and all("id" in j and "lon" in j and "lat" in j for j in js[:5])

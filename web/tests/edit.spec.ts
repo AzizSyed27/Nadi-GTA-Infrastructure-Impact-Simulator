@@ -82,6 +82,10 @@ async function seamHover(page: Page, lon: number, lat: number) {
 }
 
 test('draw a road, watch the staged run, land on a populated scorecard', async ({ page }) => {
+  // Guard the deck.gl getCursor regression: after Simulate, `drawing` flips false — the overlay must still
+  // supply a valid getCursor function, or deck's per-frame _updateCursor throws "getCursor is not a function".
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
   await mockBackend(page);
   await enterEditAndLoadJunctions(page);
 
@@ -117,6 +121,9 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
   const body = await page.locator('body').innerText();
   expect(body).not.toMatch(BANNED);
   expect(body).not.toMatch(STANCE_TALLY);
+
+  // No deck.gl getCursor crash across the whole draw→submit→done flow (drawing flipped false post-submit).
+  expect(pageErrors.filter((m) => /getCursor/i.test(m)), pageErrors.join('\n')).toHaveLength(0);
 });
 
 test('the run switcher restores a prior run', async ({ page }) => {

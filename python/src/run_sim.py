@@ -151,6 +151,15 @@ def apply_change(change: Change, target_lane: int | None = None) -> None:
         raise NotImplementedError(f"change type {change.type!r} is not implemented yet")
 
 
+def _read_tail(path: str | Path, n: int = 1500) -> str:
+    """Tail of a SUMO --error-log, for attaching the real reason to a 'Connection closed by SUMO' failure."""
+    try:
+        txt = Path(path).read_text(encoding="utf-8", errors="replace").strip()
+        return txt[-n:] if txt else "(error-log empty)"
+    except Exception:  # noqa: BLE001
+        return "(no error-log written)"
+
+
 def simulate(
     change: Change | None = None,
     tripinfo_path: str | Path | None = None,
@@ -175,7 +184,13 @@ def simulate(
         args += ["--net-file", str(net_override)]
     if tripinfo_path is not None:
         args += ["--tripinfo-output", str(tripinfo_path)]
-    conn.start(args)
+    # Capture SUMO's own warnings+errors — else a rejected net surfaces only as an opaque "Connection closed".
+    err_log = Path(f"{tripinfo_path}.sumoerr.log") if tripinfo_path else CFG.parent / "sumo.sumoerr.log"
+    args += ["--error-log", str(err_log)]
+    try:
+        conn.start(args)
+    except Exception as e:  # noqa: BLE001 — surface SUMO's real reason (e.g. a net-load rejection), not just "closed"
+        raise RuntimeError(f"SUMO failed to start: {e} — SUMO error-log: {_read_tail(err_log)}") from e
 
     if change is not None:
         apply_change(change)  # after start, before stepping -> in effect from the first step
@@ -206,6 +221,8 @@ def simulate(
                 rec["timestamps"].append(round(t, 3))
                 rec["speeds"].append(round(conn.vehicle.getSpeed(vid), 3))
         sim_end = conn.simulation.getTime()
+    except Exception as e:  # noqa: BLE001 — a mid-run SUMO crash: attach its error-log so the reason isn't lost
+        raise RuntimeError(f"SUMO run failed mid-sim: {e} — SUMO error-log: {_read_tail(err_log)}") from e
     finally:
         conn.close()  # ends the sim process; finalizes the tripinfo file
 

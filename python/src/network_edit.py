@@ -101,6 +101,19 @@ def _route_edges(rou_path: Path) -> set[str]:
     return out
 
 
+def _sumo_load_probe(net_path: Path) -> None:
+    """Load the patched net in SUMO ITSELF (stricter than sumolib) — a net can pass the sumolib gauntlet yet be
+    rejected by SUMO (e.g. a TLS linkIndex mismatch). Fails at REGEN with SUMO's own words, before the run."""
+    err = net_path.with_name(net_path.stem + ".loadprobe.log")
+    cmd = [str(run_sim.SUMO_BINARY), "--net-file", str(net_path), "--begin", "0", "--end", "1",
+           "--no-step-log", "--error-log", str(err)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        tail = run_sim._read_tail(err) if err.is_file() else (proc.stderr or "")[-1500:]
+        raise AssertionError(f"patched net rejected by SUMO's loader — {tail}; pick different junctions")
+    err.unlink(missing_ok=True)
+
+
 def run_gauntlet(canonical_path: Path, patched_path: Path, new_edge_ids: list[str]) -> dict:
     """The additive/geo/connectivity safety gauntlet. Raises on any violation. Returns a stats dict."""
     # (2) GEO-REF byte-identical
@@ -173,17 +186,28 @@ def patch_network(change: Change, run_id: str) -> tuple[Path, list[str], dict]:
     _write_edg_xml(change, edge_ids, edg_path)
     con_path = NETS_DIR / f"{run_id}.con.xml"
     _write_con_xml(can_net, change, edge_ids, con_path)
+    # --tls.rebuild: a new road onto a SIGNALIZED junction adds connections/links; the loaded tlLogic still
+    # references the old link indices → SUMO rejects the net ("Invalid linkIndex"). Rebuilding the signal program
+    # re-times the junction to serve the new approach (a realistic + necessary consequence of the added road).
     cmd = [str(NETCONVERT), "--sumo-net-file", str(canonical), "--edge-files", str(edg_path),
-           "--connection-files", str(con_path), "-o", str(out_path)]
+           "--connection-files", str(con_path), "--tls.rebuild", "-o", str(out_path)]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(f"netconvert failed (exit {proc.returncode}):\n{proc.stderr[-2000:]}")
+    # netconvert can exit 0 with WARNINGS (e.g. an edge overlapping an existing one) that predict a SUMO reject —
+    # DON'T discard them: they often name the real problem for a bad junction pair.
+    nc_warnings = (proc.stderr or "").strip()
+    if nc_warnings:
+        print(f"[patch] netconvert warnings (exit 0):\n{nc_warnings[-2000:]}")
 
     after = (canonical.stat().st_mtime_ns, canonical.stat().st_size)
     if before != after:
         raise AssertionError("CANONICAL-UNTOUCHED violated — corridor.net.xml changed during the patch")
 
     stats = run_gauntlet(canonical, out_path, edge_ids)
+    _sumo_load_probe(out_path)  # SUMO's loader is stricter than sumolib — catch what the gauntlet can't (TLS etc.)
+    if nc_warnings:
+        stats["netconvert_warnings"] = nc_warnings[-1000:]
     return out_path, edge_ids, stats
 
 
