@@ -95,6 +95,9 @@ export default function MapView() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // 5.3 change-visibility overlay: the loaded run's change LOCATION, fetched once per run (survives switching +
+  // ?run=). Tagged with runId so a stale fetch from a prior run is ignored; error=true → labeled degradation.
+  const [changeGeom, setChangeGeom] = useState<{ runId: string; geom: LonLat[] | null; error: boolean } | null>(null);
   const mapRef = useRef<MapRef | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -122,6 +125,42 @@ export default function MapView() {
   useEffect(() => () => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
   }, []);
+
+  // 5.3: resolve the loaded run's change LOCATION from the backend (the artifact carries only ids). Fires once per
+  // loaded artifact (NOT per playback frame). new_road → the two junction coords; runtime → the target edge's
+  // polyline. setState only in the async completion (lint-safe); render guards on runId so a stale result is ignored.
+  useEffect(() => {
+    const change = artifact?.meta.scenario?.change;
+    const runId = artifact?.meta.run_id;
+    if (!change || !runId) return;
+    const bbox = artifact.meta.bbox as [number, number, number, number];
+    let cancelled = false;
+    (async () => {
+      let geom: LonLat[] | null = null;
+      let error = false;
+      if (change.type === 'new_road' && change.from_junction && change.to_junction) {
+        const res = await getJunctions(bbox);
+        if (res.ok) {
+          // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the lookup.
+          const byId: Record<string, LonLat> = {};
+          for (const j of res.value.junctions) byId[j.id] = [j.lon, j.lat];
+          const a = byId[change.from_junction];
+          const b = byId[change.to_junction];
+          if (a && b) geom = [a, b];
+        } else {
+          error = true;
+        }
+      } else if (change.target_edge) {
+        const res = await getEdges(bbox);
+        if (res.ok) geom = res.value.edges.find((e) => e.id === change.target_edge)?.geometry ?? null;
+        else error = true;
+      }
+      if (!cancelled) setChangeGeom({ runId, geom, error });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [artifact]);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
@@ -584,8 +623,25 @@ export default function MapView() {
     widthUnits: 'pixels',
   });
 
+  // 5.3 CHANGE-VISIBILITY overlay (persistent, ALL modes) — the loaded run's change LOCATION so rerouting cars
+  // don't appear to drive through empty space. Derived from the artifact (via the geometry fetch), NOT draw-state.
+  const changeType = meta.scenario?.change.type;
+  const overlayGeom = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.geom : null;
+  const changeOverlay = new PathLayer<{ path: LonLat[] }>({
+    id: 'change-overlay',
+    data: overlayGeom ? [{ path: overlayGeom }] : [],
+    getPath: (d) => d.path,
+    getColor: changeType === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230], // teal proposed road / amber edit
+    getWidth: 6,
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+    updateTriggers: { getColor: changeType },
+  });
+
   const layers: Layer[] = [
     trails,
+    changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
     backgroundVehicleDots,
     backgroundPersonDots,
     conflictDots,
@@ -637,6 +693,20 @@ export default function MapView() {
       </Map>
 
       <ScenarioHeader scenario={meta.scenario} />
+
+      {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is. */}
+      {changeType && changeGeom?.runId === meta.run_id && (
+        overlayGeom ? (
+          <div style={changeLegend} data-testid="change-legend">
+            <span style={{ ...legendSwatch, background: changeType === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
+            {changeType === 'new_road' ? 'proposed road' : 'edited street'}
+          </div>
+        ) : changeGeom.error ? (
+          <div style={changeOfflineNote} data-testid="change-offline">
+            backend offline — change location not shown
+          </div>
+        ) : null
+      )}
 
       <div style={modeToggle} data-testid="mode-toggle">
         <button
@@ -750,6 +820,41 @@ export default function MapView() {
     </div>
   );
 }
+
+// 5.3 change-visibility legend / offline note — top-left, beside the Report button.
+const changeLegend: React.CSSProperties = {
+  position: 'absolute',
+  top: 16,
+  left: 132,
+  zIndex: 25,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 7,
+  background: 'rgba(255,255,255,0.96)',
+  border: '1px solid #d7dbe0',
+  borderRadius: 8,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.14)',
+  padding: '6px 10px',
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#374151',
+  fontFamily: 'system-ui, sans-serif',
+};
+const legendSwatch: React.CSSProperties = { width: 16, height: 4, borderRadius: 2, display: 'inline-block' };
+const changeOfflineNote: React.CSSProperties = {
+  position: 'absolute',
+  top: 16,
+  left: 132,
+  zIndex: 25,
+  background: 'rgba(255,247,237,0.98)',
+  border: '1px solid #f0c9a0',
+  borderRadius: 8,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.14)',
+  padding: '6px 10px',
+  fontSize: 12,
+  color: '#9a5a1e',
+  fontFamily: 'system-ui, sans-serif',
+};
 
 // Top-left affordance to open the full-screen Report view (the generated per-run report).
 const reportBtn: React.CSSProperties = {

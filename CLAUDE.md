@@ -31,7 +31,12 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   schema without bumping its version and updating BOTH sides.
   - **Guard mode = ask:** a PreToolUse hook (`.claude/hooks/guard.py`) raises an approval prompt on
     Write/Edit/MultiEdit to `contract/` (and `.env`) — make deliberate contract changes through the Write/Edit
-    tool and approve in the moment (schema verified against the Claude Code hooks docs).
+    tool and approve in the moment (schema verified against the Claude Code hooks docs). **Verified live
+    (2026-07-10 probe):** a Write to `contract/__guard_probe__.txt` is NOT hard-blocked (the old exit-2 path is
+    retired) — it routes through the `ask` decision, whose prompt reads *"<name> is under contract/ — the FROZEN
+    Python<->TS trajectory contract. Approve ONLY for a deliberate contract change: bump schema_version and mirror
+    BOTH python/ and web/. Editing via Write/Edit is the correct path now — do NOT route contract writes through
+    Bash/Python (that bypasses this guard)."*
   - **Known limitation:** Bash/runtime writes to `contract/` bypass the hook (its matcher only covers
     Write/Edit/MultiEdit) — conventionally BANNED, policed by plan review.
 
@@ -110,7 +115,7 @@ maps persona id → group/mode/label client-side (runtime `agent.persona` is `{i
   per-agent opinion trajectories, argument reach) — the SECOND graph, distinct from the report GraphRAG. A
   deterministic immutability checker (`social_checks.py`) guards post↔outcome sign-consistency.
 
-**Phase 4 — IN PROGRESS (the OASIS social graph — the SECOND graph, NOT GraphRAG; agents still preview).**
+**Phase 4 — COMPLETE (the OASIS social graph — the SECOND graph, NOT GraphRAG; agents still preview).**
 - **4.0 OASIS spike — COMPLETE (verdict: GO).** `python/src/oasis_spike.py` proved all five exit criteria + a
   propagation check on real personas: installs/runs native Windows in a dedicated **`oasis` conda env (python
   3.11; camel-oasis 0.2.5 pins <3.12)**; DeepSeek bound via CAMEL `ModelFactory` (`ModelPlatformType.DEEPSEEK`);
@@ -121,13 +126,35 @@ maps persona id → group/mode/label client-side (runtime `agent.persona` is `{i
   block (see the v0.4.0-riders note above); both serializers mirrored + `sample_v0_4_0.json` + negative tests +
   `social_checks.py` immutability checker (post↔outcome sign-consistency); 38 pytest green; guard restored.
 
-Next: **Phase 4.2 — the OASIS producer** (emit a real `social{}` block from a run into the artifact, running the
-immutability guard to set each event's `audit_status`), then **4.3 — frontend** (make `web/lib/personaGroups.ts`
-*derive* group/mode from `persona.mode`/`stakeholder`; render the social graph / cascades / opinion trajectories).
-Agents still preview, never a verdict.
+- **4.2 producer / 4.3 frontend / 4.4 refinement — COMPLETE.** The producer emits a real `social{}` block
+  (immutability guard → per-event `audit_status`); the frontend derives group/mode from the artifact and renders
+  the cascade discourse view (referendum-guarded — no tallies/charts); 4.4 tuned the cascade `safety_direction`
+  echo-exclusion. Agents still preview, never a verdict.
+
+**Phase 5 — the EDITOR + closing the loop (the human draws the change; the verifier becomes the USER).**
+- **5.1 edit pipeline / 5.2 editor UI / 5.2b edit-an-edge / 5.2c bugfixes — COMPLETE.** A FastAPI job-runner
+  (`python/src/server.py`) now FRONTS the whole quant pipeline. Draw a **new_road** (netconvert patch + the
+  sumolib safety gauntlet + a SUMO load-probe; `--tls.rebuild` so signalized junctions don't reject) OR edit an
+  existing edge (**speed_limit** / **bike_lane**, single-source eligibility in `run_sim.bike_lane_reason`) via the
+  map palette → a STAGED run (`regen→baseline→scenario→analysis→done`; runtime changes skip `regen`) → scorecard +
+  reroute count → enrich (voices / report / discourse) → a run switcher + `?run=` deep-links + a client-fetched
+  change-visibility overlay. ONE job at a time (subprocess-isolated, in-process lock; run-state under
+  `contract/runs/state/`).
+- **5.3 — the product WALK (the verifier is the USER, not the suite).** Support built: demo-road ranking
+  (`python/src/demo_road_select.py`, detour-factor), honest new_road change semantics (voices + report), the
+  change overlay. Deferred V2 ideas + known cleanup live in `BACKLOG.md`.
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
+- **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
+  ```bash
+  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich] /api/report /api/chat
+  cd web && npm run dev                            # http://localhost:3000 → open the ✏️ Edit toggle
+  python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
+  ```
+  The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then, on enrich,
+  `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend loads
+  `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
 - **Baseline run + artifact:** `python python/src/run_sim.py`  (see the `run-sim` skill)
 - **Full scenario pipeline** (see the `run-scenario` skill):
   ```bash

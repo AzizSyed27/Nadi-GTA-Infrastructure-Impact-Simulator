@@ -9,6 +9,9 @@ const RUN_ID = 'multimodal-scenario-20260709T221140Z'; // real new_road quant ar
 const PRIOR_ID = 'multimodal-scenario-20260709T214747Z'; // a different real run, for the switcher
 const J1 = { id: 'J1', lon: -79.2229, lat: 43.7443, type: 'priority', n_in: 4, n_out: 4 };
 const J2 = { id: 'J2', lon: -79.21, lat: 43.755, type: 'priority', n_in: 3, n_out: 3 };
+// The finished RUN_ID artifact's change junctions — so the 5.3 change-visibility overlay can resolve their coords.
+const J_A = { id: '266262655', lon: -79.22289, lat: 43.744257, type: 'priority', n_in: 4, n_out: 4 };
+const J_B = { id: '427757562', lon: -79.2153, lat: 43.7502, type: 'priority', n_in: 3, n_out: 3 };
 // Existing edges for the edit-an-edge palette (one bike-eligible, one not — with the backend's reason string).
 const E_ELIG = { id: 'E_ELIG', geometry: [[-79.222, 43.744], [-79.214, 43.75]], speed_mps: 13.9, car_lane_count: 2, eligible_bike_lane: true, eligibility_reason: 'eligible' };
 const E_INELIG = { id: 'E_INELIG', geometry: [[-79.205, 43.752], [-79.198, 43.758]], speed_mps: 8.3, car_lane_count: 1, eligible_bike_lane: false, eligibility_reason: "bike_lane needs >= 2 car lanes on edge 'E_INELIG' so >= 1 remains for cars; found 1 ([0]). Refusing to block the edge." };
@@ -23,7 +26,7 @@ async function mockBackend(page: Page) {
   const NEWROAD = ['regen', 'baseline', 'scenario', 'analysis', 'done'];
   const RUNTIME = ['baseline', 'scenario', 'analysis', 'done']; // runtime changes have NO regen stage
 
-  await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [J1, J2], count: 2 } }));
+  await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [J1, J2, J_A, J_B], count: 4 } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [E_ELIG, E_INELIG], count: 2 } }));
   await page.route('**/api/simulate', (route) => {
     lastType = route.request().postDataJSON()?.change?.type ?? 'new_road';
@@ -115,6 +118,8 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
   await expect(page.getByTestId('enrich-voices')).toBeVisible();
   await expect(page.getByTestId('enrich-discourse')).toBeVisible();
   await expect(page.getByTestId('no-voices')).toBeVisible(); // fresh run has no voices — say so plainly
+  // 5.3: the change-visibility overlay resolved the new_road location → the "proposed road" legend shows.
+  await expect(page.getByTestId('change-legend')).toContainText('proposed road');
   await page.screenshot({ path: 'test-results/edit-finished.png' });
 
   // Referendum guard holds over the edit UI (no tallies / verdict language anywhere).

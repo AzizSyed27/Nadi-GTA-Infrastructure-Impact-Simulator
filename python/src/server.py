@@ -237,9 +237,13 @@ class EnrichReq(BaseModel):
 
 def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str) -> None:
     """Run one or more subprocesses sequentially under the held lock; reconcile state; always release."""
+    # PIN DeepSeek for the LLM enrich steps (reactions/report/propagation) — else reactions.py defaults to
+    # Gemini's tiny free tier (20 req/day) and enrich fails 429. setdefault respects an explicit PROVIDER.
+    env = {**os.environ}
+    env.setdefault("PROVIDER", "deepseek")
     try:
         for cmd in cmds:
-            proc = subprocess.run(cmd, cwd=str(SRC), capture_output=True, text=True)
+            proc = subprocess.run(cmd, cwd=str(SRC), capture_output=True, text=True, env=env)
             if proc.returncode != 0:
                 st = run_state.read(run_id)
                 if not st or st.get("status") != "failed":
@@ -283,33 +287,45 @@ def _edges_by_id() -> dict:
     return {e["id"]: e for e in _EDGES["all"]}
 
 
+def _build_harness_cmd(ch: SimChange, ts: str, desc: str) -> list[str]:
+    """PURE scenario_harness command construction (no validation / no IO) so it's unit-testable. Uses the
+    ``--target-edge=<id>`` (=form) because SUMO edge ids can start with '-' (reverse edges), which argparse would
+    otherwise read as an option — the reverse-edge bug this helper's test guards against."""
+    base = [sys.executable, str(HARNESS), "--change-type", ch.type, "--run-ts", ts]
+    if ch.type == "new_road":
+        cmd = base + ["--from-junction", ch.from_junction, "--to-junction", ch.to_junction,
+                      "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps), "--description", desc]
+        if ch.bidirectional:
+            cmd.append("--bidirectional")
+    elif ch.type == "speed_limit":
+        cmd = base + [f"--target-edge={ch.target_edge}", "--speed-mps", str(ch.value_mps), "--description", desc]
+    elif ch.type == "bike_lane":
+        cmd = base + [f"--target-edge={ch.target_edge}", "--description", desc]
+        if ch.target_lane is not None:
+            cmd += ["--target-lane", str(ch.target_lane)]
+    else:
+        raise ValueError(f"unsupported change type {ch.type!r}")
+    return cmd
+
+
 @app.post("/api/simulate")
 async def simulate(req: SimulateReq, bg: BackgroundTasks):
     """Validate an edit (new_road | speed_limit | bike_lane), mint a run id, and launch the quant pipeline as a
     background subprocess. bike_lane is rejected 400 with the SINGLE-SOURCE eligibility reason if ineligible."""
     ch = req.change
-    py, ts = sys.executable, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"
 
     if ch.type == "new_road":
         if not (ch.from_junction and ch.to_junction and ch.lanes and ch.speed_mps):
             raise HTTPException(400, "new_road requires from_junction, to_junction, lanes, speed_mps")
         desc = ch.description or f"New road {ch.from_junction}->{ch.to_junction}"
-        cmd = [py, str(HARNESS), "--change-type", "new_road", "--run-ts", ts,
-               "--from-junction", ch.from_junction, "--to-junction", ch.to_junction,
-               "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps), "--description", desc]
-        if ch.bidirectional:
-            cmd.append("--bidirectional")
     elif ch.type == "speed_limit":
         if not (ch.target_edge and ch.value_mps):
             raise HTTPException(400, "speed_limit requires target_edge and value_mps")
         if ch.target_edge not in _edges_by_id():
             raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
         desc = ch.description or f"Speed limit on {ch.target_edge} -> {ch.value_mps} m/s"
-        # `--flag=value` form: SUMO edge ids can start with '-' (reverse edges), which argparse would else
-        # mistake for an option.
-        cmd = [py, str(HARNESS), "--change-type", "speed_limit", "--run-ts", ts,
-               f"--target-edge={ch.target_edge}", "--speed-mps", str(ch.value_mps), "--description", desc]
     elif ch.type == "bike_lane":
         if not ch.target_edge:
             raise HTTPException(400, "bike_lane requires target_edge")
@@ -319,13 +335,10 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
         if not edge["eligible_bike_lane"]:
             raise HTTPException(400, edge["eligibility_reason"])  # the backend's own words, verbatim
         desc = ch.description or f"Bike lane on {ch.target_edge}"
-        cmd = [py, str(HARNESS), "--change-type", "bike_lane", "--run-ts", ts,
-               f"--target-edge={ch.target_edge}", "--description", desc]  # =form: edge ids can start with '-'
-        if ch.target_lane is not None:
-            cmd += ["--target-lane", str(ch.target_lane)]
     else:
         raise HTTPException(400, f"unsupported change type {ch.type!r} (new_road | speed_limit | bike_lane)")
 
+    cmd = _build_harness_cmd(ch, ts, desc)
     if not run_state.try_acquire(run_id):  # synchronous, race-free reject-if-active
         raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
     run_state.set_stage(run_id, "queued", "queued", description=desc, change=ch.model_dump(exclude_none=True))

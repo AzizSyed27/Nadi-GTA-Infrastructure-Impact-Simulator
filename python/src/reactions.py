@@ -90,6 +90,21 @@ _INFERRED_CONTEXT = {
     "transit_riders": "You ride the bus along this corridor; react from that standpoint.",
     "taxpayer": "You are a skeptical taxpayer who did not ask for this; react from that standpoint.",
 }
+# A new_road ADDS a connector — it does NOT remove curbside space or reshape an existing curb. Override the two
+# entries that assume a corridor REALLOCATION, so business/accessibility voices aren't grounded in a false premise.
+_INFERRED_CONTEXT_NEW_ROAD = {
+    "business_owner": "What it may mean for you: a NEW road now connects two nearby junctions — it could change "
+    "which traffic passes your door (more, less, or rerouted). It does NOT remove existing curb space.",
+    "accessibility": "What it may mean for you: a NEW road is added that — at this stage — carries NO sidewalk. "
+    "Consider the standpoint of people with mobility, vision, or hearing disabilities.",
+}
+
+
+def _inferred_context(stakeholder: str | None, change: dict) -> str:
+    """Labeled stakeholder context, CONDITIONAL on change type (new_road adds an option; the others reallocate)."""
+    if change.get("type") == "new_road" and stakeholder in _INFERRED_CONTEXT_NEW_ROAD:
+        return _INFERRED_CONTEXT_NEW_ROAD[stakeholder]
+    return _INFERRED_CONTEXT.get(stakeholder, "React from your standpoint.")
 
 
 def _fmt_minutes(seconds: float) -> str:
@@ -98,6 +113,11 @@ def _fmt_minutes(seconds: float) -> str:
 
 def _change_line(change: dict) -> str:
     """A MECHANICAL description of the change — no asserted benefit (no 'calmer'/'safer'). Cacheable prefix."""
+    if change.get("type") == "new_road":
+        lanes = change.get("lanes") or 1
+        return (f"A new {lanes}-lane road now connects junction {change.get('from_junction')} to junction "
+                f"{change.get('to_junction')} — a NEW travel option, not a reallocation of existing lanes; "
+                f"it carries no sidewalk at this stage.")
     if change.get("type") == "bike_lane":
         return "One general-traffic (car) lane on the corridor is being converted into a bicycle-only lane."
     desc = change.get("description") or change.get("type", "a road change")
@@ -145,8 +165,7 @@ def build_prompt(record: dict, change: dict) -> tuple[str, str]:
     if grounding == "sim":
         user = _sim_suffix(record["outcome"])
     else:
-        ctx = _INFERRED_CONTEXT.get(record.get("stakeholder") or persona.get("stakeholder"),
-                                    "React from your standpoint.")
+        ctx = _inferred_context(record.get("stakeholder") or persona.get("stakeholder"), change)
         user = f"{ctx}\n\nReact from your perspective to the proposed change."
     return system, user
 

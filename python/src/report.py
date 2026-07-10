@@ -446,6 +446,11 @@ async def _slot(client, system, user, wire, field, name, audit_log) -> dict:
 # ===================================================================================================
 
 def _change_phrase(change) -> str:
+    if change.type == "new_road":
+        lanes = change.lanes or 1
+        way = "two-way" if change.bidirectional else "one-way"
+        return (f"a new {lanes}-lane {way} road connecting junction {change.from_junction} to junction "
+                f"{change.to_junction} (no sidewalk at this stage)")
     if change.type == "bike_lane":
         return "one general-traffic (car) lane on the corridor is being converted into a bicycle-only lane"
     return change.description
@@ -807,7 +812,13 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     L.append("")
     L.append(framing)
     L.append("")
-    L.append(f"- **Change:** {change.description} (edge `{change.target_edge}`{lane})")
+    if change.type == "new_road":
+        _lanes, _way = change.lanes or 1, ("two-way" if change.bidirectional else "one-way")
+        L.append(f"- **Change:** A new {_lanes}-lane {_way} road connecting junction `{change.from_junction}` and "
+                 f"junction `{change.to_junction}` — a new travel option, no sidewalk at this stage "
+                 f"(new edge `{change.target_edge}`).")
+    else:
+        L.append(f"- **Change:** {change.description} (edge `{change.target_edge}`{lane})")
     L.append(f"- **Corridor / network:** `{facts['network']}` — one Toronto corridor")
     L.append(f"- **Demand simulated:** {facts['demand']['car']} cars, {facts['demand']['bicycle']} bicycles, "
              f"{facts['demand']['pedestrian']} pedestrians")
