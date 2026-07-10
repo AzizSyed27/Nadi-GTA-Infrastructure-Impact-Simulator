@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, LineLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { Agent, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
+import { EditPanel, type DrawParams } from '@/components/EditPanel';
+import { getJunctions, postSimulate, type Junction, type SimChange } from '@/lib/api';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -20,7 +22,7 @@ import { AgentPanel } from '@/components/AgentPanel';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
-import { activeAt, agentId, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
+import { activeAt, agentId, nearestWithin, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
 // Token-free CARTO positron style (no API key).
@@ -32,6 +34,7 @@ const ARTIFACT_URL = '/latest.json';
 
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
 const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-seconds, then rests as a dot
+const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 
 /** A sim agent joined to its trajectory (vehicle OR person) — stable across frames; the clickable dots. */
 interface Pinned {
@@ -41,16 +44,24 @@ interface Pinned {
   kind: 'vehicle' | 'person';
 }
 
-/** Attaches a deck.gl MapboxOverlay to the MapLibre map and re-pushes layers + tooltip each render. */
+/** Attaches a deck.gl MapboxOverlay to the MapLibre map and re-pushes layers + tooltip each render.
+ * In edit mode it also receives overlay-level onClick/onHover/getCursor — these fire on EVERY click/move
+ * (info.coordinate is populated even on empty-space picks), which is how the two-click draw captures point B. */
 function DeckOverlay({
   layers,
   getTooltip,
+  onClick,
+  onHover,
+  getCursor,
 }: {
   layers: Layer[];
   getTooltip: (info: PickingInfo) => { html: string; style?: Record<string, string> } | null;
+  onClick?: (info: PickingInfo) => void;
+  onHover?: (info: PickingInfo) => void;
+  getCursor?: (state: { isDragging: boolean; isHovering: boolean }) => string;
 }) {
   const overlay = useControl(() => new MapboxOverlay({ interleaved: false }));
-  overlay.setProps({ layers, getTooltip });
+  overlay.setProps({ layers, getTooltip, onClick, onHover, getCursor });
   return null;
 }
 
@@ -62,8 +73,18 @@ export default function MapView() {
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
   const [showReport, setShowReport] = useState(false); // full-screen Report view (toggled from the map)
-  const [mode, setMode] = useState<'playback' | 'discourse'>('playback'); // sim-time playback ⇄ social cascade
+  const [mode, setMode] = useState<'playback' | 'discourse' | 'edit'>('playback'); // playback ⇄ discourse ⇄ edit
   const [cascadeId, setCascadeId] = useState<string | null>(null); // selected cascade in discourse mode
+  // --- edit mode (5.2): draw-a-road + job runner ---
+  const [junctions, setJunctions] = useState<Junction[]>([]); // snap targets in the viewport
+  const [junctionsDown, setJunctionsDown] = useState(false); // backend unreachable while loading snap targets
+  const [ptA, setPtA] = useState<Junction | null>(null); // first clicked junction
+  const [ptB, setPtB] = useState<Junction | null>(null); // second clicked junction → opens the params form
+  const [hoverCoord, setHoverCoord] = useState<LonLat | null>(null); // rubber-band endpoint while drawing
+  const [drawHint, setDrawHint] = useState<string | null>(null); // transient "click nearer a junction"
+  const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const mapRef = useRef<MapRef | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -173,6 +194,140 @@ export default function MapView() {
     },
     [pinnedById],
   );
+
+  // ---- edit mode (5.2) ----
+  // Fetch the viewport's junction snap targets. Called on entering edit mode and on map moveend.
+  const fetchJunctions = useCallback(async () => {
+    const m = mapRef.current?.getMap();
+    if (!m) return;
+    const b = m.getBounds();
+    const res = await getJunctions([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+    if (res.ok) {
+      setJunctions(res.value.junctions);
+      setJunctionsDown(false);
+    } else {
+      setJunctionsDown(true); // backend down → the draw card surfaces the "start the server" hint (not a silent empty)
+    }
+  }, []);
+
+  // On entering edit mode, load junctions once + on each moveend; clear on leaving.
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    fetchJunctions();
+    const m = mapRef.current?.getMap();
+    if (!m) return;
+    const onMoveEnd = () => fetchJunctions();
+    m.on('moveend', onMoveEnd);
+    return () => {
+      m.off('moveend', onMoveEnd);
+    };
+  }, [mode, fetchJunctions]);
+
+  // Load a completed run's artifact by id (per-run public copy). RunCard calls this on the `done` edge.
+  const loadRun = useCallback(async (id: string) => {
+    setActiveRunId(id);
+    try {
+      const r = await fetch(`/${id}.json`, { cache: 'no-store' });
+      if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
+      const data = (await r.json()) as TrajectoryArtifact;
+      setArtifact(data);
+      setCurrentTime(data.meta.sim_start);
+    } catch (e) {
+      console.error('failed to load run', id, e);
+    }
+  }, []);
+
+  // Overlay-level click: snap to the picked junction, else the nearest within SNAP_M; 1st→A, 2nd→B (opens form).
+  const onEditClick = useCallback(
+    (info: PickingInfo) => {
+      const coord = info.coordinate as LonLat | undefined;
+      let j: Junction | null = info.layer?.id === 'snap-targets' ? (info.object as Junction) : null;
+      if (!j && coord) j = nearestWithin(coord, junctions, SNAP_M);
+      if (!j) {
+        setDrawHint('Click nearer a junction.');
+        return;
+      }
+      if (!ptA) {
+        setDrawHint(null);
+        setPtA(j);
+        setPtB(null);
+        setHoverCoord(null);
+      } else if (j.id !== ptA.id) {
+        setDrawHint(null);
+        setPtB(j);
+      } else {
+        setDrawHint('Pick a different junction for the end point.');
+      }
+    },
+    [ptA, junctions],
+  );
+
+  // Overlay-level hover: drive the rubber-band only while placing the second point (bounds re-renders).
+  const onEditHover = useCallback(
+    (info: PickingInfo) => {
+      if (ptA && !ptB && info.coordinate) setHoverCoord(info.coordinate as LonLat);
+    },
+    [ptA, ptB],
+  );
+
+  // Submit the drawn road → POST /api/simulate. On success the run card takes over (it polls + loads on done).
+  const onSubmitDraw = useCallback(
+    async (p: DrawParams) => {
+      if (!ptA || !ptB) return;
+      setSubmitting(true);
+      setSubmitError(null);
+      const change: SimChange = {
+        type: 'new_road',
+        from_junction: ptA.id,
+        to_junction: ptB.id,
+        lanes: p.lanes,
+        speed_mps: p.speed_mps,
+        bidirectional: p.bidirectional,
+        description: `New road ${ptA.id}->${ptB.id}`,
+      };
+      const res = await postSimulate(change);
+      setSubmitting(false);
+      if (!res.ok) {
+        setSubmitError(res.error);
+        return;
+      }
+      setActiveRunId(res.value.run_id); // run card polls this; loadRun fires on the done edge
+      setPtA(null);
+      setPtB(null);
+      setHoverCoord(null);
+      setDrawHint(null);
+    },
+    [ptA, ptB],
+  );
+
+  const resetDraw = useCallback(() => {
+    setPtA(null);
+    setPtB(null);
+    setHoverCoord(null);
+    setDrawHint(null);
+    setSubmitError(null);
+  }, []);
+
+  const drawAnother = useCallback(() => {
+    setActiveRunId(null);
+    resetDraw();
+  }, [resetDraw]);
+
+  // Test seam (Playwright): inject a map click / hover at [lon,lat] so the real snap→preview→form→submit path
+  // runs without fighting the WebGL canvas hit-test. Present only while in edit mode; inert in production.
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    const w = window as unknown as {
+      __nadiEdit?: (lon: number, lat: number) => void;
+      __nadiEditHover?: (lon: number, lat: number) => void;
+    };
+    w.__nadiEdit = (lon, lat) => onEditClick({ coordinate: [lon, lat] } as PickingInfo);
+    w.__nadiEditHover = (lon, lat) => onEditHover({ coordinate: [lon, lat] } as PickingInfo);
+    return () => {
+      delete w.__nadiEdit;
+      delete w.__nadiEditHover;
+    };
+  }, [mode, onEditClick, onEditHover]);
 
   // Near-miss tooltip — hover on a conflict dot/pulse. Ordinal framing ONLY (never a rate/probability).
   const getTooltip = useCallback((info: PickingInfo) => {
@@ -322,6 +477,32 @@ export default function MapView() {
     radiusUnits: 'pixels',
   });
 
+  // 6) Edit mode (5.2): junction snap targets + the rubber-band preview line. Only added when drawing.
+  const snapTargets = new ScatterplotLayer<Junction>({
+    id: 'snap-targets',
+    data: junctions,
+    getPosition: (jn) => [jn.lon, jn.lat],
+    getFillColor: (jn) => (jn.id === ptA?.id || jn.id === ptB?.id ? [240, 180, 40, 255] : [70, 120, 220, 150]),
+    getRadius: (jn) => (jn.id === ptA?.id || jn.id === ptB?.id ? 7 : 4),
+    radiusUnits: 'pixels',
+    stroked: true,
+    getLineColor: [255, 255, 255, 220],
+    getLineWidth: 1,
+    lineWidthUnits: 'pixels',
+    pickable: true,
+    updateTriggers: { getFillColor: [ptA?.id, ptB?.id], getRadius: [ptA?.id, ptB?.id] },
+  });
+  const previewTo: LonLat | null = ptB ? [ptB.lon, ptB.lat] : hoverCoord;
+  const drawPreview = new LineLayer<{ from: LonLat; to: LonLat }>({
+    id: 'draw-preview',
+    data: ptA && previewTo ? [{ from: [ptA.lon, ptA.lat], to: previewTo }] : [],
+    getSourcePosition: (d) => d.from,
+    getTargetPosition: (d) => d.to,
+    getColor: [240, 130, 30, 230],
+    getWidth: 3,
+    widthUnits: 'pixels',
+  });
+
   const layers: Layer[] = [
     trails,
     backgroundVehicleDots,
@@ -330,7 +511,19 @@ export default function MapView() {
     conflictPulses,
     instrumentedDots,
     flashRing,
+    ...(mode === 'edit' ? [snapTargets, drawPreview] : []),
   ];
+
+  // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
+  const effectiveMode = mode === 'discourse' && socialIds.length === 0 ? 'playback' : mode;
+  const editing = effectiveMode === 'edit';
+  // Draw interactions are live only while actually drawing — NOT while a run card is shown (else background
+  // map clicks would silently mutate ptA/ptB and the snap highlight). "Draw another" clears activeRunId.
+  const drawing = editing && activeRunId == null;
+  // Honesty flags for the active run's empty states (only trustworthy once its artifact is the one shown).
+  const runLoaded = activeRunId != null && meta.run_id === activeRunId;
+  const hasVoices = (artifact.agents?.length ?? 0) > 0;
+  const hasSocial = socialIds.length > 0;
 
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -353,31 +546,67 @@ export default function MapView() {
           );
         }}
       >
-        <DeckOverlay layers={layers} getTooltip={getTooltip} />
+        <DeckOverlay
+          layers={layers}
+          getTooltip={getTooltip}
+          onClick={drawing ? onEditClick : undefined}
+          onHover={drawing ? onEditHover : undefined}
+          getCursor={drawing ? ({ isDragging }) => (isDragging ? 'grabbing' : 'crosshair') : undefined}
+        />
       </Map>
 
       <ScenarioHeader scenario={meta.scenario} />
 
-      {socialIds.length > 0 && (
-        <div style={modeToggle} data-testid="mode-toggle">
-          <button
-            style={{ ...modeBtn, ...(mode === 'playback' ? modeBtnActive : null) }}
-            onClick={() => setMode('playback')}
-            data-testid="mode-playback"
-          >
-            ▶ Playback
-          </button>
-          <button
-            style={{ ...modeBtn, ...(mode === 'discourse' ? modeBtnActive : null) }}
-            onClick={() => setMode('discourse')}
-            data-testid="mode-discourse"
-          >
-            💬 Discourse
-          </button>
-        </div>
-      )}
+      <div style={modeToggle} data-testid="mode-toggle">
+        <button
+          style={{ ...modeBtn, ...(effectiveMode === 'playback' ? modeBtnActive : null) }}
+          onClick={() => setMode('playback')}
+          data-testid="mode-playback"
+        >
+          ▶ Playback
+        </button>
+        <button
+          style={{
+            ...modeBtn,
+            ...(effectiveMode === 'discourse' ? modeBtnActive : null),
+            ...(hasSocial ? null : modeBtnDisabled),
+          }}
+          onClick={() => hasSocial && setMode('discourse')}
+          disabled={!hasSocial}
+          title={hasSocial ? undefined : 'Run discourse on a run to unlock the cascade view'}
+          data-testid="mode-discourse"
+        >
+          💬 Discourse
+        </button>
+        <button
+          style={{ ...modeBtn, ...(effectiveMode === 'edit' ? modeBtnActive : null) }}
+          onClick={() => setMode('edit')}
+          data-testid="mode-edit"
+        >
+          ✏️ Edit
+        </button>
+      </div>
 
-      {mode === 'playback' ? (
+      {editing ? (
+        <EditPanel
+          ptA={ptA}
+          ptB={ptB}
+          hint={drawHint}
+          junctionsDown={junctionsDown}
+          submitting={submitting}
+          submitError={submitError}
+          onSubmit={onSubmitDraw}
+          onReset={resetDraw}
+          activeRunId={activeRunId}
+          onDrawAnother={drawAnother}
+          onLoaded={loadRun}
+          onLoadRun={setActiveRunId}
+          runLoaded={runLoaded}
+          hasVoices={hasVoices}
+          hasSocial={hasSocial}
+          scorecard={artifact.scorecard}
+        />
+      ) : effectiveMode === 'playback' ? (
         <>
           <CommentFeed
             agents={pinnedAgents}
@@ -454,7 +683,8 @@ const reportBtn: React.CSSProperties = {
   cursor: 'pointer',
 };
 
-// Mode toggle (Playback ⇄ Discourse) — top center. Only shown when the artifact carries a social{} block.
+// Mode toggle (Playback ⇄ Discourse ⇄ Edit) — top center, always shown. Discourse is disabled until a run
+// carries a social{} block; Edit is always available (draw a road / run the job runner).
 const modeToggle: React.CSSProperties = {
   position: 'absolute',
   top: 16,
@@ -481,6 +711,7 @@ const modeBtn: React.CSSProperties = {
   cursor: 'pointer',
 };
 const modeBtnActive: React.CSSProperties = { background: '#1f4e9c', color: '#fff' };
+const modeBtnDisabled: React.CSSProperties = { color: '#c2c7cf', cursor: 'not-allowed' };
 
 // Top-right rail: scorecard stacked ABOVE the agent panel. Pointer-transparent so map clicks pass
 // through the gaps; each child card re-enables pointer events on itself.

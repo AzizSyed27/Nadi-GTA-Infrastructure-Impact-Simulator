@@ -91,3 +91,35 @@ export function signedMinutes(seconds: number): string {
 export function minutes(seconds: number): string {
   return `${(seconds / 60).toFixed(1)} min`;
 }
+
+// --- Edit-mode geometry: snap a click to the nearest existing junction (5.2 draw-a-road). ---
+const _EARTH_M = 6371000;
+
+/** Great-circle distance in meters between two [lon, lat] points. */
+export function haversineMeters(a: LonLat, b: LonLat): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLon = toRad(b[0] - a[0]);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLon / 2) ** 2;
+  return 2 * _EARTH_M * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+/** Nearest {lon,lat}-bearing item to `coord` within `maxMeters`, or null if none is close enough. */
+export function nearestWithin<T extends { lon: number; lat: number }>(
+  coord: LonLat,
+  items: T[],
+  maxMeters: number,
+): T | null {
+  let best: T | null = null;
+  let bestD = maxMeters;
+  for (const it of items) {
+    const d = haversineMeters(coord, [it.lon, it.lat]);
+    if (d <= bestD) {
+      bestD = d;
+      best = it;
+    }
+  }
+  return best;
+}

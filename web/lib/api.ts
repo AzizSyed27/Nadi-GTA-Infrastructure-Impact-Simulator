@@ -1,0 +1,110 @@
+// Typed client for the Phase 5.1 job-runner backend (FastAPI on :8000). Every call resolves to an
+// ApiResult so callers handle backend-down / 409-locked inline instead of try/catch scattering. Mirrors
+// python/src/server.py request+response shapes. CORS is enabled server-side; per-run artifacts are served
+// statically from web/public/<run_id>.json (the switcher + refresh fetch those directly, not via this client).
+
+export const API_BASE = 'http://localhost:8000';
+
+/** A snap target from GET /api/junctions (existing SUMO junction). */
+export interface Junction {
+  id: string;
+  lon: number;
+  lat: number;
+  type: string;
+  n_in: number;
+  n_out: number;
+}
+
+/** The new_road edit the editor POSTs. Mirrors server.py SimChange (the API accepts only new_road for now). */
+export interface SimChange {
+  type: 'new_road';
+  from_junction: string;
+  to_junction: string;
+  lanes: number;
+  speed_mps: number;
+  bidirectional: boolean;
+  description?: string;
+}
+
+export type EnrichStage = 'voices' | 'report' | 'discourse';
+
+/** One row from GET /api/runs. */
+export interface RunSummary {
+  id: string;
+  description: string;
+  status: string | null;
+  stage: string | null;
+  started_at: number | null;
+}
+
+/** The run-state JSON from GET /api/runs/<id>/status (superset; fields depend on stage reached). */
+export interface RunStatus {
+  run_id: string;
+  stage: string;
+  status: string;
+  detail?: string;
+  started_at?: number;
+  updated_at?: number;
+  description?: string;
+  change?: Record<string, unknown>;
+  cars_on_new_road?: number;
+  cars_rerouted?: number;
+}
+
+/** Uniform result: ok with a value, or a friendly error (status set for HTTP failures like 409). */
+export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: string; status?: number };
+
+async function req<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
+  try {
+    const r = await fetch(`${API_BASE}${path}`, init);
+    if (!r.ok) {
+      // FastAPI errors carry {detail}. Surface it (e.g. the 409 one-job-lock message) verbatim.
+      let detail = `HTTP ${r.status}`;
+      try {
+        const body = await r.json();
+        if (body?.detail) detail = String(body.detail);
+      } catch {
+        /* non-JSON body — keep the status line */
+      }
+      return { ok: false, error: detail, status: r.status };
+    }
+    return { ok: true, value: (await r.json()) as T };
+  } catch {
+    // Network-level failure = the backend isn't running. Callers show a "start the server" affordance.
+    return { ok: false, error: 'backend unreachable — start it with `uvicorn server:app --port 8000`' };
+  }
+}
+
+/** GET /api/junctions?bbox=minLon,minLat,maxLon,maxLat — snap targets in the viewport. */
+export function getJunctions(bbox?: [number, number, number, number]): Promise<ApiResult<{ junctions: Junction[]; count: number }>> {
+  const q = bbox ? `?bbox=${bbox.join(',')}` : '';
+  return req(`/api/junctions${q}`);
+}
+
+/** POST /api/simulate — launch a new_road run. 409 if a job is already active. */
+export function postSimulate(change: SimChange): Promise<ApiResult<{ run_id: string }>> {
+  return req(`/api/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ change }),
+  });
+}
+
+/** GET /api/runs — every run the runner knows about (newest first). */
+export function getRuns(): Promise<ApiResult<{ runs: RunSummary[] }>> {
+  return req(`/api/runs`);
+}
+
+/** GET /api/runs/<id>/status — the staged run-state. */
+export function getRunStatus(runId: string): Promise<ApiResult<RunStatus>> {
+  return req(`/api/runs/${encodeURIComponent(runId)}/status`);
+}
+
+/** POST /api/runs/<id>/enrich — run voices | report | discourse against a completed run. 409 if locked. */
+export function postEnrich(runId: string, stage: EnrichStage): Promise<ApiResult<{ run_id: string; stage: string }>> {
+  return req(`/api/runs/${encodeURIComponent(runId)}/enrich`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  });
+}
