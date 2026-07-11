@@ -40,7 +40,7 @@ N_LLM_STEPS = 3
 CHOSEN = ["time_pressed", "gig_driver", "resident_driver", "safety_first_parent",
           "bike_commuter", "cautious_cyclist", "school_run_parent",
           "longtime_resident", "shop_owner", "skeptical_taxpayer"]
-# DeepSeek pricing (deepseek-chat, approx USD / 1M tokens) — for the (e) extrapolation.
+# DeepSeek pricing (deepseek-v4-flash, approx USD / 1M tokens) — for the (e) extrapolation.
 PRICE_IN, PRICE_OUT = 0.27, 1.10
 # OASIS's own README benchmark: 100 agents × 1 step full activation = 335,600 in / 16,750 out tokens.
 BENCH_IN_PER_CALL, BENCH_OUT_PER_CALL = 3356, 167
@@ -114,9 +114,9 @@ async def run_sim(agents: list[dict]) -> tuple[list[dict], int, int]:
         DB_PATH.unlink()
 
     model = ModelFactory.create(
-        model_platform=ModelPlatformType.DEEPSEEK, model_type="deepseek-chat",
+        model_platform=ModelPlatformType.DEEPSEEK, model_type="deepseek-v4-flash",  # deepseek-chat retired 2026-07-24
         api_key=os.environ["DEEPSEEK_API_KEY"], url="https://api.deepseek.com/v1",
-        model_config_dict={"temperature": 0.5})
+        model_config_dict={"temperature": 0.5, "extra_body": {"thinking": {"type": "disabled"}}})
 
     available = [ActionType.CREATE_POST, ActionType.LIKE_POST, ActionType.REPOST,
                  ActionType.CREATE_COMMENT, ActionType.FOLLOW, ActionType.DO_NOTHING]
@@ -243,7 +243,7 @@ def extract_and_judge(agents: list[dict], rec_snaps: list[dict], llm_calls: int,
         "b_deepseek_binding": {
             "pass": len(trace) > 0,
             "evidence": f"agents took {sum(action_counts.values())} parseable actions through DeepSeek "
-                        f"(ModelPlatformType.DEEPSEEK, deepseek-chat @ api.deepseek.com/v1); "
+                        f"(ModelPlatformType.DEEPSEEK, deepseek-v4-flash @ api.deepseek.com/v1); "
                         f"action mix: {dict(action_counts)}"},
         "c_grounded_seed_opinions": {
             "pass": len(seeded) >= max(1, len(agents) - 1),

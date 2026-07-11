@@ -277,8 +277,8 @@ async def smoke_test(client: LLMClient, change: dict) -> None:
                 await asyncio.sleep(2.0 * (attempt + 1))
                 continue
             raise RuntimeError(
-                f"smoke test failed ({exc!r}). If this is a model-id error, try `MODEL=deepseek-chat` "
-                f"(known-good) or `MODEL=deepseek-v4-flash`. Check the API key in .env."
+                f"smoke test failed ({exc!r}). If this is a model-id error, try `MODEL=deepseek-v4-flash` "
+                f"(the current default) or `MODEL=deepseek-v4-pro`. Check the API key in .env."
             ) from exc
 
 
@@ -315,7 +315,7 @@ async def run(instrumented_path: Path) -> Path:
     return out_path
 
 
-# DeepSeek deepseek-chat/flash prices (USD per 1M tokens) — APPROXIMATE (docs-flagged; verify live).
+# DeepSeek deepseek-v4-flash prices (USD per 1M tokens) — APPROXIMATE (docs-flagged; verify live).
 _DEEPSEEK_PRICE = {"hit": 0.0028, "miss": 0.14, "out": 0.28}
 
 

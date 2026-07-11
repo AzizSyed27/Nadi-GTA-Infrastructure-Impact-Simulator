@@ -53,7 +53,7 @@ SCRATCH = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("TMP") or ".") /
 OASIS_CASCADE_PY = REPO / "python" / "src" / "oasis_cascade.py"
 OASIS_ENV = os.environ.get("OASIS_ENV", "oasis")
 
-# DeepSeek pricing (deepseek-chat, USD / 1M tokens) — cache-hit prompt is much cheaper, so a flat in-price
+# DeepSeek pricing (deepseek-v4-flash, USD / 1M tokens) — cache-hit prompt is much cheaper, so a flat in-price
 # is an UPPER bound. Kept identical to the spike for a like-for-like comparison.
 PRICE_IN, PRICE_OUT = 0.27, 1.10
 BENCH_IN_PER_CALL, BENCH_OUT_PER_CALL = 3356, 167
@@ -229,7 +229,7 @@ def make_config(cascade_id: str, nodes: list[dict], csv_path: Path, designed_edg
         "active_indices": active_indices,
         "seed_by_row": {str(x["row"]): x["seed"] for x in nodes},
         "agent_id_by_row": {str(x["row"]): x["agent_id"] for x in nodes},
-        "model_platform": "DEEPSEEK", "model_type": "deepseek-chat",
+        "model_platform": "DEEPSEEK", "model_type": "deepseek-v4-flash",
         "model_url": "https://api.deepseek.com/v1", "key_env": "DEEPSEEK_API_KEY", "temperature": 0.6,
     }
     cfg_path = SCRATCH / f"cascade-{cascade_id}.config.json"
@@ -516,7 +516,7 @@ def report(cascade_raws: list[dict], scoring_usage: dict, graph_stats: dict, ass
     s_out = scoring_usage["completion_tokens"]
     bench_in = sum(r["usage"]["llm_calls"] for r in cascade_raws) * BENCH_IN_PER_CALL
     bench_out = sum(r["usage"]["llm_calls"] for r in cascade_raws) * BENCH_OUT_PER_CALL
-    print("\n--- COST (DeepSeek deepseek-chat; flat in-price = upper bound) ---")
+    print("\n--- COST (DeepSeek deepseek-v4-flash; flat in-price = upper bound) ---")
     print(f"cascade LLM   : {c_in:,} in / {c_out:,} out  = ${_usd(c_in, c_out)}"
           f"   [{'ESTIMATED (benchmark)' if estimated else 'METERED'}]")
     print(f"stance scoring: {s_in:,} in / {s_out:,} out  = ${_usd(s_in, s_out)}   [metered, {scoring_usage['calls']} calls]")

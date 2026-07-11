@@ -53,10 +53,15 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   **Layer default: Groq** (`openai/gpt-oss-20b`) — free tier + strict structured JSON. Select via env
   `PROVIDER` / `MODEL`; key from `.env` (e.g. `GROQ_API_KEY`, `GEMINI_API_KEY`). **The report + agent pipeline
   (`report.py`, `server.py`) PINS DeepSeek** (longer prompts, ~13 slot calls, prefix caching) — it defaults to
-  `deepseek` when `PROVIDER` is unset, so `DEEPSEEK_API_KEY` must be in `python/.env`. Generation temperature is
-  per-call: `report._call` uses 0.3 (deterministic facts); `reactions.py` keeps 0.8 (persona variety). Gemini's
-  free tier is tiny (flash = 20 req/day) and flash-lite is often 503. No model id hardcoded from memory —
-  confirm via docs-researcher.
+  `deepseek` when `PROVIDER` is unset, so `DEEPSEEK_API_KEY` must be in `python/.env`. **DeepSeek model =
+  `deepseek-v4-flash`** (the successor to the retired `deepseek-chat`, gone 2026-07-24). V4 defaults thinking ON,
+  so every DeepSeek path force-disables it: the adapter auto-sends `extra_body={"thinking":{"type":"disabled"}}`
+  for any `v4` id (`llm_provider`), and the LightRAG (`report_agent`) + CAMEL cascade (`oasis_cascade`) paths pass
+  the same via their config — else `temperature` is a no-op and reasoning is billed as output. Generation
+  temperature is per-call: `report._call` uses 0.3 (deterministic facts); `reactions.py` keeps 0.8 (persona
+  variety). Gemini's free tier is tiny (flash = 20 req/day) and flash-lite is often 503. The server's enrich
+  subprocess `setdefault`s `PROVIDER=deepseek` (else `reactions.py` falls to Gemini's quota). No model id
+  hardcoded from memory — confirm via docs-researcher.
 - **Windows-native gotchas (LightRAG):** the per-run RAG index lives under `%LOCALAPPDATA%\nadi-report-agent\`,
   NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
   (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation

@@ -29,13 +29,13 @@ GEMINI_DEFAULT_MODEL = "gemini-2.5-flash-lite"
 # json_mode: "json_schema" = OpenAI/Groq STRICT structured output; "json_object" = best-effort (DeepSeek —
 # it does NOT support json_schema). The caller clamps + validates regardless, so best-effort is fine.
 #   - groq: verified for strict json_schema (model `openai/gpt-oss-20b`, docs-confirmed).
-#   - deepseek: `deepseek-chat` is the known-good, non-thinking, json_object model (as of 2026-07; it is
-#     deprecated 2026-07-24). To migrate: `MODEL=deepseek-v4-flash` — the adapter then auto-sends
-#     thinking-disabled (V4's thinking defaults ON, which is slow + bills reasoning as output).
+#   - deepseek: `deepseek-v4-flash` (the successor to the retired `deepseek-chat`; json_object mode). V4 defaults
+#     thinking ON — the adapter auto-sends `extra_body={"thinking":{"type":"disabled"}}` for any `v4`/`reasoner`
+#     id (see below), which restores `temperature` and keeps latency + output-cost down. json_object stays on.
 # The non-groq/deepseek presets are convenience defaults — verify the model id before relying on them.
 PROVIDER_PRESETS: dict[str, tuple[str, str, str, str]] = {
     "groq": ("https://api.groq.com/openai/v1", "openai/gpt-oss-20b", "GROQ_API_KEY", "json_schema"),
-    "deepseek": ("https://api.deepseek.com", "deepseek-chat", "DEEPSEEK_API_KEY", "json_object"),
+    "deepseek": ("https://api.deepseek.com", "deepseek-v4-flash", "DEEPSEEK_API_KEY", "json_object"),
     "openai": ("https://api.openai.com/v1", "gpt-4o-mini", "OPENAI_API_KEY", "json_schema"),
     "cerebras": ("https://api.cerebras.ai/v1", "gpt-oss-120b", "CEREBRAS_API_KEY", "json_object"),
     "mistral": ("https://api.mistral.ai/v1", "ministral-3b-latest", "MISTRAL_API_KEY", "json_object"),
@@ -201,8 +201,8 @@ def get_client() -> tuple[LLMClient, str, str]:
             raise RuntimeError(
                 f"{key_env} is not set. Put `{key_env}=...` in a .env (repo root or python/), then re-run."
             )
-        # DeepSeek V4 models default thinking ON (slow + reasoning billed as output) — force it off. The
-        # non-thinking `deepseek-chat` alias needs no toggle, so only send it for v4/reasoner model ids.
+        # DeepSeek V4 models default thinking ON (slow + reasoning billed as output) — force it off. A non-v4
+        # id would need no toggle, so only send it for v4/reasoner model ids.
         extra_body = None
         if provider == "deepseek" and any(tag in model.lower() for tag in ("v4", "reasoner")):
             extra_body = {"thinking": {"type": "disabled"}}

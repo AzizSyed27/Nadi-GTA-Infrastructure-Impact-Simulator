@@ -300,14 +300,18 @@ def make_rag(working_dir: Path | str):
         raise SystemExit(f"{key_env} is not set (put it in python/.env).")
 
     async def llm_func(prompt, system_prompt=None, history_messages=None, keyword_extraction=False, **kwargs):
+        # deepseek-v4-flash (successor to the retired deepseek-chat) defaults thinking ON — force it off, else the
+        # ~230-doc index build is slow + bills reasoning as output. LightRAG forwards **kwargs to the OpenAI SDK.
+        eb = dict(kwargs.pop("extra_body", {}) or {})
+        eb["thinking"] = {"type": "disabled"}
         return await openai_complete_if_cache(
-            "deepseek-chat", prompt, system_prompt=system_prompt, history_messages=history_messages or [],
-            api_key=ds_key, base_url="https://api.deepseek.com/v1", **kwargs)
+            "deepseek-v4-flash", prompt, system_prompt=system_prompt, history_messages=history_messages or [],
+            api_key=ds_key, base_url="https://api.deepseek.com/v1", extra_body=eb, **kwargs)
 
     tokenizer = AutoTokenizer.from_pretrained(EMBED_MODEL)
     embed_model = AutoModel.from_pretrained(EMBED_MODEL)
     return LightRAG(
-        working_dir=str(working_dir), llm_model_func=llm_func, llm_model_name="deepseek-chat",
+        working_dir=str(working_dir), llm_model_func=llm_func, llm_model_name="deepseek-v4-flash",
         llm_model_max_async=MAX_LLM_ASYNC,
         embedding_func=EmbeddingFunc(embedding_dim=EMBED_DIM, max_token_size=512,
                                      func=partial(hf_embed.func, tokenizer=tokenizer, embed_model=embed_model)))

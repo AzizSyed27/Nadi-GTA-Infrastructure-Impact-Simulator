@@ -35,7 +35,7 @@ from dotenv import load_dotenv
 REPO = Path(__file__).resolve().parents[2]
 load_dotenv(REPO / "python" / ".env")
 
-# OASIS README benchmark (deepseek-chat): 100 agents x 1 step full activation = 335,600 in / 16,750 out.
+# OASIS README benchmark (legacy deepseek-chat run): 100 agents x 1 step full activation = 335,600 in / 16,750 out.
 BENCH_IN_PER_CALL, BENCH_OUT_PER_CALL = 3356, 167
 
 
@@ -141,11 +141,15 @@ async def run_cascade(cfg: dict) -> dict:
         db_path.unlink()
 
     api_key = os.environ[cfg.get("key_env", "DEEPSEEK_API_KEY")]
+    # deepseek-v4-flash (successor to the retired deepseek-chat): CAMEL 0.2.5 lacks a v4 enum but DeepSeekModel
+    # accepts the raw string id. V4 defaults thinking ON + CAMEL won't auto-disable it — so pass thinking-off via
+    # model_config_dict (ModelFactory forwards it raw → chat.completions.create(extra_body=...)).
     model = ModelFactory.create(
         model_platform=getattr(ModelPlatformType, cfg.get("model_platform", "DEEPSEEK")),
-        model_type=cfg.get("model_type", "deepseek-chat"),
+        model_type=cfg.get("model_type", "deepseek-v4-flash"),
         api_key=api_key, url=cfg.get("model_url", "https://api.deepseek.com/v1"),
-        model_config_dict={"temperature": cfg.get("temperature", 0.6)})
+        model_config_dict={"temperature": cfg.get("temperature", 0.6),
+                           "extra_body": {"thinking": {"type": "disabled"}}})
     usage = _meter(model)
 
     available = [ActionType.CREATE_POST, ActionType.LIKE_POST, ActionType.REPOST,
