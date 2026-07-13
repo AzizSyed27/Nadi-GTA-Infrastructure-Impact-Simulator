@@ -35,8 +35,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 import trajectory_io
-from contract_models import (ArgumentReach, Cascade, CascadeStep, OpinionTrajectory, Social, SocialEdge,
-                             SocialEvent, SocialGraph, TrajectoryPoint)
+from contract_models import (ArgumentReach, Cascade, CascadeStep, OpinionTrajectory, Social,
+                             SocialEdge, SocialEvent, SocialGraph, TrajectoryPoint, changes_of)
 from llm_provider import get_client
 from personas import load_personas
 from report import audit_prose_cascade  # persona-voice safety calibration (4.4); NOT the blunt system-voice rule
@@ -468,7 +468,9 @@ def assemble(artifact, run_id: str, edges: dict, nodes: list[dict], parsed_by_ca
     social = Social(mechanism="oasis", graph=graph, cascades=cascades, trajectories=trajectories,
                     argument_reach=reaches, excluded_count=0)
     artifact.social = social
-    artifact.schema_version = "0.4.0"  # carrying a social{} block makes this a v0.4.0 artifact
+    # v0.5.0: PRESERVE the loaded artifact's version — do NOT force a version. social{} is additive (valid since
+    # 0.4.0), so a fresh 0.5.0 artifact (changes[]) stays 0.5.0 and an older one (legacy change) stays its version.
+    # Forcing 0.5.0 here would make audit_version_gate hard-fail the dump of any pre-0.5.0 (legacy-change) artifact.
 
     # Immutability guard runs on the ASSEMBLED artifact (it needs the agents' outcomes). Mark violators.
     viols = check_immutability(artifact)
@@ -711,9 +713,11 @@ def main() -> None:
         reaudit(run_id, art_path)
         return
     artifact = trajectory_io.load_artifact(art_path)
-    if artifact.meta.scenario is None:
+    changes = changes_of(artifact)
+    if not changes:
         raise SystemExit("artifact has no scenario/change — nothing for the corridor geography edges to key on")
-    target_edge = artifact.meta.scenario.change.target_edge
+    # Geography anchor stays single-edge for now: key on the first change's target edge (V2.2+ may span edges).
+    target_edge = changes[0].target_edge
 
     nodes = build_nodes(artifact)
     edges, graph_stats = build_graph(nodes, target_edge, args.seed)

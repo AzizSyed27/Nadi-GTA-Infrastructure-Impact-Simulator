@@ -34,6 +34,7 @@ GOLDEN_PATH = Path(__file__).resolve().parent / "golden_trajectory.json"
 SAMPLE_PATH = REPO_ROOT / "web" / "public" / "sample_v0_2_0.json"
 SAMPLE_V3_PATH = REPO_ROOT / "web" / "public" / "sample_v0_3_0.json"
 SAMPLE_V4_PATH = REPO_ROOT / "web" / "public" / "sample_v0_4_0.json"
+SAMPLE_V5_PATH = REPO_ROOT / "web" / "public" / "sample_v0_5_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -112,14 +113,16 @@ def test_golden_trajectory() -> None:
     )
 
 
-def assert_agents_wellformed(artifact: dict) -> None:
-    """Validate a v0.2.0 artifact and check every agent is internally consistent.
+def assert_agents_wellformed(artifact: dict, expected_version: str | None = None) -> None:
+    """Validate an agents-bearing artifact and check every agent is internally consistent.
 
-    Used by two tests: the committed sample (contract-shape canary) and the newest real scenario run
-    (the pipeline guard — exercises the harness→sampler→reactions vehicle_id join + outcome carry-through).
+    Used by two tests: the committed sample (contract-shape canary — pins its version) and the newest real
+    scenario run (the pipeline guard — exercises the harness→sampler→reactions vehicle_id join + outcome
+    carry-through; its version is whatever the producer currently emits, so it is not pinned here).
     """
     trajectory_io.validate_artifact(artifact)  # raises if it doesn't satisfy the frozen schema
-    assert artifact["schema_version"] == "0.2.0", "expected a v0.2.0 (agents-bearing) artifact"
+    if expected_version is not None:
+        assert artifact["schema_version"] == expected_version, f"expected a v{expected_version} artifact"
 
     meta = artifact["meta"]
     sim_start, sim_end = meta["sim_start"], meta["sim_end"]
@@ -147,7 +150,7 @@ def test_v0_2_0_sample_agents() -> None:
     """Contract-shape canary on the committed hand-authored sample (always runs)."""
     assert SAMPLE_PATH.is_file(), f"committed sample fixture missing: {SAMPLE_PATH}"
     artifact = json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
-    assert_agents_wellformed(artifact)
+    assert_agents_wellformed(artifact, expected_version="0.2.0")
 
 
 def test_scenario_pipeline_agents() -> None:
@@ -227,10 +230,10 @@ def test_multimodal_artifact_valid() -> None:
     if not runs:
         pytest.skip("No multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.")
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
-    # 0.3.0 as produced by scenario_harness; bumped to 0.4.0 once propagation.py enriches it with social{}.
-    assert art.schema_version in ("0.3.0", "0.4.0")
+    # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); v0.5.0 producers emit 0.5.0.
+    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0")
     if art.social is not None:
-        assert art.schema_version == "0.4.0", "an artifact carrying a social{} block must be v0.4.0"
+        assert art.schema_version in ("0.4.0", "0.5.0"), "an artifact carrying a social{} block must be v0.4.0+"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -438,6 +441,156 @@ def test_v0_2_0_and_v0_3_0_still_validate_under_v0_4_0_schema() -> None:
     """Explicit back-compat: older samples validate against the bumped schema (the enum keeps them)."""
     trajectory_io.validate_artifact(json.loads(SAMPLE_PATH.read_text(encoding="utf-8")))
     trajectory_io.validate_artifact(json.loads(SAMPLE_V3_PATH.read_text(encoding="utf-8")))
+
+
+# ---------------------------------------------------------------------------
+# v0.5.0 contract (additive over v0.4.0): meta.scenario.changes[] (the new authority) + tags[]; Change gains
+# window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. All v0.2.0..v0.4.0
+# tests above are UNCHANGED and still run against the (now-bumped) schema — that IS the back-compat proof.
+# ---------------------------------------------------------------------------
+
+
+def _v5_raw() -> dict:
+    return json.loads(SAMPLE_V5_PATH.read_text(encoding="utf-8"))
+
+
+def test_v0_5_0_sample() -> None:
+    """The committed v0.5.0 sample validates (schema + model) and every new structure is well-formed."""
+    assert SAMPLE_V5_PATH.is_file(), f"committed v0.5.0 sample missing: {SAMPLE_V5_PATH}"
+    raw = _v5_raw()
+    trajectory_io.validate_artifact(raw)  # (1) schema
+    art = trajectory_io.load_artifact(SAMPLE_V5_PATH)  # (2) model (window/incident/lane_closure invariants)
+    assert raw["schema_version"] == "0.5.0"
+
+    sc = art.meta.scenario
+    assert sc is not None and sc.change is None, "a 0.5.0 scenario uses changes[], not the legacy change"
+    assert sc.tags == ["school_zone"], "scenario tags must be present"
+    assert [c.type for c in sc.changes] == ["lane_closure", "incident", "speed_limit"], "composite changes"
+
+    lane_closure = sc.changes[0]
+    assert lane_closure.target_lanes == [2, 3] and lane_closure.window is not None
+    incident = sc.changes[1]
+    assert incident.window is not None and incident.window.end_s > incident.window.start_s
+    assert incident.effect is not None and incident.position_m == 120.0
+
+
+def test_older_samples_validate_under_v0_5_0_schema() -> None:
+    """Explicit back-compat: every older sample (0.2.0/0.3.0/0.4.0) validates against the bumped 0.5.0 schema,
+    AND an artifact carrying the legacy single `change` still validates (pre-0.5.0 gate requires it)."""
+    for p in (SAMPLE_PATH, SAMPLE_V3_PATH, SAMPLE_V4_PATH):
+        trajectory_io.validate_artifact(json.loads(p.read_text(encoding="utf-8")))
+    # the v0.4.0 sample carries meta.scenario.change (legacy) — untouched.
+    assert "change" in json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))["meta"]["scenario"]
+
+
+def test_changes_of_accessor() -> None:
+    """The migration accessor normalizes either shape to a list: 0.5.0 changes[], 0.4.0 [change], baseline []."""
+    art5 = trajectory_io.load_artifact(SAMPLE_V5_PATH)
+    assert len(contract_models.changes_of(art5)) == 3
+    art4 = trajectory_io.load_artifact(SAMPLE_V4_PATH)
+    ch4 = contract_models.changes_of(art4)
+    assert len(ch4) == 1 and ch4[0] is art4.meta.scenario.change, "0.4.0 wraps the legacy change as [change]"
+    # a baseline artifact (no scenario) → []
+    baseline = json.loads(SAMPLE_V4_PATH.read_text(encoding="utf-8"))
+    baseline["meta"].pop("scenario")
+    assert contract_models.changes_of(contract_models.TrajectoryArtifact.model_validate(baseline)) == []
+
+
+def test_v0_5_0_missing_changes_fails() -> None:
+    """NEGATIVE: a 0.5.0 artifact whose scenario omits changes[] fails schema validation (version gate)."""
+    raw = _v5_raw()
+    raw["meta"]["scenario"].pop("changes")
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+
+
+def test_v0_5_0_legacy_change_fails() -> None:
+    """NEGATIVE: a 0.5.0 artifact carrying the legacy single `change` fails (the "change absent" gate)."""
+    raw = _v5_raw()
+    raw["meta"]["scenario"]["change"] = {"type": "speed_limit", "target_edge": "E1", "description": "x"}
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)  # `not: {required: [change]}` bites
+
+
+def test_v0_5_0_sim_agent_missing_grounding_fails() -> None:
+    """NEGATIVE: proves the EXISTING grounding gate was extended to 0.5.0 — a sim agent without grounding fails."""
+    raw = _v5_raw()
+    raw["agents"][0].pop("grounding")  # agents[0] is a sim agent
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+
+
+def test_window_end_le_start_fails() -> None:
+    """NEGATIVE (model, not schema): window end_s <= start_s. Schema stays loose; pydantic enforces it."""
+    raw = _v5_raw()
+    w = raw["meta"]["scenario"]["changes"][1]["window"]
+    w["end_s"] = w["start_s"]  # end == start
+    trajectory_io.validate_artifact(raw)  # schema PASSES (loose)
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)  # model FAILS
+
+
+def test_incident_requires_window() -> None:
+    """NEGATIVE (model): an incident change without a window. Schema loose; pydantic enforces incident⇒window."""
+    raw = _v5_raw()
+    raw["meta"]["scenario"]["changes"][1].pop("window")  # changes[1] is the incident
+    trajectory_io.validate_artifact(raw)  # schema PASSES
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+
+
+def test_lane_closure_requires_target_lanes() -> None:
+    """NEGATIVE (model): a lane_closure without target_lanes. Schema loose; pydantic enforces the invariant."""
+    raw = _v5_raw()
+    raw["meta"]["scenario"]["changes"][0].pop("target_lanes")  # changes[0] is the lane_closure
+    trajectory_io.validate_artifact(raw)  # schema PASSES
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+
+
+def test_version_gate_audit() -> None:
+    """The dump-time audit (independent of the schema if/then) catches version↔shape mismatches."""
+    raw = _v5_raw()
+    trajectory_io.audit_version_gate(raw)  # the clean sample passes
+
+    # 0.5.0 carrying a legacy change → raises.
+    bad = _v5_raw()
+    bad["meta"]["scenario"]["change"] = {"type": "speed_limit", "target_edge": "E1", "description": "x"}
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(bad)
+
+    # A 0.4.0 scenario carrying BOTH change and changes is SCHEMA-valid but the audit catches it (independent).
+    both = {"schema_version": "0.4.0", "meta": {"scenario": {"baseline_run_id": "b", "change": {}, "changes": [{}]}}}
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(both)
+
+
+def test_dump_rejects_0_5_0_with_legacy_change() -> None:
+    """dump_artifact must refuse a 0.5.0 artifact built with the legacy single change (schema gate + audit)."""
+    art = trajectory_io.load_artifact(SAMPLE_V5_PATH)
+    # force the legacy shape at the current (0.5.0) version.
+    art.meta.scenario.changes = None
+    art.meta.scenario.change = contract_models.Change(type="speed_limit", target_edge="E1", description="x")
+    out = RUNS_DIR / "_rt_v0_5_0_bad.json"
+    try:
+        with pytest.raises((SchemaValidationError, ValueError)):
+            trajectory_io.dump_artifact(art, path=out)
+    finally:
+        out.unlink(missing_ok=True)
+
+
+def test_v0_5_0_semantic_roundtrip() -> None:
+    """load -> dump -> reload: the parsed dicts are EQUAL and the dump re-validates + passes the version gate."""
+    src = _v5_raw()
+    art = trajectory_io.load_artifact(SAMPLE_V5_PATH)
+    out = RUNS_DIR / "_rt_v0_5_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)  # validates + audits on write
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)  # re-validate + model round-trip
+    finally:
+        out.unlink(missing_ok=True)
+    assert src == redumped, "semantic round-trip must be equal"
 
 
 def _write_golden() -> None:

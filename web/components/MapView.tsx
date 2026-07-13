@@ -8,7 +8,8 @@ import { ScatterplotLayer, LineLayer, PathLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import type { Agent, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
+import type { Agent, ChangeType, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
+import { changesOf } from '@/lib/types';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type SimChange } from '@/lib/api';
@@ -97,7 +98,10 @@ export default function MapView() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   // 5.3 change-visibility overlay: the loaded run's change LOCATION, fetched once per run (survives switching +
   // ?run=). Tagged with runId so a stale fetch from a prior run is ignored; error=true → labeled degradation.
-  const [changeGeom, setChangeGeom] = useState<{ runId: string; geom: LonLat[] | null; error: boolean } | null>(null);
+  // v0.5.0: a scenario may compose several changes — resolve + render each. `items` is one entry per change.
+  const [changeGeom, setChangeGeom] = useState<
+    { runId: string; items: Array<{ path: LonLat[]; type: ChangeType }>; error: boolean } | null
+  >(null);
   const mapRef = useRef<MapRef | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -130,32 +134,42 @@ export default function MapView() {
   // loaded artifact (NOT per playback frame). new_road → the two junction coords; runtime → the target edge's
   // polyline. setState only in the async completion (lint-safe); render guards on runId so a stale result is ignored.
   useEffect(() => {
-    const change = artifact?.meta.scenario?.change;
+    const changes = artifact ? changesOf(artifact) : [];
     const runId = artifact?.meta.run_id;
-    if (!change || !runId) return;
-    const bbox = artifact.meta.bbox as [number, number, number, number];
+    if (changes.length === 0 || !runId) return;
+    const bbox = artifact!.meta.bbox as [number, number, number, number];
+    // Any change needing junctions/edges triggers at most one fetch of each; both are reused across changes.
+    const needsJunctions = changes.some((c) => c.type === 'new_road' && c.from_junction && c.to_junction);
+    const needsEdges = changes.some((c) => !(c.type === 'new_road' && c.from_junction && c.to_junction));
     let cancelled = false;
     (async () => {
-      let geom: LonLat[] | null = null;
       let error = false;
-      if (change.type === 'new_road' && change.from_junction && change.to_junction) {
+      // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the lookup.
+      const junctionById: Record<string, LonLat> = {};
+      let edges: Array<{ id: string; geometry: LonLat[] }> = [];
+      if (needsJunctions) {
         const res = await getJunctions(bbox);
-        if (res.ok) {
-          // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the lookup.
-          const byId: Record<string, LonLat> = {};
-          for (const j of res.value.junctions) byId[j.id] = [j.lon, j.lat];
-          const a = byId[change.from_junction];
-          const b = byId[change.to_junction];
-          if (a && b) geom = [a, b];
-        } else {
-          error = true;
-        }
-      } else if (change.target_edge) {
-        const res = await getEdges(bbox);
-        if (res.ok) geom = res.value.edges.find((e) => e.id === change.target_edge)?.geometry ?? null;
+        if (res.ok) for (const j of res.value.junctions) junctionById[j.id] = [j.lon, j.lat];
         else error = true;
       }
-      if (!cancelled) setChangeGeom({ runId, geom, error });
+      if (needsEdges) {
+        const res = await getEdges(bbox);
+        if (res.ok) edges = res.value.edges;
+        else error = true;
+      }
+      const items: Array<{ path: LonLat[]; type: ChangeType }> = [];
+      for (const change of changes) {
+        let geom: LonLat[] | null = null;
+        if (change.type === 'new_road' && change.from_junction && change.to_junction) {
+          const a = junctionById[change.from_junction];
+          const b = junctionById[change.to_junction];
+          if (a && b) geom = [a, b];
+        } else if (change.target_edge) {
+          geom = edges.find((e) => e.id === change.target_edge)?.geometry ?? null;
+        }
+        if (geom) items.push({ path: geom, type: change.type });
+      }
+      if (!cancelled) setChangeGeom({ runId, items, error });
     })();
     return () => {
       cancelled = true;
@@ -625,18 +639,18 @@ export default function MapView() {
 
   // 5.3 CHANGE-VISIBILITY overlay (persistent, ALL modes) — the loaded run's change LOCATION so rerouting cars
   // don't appear to drive through empty space. Derived from the artifact (via the geometry fetch), NOT draw-state.
-  const changeType = meta.scenario?.change.type;
-  const overlayGeom = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.geom : null;
-  const changeOverlay = new PathLayer<{ path: LonLat[] }>({
+  // v0.5.0: render EVERY change the scenario composes (per-change color by type). A single-change run is one path.
+  const overlayItems = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.items : [];
+  const changeOverlay = new PathLayer<{ path: LonLat[]; type: ChangeType }>({
     id: 'change-overlay',
-    data: overlayGeom ? [{ path: overlayGeom }] : [],
+    data: overlayItems,
     getPath: (d) => d.path,
-    getColor: changeType === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230], // teal proposed road / amber edit
+    getColor: (d) => (d.type === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230]), // teal proposed road / amber edit
     getWidth: 6,
     widthUnits: 'pixels',
     capRounded: true,
     jointRounded: true,
-    updateTriggers: { getColor: changeType },
+    updateTriggers: { getColor: overlayItems.map((d) => d.type).join(',') },
   });
 
   const layers: Layer[] = [
@@ -694,12 +708,15 @@ export default function MapView() {
 
       <ScenarioHeader scenario={meta.scenario} />
 
-      {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is. */}
-      {changeType && changeGeom?.runId === meta.run_id && (
-        overlayGeom ? (
+      {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
+          v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
+      {changeGeom?.runId === meta.run_id && (
+        overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
-            <span style={{ ...legendSwatch, background: changeType === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
-            {changeType === 'new_road' ? 'proposed road' : 'edited street'}
+            <span style={{ ...legendSwatch, background: overlayItems[0].type === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
+            {overlayItems.length === 1
+              ? (overlayItems[0].type === 'new_road' ? 'proposed road' : 'edited street')
+              : `${overlayItems.length} changes`}
           </div>
         ) : changeGeom.error ? (
           <div style={changeOfflineNote} data-testid="change-offline">

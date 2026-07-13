@@ -40,7 +40,7 @@ from pydantic import BaseModel
 
 import personas as personas_mod
 import trajectory_io
-from contract_models import ScorecardCell, ScorecardGroup, TrajectoryArtifact
+from contract_models import ScorecardCell, ScorecardGroup, TrajectoryArtifact, changes_of
 from llm_provider import LLMClient, get_client
 
 RUNS_DIR = trajectory_io.RUNS_DIR
@@ -158,8 +158,9 @@ def _load_verdict(ts: str, artifact: TrajectoryArtifact) -> dict | None:
     if not path.is_file():
         return None
     v = json.loads(path.read_text(encoding="utf-8"))
-    change = artifact.meta.scenario.change
-    if v.get("scenario_run_id") != artifact.meta.run_id or v.get("target_edge") != change.target_edge:
+    changes = changes_of(artifact)
+    target_edge = changes[0].target_edge if changes else None
+    if v.get("scenario_run_id") != artifact.meta.run_id or v.get("target_edge") != target_edge:
         print(f"[verdict] {path.name} does not match this run/change — using the qualitative fallback.")
         return None
     return v.get("car_tail")
@@ -167,7 +168,10 @@ def _load_verdict(ts: str, artifact: TrajectoryArtifact) -> dict | None:
 
 def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | None) -> dict:
     meta = artifact.meta
-    change = meta.scenario.change
+    # v0.5.0: read the normalized change list. `change` (=changes[0]) stays the PRIMARY for the out-of-contract
+    # report JSON `scenario_change` (ReportPanel reads a single change); render_markdown iterates `changes`.
+    changes = changes_of(artifact)
+    change = changes[0]
     by_group: dict[str, ScorecardGroup] = {g.group: g for g in artifact.scorecard.groups}
 
     # the car travel-time tail (single-seed, from the measured scorecard cell)
@@ -181,7 +185,8 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         "scenario_run_id": meta.run_id,
         "baseline_run_id": meta.scenario.baseline_run_id,
         "network": meta.network,
-        "change": change,
+        "change": change,      # PRIMARY (changes[0]) — for the report JSON scenario_change + slot_framing
+        "changes": changes,    # v0.5.0: the full list — render_markdown "What was tested" iterates this
         "demand": demand,
         "cars_rerouted": outcomes["reroute"]["cars_rerouted"],
         "severed_edges": outcomes.get("connectivity_severed_edges", []),
@@ -456,11 +461,19 @@ def _change_phrase(change) -> str:
     return change.description
 
 
+def _changes_phrase(changes) -> str:
+    """A single change renders exactly as before; a composite (v0.5.0) joins each change's phrase."""
+    phrases = [_change_phrase(c) for c in changes]
+    if len(phrases) == 1:
+        return phrases[0]
+    return "; and ".join(phrases)
+
+
 async def slot_framing(client, facts, audit_log) -> str:
-    change = facts["change"]
+    changes = facts["changes"]
     system = _FRAMING + _json_instr('{"text": "<2-3 plain sentences, NO numbers>"}')
     user = (f"Write 2-3 plain-language sentences framing what is being tested, for a reader who is not a "
-            f"traffic engineer. Mechanically: {_change_phrase(change)}. Do NOT assert any benefit (not "
+            f"traffic engineer. Mechanically: {_changes_phrase(changes)}. Do NOT assert any benefit (not "
             f"'calmer', 'safer'), do NOT include any numbers. Just explain, neutrally, what the change is and "
             f"that this report previews who it would affect.")
     return (await _slot(client, system, user, _TextWire, "text", "framing", audit_log))["text"].strip()
@@ -799,10 +812,11 @@ def render_discourse_md(dfacts: dict, discourse: dict) -> list[str]:
 
 
 def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta, dfacts=None, discourse=None) -> str:
-    change = facts["change"]
-    lane = f", lane {change.target_lane}" if change.target_lane is not None else ""
+    changes = facts["changes"]
+    change = changes[0]  # PRIMARY, for the title
+    title = change.description if len(changes) == 1 else f"{len(changes)} changes on the corridor"
     L: list[str] = []
-    L.append(f"# Corridor change preview — {change.description}")
+    L.append(f"# Corridor change preview — {title}")
     L.append("")
     L.append("*A stakeholder-reaction preview, not a verdict. Safety figures are surrogate near-miss measures, "
              "not crash predictions.*")
@@ -812,13 +826,16 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     L.append("")
     L.append(framing)
     L.append("")
-    if change.type == "new_road":
-        _lanes, _way = change.lanes or 1, ("two-way" if change.bidirectional else "one-way")
-        L.append(f"- **Change:** A new {_lanes}-lane {_way} road connecting junction `{change.from_junction}` and "
-                 f"junction `{change.to_junction}` — a new travel option, no sidewalk at this stage "
-                 f"(new edge `{change.target_edge}`).")
-    else:
-        L.append(f"- **Change:** {change.description} (edge `{change.target_edge}`{lane})")
+    # v0.5.0: render every change in the scenario (a single-change scenario is one bullet, as before).
+    for ch in changes:
+        lane = f", lane {ch.target_lane}" if ch.target_lane is not None else ""
+        if ch.type == "new_road":
+            _lanes, _way = ch.lanes or 1, ("two-way" if ch.bidirectional else "one-way")
+            L.append(f"- **Change:** A new {_lanes}-lane {_way} road connecting junction `{ch.from_junction}` and "
+                     f"junction `{ch.to_junction}` — a new travel option, no sidewalk at this stage "
+                     f"(new edge `{ch.target_edge}`).")
+        else:
+            L.append(f"- **Change:** {ch.description} (edge `{ch.target_edge}`{lane})")
     L.append(f"- **Corridor / network:** `{facts['network']}` — one Toronto corridor")
     L.append(f"- **Demand simulated:** {facts['demand']['car']} cars, {facts['demand']['bicycle']} bicycles, "
              f"{facts['demand']['pedestrian']} pedestrians")

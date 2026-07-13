@@ -43,7 +43,16 @@ from pathlib import Path
 import run_sim  # also puts SUMO_HOME/tools on sys.path, so `sumolib` imports below
 import sumolib
 import trajectory_io
-from contract_models import Change, Conflict, Meta, Person, Scenario, TrajectoryArtifact, Vehicle
+from contract_models import (
+    SCHEMA_VERSION,
+    Change,
+    Conflict,
+    Meta,
+    Person,
+    Scenario,
+    TrajectoryArtifact,
+    Vehicle,
+)
 
 ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.rou.xml"
 BIKE_ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.bike.rou.xml"
@@ -646,11 +655,12 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
 
     change = change.model_copy(update={"target_lane": target_lane})
     return TrajectoryArtifact(
-        schema_version="0.3.0",
+        schema_version=SCHEMA_VERSION,  # v0.5.0: emit the current contract; wrap the single change as changes[]
         meta=Meta(
             run_id=run_id, network=scenario_network_name or run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
             step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
-            scenario=Scenario(baseline_run_id=baseline_run_id, change=change),
+            # v0.5.0 wrap: the producer still applies exactly ONE change, emitted as the changes[] list authority.
+            scenario=Scenario(baseline_run_id=baseline_run_id, changes=[change]),
         ),
         vehicles=vehicles,
         persons=persons,
@@ -832,7 +842,7 @@ def run_pair(change: Change) -> dict:
 
     print(f"\n=== SCENARIO run ({scen_id}) — {change.description} ===")
     recs2, end2, step2 = run_sim.simulate(change=change, tripinfo_path=scen_tripinfo)
-    scenario = Scenario(baseline_run_id=base_id, change=change)
+    scenario = Scenario(baseline_run_id=base_id, changes=[change])  # v0.5.0 wrap (build_artifact emits 0.5.0)
     scen_art = run_sim.build_artifact(
         recs2, end2, step2, run_id=scen_id, network=run_sim.NET.name, bbox=bbox, scenario=scenario
     )
@@ -976,8 +986,9 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
         "modes": buckets}, indent=2), encoding="utf-8")
 
     # scorecard inject + latest.json (reuse scorecard.compute_scorecard; scenario conflicts on the patched net).
+    # v0.5.0: compute_scorecard takes the change LIST (the producer applies one change → a list of one).
     sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
-                                     change.model_dump(exclude_none=True))
+                                     [change.model_dump(exclude_none=True)])
     art2 = trajectory_io.load_artifact(art_path)
     art2.scorecard = sc
     trajectory_io.dump_artifact(art2, path=art_path)
@@ -1028,7 +1039,7 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
         encoding="utf-8")
 
     sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
-                                     change.model_dump(exclude_none=True))
+                                     [change.model_dump(exclude_none=True)])
     art2 = trajectory_io.load_artifact(art_path)
     art2.scorecard = sc
     trajectory_io.dump_artifact(art2, path=art_path)

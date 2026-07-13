@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "python" / "src"))
 import trajectory_io  # noqa: E402
-from contract_models import Scorecard, ScorecardCell, ScorecardGroup  # noqa: E402
+from contract_models import Scorecard, ScorecardCell, ScorecardGroup, changes_of_scenario  # noqa: E402
 
 RUNS_DIR = trajectory_io.RUNS_DIR
 WEB_PUBLIC = ROOT / "web" / "public"
@@ -101,8 +101,10 @@ def _severity_sums(conflicts: list[dict]) -> dict[str, float]:
     return agg
 
 
-def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts: list[dict], change: dict) -> Scorecard:
-    """Assemble the 7-group scorecard. ``buckets`` = outcomes['modes']; conflicts are lists of dicts."""
+def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts: list[dict],
+                      changes: list[dict]) -> Scorecard:
+    """Assemble the 7-group scorecard. ``buckets`` = outcomes['modes']; conflicts are lists of dicts.
+    ``changes`` is the v0.5.0 change list (a single-change scenario is a list of one → identical output)."""
     # travel_time (MEASURED, sim groups only)
     tt = {g: _travel_cell(buckets.get(mode, {}).get("outcomes", [])) for mode, g in _MODE_TO_GROUP.items()}
 
@@ -113,14 +115,17 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
         # confidence LOW: the sign flips across seeds (precursor) — a magnitude, not a directional claim.
         return ScorecardCell(value=round(scen_s[key] - base_s[key], 3), confidence="low", note=_SAFETY_NOTE)
 
-    ctype = change.get("type")
-    access = _ACCESS_HEURISTIC.get(ctype, {})
-
     def access_cell(group: str) -> ScorecardCell | None:
+        # v0.5.0 composite: collect this group's access heuristic across every change in the scenario.
         # confidence LOW: the entire access column is a rule-based heuristic, not measured.
-        if group in access:
-            return ScorecardCell(value=access[group], confidence="low", note="rule-based estimate")
-        if ctype in _NULL_WITH_NOTE:  # honest: a null magnitude WITH a note, not a silently-absent cell
+        contribs = [_ACCESS_HEURISTIC.get(c.get("type"), {})[group]
+                    for c in changes if group in _ACCESS_HEURISTIC.get(c.get("type"), {})]
+        if len(contribs) == 1:
+            return ScorecardCell(value=contribs[0], confidence="low", note="rule-based estimate")
+        if len(contribs) > 1:  # honest: don't silently sum overlapping heuristics across composed changes
+            return ScorecardCell(value=None, confidence="low",
+                                 note=f"composite scenario ({len(changes)} changes) — per-group access not separable yet")
+        if any(c.get("type") in _NULL_WITH_NOTE for c in changes):  # null magnitude WITH a note, not silently-absent
             return ScorecardCell(value=None, confidence="low", note="no access heuristic for this change type yet")
         return None
 
@@ -183,7 +188,8 @@ def main() -> None:
         )
 
     scorecard = compute_scorecard(
-        outcomes["modes"], baseline["conflicts"], raw_art["conflicts"], raw_art["meta"]["scenario"]["change"]
+        outcomes["modes"], baseline["conflicts"], raw_art["conflicts"],
+        changes_of_scenario(raw_art["meta"]["scenario"]),
     )
 
     # Inject + re-validate (dump_artifact validates against the frozen schema on write).

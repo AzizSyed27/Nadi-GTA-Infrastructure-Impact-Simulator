@@ -168,11 +168,16 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
             lines.append(f"{label}: {report.render_cell(cell, kind)} — {report.cell_valence(cell, kind)}.{note}")
         docs.append(_doc(f"scorecard__{gid}", f"Scorecard row — {glabel}", "\n".join(lines)))
 
-    # --- the change ---
-    ch = facts["change"]
-    lane = f", lane {ch.target_lane}" if ch.target_lane is not None else ""
+    # --- the change(s) --- v0.5.0: one doc listing every change the scenario composes (single-change → one line).
+    change_lines = []
+    for ch in facts["changes"]:
+        lane = f", lane {ch.target_lane}" if ch.target_lane is not None else ""
+        change_lines.append(f"{ch.description}. Change type: {ch.type}. Target edge {ch.target_edge}{lane}.")
+    joined = " ".join(change_lines)
+    prefix = "The proposed change being previewed" if len(change_lines) == 1 else \
+        f"The proposed scenario composes {len(change_lines)} changes"
     docs.append(_doc("change", "The proposed change being previewed",
-                     f"{ch.description}. Change type: {ch.type}. Target edge {ch.target_edge}{lane}. "
+                     f"{prefix}: {joined} "
                      f"Demand simulated on the corridor: {facts['demand']['car']} cars, "
                      f"{facts['demand']['bicycle']} bicycles, {facts['demand']['pedestrian']} pedestrians. "
                      f"In-run adaptation: {facts['cars_rerouted']} cars rerouted within the run."))

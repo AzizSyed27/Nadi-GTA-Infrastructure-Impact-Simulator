@@ -1,8 +1,10 @@
 // TypeScript half of the frozen trajectory contract.
-// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.3.0).
-// v0.3.0 (additive over 0.2.0): optional persons[], conflicts[], scorecard; Change.target_lane;
-// agent `grounding` (sim|inferred) + optional person_id (vehicle_id/outcome/trigger_t now optional).
-// vehicles[] unchanged. All prior (0.1.0/0.2.0) artifacts stay valid.
+// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.5.0).
+// v0.5.0 (additive over 0.4.0): meta.scenario.changes[] (the new authority) + tags[]; Change gains
+// window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. Read the
+// change(s) via changesOf(artifact), never `.change` directly. All prior (0.1.0..0.4.0) artifacts stay valid.
+// v0.4.0: optional persona.mode/stakeholder + the social{} block. v0.3.0: persons[], conflicts[], scorecard,
+// Change.target_lane, agent `grounding` (sim|inferred) + optional person_id.
 
 /** [minLon, minLat, maxLon, maxLat] in WGS84. */
 export type BBox = [number, number, number, number];
@@ -16,7 +18,23 @@ export type ChangeType =
   | 'remove_lane'
   | 'new_signal'
   | 'bike_lane'
-  | 'new_road';
+  | 'new_road'
+  // v0.5.0+
+  | 'lane_closure'
+  | 'road_closure'
+  | 'incident';
+
+/** v0.5.0+. A time window (sim seconds) a change is active. Absent = active the whole run. */
+export interface Window {
+  start_s: number;
+  end_s: number;
+}
+
+/** v0.5.0+. A partial/incident effect on the target: a speed factor and/or a hard block. */
+export interface Effect {
+  speed_factor?: number;
+  blocked?: boolean;
+}
 
 /** The proposed infrastructure change. `value_mps` is absent for changes with no scalar (e.g. a signal). */
 export interface Change {
@@ -25,8 +43,16 @@ export interface Change {
   target_edge: string;
   /** v0.3.0+, optional. Lane index the change applies to (e.g. the car lane converted to a bike lane). */
   target_lane?: number;
+  /** v0.5.0+, optional. Lane indices the change applies to (e.g. "close 2 of 4 lanes"). */
+  target_lanes?: number[];
   /** Numeric parameter in SI units (e.g. new speed limit in m/s). */
   value_mps?: number;
+  /** v0.5.0+, optional. Time window the change is active; absent = whole run. */
+  window?: Window;
+  /** v0.5.0+, optional. Partial/incident effect on the target. */
+  effect?: Effect;
+  /** v0.5.0+, optional. Location along target_edge (metres from the edge start), e.g. an incident. */
+  position_m?: number;
   description: string;
   /** 5.1: geometry for a new_road (snap to existing junction ids). Optional on the wire; required by the
    *  pipeline for type 'new_road'. For new_road, target_edge is the minted new-edge id. */
@@ -37,11 +63,20 @@ export interface Change {
   bidirectional?: boolean;
 }
 
-/** The scenario a run represents, vs. a baseline run. Absent for plain baseline runs. */
+/**
+ * The scenario a run represents, vs. a baseline run. Absent for plain baseline runs.
+ * v0.5.0: `changes` is the authority (a scenario may compose several changes); pre-0.5.0 artifacts carry the
+ * single legacy `change`. Read the normalized list via `changesOf(artifact)`, never `.change` directly.
+ */
 export interface Scenario {
   /** run_id of the baseline (no-change) run this scenario is compared against. */
   baseline_run_id: string;
-  change: Change;
+  /** Legacy single change (pre-0.5.0). Absent for 0.5.0 (use `changes`). */
+  change?: Change;
+  /** v0.5.0+. The list of changes this scenario composes — the new authority. */
+  changes?: Change[];
+  /** v0.5.0+. Free-text scenario tags (e.g. "school_zone"). */
+  tags?: string[];
 }
 
 export interface Meta {
@@ -285,6 +320,19 @@ export interface Social {
   trajectories?: OpinionTrajectory[];
   argument_reach?: ArgumentReach[];
   excluded_count?: number;
+}
+
+/**
+ * v0.5.0 accessor (the migration mechanic, mirrors Python `changes_of`). Normalizes a scenario's change(s)
+ * to a list: `changes` if present, else `[change]`, else `[]` (baseline runs / no scenario). Every consumer
+ * reads changes via this — never `.change` directly — so a single-change artifact flows through as a list of one.
+ */
+export function changesOf(artifact: TrajectoryArtifact): Change[] {
+  const sc = artifact.meta.scenario;
+  if (!sc) return [];
+  if (sc.changes) return sc.changes;
+  if (sc.change) return [sc.change];
+  return [];
 }
 
 export interface TrajectoryArtifact {

@@ -40,6 +40,33 @@ def validate_artifact(data: dict) -> None:
     _validator().validate(data)
 
 
+def audit_version_gate(data: dict) -> None:
+    """v0.5.0 emitted-shape self-check: the version must match the scenario shape.
+
+    A ``0.5.0`` artifact's scenario carries ``changes`` and NO legacy ``change``; a pre-0.5.0 scenario
+    carries ``change`` and no ``changes``. Baseline runs (no scenario) are skipped. This is belt-and-
+    suspenders over the schema ``if/then`` gate (and independent of it) so a mis-wrapped producer emission
+    fails LOUDLY at write time. Raises ``ValueError`` on mismatch."""
+    scenario = data.get("meta", {}).get("scenario")
+    if scenario is None:
+        return
+    version = data.get("schema_version")
+    has_change = "change" in scenario
+    has_changes = "changes" in scenario
+    if version == "0.5.0":
+        if not has_changes or has_change:
+            raise ValueError(
+                "version-gate: a 0.5.0 artifact's scenario must carry `changes` (the list authority) and "
+                f"NOT the legacy `change` (got change={has_change}, changes={has_changes})"
+            )
+    else:  # pre-0.5.0
+        if not has_change or has_changes:
+            raise ValueError(
+                f"version-gate: a {version} artifact's scenario must carry the legacy `change` and NOT "
+                f"`changes` (got change={has_change}, changes={has_changes})"
+            )
+
+
 def dump_artifact(artifact: TrajectoryArtifact, path: str | Path | None = None) -> Path:
     """Serialize -> validate against the schema -> write JSON. Returns the path written.
 
@@ -50,6 +77,7 @@ def dump_artifact(artifact: TrajectoryArtifact, path: str | Path | None = None) 
     # by_alias: the v0.4.0 SocialEdge stores `from` as `from_` (a Python keyword) and must emit it as "from".
     data = artifact.model_dump(mode="json", exclude_none=True, by_alias=True)
     validate_artifact(data)  # never write an artifact that violates the frozen contract
+    audit_version_gate(data)  # and never write one whose version disagrees with its scenario shape
     out = Path(path) if path is not None else RUNS_DIR / f"{artifact.meta.run_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as fh:

@@ -149,6 +149,17 @@ maps persona id → group/mode/label client-side (runtime `agent.persona` is `{i
   (`python/src/demo_road_select.py`, detour-factor), honest new_road change semantics (voices + report), the
   change overlay. Deferred V2 ideas + known cleanup live in `BACKLOG.md`.
 
+**V2.0 Step a — contract v0.5.0 — COMPLETE (frozen, additive; multi-change scenarios).** The artifact is now
+**v0.5.0**: `meta.scenario.changes[]` is the new change AUTHORITY (a scenario may compose several changes) + optional
+`meta.scenario.tags[]`; `Change` gains `window`/`target_lanes`/`effect`/`position_m` and the types
+`lane_closure`/`road_closure`/`incident`. Version-gated in the schema `allOf` (0.5.0 requires `changes[]` + forbids
+the legacy `change`; pre-0.5.0 keeps `change`), and the existing grounding gate was extended to 0.5.0. **The
+migration mechanic is the ACCESSOR — `changes_of(artifact)` (py) / `changesOf(artifact)` (ts); every consumer reads
+the normalized list, never `.change`.** Semantic invariants (window.end>start, incident⇒window,
+lane_closure⇒target_lanes) live in the pydantic models; `dump_artifact` also runs `audit_version_gate`
+(version↔shape). The producer emits 0.5.0 wrapping its single change as `changes:[change]` (verified by a real run);
+windowed/incident/closure MECHANICS are proven by `sample_v0_5_0.json` only — **no runtime applier yet (V2.2)**.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**

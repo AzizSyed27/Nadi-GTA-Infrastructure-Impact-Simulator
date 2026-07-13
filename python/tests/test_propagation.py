@@ -196,10 +196,14 @@ def test_build_graph_is_deterministic_and_sparse() -> None:
         pytest.skip("corridor net unavailable")
 
     art = trajectory_io.load_artifact(LATEST)
-    if art.meta.scenario is None:
+    from contract_models import changes_of  # v0.5.0: read the normalized change list, not .change directly
+    changes = changes_of(art)
+    if not changes:
         pytest.skip("latest artifact carries no scenario/change")
     nodes = P.build_nodes(art)
-    target = art.meta.scenario.change.target_edge
+    if not nodes:
+        pytest.skip("latest artifact has no agents (quant-only run) — graph-build test needs an enriched run")
+    target = changes[0].target_edge
     # 5.1: a new_road's target_edge lives in the per-run PATCHED net, not the canonical net build_graph reads,
     # so geography edges are (correctly) skipped — this determinism/geography test needs a runtime-change run.
     if not sumolib.net.readNet(str(run_sim.NET)).hasEdge(target):

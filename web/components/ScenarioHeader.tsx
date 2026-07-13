@@ -2,13 +2,19 @@
 
 import type { Scenario } from '@/lib/types';
 
-/** Top bar naming the proposed change. Frames output as anticipation, never a verdict (CLAUDE.md). */
+/** Top bar naming the proposed change(s). Frames output as anticipation, never a verdict (CLAUDE.md).
+ *  v0.5.0: a scenario may compose several changes — render every description (a single change is unchanged). */
 export function ScenarioHeader({ scenario }: { scenario?: Scenario }) {
   if (!scenario) return null;
+  // Normalize the scenario's change(s) to a list (mirrors changesOf, but ScenarioHeader gets only the scenario).
+  const changes = scenario.changes ?? (scenario.change ? [scenario.change] : []);
+  if (changes.length === 0) return null;
   return (
     <div style={bar} data-testid="scenario-header">
-      <div style={kicker}>PROPOSED CHANGE — anticipated reactions, a preview not a verdict</div>
-      <div style={title}>{scenario.change.description}</div>
+      <div style={kicker}>
+        PROPOSED CHANGE{changes.length > 1 ? 'S' : ''} — anticipated reactions, a preview not a verdict
+      </div>
+      <div style={title}>{changes.map((c) => c.description).join(' · ')}</div>
     </div>
   );
 }

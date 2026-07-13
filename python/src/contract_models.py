@@ -23,23 +23,59 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.3.0" for back-compat reads.
-SCHEMA_VERSION: Literal["0.4.0"] = "0.4.0"
+# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.4.0" for back-compat reads.
+SCHEMA_VERSION: Literal["0.5.0"] = "0.5.0"
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
 
 
-class Change(BaseModel):
-    """The proposed infrastructure change. ``value_mps`` is optional (no scalar for e.g. a signal);
-    ``target_lane`` (v0.3.0+) is optional (a lane index, e.g. the car lane converted to a bike lane)."""
+class Window(BaseModel):
+    """v0.5.0+. A time window in simulation seconds a change is active. Absent = active the whole run.
+    ``end_s > start_s`` is a semantic invariant enforced HERE (the schema stays loose)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["speed_limit", "add_lane", "remove_lane", "new_signal", "bike_lane", "new_road"]
+    start_s: float
+    end_s: float
+
+    @model_validator(mode="after")
+    def _check_window(self) -> "Window":
+        if self.end_s <= self.start_s:
+            raise ValueError("window.end_s must be > start_s")
+        return self
+
+
+class Effect(BaseModel):
+    """v0.5.0+. A partial/incident effect on the target: a multiplicative speed factor and/or a hard block."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    speed_factor: float | None = Field(default=None, ge=0)
+    blocked: bool | None = None
+
+
+class Change(BaseModel):
+    """The proposed infrastructure change. ``value_mps`` is optional (no scalar for e.g. a signal);
+    ``target_lane`` (v0.3.0+) is optional (a lane index, e.g. the car lane converted to a bike lane).
+    v0.5.0 adds ``window`` / ``target_lanes`` / ``effect`` / ``position_m`` (all optional) and the types
+    ``lane_closure`` / ``road_closure`` / ``incident``. Semantic invariants (incident⇒window,
+    lane_closure⇒target_lanes) are enforced HERE; network validity of a closure is left to the pipeline
+    (a closure MAY sever — legitimate, unlike new_road's additive rule)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal[
+        "speed_limit", "add_lane", "remove_lane", "new_signal", "bike_lane", "new_road",
+        "lane_closure", "road_closure", "incident",
+    ]
     target_edge: str
     target_lane: int | None = None  # v0.3.0+, optional (lane-scoped changes like bike_lane)
+    target_lanes: list[int] | None = None  # v0.5.0+, optional (lane-scoped, e.g. "close 2 of 4")
     value_mps: float | None = Field(default=None, ge=0)
+    window: Window | None = None  # v0.5.0+, optional (absent = active whole run)
+    effect: Effect | None = None  # v0.5.0+, optional (incident/partial effects)
+    position_m: float | None = None  # v0.5.0+, optional (along-edge location, e.g. an incident)
     description: str
     # 5.1: optional GEOMETRY for a new_road (snap to EXISTING junction ids). Schema stays loose; network_edit
     # validates their presence for type "new_road" (a new_road without geometry fails the pipeline, not the
@@ -50,14 +86,30 @@ class Change(BaseModel):
     speed_mps: float | None = Field(default=None, ge=0)
     bidirectional: bool | None = None
 
+    @model_validator(mode="after")
+    def _check_semantics(self) -> "Change":
+        # v0.5.0 semantic invariants (schema stays loose; these live in the model).
+        if self.type == "incident" and self.window is None:
+            raise ValueError("incident change requires a window")
+        if self.type == "lane_closure" and not self.target_lanes:
+            raise ValueError("lane_closure change requires target_lanes")
+        return self
+
 
 class Scenario(BaseModel):
-    """The scenario a run represents, vs. a baseline run. Absent for plain baseline runs."""
+    """The scenario a run represents, vs. a baseline run. Absent for plain baseline runs.
+
+    v0.5.0: ``changes`` is the authority (a scenario may compose several changes); pre-0.5.0 artifacts
+    carry the single legacy ``change``. Both are OPTIONAL on the model — the schema version-gate requires
+    the right one per ``schema_version``, and ``changes_of`` normalizes either shape to a list. Read
+    changes via ``changes_of(artifact)``, never ``.change`` directly."""
 
     model_config = ConfigDict(extra="forbid")
 
     baseline_run_id: str
-    change: Change
+    change: Change | None = None  # legacy single change (pre-0.5.0)
+    changes: list[Change] | None = None  # v0.5.0+, the list authority
+    tags: list[str] | None = None  # v0.5.0+, optional free-text scenario tags
 
 
 class Meta(BaseModel):
@@ -319,8 +371,8 @@ class Social(BaseModel):
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0..0.3.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.4.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.4.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.5.0).
+    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional
@@ -328,3 +380,30 @@ class TrajectoryArtifact(BaseModel):
     conflicts: list[Conflict] = Field(default_factory=list)  # v0.3.0+, optional
     scorecard: Scorecard | None = None  # v0.3.0+, optional
     social: Social | None = None  # v0.4.0+, optional
+
+
+# ---- v0.5.0: the change-list accessor (the migration mechanic) ----
+# A scenario carries EITHER a legacy single `change` (pre-0.5.0) OR a `changes` list (0.5.0+). Every consumer
+# reads the NORMALIZED list via these accessors — never `.change` directly — so a single-change artifact flows
+# through as a list of one and both shapes are handled uniformly.
+
+def changes_of(artifact: "TrajectoryArtifact") -> list[Change]:
+    """Normalize a (typed) artifact's scenario change(s) to a list. Baseline runs (no scenario) → []."""
+    sc = artifact.meta.scenario
+    if sc is None:
+        return []
+    if sc.changes is not None:
+        return sc.changes
+    if sc.change is not None:
+        return [sc.change]
+    return []
+
+
+def changes_of_scenario(scenario: dict) -> list[dict]:
+    """Raw-dict twin of ``changes_of`` for consumers that operate on the un-parsed artifact dict
+    (e.g. scorecard.py). ``scenario.get("changes") or [scenario["change"]]``."""
+    changes = scenario.get("changes")
+    if changes:
+        return changes
+    change = scenario.get("change")
+    return [change] if change is not None else []

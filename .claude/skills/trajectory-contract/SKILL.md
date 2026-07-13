@@ -11,9 +11,20 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 ## Cardinal rules
 1. **Positions are ALWAYS `[lon, lat]` (WGS84)** — never SUMO internal x/y. (Wrong → dots in the ocean.)
 2. **The schema is FROZEN.** Do not change field names/types/shape without **bumping `schema_version`**
-   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.4.0`**.
-   `schema_version` is an **enum `["0.1.0", "0.2.0", "0.3.0", "0.4.0"]`** — 0.4.0 is what new runs emit; older
-   versions are accepted for back-compat reads (they simply omit the newer optional structures).
+   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.5.0`**.
+   `schema_version` is an **enum `["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]`** — 0.5.0 is what new runs emit;
+   older versions are accepted for back-compat reads (they simply omit the newer optional structures).
+   **v0.5.0 added, ADDITIVELY (all optional, no renames):** `meta.scenario.changes[]` — the new change AUTHORITY
+   (a scenario may compose several changes) — plus optional `meta.scenario.tags[]`; and `Change` gains
+   `window`/`target_lanes`/`effect`/`position_m` and the types `lane_closure`/`road_closure`/`incident`. A 0.5.0
+   scenario carries `changes[]` and OMITS the legacy single `change`; pre-0.5.0 keeps `change` (version-gated in
+   the schema `allOf`). **Read the change(s) via the ACCESSOR — python `changes_of(artifact)` / TS
+   `changesOf(artifact)` — never `.change` directly.** Semantic invariants (window.end>start, incident⇒window,
+   lane_closure⇒target_lanes) live in the pydantic models; the schema stays loose. `trajectory_io.dump_artifact`
+   also runs `audit_version_gate` (version↔shape self-check). The v0.5.0 producer still applies ONE change,
+   emitted as `changes:[change]`; windowed/incident/closure MECHANICS are proven by `sample_v0_5_0.json` only
+   (no runtime applier yet — V2.2). The **grounding gate was extended to 0.5.0** (a bump must not drop a prior
+   obligation).
    **v0.4.0 added, ADDITIVELY (all optional, no renames):** optional `persona.mode`
    (`car|bicycle|pedestrian|inferred`) + `persona.stakeholder` (so the frontend can DERIVE the group), and an
    optional top-level **`social`** block — the OASIS opinion-propagation SECOND graph (graph edges,
@@ -66,9 +77,26 @@ Artifacts are emitted to `contract/runs/<run_id>.json` (see the `run-sim` skill)
    field changes are picked up automatically).
 4. Re-emit a run (`run-sim` skill) and confirm `load_artifact()` still validates.
 
-## Schema reference (schema_version 0.4.0) — keep both worlds consistent with THIS
+## Schema reference (schema_version 0.5.0) — keep both worlds consistent with THIS
 Top level: `{ schema_version, meta, vehicles }` required; **`persons`, `agents`, `conflicts`, `scorecard`,
-`social` all optional**. `schema_version` is `{"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0"]}`.
+`social` all optional**. `schema_version` is `{"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]}`.
+
+**v0.5.0 additions (additive; `changes[]` is the new AUTHORITY — read via `changes_of`/`changesOf`):**
+```json
+"meta": { "scenario": {
+  "baseline_run_id": "...",
+  "changes": [ { "type": "lane_closure", "target_edge": "E1", "target_lanes": [2,3],
+                 "window": {"start_s": 0, "end_s": 3600} },
+               { "type": "incident", "target_edge": "E1", "window": {"start_s": 600, "end_s": 1200},
+                 "effect": {"speed_factor": 0.3, "blocked": false}, "position_m": 120 },
+               { "type": "speed_limit", "target_edge": "E1", "value_mps": 8.33, "description": "..." } ],
+  "tags": ["school_zone"]
+} }
+// 0.5.0 REQUIRES scenario.changes[] and FORBIDS the legacy scenario.change (version-gated in allOf); pre-0.5.0
+// requires the single change. Change.type adds lane_closure/road_closure/incident; Change gains
+// window/target_lanes/effect/position_m (all optional). window.end>start, incident⇒window,
+// lane_closure⇒target_lanes are pydantic-only. Sample: contract/runs/sample_v0_5_0.json (+ web/public/).
+```
 
 **v0.4.0 additions (all optional, additive):**
 ```json

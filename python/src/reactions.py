@@ -33,7 +33,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 import trajectory_io
-from contract_models import Agent, Outcome, Persona, Reaction, TrajectoryArtifact
+from contract_models import Agent, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of
 from llm_provider import LLMClient, get_client
 
 
@@ -100,9 +100,10 @@ _INFERRED_CONTEXT_NEW_ROAD = {
 }
 
 
-def _inferred_context(stakeholder: str | None, change: dict) -> str:
-    """Labeled stakeholder context, CONDITIONAL on change type (new_road adds an option; the others reallocate)."""
-    if change.get("type") == "new_road" and stakeholder in _INFERRED_CONTEXT_NEW_ROAD:
+def _inferred_context(stakeholder: str | None, changes: list[dict]) -> str:
+    """Labeled stakeholder context, CONDITIONAL on change type (new_road adds an option; the others
+    reallocate). Composite (v0.5.0): the new_road framing applies if ANY change in the scenario is a new_road."""
+    if any(c.get("type") == "new_road" for c in changes) and stakeholder in _INFERRED_CONTEXT_NEW_ROAD:
         return _INFERRED_CONTEXT_NEW_ROAD[stakeholder]
     return _INFERRED_CONTEXT.get(stakeholder, "React from your standpoint.")
 
@@ -126,11 +127,20 @@ def _change_line(change: dict) -> str:
     return desc
 
 
-def shared_prefix(change: dict, grounding: str) -> str:
+def _changes_line(changes: list[dict]) -> str:
+    """Mechanical description of the scenario's change(s). A single change renders exactly as before; a
+    composite (v0.5.0) is a numbered, mechanical enumeration — no asserted benefit."""
+    if len(changes) == 1:
+        return _change_line(changes[0])
+    parts = "; ".join(f"({i}) {_change_line(c)}" for i, c in enumerate(changes, 1))
+    return f"This scenario composes {len(changes)} changes: {parts}"
+
+
+def shared_prefix(changes: list[dict], grounding: str) -> str:
     """The INVARIANT prompt prefix (identical across a family in a run) — placed FIRST so DeepSeek's prefix
-    cache hits. Framing + mechanical change + JSON instructions; the per-persona block is appended after."""
+    cache hits. Framing + mechanical change(s) + JSON instructions; the per-persona block is appended after."""
     framing = _INFERRED_FRAMING if grounding == "inferred" else _SIM_FRAMING
-    return f"{framing}THE PROPOSED CHANGE: {_change_line(change)}\n\n{_JSON_INSTRUCTIONS}Your character:\n"
+    return f"{framing}THE PROPOSED CHANGE: {_changes_line(changes)}\n\n{_JSON_INSTRUCTIONS}Your character:\n"
 
 
 def _sim_suffix(outcome: dict) -> str:
@@ -156,16 +166,16 @@ def _sim_suffix(outcome: dict) -> str:
     )
 
 
-def build_prompt(record: dict, change: dict) -> tuple[str, str]:
+def build_prompt(record: dict, changes: list[dict]) -> tuple[str, str]:
     """Return (system, user). system = shared_prefix + persona (prefix-ordered for caching); user = the
     per-agent suffix (sim: personal outcome; inferred: labeled stakeholder context)."""
     persona = record["persona"]
     grounding = record["grounding"]
-    system = shared_prefix(change, grounding) + f"- {persona['label']}: {persona['description']}"
+    system = shared_prefix(changes, grounding) + f"- {persona['label']}: {persona['description']}"
     if grounding == "sim":
         user = _sim_suffix(record["outcome"])
     else:
-        ctx = _inferred_context(record.get("stakeholder") or persona.get("stakeholder"), change)
+        ctx = _inferred_context(record.get("stakeholder") or persona.get("stakeholder"), changes)
         user = f"{ctx}\n\nReact from your perspective to the proposed change."
     return system, user
 
@@ -188,11 +198,11 @@ def _record_id(record: dict) -> str:
     return record.get("vehicle_id") or record.get("person_id") or f"inferred:{record['persona']['id']}"
 
 
-async def react_one(client: LLMClient, record: dict, change: dict) -> tuple[Reaction, bool]:
+async def react_one(client: LLMClient, record: dict, changes: list[dict]) -> tuple[Reaction, bool]:
     """Generate one agent's reaction (sim or inferred — build_prompt dispatches on grounding). Returns
     (reaction, is_fallback). Backs off/retries on transient API errors; retries once on a malformed/invalid
     (or empty) response; otherwise falls back to a neutral reaction."""
-    system, user = build_prompt(record, change)
+    system, user = build_prompt(record, changes)
     parse_retried = False
     for attempt in range(5):  # bounded; most exits are well before this
         try:
@@ -216,12 +226,12 @@ async def react_one(client: LLMClient, record: dict, change: dict) -> tuple[Reac
 MAX_CONCURRENCY = int(os.environ.get("MAX_CONCURRENCY", "8"))
 
 
-async def generate_reactions(client: LLMClient, records: list[dict], change: dict) -> list[tuple[Reaction, bool]]:
+async def generate_reactions(client: LLMClient, records: list[dict], changes: list[dict]) -> list[tuple[Reaction, bool]]:
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
 
     async def _guarded(rec: dict) -> tuple[Reaction, bool]:
         async with sem:
-            return await react_one(client, rec, change)
+            return await react_one(client, rec, changes)
 
     # Order so each persona's calls are ADJACENT — prefix locality for DeepSeek's prompt cache (the
     # shared framing+change prefix hits after call #1 regardless; adjacency also warms the persona slice).
@@ -259,13 +269,13 @@ def newest_instrumented() -> Path:
     return files[-1]
 
 
-async def smoke_test(client: LLMClient, change: dict) -> None:
+async def smoke_test(client: LLMClient, changes: list[dict]) -> None:
     """One cheap call so a bad/absent key (or model id) surfaces ONCE, not as N concurrent failures.
 
     Uses the REAL shared prefix (so it WARMS DeepSeek's prompt cache — the batch then hits it instead of
     all cold-missing). Tolerates transient overload (backoff); a real auth/config error raises immediately.
     """
-    system = shared_prefix(change, "sim") + "- Test persona: a neutral test character."
+    system = shared_prefix(changes, "sim") + "- Test persona: a neutral test character."
     for attempt in range(4):
         try:
             await client.generate_json(
@@ -291,16 +301,16 @@ async def run(instrumented_path: Path) -> Path:
     # GUARD: never wire reactions onto the wrong run.
     if scenario_art.meta.run_id != scenario_run_id:
         raise SystemExit(f"run-id mismatch: instrumented {scenario_run_id!r} != artifact {scenario_art.meta.run_id!r}")
-    change = scenario_art.meta.scenario.change.model_dump()
+    changes = [c.model_dump() for c in changes_of(scenario_art)]
 
     client, provider, model = get_client()
     n_sim = sum(1 for r in records if r["grounding"] == "sim")
     print(f"[llm] provider={provider} model={model}  agents={len(records)} ({n_sim} sim + {len(records) - n_sim} inferred)")
 
     print("[llm] smoke test (warms the shared-prefix cache) ...")
-    await smoke_test(client, change)  # raises here (clear error) if the key/model is bad
+    await smoke_test(client, changes)  # raises here (clear error) if the key/model is bad
 
-    results = await generate_reactions(client, records, change)
+    results = await generate_reactions(client, records, changes)
     reactions = [r for r, _ in results]
     fallbacks = sum(1 for _, fb in results if fb)
 
@@ -365,7 +375,7 @@ def _report(artifact, records, results, fallbacks, out_path, web_copy, provider,
     print("AGENT REACTIONS — assembled v0.3.0 artifact (agents[] wired in place)")
     print("=" * 74)
     print(f"run       : {artifact.meta.run_id}")
-    print(f"change    : {artifact.meta.scenario.change.description}")
+    print(f"change    : {'; '.join(c.description for c in changes_of(artifact))}")
     print(f"agents    : {len(artifact.agents)}   fallbacks (neutral): {fallbacks}")
     print(f"cost/cache: {_cost_line(provider, usage)}")
     print("-" * 74)

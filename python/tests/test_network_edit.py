@@ -49,14 +49,29 @@ def test_minted_edge_ids() -> None:
 def test_scorecard_new_road_access_and_bike_lane_firewall() -> None:
     empty = {"car": {"outcomes": [{"id": "1", "delta_seconds": -1.0}]}, "bicycle": {"outcomes": []},
              "pedestrian": {"outcomes": []}}
-    sc = scorecard.compute_scorecard(empty, [], [], {"type": "new_road", "target_edge": "nr_A_B"})
+    # v0.5.0: compute_scorecard takes the change LIST (a single-change scenario is a list of one).
+    sc = scorecard.compute_scorecard(empty, [], [], [{"type": "new_road", "target_edge": "nr_A_B"}])
     g = {x.group: x for x in sc.groups}
     assert g["car_commuter"].access_delta.value == -0.5, "drivers gain access on a new_road (negative)"
     assert g["business_owner"].access_delta.value is None, "non-car groups: null magnitude..."
     assert "no access heuristic" in g["business_owner"].access_delta.note, "...WITH an honest note"
     # firewall: the bike_lane heuristic is untouched (NOT reused for new_road)
-    sc2 = scorecard.compute_scorecard(empty, [], [], {"type": "bike_lane", "target_edge": "E1"})
+    sc2 = scorecard.compute_scorecard(empty, [], [], [{"type": "bike_lane", "target_edge": "E1"}])
     assert {x.group: x for x in sc2.groups}["car_commuter"].access_delta.value == 0.33
+
+
+def test_scorecard_composite_access_is_honest_null() -> None:
+    """v0.5.0 composite: when >1 change each contribute a car_commuter access heuristic, don't silently sum —
+    emit a null magnitude WITH a note (per-group access not separable across composed changes)."""
+    empty = {"car": {"outcomes": [{"id": "1", "delta_seconds": -1.0}]}, "bicycle": {"outcomes": []},
+             "pedestrian": {"outcomes": []}}
+    # both new_road (car_commuter -0.5) and bike_lane (car_commuter +0.33) touch car_commuter access.
+    sc = scorecard.compute_scorecard(
+        empty, [], [], [{"type": "new_road", "target_edge": "nr_A_B"}, {"type": "bike_lane", "target_edge": "E1"}]
+    )
+    cell = {x.group: x for x in sc.groups}["car_commuter"].access_delta
+    assert cell.value is None, "composite must NOT silently sum overlapping heuristics"
+    assert "composite scenario (2 changes)" in cell.note, "...and must say WHY (honest null-with-note)"
 
 
 def test_patch_gauntlet_canonical_untouched_and_additive() -> None:

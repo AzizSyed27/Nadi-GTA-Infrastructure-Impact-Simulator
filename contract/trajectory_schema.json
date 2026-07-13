@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nadi.local/contract/trajectory_schema.json",
   "title": "Trajectory Artifact",
-  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid.",
+  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid. v0.5.0 is ADDITIVE over v0.4.0: meta.scenario gains changes[] (the new authority — a scenario may compose several changes) + optional tags[]; Change gains window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. A 0.5.0 artifact carries changes[] and omits the legacy single change; pre-0.5.0 artifacts keep the single change and remain valid.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
@@ -37,13 +37,106 @@
           "items": {"type": "string", "minLength": 1}
         }
       }
+    },
+    "change": {
+      "description": "A single proposed infrastructure change. Referenced (v0.5.0) from BOTH meta.scenario.change (legacy, pre-0.5.0) and meta.scenario.changes[] (0.5.0+). Under-constrained per the standing rule: window.end_s>start_s, incident-requires-window, and lane_closure-requires-target_lanes are semantic invariants enforced in the pydantic models, NOT here. road_closure/lane_closure MAY sever the network — a legitimate scenario left to the pipeline (unlike new_road's additive rule).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "target_edge", "description"],
+      "properties": {
+        "type": {
+          "description": "Kind of infrastructure change. Intentionally a permissive enum; extend (additively) as new change types are modeled. v0.5.0 adds lane_closure/road_closure/incident.",
+          "enum": ["speed_limit", "add_lane", "remove_lane", "new_signal", "bike_lane", "new_road", "lane_closure", "road_closure", "incident"]
+        },
+        "target_edge": {
+          "description": "SUMO edge id the change applies to.",
+          "type": "string",
+          "minLength": 1
+        },
+        "target_lane": {
+          "description": "OPTIONAL (v0.3.0+). Lane index on target_edge the change applies to (e.g. the car lane converted to a bike lane). Omitted for edge-wide changes (e.g. speed_limit).",
+          "type": "integer"
+        },
+        "target_lanes": {
+          "description": "OPTIONAL (v0.5.0+). Lane indices the change applies to (e.g. 'close 2 of 4 lanes'). Lane-scoped types (lane_closure) use this; target_lane stays valid for older single-lane changes.",
+          "type": "array",
+          "items": {"type": "integer"}
+        },
+        "value_mps": {
+          "description": "OPTIONAL. Numeric parameter of the change in SI units (e.g. new speed limit in m/s). Omitted for changes with no scalar value (e.g. a new signal).",
+          "type": "number",
+          "minimum": 0
+        },
+        "window": {
+          "description": "OPTIONAL (v0.5.0+). Time window (sim seconds) the change is active; absent = active the whole run. end_s>start_s is enforced in the model, not here.",
+          "$ref": "#/$defs/window"
+        },
+        "effect": {
+          "description": "OPTIONAL (v0.5.0+). Partial/incident effect on the target (a speed factor and/or a hard block).",
+          "$ref": "#/$defs/effect"
+        },
+        "position_m": {
+          "description": "OPTIONAL (v0.5.0+). Location along target_edge (metres from the edge start), e.g. where an incident sits.",
+          "type": "number"
+        },
+        "description": {
+          "description": "Human-readable summary of the change.",
+          "type": "string",
+          "minLength": 1
+        },
+        "from_junction": {
+          "description": "OPTIONAL (5.1). For a new_road: the existing SUMO junction id the road departs. Schema stays loose; the pipeline requires it for type new_road.",
+          "type": "string", "minLength": 1
+        },
+        "to_junction": {
+          "description": "OPTIONAL (5.1). For a new_road: the existing SUMO junction id the road arrives at.",
+          "type": "string", "minLength": 1
+        },
+        "lanes": {
+          "description": "OPTIONAL (5.1). For a new_road: number of lanes per direction.",
+          "type": "integer", "minimum": 1
+        },
+        "speed_mps": {
+          "description": "OPTIONAL (5.1). For a new_road: design speed in m/s.",
+          "type": "number", "minimum": 0
+        },
+        "bidirectional": {
+          "description": "OPTIONAL (5.1). For a new_road: if true, build two directed edges (both directions).",
+          "type": "boolean"
+        }
+      }
+    },
+    "window": {
+      "description": "A time window in simulation seconds (v0.5.0+). end_s > start_s is a semantic invariant enforced in the pydantic model, not this schema.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_s", "end_s"],
+      "properties": {
+        "start_s": {"type": "number"},
+        "end_s": {"type": "number"}
+      }
+    },
+    "effect": {
+      "description": "A partial/incident effect on the target (v0.5.0+): a multiplicative speed factor and/or a hard block. Both optional.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "speed_factor": {
+          "description": "Multiplier on the target's free-flow speed while active (0..1 slows; >1 speeds up).",
+          "type": "number", "minimum": 0
+        },
+        "blocked": {
+          "description": "If true, the target is fully blocked while active.",
+          "type": "boolean"
+        }
+      }
     }
   },
   "allOf": [
     {
-      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0 or 0.4.0 — keeping the bumps additive.",
+      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0, 0.4.0, or 0.5.0 — keeping the bumps additive. EXTENDED for 0.5.0 (existing-gate audit): a version bump must never drop a prior obligation, so 0.5.0 inherits the grounding requirement.",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0"]}},
+        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -57,12 +150,53 @@
           }
         }
       }
+    },
+    {
+      "$comment": "v0.5.0 version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected.",
+      "if": {
+        "properties": {"schema_version": {"const": "0.5.0"}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "scenario": {
+                "type": "object",
+                "required": ["changes"],
+                "not": {"required": ["change"]}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Pre-0.5.0 version gate: the scenario (when present) carries the single legacy change (unchanged from 0.2.0). 0.1.0 has no scenario, so it is omitted from the enum.",
+      "if": {
+        "properties": {"schema_version": {"enum": ["0.2.0", "0.3.0", "0.4.0"]}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "scenario": {
+                "type": "object",
+                "required": ["change"]
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. 0.4.0 is current; 0.1.0/0.2.0/0.3.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures and the agent grounding field).",
-      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0"]
+      "description": "Semantic version of THIS contract. 0.5.0 is current; 0.1.0/0.2.0/0.3.0/0.4.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, and use the legacy single meta.scenario.change).",
+      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]
     },
     "meta": {
       "type": "object",
@@ -83,10 +217,10 @@
         "step_length": {"type": "number", "exclusiveMinimum": 0},
         "created_at": {"type": "string", "format": "date-time"},
         "scenario": {
-          "description": "OPTIONAL (v0.2.0+). The proposed infrastructure change this run represents, vs. a baseline run. Absent for plain baseline runs.",
+          "description": "OPTIONAL (v0.2.0+). The proposed change(s) this run represents, vs. a baseline run. Absent for plain baseline runs. v0.5.0: `changes` is the authority (a scenario may compose several changes); pre-0.5.0 artifacts carry the single legacy `change`. The version gate (allOf) requires the right one per schema_version.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["baseline_run_id", "change"],
+          "required": ["baseline_run_id"],
           "properties": {
             "baseline_run_id": {
               "description": "run_id of the baseline (no-change) run this scenario is compared against.",
@@ -94,54 +228,18 @@
               "minLength": 1
             },
             "change": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["type", "target_edge", "description"],
-              "properties": {
-                "type": {
-                  "description": "Kind of infrastructure change. Intentionally a permissive enum; extend (additively) as new change types are modeled.",
-                  "enum": ["speed_limit", "add_lane", "remove_lane", "new_signal", "bike_lane", "new_road"]
-                },
-                "target_edge": {
-                  "description": "SUMO edge id the change applies to.",
-                  "type": "string",
-                  "minLength": 1
-                },
-                "target_lane": {
-                  "description": "OPTIONAL (v0.3.0+). Lane index on target_edge the change applies to (e.g. the car lane converted to a bike lane). Omitted for edge-wide changes (e.g. speed_limit).",
-                  "type": "integer"
-                },
-                "value_mps": {
-                  "description": "OPTIONAL. Numeric parameter of the change in SI units (e.g. new speed limit in m/s). Omitted for changes with no scalar value (e.g. a new signal).",
-                  "type": "number",
-                  "minimum": 0
-                },
-                "description": {
-                  "description": "Human-readable summary of the change.",
-                  "type": "string",
-                  "minLength": 1
-                },
-                "from_junction": {
-                  "description": "OPTIONAL (5.1). For a new_road: the existing SUMO junction id the road departs. Schema stays loose; the pipeline requires it for type new_road.",
-                  "type": "string", "minLength": 1
-                },
-                "to_junction": {
-                  "description": "OPTIONAL (5.1). For a new_road: the existing SUMO junction id the road arrives at.",
-                  "type": "string", "minLength": 1
-                },
-                "lanes": {
-                  "description": "OPTIONAL (5.1). For a new_road: number of lanes per direction.",
-                  "type": "integer", "minimum": 1
-                },
-                "speed_mps": {
-                  "description": "OPTIONAL (5.1). For a new_road: design speed in m/s.",
-                  "type": "number", "minimum": 0
-                },
-                "bidirectional": {
-                  "description": "OPTIONAL (5.1). For a new_road: if true, build two directed edges (both directions).",
-                  "type": "boolean"
-                }
-              }
+              "description": "Legacy SINGLE change (pre-0.5.0). Required for 0.2.0/0.3.0/0.4.0; absent for 0.5.0 (use changes[]). Version-gated in allOf.",
+              "$ref": "#/$defs/change"
+            },
+            "changes": {
+              "description": "OPTIONAL (v0.5.0+). The list of changes this scenario composes — the new authority. Required for 0.5.0; absent pre-0.5.0. Version-gated in allOf.",
+              "type": "array",
+              "items": {"$ref": "#/$defs/change"}
+            },
+            "tags": {
+              "description": "OPTIONAL (v0.5.0+). Free-text scenario tags (e.g. \"school_zone\").",
+              "type": "array",
+              "items": {"type": "string", "minLength": 1}
             }
           }
         }
