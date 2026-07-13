@@ -13,8 +13,14 @@ const J2 = { id: 'J2', lon: -79.21, lat: 43.755, type: 'priority', n_in: 3, n_ou
 const J_A = { id: '266262655', lon: -79.22289, lat: 43.744257, type: 'priority', n_in: 4, n_out: 4 };
 const J_B = { id: '427757562', lon: -79.2153, lat: 43.7502, type: 'priority', n_in: 3, n_out: 3 };
 // Existing edges for the edit-an-edge palette (one bike-eligible, one not — with the backend's reason string).
-const E_ELIG = { id: 'E_ELIG', geometry: [[-79.222, 43.744], [-79.214, 43.75]], speed_mps: 13.9, car_lane_count: 2, eligible_bike_lane: true, eligibility_reason: 'eligible' };
-const E_INELIG = { id: 'E_INELIG', geometry: [[-79.205, 43.752], [-79.198, 43.758]], speed_mps: 8.3, car_lane_count: 1, eligible_bike_lane: false, eligibility_reason: "bike_lane needs >= 2 car lanes on edge 'E_INELIG' so >= 1 remains for cars; found 1 ([0]). Refusing to block the edge." };
+// V2.0b: geometry + speed now come from /network.json (the base road layer); /api/edges is eligibility-only.
+// E_INELIG is one-way so the mock also exercises the one-way arrow layer.
+const E_ELIG = { id: 'E_ELIG', geometry: [[-79.222, 43.744], [-79.214, 43.75]], speed_mps: 13.9, car_lane_count: 2, eligible_bike_lane: true, eligibility_reason: 'eligible', oneway: false };
+const E_INELIG = { id: 'E_INELIG', geometry: [[-79.205, 43.752], [-79.198, 43.758]], speed_mps: 8.3, car_lane_count: 1, eligible_bike_lane: false, eligibility_reason: "bike_lane needs >= 2 car lanes on edge 'E_INELIG' so >= 1 remains for cars; found 1 ([0]). Refusing to block the edge.", oneway: true };
+// Split each into its two V2.0b sources: the network-export geometry entry and the /api/edges eligibility record.
+type FullEdge = typeof E_ELIG;
+const netEntry = (e: FullEdge) => ({ id: e.id, geometry: e.geometry, lanes: e.car_lane_count, speed_mps: e.speed_mps, oneway: e.oneway, allows: { car: true, bike: e.eligible_bike_lane, ped: true } });
+const eligEntry = (e: FullEdge) => ({ id: e.id, car_lane_count: e.car_lane_count, eligible_bike_lane: e.eligible_bike_lane, eligibility_reason: e.eligibility_reason });
 
 // The referendum guard (same litmus as discourse.spec) — must hold over the edit UI + empty states too.
 const BANNED = /\b(majority|minority|referendum|consensus|unanimous|plurality)\b/i;
@@ -27,7 +33,9 @@ async function mockBackend(page: Page) {
   const RUNTIME = ['baseline', 'scenario', 'analysis', 'done']; // runtime changes have NO regen stage
 
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [J1, J2, J_A, J_B], count: 4 } }));
-  await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [E_ELIG, E_INELIG], count: 2 } }));
+  // V2.0b: the base road layer's geometry (network.json) + eligibility-only /api/edges (joined by id).
+  await page.route('**/network.json', (route) => route.fulfill({ json: { edges: [netEntry(E_ELIG), netEntry(E_INELIG)] } }));
+  await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [eligEntry(E_ELIG), eligEntry(E_INELIG)], count: 2 } }));
   await page.route('**/api/simulate', (route) => {
     lastType = route.request().postDataJSON()?.change?.type ?? 'new_road';
     return route.fulfill({ json: { run_id: RUN_ID } });
@@ -164,9 +172,12 @@ async function enterEditForEdges(page: Page) {
   await page.getByTestId('mode-edit').click();
   await expect(page.getByTestId('edit-panel')).toBeVisible();
   await page.waitForFunction(() => typeof (window as unknown as { __nadiEditEdge?: unknown }).__nadiEditEdge === 'function');
+  // V2.0b: the seam looks the edge up in the loaded network map — wait for network.json to land first.
+  await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
 }
-async function seamEdge(page: Page, edge: unknown) {
-  await page.evaluate((e) => (window as unknown as { __nadiEditEdge: (x: unknown) => void }).__nadiEditEdge(e), edge);
+// V2.0b: select by edge ID (geometry now lives in the network map, not the API response).
+async function seamEdge(page: Page, id: string) {
+  await page.evaluate((eid) => (window as unknown as { __nadiEditEdge: (x: string) => void }).__nadiEditEdge(eid), id);
 }
 
 test('edit an edge: ineligible bike-lane is greyed with the backend reason; eligible is enabled', async ({ page }) => {
@@ -174,14 +185,14 @@ test('edit an edge: ineligible bike-lane is greyed with the backend reason; elig
   await enterEditForEdges(page);
 
   // Ineligible edge → palette shows the bike option greyed, with the backend's reason (not the frontend's guess).
-  await seamEdge(page, E_INELIG);
+  await seamEdge(page, E_INELIG.id);
   await expect(page.getByTestId('edge-palette')).toBeVisible();
   await expect(page.getByTestId('apply-bike-lane')).toBeDisabled();
   await expect(page.getByTestId('bike-ineligible-reason')).toContainText('2 car lanes');
   await page.screenshot({ path: 'test-results/edit-edge-ineligible.png' });
 
   // Eligible edge → the bike option is enabled.
-  await seamEdge(page, E_ELIG);
+  await seamEdge(page, E_ELIG.id);
   await expect(page.getByTestId('edge-palette')).toBeVisible();
   await expect(page.getByTestId('apply-bike-lane')).toBeEnabled();
   await page.screenshot({ path: 'test-results/edit-edge-palette.png' });
@@ -190,7 +201,7 @@ test('edit an edge: ineligible bike-lane is greyed with the backend reason; elig
 test('a speed_limit submit walks the regen-free stages and reads 0-reroute as delay', async ({ page }) => {
   await mockBackend(page);
   await enterEditForEdges(page);
-  await seamEdge(page, E_ELIG);
+  await seamEdge(page, E_ELIG.id);
   await page.getByTestId('palette-speed').fill('8');
   await page.getByTestId('apply-speed').click();
 
@@ -202,4 +213,19 @@ test('a speed_limit submit walks the regen-free stages and reads 0-reroute as de
   await expect(page.getByTestId('reroute-number')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('reroute-number')).toContainText('absorbed as delay');
   await expect(page.getByTestId('car-delay')).toBeVisible();
+});
+
+// ---- V2.0b: the base network renderer ----
+test('the exported network renders as the base road layer (all modes)', async ({ page }) => {
+  await mockBackend(page);
+  await page.goto('/');
+  await expect(page.getByTestId('mode-edit')).toBeVisible(); // map mounted
+  // The network loaded and set the deterministic seam — the drawn roads ARE the simulation's roads.
+  await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
+  const count = await page.evaluate(() => (window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges);
+  expect(count).toBe(2); // the mocked network (E_ELIG + E_INELIG)
+  // the one-way indicator layer has data (E_INELIG is one-way → ≥1 arrow anchor)
+  const arrows = await page.evaluate(() => (window as unknown as { __nadiArrowCount?: number }).__nadiArrowCount);
+  expect(arrows).toBeGreaterThan(0);
+  await page.screenshot({ path: 'test-results/network-base.png' });
 });

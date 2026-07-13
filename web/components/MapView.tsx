@@ -4,15 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer, LineLayer, PathLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, LineLayer, PathLayer, IconLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { Agent, ChangeType, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
 import { changesOf } from '@/lib/types';
+import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
-import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type SimChange } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type EdgeEligibility, type SimChange } from '@/lib/api';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -26,8 +27,17 @@ import { ConflictLegend } from '@/components/ConflictLegend';
 import { activeAt, agentId, nearestWithin, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
-// Token-free CARTO positron style (no API key).
-const POSITRON = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+// Token-free CARTO positron style (no API key). V2.0b: the NO-LABELS variant — the exported network is now the
+// road layer, so the basemap is demoted to context (green/water/buildings) with no competing street labels.
+const POSITRON = 'https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json';
+
+// Base road rendering (V2.0b). Width scales with lanes in METERS so it tracks zoom; clamped in pixels.
+const LANE_M = 3.2; // approx lane width for the rendered road body
+const ROAD_CASING = [70, 74, 82, 220] as [number, number, number, number]; // dark casing under the fill
+// ~98% of edges permit bikes (mixed traffic), so the tint is a WHISPER: bike-permitted reads as the neutral
+// default and the rare non-bike edges (highways/ramps) quietly stand apart. V2.5 restyles.
+const ROAD_FILL = [214, 214, 219, 255] as [number, number, number, number]; // plain grey (non-bike, the minority)
+const ROAD_FILL_BIKE = [208, 216, 211, 255] as [number, number, number, number]; // whisper green = bike-permitted
 
 // The artifact to play back. Stable alias written by the pipeline's final step (scorecard.py) — always
 // mirrors the fully-assembled + scorecard-injected run, so no brittle timestamped filename here.
@@ -36,7 +46,7 @@ const ARTIFACT_URL = '/latest.json';
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
 const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-seconds, then rests as a dot
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
-const EDGE_ZOOM = 14; // edit mode: only fetch/render existing edges at/above this zoom (city zoom = spaghetti)
+const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
 /** A sim agent joined to its trajectory (vehicle OR person) — stable across frames; the clickable dots. */
 interface Pinned {
@@ -86,7 +96,9 @@ export default function MapView() {
   // --- edit mode (5.2): draw-a-road + job runner ---
   const [junctions, setJunctions] = useState<Junction[]>([]); // snap targets in the viewport
   const [junctionsDown, setJunctionsDown] = useState(false); // backend unreachable while loading snap targets
-  const [edges, setEdges] = useState<Edge[]>([]); // existing edges in view (zoom-gated) for the edit-an-edge palette
+  // V2.0b: edit-an-edge is now a STYLING STATE of the network layer — eligibility metadata joined by id (the
+  // whole net, fetched once), not a per-viewport geometry fetch. selectedEdge is the MERGED edge the palette reads.
+  const [eligById, setEligById] = useState<Record<string, EdgeEligibility>>({});
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null); // the edge whose palette is open
   const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
   const [ptA, setPtA] = useState<Junction | null>(null); // first clicked junction
@@ -102,6 +114,15 @@ export default function MapView() {
   const [changeGeom, setChangeGeom] = useState<
     { runId: string; items: Array<{ path: LonLat[]; type: ChangeType }>; error: boolean } | null
   >(null);
+  // V2.0b: the canonical network (base road layer, ALL modes). Loaded once; static.
+  const [networkEdges, setNetworkEdges] = useState<NetworkEdge[]>([]);
+  // id -> edge, the single source of road geometry (change-overlay + edit tints both resolve against it).
+  // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record, not a JS Map.
+  const networkLookup = useMemo(() => {
+    const m: Record<string, NetworkEdge> = {};
+    for (const e of networkEdges) m[e.id] = e;
+    return m;
+  }, [networkEdges]);
   const mapRef = useRef<MapRef | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -125,37 +146,46 @@ export default function MapView() {
     };
   }, []);
 
+  // V2.0b: load the exported canonical network ONCE (the base road layer). Static asset → default cache.
+  // Sets a deterministic test seam (window.__nadiNetworkEdges) so Playwright can assert the network rendered.
+  useEffect(() => {
+    let cancelled = false;
+    loadNetwork()
+      .then((edges) => {
+        if (cancelled) return;
+        setNetworkEdges(edges);
+        (window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges = edges.length;
+      })
+      .catch((e) => console.error('failed to load /network.json', e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Clear any pending flash timer on unmount.
   useEffect(() => () => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
   }, []);
 
-  // 5.3: resolve the loaded run's change LOCATION from the backend (the artifact carries only ids). Fires once per
-  // loaded artifact (NOT per playback frame). new_road → the two junction coords; runtime → the target edge's
-  // polyline. setState only in the async completion (lint-safe); render guards on runId so a stale result is ignored.
+  // 5.3 / V2.0b: resolve the loaded run's change LOCATION. A non-new_road target_edge is a CANONICAL edge, so its
+  // geometry comes from the client network map (one source of road pixels — no /api/edges fetch). A new_road's
+  // target_edge is a MINTED edge absent from the canonical net, so it still resolves via its two junction coords
+  // (getJunctions). Re-runs when the network arrives. Render guards on runId so a stale result is ignored.
   useEffect(() => {
     const changes = artifact ? changesOf(artifact) : [];
     const runId = artifact?.meta.run_id;
     if (changes.length === 0 || !runId) return;
     const bbox = artifact!.meta.bbox as [number, number, number, number];
-    // Any change needing junctions/edges triggers at most one fetch of each; both are reused across changes.
     const needsJunctions = changes.some((c) => c.type === 'new_road' && c.from_junction && c.to_junction);
-    const needsEdges = changes.some((c) => !(c.type === 'new_road' && c.from_junction && c.to_junction));
     let cancelled = false;
     (async () => {
       let error = false;
-      // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the lookup.
+      // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the junction lookup.
       const junctionById: Record<string, LonLat> = {};
-      let edges: Array<{ id: string; geometry: LonLat[] }> = [];
       if (needsJunctions) {
-        const res = await getJunctions(bbox);
+        const res = await getJunctions(bbox); // new_road only: the backend knows minted-road endpoints
         if (res.ok) for (const j of res.value.junctions) junctionById[j.id] = [j.lon, j.lat];
-        else error = true;
-      }
-      if (needsEdges) {
-        const res = await getEdges(bbox);
-        if (res.ok) edges = res.value.edges;
-        else error = true;
+        else error = true; // labeled degradation applies to the backend fetch (new_road)
       }
       const items: Array<{ path: LonLat[]; type: ChangeType }> = [];
       for (const change of changes) {
@@ -165,7 +195,7 @@ export default function MapView() {
           const b = junctionById[change.to_junction];
           if (a && b) geom = [a, b];
         } else if (change.target_edge) {
-          geom = edges.find((e) => e.id === change.target_edge)?.geometry ?? null;
+          geom = networkLookup[change.target_edge]?.geometry ?? null; // canonical edge → network map
         }
         if (geom) items.push({ path: geom, type: change.type });
       }
@@ -174,7 +204,7 @@ export default function MapView() {
     return () => {
       cancelled = true;
     };
-  }, [artifact]);
+  }, [artifact, networkLookup]);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
@@ -247,6 +277,39 @@ export default function MapView() {
     [social, activeCascade],
   );
 
+  // V2.0b: the base road layers (the drawn network IS the sim's roads). STATIC — memoized on the network data,
+  // no time updateTriggers, so buffers build once and playback never rebuilds them. Rendered in ALL modes.
+  const arrowAnchors = useMemo(() => onewayArrows(networkEdges), [networkEdges]);
+  const baseNetworkLayers = useMemo<Layer[]>(() => {
+    if (networkEdges.length === 0) return [];
+    // Dark casing (wider) UNDER a light fill (narrower) — deck.gl has no casing prop; stacking is the idiom.
+    const casing = new PathLayer<NetworkEdge>({
+      id: 'network-casing', data: networkEdges, getPath: (e) => e.geometry, getColor: ROAD_CASING,
+      getWidth: (e) => e.lanes * LANE_M + 2.4, widthUnits: 'meters', widthMinPixels: 2.5, widthMaxPixels: 42,
+      capRounded: true, jointRounded: true, pickable: false,
+    });
+    const fill = new PathLayer<NetworkEdge>({
+      id: 'network-fill', data: networkEdges, getPath: (e) => e.geometry,
+      getColor: (e) => (e.allows.bike ? ROAD_FILL_BIKE : ROAD_FILL), // bike-permitted edges subtly greener
+      getWidth: (e) => e.lanes * LANE_M, widthUnits: 'meters', widthMinPixels: 1, widthMaxPixels: 38,
+      capRounded: true, jointRounded: true, pickable: false,
+    });
+    // One-way direction: a small arrow at each one-way edge's midpoint, oriented along travel (from→to).
+    // Dynamic-icon mode (getIcon returns the sprite descriptor) — more reliable than a pre-packed atlas.
+    const arrows = new IconLayer<ArrowAnchor>({
+      id: 'one-way-arrows', data: arrowAnchors, getPosition: (d) => d.position,
+      getAngle: (d) => 360 - d.bearing, // map bearing is cw-from-north; deck getAngle is ccw → negate
+      getIcon: () => ({ url: '/arrow.png', width: 32, height: 32, mask: true, anchorX: 16, anchorY: 16 }),
+      getSize: 15, sizeUnits: 'pixels', getColor: [66, 72, 86, 235], billboard: true, pickable: false, // dark, reads on the light road
+    });
+    return [casing, fill, arrows];
+  }, [networkEdges, arrowAnchors]);
+
+  // V2.0b test seam: the one-way arrow layer's data count (deterministic "one-way indicator has data").
+  useEffect(() => {
+    (window as unknown as { __nadiArrowCount?: number }).__nadiArrowCount = arrowAnchors.length;
+  }, [arrowAnchors]);
+
   // Reverse join: fly to (and briefly ring) a pinned agent's dot at its worst moment (trigger_t position).
   const onLocate = useCallback(
     (a: PinnedSimAgent) => {
@@ -276,37 +339,50 @@ export default function MapView() {
     }
   }, []);
 
-  // Existing edges for the edit-an-edge palette — ZOOM-GATED (the whole net at city zoom is spaghetti).
-  const fetchEdges = useCallback(async () => {
-    const m = mapRef.current?.getMap();
-    if (!m) return;
-    if (m.getZoom() < EDGE_ZOOM) {
-      setEdges([]); // too coarse — don't fetch or render edges
-      return;
-    }
-    const b = m.getBounds();
-    const res = await getEdges([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
-    if (res.ok) setEdges(res.value.edges);
-  }, []);
+  // Merge a network edge (geometry + speed) with its eligibility metadata → the Edge the palette reads.
+  const mergeEdge = useCallback(
+    (id: string): Edge | null => {
+      const ne = networkLookup[id];
+      if (!ne) return null;
+      const el = eligById[id];
+      return {
+        id, geometry: ne.geometry, speed_mps: ne.speed_mps,
+        car_lane_count: el?.car_lane_count ?? 0,
+        eligible_bike_lane: el?.eligible_bike_lane ?? false,
+        eligibility_reason: el?.eligibility_reason ?? 'loading eligibility…',
+      };
+    },
+    [networkLookup, eligById],
+  );
 
-  // On entering edit mode, load junctions + edges once + on each moveend; track zoom; clear on leaving.
+  // On entering edit mode: junctions per viewport (snap targets), eligibility once (whole net). Track zoom.
+  // V2.0b: the whole-net bike-lane eligibility map (id → metadata) is fetched ONCE here (geometry comes from the
+  // base network layer — no per-viewport geometry fetch). Inline async IIFE so the setState is post-await.
   useEffect(() => {
     if (mode !== 'edit') return;
     fetchJunctions();
-    fetchEdges();
+    let cancelled = false;
+    (async () => {
+      const res = await getEdges();
+      if (!cancelled && res.ok) {
+        const map: Record<string, EdgeEligibility> = {};
+        for (const e of res.value.edges) map[e.id] = e;
+        setEligById(map);
+      }
+    })();
     const m = mapRef.current?.getMap();
     if (!m) return;
     setZoom(m.getZoom());
     const onMoveEnd = () => {
       fetchJunctions();
-      fetchEdges();
       setZoom(m.getZoom());
     };
     m.on('moveend', onMoveEnd);
     return () => {
+      cancelled = true;
       m.off('moveend', onMoveEnd);
     };
-  }, [mode, fetchJunctions, fetchEdges]);
+  }, [mode, fetchJunctions]);
 
   // Load a completed run's artifact by id (per-run public copy). RunCard calls this on the `done` edge.
   const loadRun = useCallback(async (id: string) => {
@@ -327,10 +403,14 @@ export default function MapView() {
     (info: PickingInfo) => {
       const lid = info.layer?.id;
       const coord = info.coordinate as LonLat | undefined;
-      // Click an existing edge (when NOT mid-draw) → open the edit-an-edge palette.
+      // Click an existing edge (when NOT mid-draw) → open the edit-an-edge palette. The tint layer's data is the
+      // network edge; merge it with eligibility to build the Edge the palette reads.
       if (lid === 'edit-edges' && info.object && !ptA) {
-        setSelectedEdge(info.object as Edge);
-        setDrawHint(null);
+        const merged = mergeEdge((info.object as NetworkEdge).id);
+        if (merged) {
+          setSelectedEdge(merged);
+          setDrawHint(null);
+        }
         return;
       }
       let j: Junction | null = lid === 'snap-targets' ? (info.object as Junction) : null;
@@ -353,7 +433,7 @@ export default function MapView() {
         setDrawHint('Pick a different junction for the end point.');
       }
     },
-    [ptA, junctions],
+    [ptA, junctions, mergeEdge],
   );
 
   // Overlay-level hover: drive the rubber-band only while placing the second point (bounds re-renders).
@@ -433,18 +513,21 @@ export default function MapView() {
     const w = window as unknown as {
       __nadiEdit?: (lon: number, lat: number) => void;
       __nadiEditHover?: (lon: number, lat: number) => void;
-      __nadiEditEdge?: (edge: Edge) => void;
+      __nadiEditEdge?: (id: string) => void;
     };
     w.__nadiEdit = (lon, lat) => onEditClick({ coordinate: [lon, lat] } as PickingInfo);
     w.__nadiEditHover = (lon, lat) => onEditHover({ coordinate: [lon, lat] } as PickingInfo);
-    // Select an existing edge (drives the edit-an-edge palette without a WebGL PathLayer pick).
-    w.__nadiEditEdge = (edge) => onEditClick({ layer: { id: 'edit-edges' }, object: edge } as unknown as PickingInfo);
+    // V2.0b: select an existing edge by ID (geometry now lives in the network map, not the API response).
+    w.__nadiEditEdge = (id) => {
+      const ne = networkLookup[id];
+      if (ne) onEditClick({ layer: { id: 'edit-edges' }, object: ne } as unknown as PickingInfo);
+    };
     return () => {
       delete w.__nadiEdit;
       delete w.__nadiEditHover;
       delete w.__nadiEditEdge;
     };
-  }, [mode, onEditClick, onEditHover]);
+  }, [mode, onEditClick, onEditHover, networkLookup]);
 
   // Near-miss tooltip — hover on a conflict dot/pulse. Ordinal framing ONLY (never a rate/probability).
   const getTooltip = useCallback((info: PickingInfo) => {
@@ -594,13 +677,18 @@ export default function MapView() {
     radiusUnits: 'pixels',
   });
 
-  // 6) Edit mode: existing edges (edit-an-edge palette; zoom-gated, blue=bike-eligible, grey=not, orange=selected).
-  const editEdges = new PathLayer<Edge>({
+  // 6) Edit mode: a TINT over the SAME network geometry (one source of road pixels) — blue=bike-eligible,
+  //    grey=not, orange=selected. Joins eligibility by id; the base network layers already draw the roads.
+  const editEdges = new PathLayer<NetworkEdge>({
     id: 'edit-edges',
-    data: edges,
+    data: networkEdges,
     getPath: (e) => e.geometry,
     getColor: (e) =>
-      e.id === selectedEdge?.id ? [240, 130, 30, 235] : e.eligible_bike_lane ? [80, 140, 255, 170] : [150, 156, 165, 150],
+      e.id === selectedEdge?.id
+        ? [240, 130, 30, 235]
+        : eligById[e.id]?.eligible_bike_lane
+          ? [80, 140, 255, 170]
+          : [150, 156, 165, 150],
     getWidth: (e) => (e.id === selectedEdge?.id ? 6 : 3),
     widthUnits: 'pixels',
     capRounded: true,
@@ -608,7 +696,7 @@ export default function MapView() {
     pickable: true,
     autoHighlight: true,
     highlightColor: [255, 255, 255, 80],
-    updateTriggers: { getColor: selectedEdge?.id, getWidth: selectedEdge?.id },
+    updateTriggers: { getColor: [selectedEdge?.id, eligById], getWidth: selectedEdge?.id },
   });
 
   // Junction snap targets + the rubber-band preview line. Only added when drawing.
@@ -654,6 +742,7 @@ export default function MapView() {
   });
 
   const layers: Layer[] = [
+    ...baseNetworkLayers, // V2.0b: the drawn network — z=0, below everything, all modes
     trails,
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
     backgroundVehicleDots,

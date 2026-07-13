@@ -269,14 +269,13 @@ async def junctions(bbox: str | None = Query(None, description="minLon,minLat,ma
 
 
 @app.get("/api/edges")
-async def edges(bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat")):
-    """Corridor edges for the edit-an-edge palette: geometry + speed + car-lane count + bike eligibility."""
+async def edges():
+    """V2.0b: edit-palette ELIGIBILITY METADATA only — {id, car_lane_count, eligible_bike_lane,
+    eligibility_reason} for every normal edge. Geometry moved to web/public/network.json (network_export.py); the
+    frontend renders that and joins this by id. No bbox: the metadata map is small and keyed by id, not geometry."""
     if _EDGES["all"] is None:
-        _EDGES["all"] = network_edit.list_edges(None)  # cache the full net read
-    es = _EDGES["all"]
-    if bbox:
-        b = [float(x) for x in bbox.split(",")]
-        es = [e for e in es if any(b[0] <= lon <= b[2] and b[1] <= lat <= b[3] for lon, lat in e["geometry"])]
+        _EDGES["all"] = network_edit.list_edges(None)  # cache the full net read (also feeds simulate validation)
+    es = [{k: e[k] for k in network_edit.ELIGIBILITY_KEYS} for e in _EDGES["all"]]
     return {"edges": es, "count": len(es)}
 
 

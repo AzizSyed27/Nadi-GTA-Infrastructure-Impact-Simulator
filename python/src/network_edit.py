@@ -252,7 +252,11 @@ def edge_bike_eligibility(net, edge_id: str) -> tuple[bool, str]:
 def list_edges(bbox: list[float] | None = None) -> list[dict]:
     """Corridor edges for the editor: {id, geometry [[lon,lat]…], speed_mps, car_lane_count, eligible_bike_lane,
     eligibility_reason}. Skips internal edges. bbox = [minLon,minLat,maxLon,maxLat] keeps an edge if ANY shape
-    point is inside (the frontend zoom-gates, so city zoom never asks for the whole net)."""
+    point is inside (the frontend zoom-gates, so city zoom never asks for the whole net).
+
+    NOTE (V2.0b): the frontend no longer renders from this geometry — it renders ``web/public/network.json``
+    (exported by ``network_export.py``). ``/api/edges`` now serves ``list_edge_eligibility`` (metadata only). This
+    full builder is kept for parity/debugging; the geometry authority is the export."""
     net = sumolib.net.readNet(str(run_sim.NET))
     out: list[dict] = []
     for edge in net.getEdges(withInternal=False):
@@ -269,6 +273,10 @@ def list_edges(bbox: list[float] | None = None) -> list[dict]:
                     "car_lane_count": len(_car_lane_indices_static(net, eid)),
                     "eligible_bike_lane": eligible, "eligibility_reason": reason})
     return out
+
+
+# V2.0b: the slim projection served by /api/edges (metadata only; geometry lives in web/public/network.json).
+ELIGIBILITY_KEYS = ("id", "car_lane_count", "eligible_bike_lane", "eligibility_reason")
 
 
 # ==================================================================================================

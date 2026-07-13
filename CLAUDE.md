@@ -160,6 +160,14 @@ lane_closure⇒target_lanes) live in the pydantic models; `dump_artifact` also r
 (version↔shape). The producer emits 0.5.0 wrapping its single change as `changes:[change]` (verified by a real run);
 windowed/incident/closure MECHANICS are proven by `sample_v0_5_0.json` only — **no runtime applier yet (V2.2)**.
 
+**V2.0 Step b — the NETWORK RENDERER — COMPLETE.** The drawn roads ARE the simulation's roads: `network_export.py`
+exports the canonical net to `web/public/network.json` (4,570 edges), rendered as the deck.gl BASE layer in all
+modes (stacked casing/fill PathLayers, meter-width by lane count, whisper bike tint, one-way arrows via IconLayer),
+with the basemap demoted to CARTO **positron-nolabels**. Consolidated onto that ONE geometry: the change-overlay
+resolves `target_edge` from the client network map (no `getEdges`), and edit-mode is a tint over the network joined
+to a slimmed **`/api/edges` (eligibility metadata only)** — `network.json` is the single source of road pixels. Not
+styled yet (functional-plain; V2.5). No contract change.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -172,6 +180,12 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend loads
   `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
 - **Baseline run + artifact:** `python python/src/run_sim.py`  (see the `run-sim` skill)
+- **Network export (V2.0b — the base road layer):** `python python/src/network_export.py` → `web/public/network.json`
+  (every normal edge: `{id, geometry, lanes, speed_mps, oneway, allows{car,bike,ped}}`; prints the oneway fraction
+  as a sanity check). The frontend renders THIS as the base roads (deck.gl), so `/api/edges` now serves eligibility
+  METADATA only. **RERUN whenever the canonical `python/scenario/corridor.net.xml` changes — `network.json` and the
+  golden trajectory (`python/tests/golden_trajectory.json`) go STALE TOGETHER** (both derive from the canonical
+  net; refresh them alongside any netconvert/regen).
 - **Full scenario pipeline** (see the `run-scenario` skill):
   ```bash
   python python/src/scenario_harness.py            # baseline + scenario runs + outcome join

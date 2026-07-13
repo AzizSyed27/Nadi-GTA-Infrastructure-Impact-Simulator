@@ -15,14 +15,24 @@ export interface Junction {
   n_out: number;
 }
 
-/** An existing corridor edge from GET /api/edges (the edit-an-edge palette). */
-export interface Edge {
+/**
+ * V2.0b: GET /api/edges now serves ELIGIBILITY METADATA ONLY (no geometry — that lives in web/public/network.json).
+ * The frontend joins this by id onto the rendered network geometry.
+ */
+export interface EdgeEligibility {
   id: string;
-  geometry: [number, number][]; // [lon,lat] polyline
-  speed_mps: number;
   car_lane_count: number;
   eligible_bike_lane: boolean;
   eligibility_reason: string; // the backend's words (shown as the greyed tooltip when ineligible)
+}
+
+/**
+ * A selected corridor edge for the edit-an-edge palette — the MERGED shape the palette reads: geometry + speed
+ * from the network export, joined with the eligibility metadata from /api/edges. Built client-side in MapView.
+ */
+export interface Edge extends EdgeEligibility {
+  geometry: [number, number][]; // [lon,lat] polyline (from network.json)
+  speed_mps: number; // from network.json
 }
 
 /** The edits the editor POSTs. Discriminated by `type`; mirrors server.py SimChange dispatch. */
@@ -106,10 +116,9 @@ export function getJunctions(bbox?: [number, number, number, number]): Promise<A
   return req(`/api/junctions${q}`);
 }
 
-/** GET /api/edges?bbox — existing corridor edges (geometry + speed + car-lane count + bike eligibility). */
-export function getEdges(bbox?: [number, number, number, number]): Promise<ApiResult<{ edges: Edge[]; count: number }>> {
-  const q = bbox ? `?bbox=${bbox.join(',')}` : '';
-  return req(`/api/edges${q}`);
+/** GET /api/edges — V2.0b: eligibility METADATA for every edge (no geometry; joined by id to network.json). */
+export function getEdges(): Promise<ApiResult<{ edges: EdgeEligibility[]; count: number }>> {
+  return req(`/api/edges`);
 }
 
 /** POST /api/simulate — launch an edit run (new_road | speed_limit | bike_lane). 409 if a job is already active. */
