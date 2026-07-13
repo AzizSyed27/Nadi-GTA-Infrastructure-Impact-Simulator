@@ -34,3 +34,6 @@ most demo-worthy first:
 - **Vestigial legacy paths** — `scenario_harness.run_pair` / `join_outcomes` / `_print_report` and `sampler.py`'s
   flat-outcomes (`"modes" not in side`) branch are dead since `speed_limit` moved to the multimodal
   `run_quant_runtime` (5.2b). No live producer emits the flat shape; safe to delete in a dedicated cleanup step.
+
+## Features to add
+- **Multiple new Scenarios** - Adding scenarios like   
