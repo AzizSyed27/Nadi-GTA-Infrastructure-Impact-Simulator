@@ -61,7 +61,10 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   temperature is per-call: `report._call` uses 0.3 (deterministic facts); `reactions.py` keeps 0.8 (persona
   variety). Gemini's free tier is tiny (flash = 20 req/day) and flash-lite is often 503. The server's enrich
   subprocess `setdefault`s `PROVIDER=deepseek` (else `reactions.py` falls to Gemini's quota). No model id
-  hardcoded from memory — confirm via docs-researcher.
+  hardcoded from memory — confirm via docs-researcher. **Audit-retry canary:** the first report generation on
+  `deepseek-v4-flash` HELD the baseline — **2 corrected on retry (both `safety_direction` "safer streets"), 0
+  unresolved** = no model drift. The report's audit-retry count is the drift signal: a meaningfully higher count
+  (or any UNRESOLVED, which fails loudly) on a future model swap is the flag — investigate, don't push through.
 - **Windows-native gotchas (LightRAG):** the per-run RAG index lives under `%LOCALAPPDATA%\nadi-report-agent\`,
   NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
   (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation
@@ -104,7 +107,8 @@ maps persona id → group/mode/label client-side (runtime `agent.persona` is `{i
   direction / no vote-tally / no crash words — retry once, else fail loudly) + a **code-rendered fact check**
   (guards our own numbers) + safety as `±magnitude`. Writes `contract/runs/report-<ts>.{md,json}` +
   `web/public/latest-report.*`. Sparse inferred rows get a deterministic gloss (the LLM can't deny a magnitude the
-  table shows). DeepSeek-default, temp 0.3.
+  table shows). DeepSeek-default, temp 0.3. NOTE: `latest-report.*` is a committed GLOBAL singleton the specs depend
+  on — keep it generated for the pinned run (see the **Report + agent spine** run-command gotcha).
 - **3.2 interactive agent (`report_agent.py` + `server.py`):** a per-run **LightRAG** index over ~230 corpus docs
   (one per voice + scorecard rows + change + robustness + caveats + conflict summary) at `%LOCALAPPDATA%`, LLM
   bound to DeepSeek + **local MiniLM embeddings** (dim 384, pinned in `embedding_meta.json`). A minimal FastAPI
@@ -168,6 +172,12 @@ resolves `target_edge` from the client network map (no `getEdges`), and edit-mod
 to a slimmed **`/api/edges` (eligibility metadata only)** — `network.json` is the single source of road pixels. Not
 styled yet (functional-plain; V2.5). No contract change.
 
+**V2.0 is COMPLETE** (Step a contract 0.5.0 + Step b network renderer + report-regeneration housekeeping, all
+committed). The open threads it deliberately deferred: **V2.2** — the runtime CHANGE-SCHEDULER that actually
+APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; the producer still emits one permanent change
+wrapped as `changes:[change]`); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
++ standing cleanup live in `BACKLOG.md`.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -200,6 +210,15 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   python python/src/report_agent.py                # build the per-run LightRAG index (under %LOCALAPPDATA%)
   cd python/src && uvicorn server:app --port 8000  # agent backend: GET /api/report, POST /api/chat
   ```
+  **GOTCHA — `latest-report.*` is a COMMITTED, GLOBAL singleton.** `ReportPanel` reads `/latest-report.json`
+  (`REPORT_URL`) **regardless of the loaded `?run=` artifact** — the report view is NOT per-run. The Playwright
+  specs pin the 212-agent social run `multimodal-scenario-20260702T044134Z` via `?run=`, so `web/public/latest-report.*`
+  **must be generated FOR that run** or `discourse.spec`'s `report-discourse` assertion fails (report view ↔ pinned
+  artifact diverge — a later run's report silently overwrites it). Regenerate with the EXPLICIT run-id — never let
+  `_resolve` pick the newest: `python python/src/report.py --run-id multimodal-scenario-20260702T044134Z`.
+  `report_agent.newest_index()` likewise picks the **newest-timestamp** index (not the report's run); with several
+  runs' indexes under `%LOCALAPPDATA%\nadi-report-agent\`, the server may serve a different run's chat than the
+  report view (it warns "index run != report run") — rebuild/keep only the pinned run's index to align the chat.
 - **OASIS social spike** (Phase 4.0; the `oasis` conda env — python 3.11, camel-oasis 0.2.5, NOT base):
   ```bash
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
