@@ -44,3 +44,17 @@ def test_bike_lane_and_new_road_cmds() -> None:
 def test_unsupported_type_raises() -> None:
     with pytest.raises(ValueError, match="unsupported change type"):
         server._build_harness_cmd(server.SimChange(type="new_signal", target_edge="e"), "TS", "d")
+
+
+def test_demand_profile_flag() -> None:
+    """V2.1b: --demand-profile appended ONLY for non-default profiles — the default cmd stays byte-stable."""
+    ch = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)
+    default_cmd = server._build_harness_cmd(ch, "TS", "d")
+    assert "--demand-profile" not in default_cmd, "synthetic default must not change the cmd"
+    cal_cmd = server._build_harness_cmd(ch, "TS", "d", demand_profile="calibrated_am_peak")
+    assert cal_cmd[cal_cmd.index("--demand-profile") + 1] == "calibrated_am_peak"
+
+
+def test_simulate_req_defaults_synthetic() -> None:
+    req = server.SimulateReq(change=server.SimChange(type="speed_limit", target_edge="e", value_mps=8.0))
+    assert req.demand_profile == "synthetic_demo"

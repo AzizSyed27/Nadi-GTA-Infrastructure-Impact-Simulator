@@ -84,6 +84,8 @@ export interface RunStatus {
   cars_rerouted?: number;
   car_median_delta_s?: number | null; // runtime changes: median car delay (s); 0-reroute reads as "absorbed as delay"
   car_affected_share?: number | null; // fraction of cars materially (>30s) slower
+  demand_profile?: string; // V2.1b: which demand the run simulates (synthetic_demo | calibrated_am_peak)
+  wall_clock_s?: { baseline?: number; scenario?: number }; // V2.1b: per-run sim wall-clock (V2.1c inputs)
 }
 
 /** Uniform result: ok with a value, or a friendly error (status set for HTTP failures like 409). */

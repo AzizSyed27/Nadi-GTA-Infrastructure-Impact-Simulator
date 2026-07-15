@@ -518,11 +518,15 @@ def _best_exit(in_edge, band_edges: list, turn: str):
                key=lambda e: abs(signed_delta(departure_bearing(e), (in_b + _IDEAL_REL[turn]) % 360.0)))
 
 
-def build_turn_counts(net, locs: list[dict]) -> dict:
-    """Emit data/demand/turn_counts.am.xml (8x900s intervals of <edgeRelation from to count>) from the
-    supported locations' bins. Multi-edge approaches split by lane-count apportionment (exact sums);
-    unmappable counts are SKIPPED AND LOGGED, never silently dropped. Counted zeros are kept (a zero
-    is real data). Returns {path, emitted_total, skipped_total, skip_report, splits, per_location}."""
+def build_turn_counts(net, locs: list[dict], agg: int = 1) -> dict:
+    """Emit data/demand/turn_counts.am.xml (<edgeRelation from to count> intervals) from the supported
+    locations' bins. ``agg`` groups the 8x900s bins (agg=4 -> two HOURLY intervals): DMRB GEH is defined
+    on hourly flows and our acceptance metric is the 2h mean-hourly, so hourly constraints keep the
+    calibrated CLAIM intact while giving routeSampler more freedom than per-15-min targets (departures
+    inside an aggregated interval spread uniformly — stated in provenance). Multi-edge approaches split
+    by lane-count apportionment (exact sums); unmappable counts are SKIPPED AND LOGGED, never silently
+    dropped. Counted zeros are kept (a zero is real data)."""
+    n_groups = N_INTERVALS // agg
     intervals: list[list[str]] = [[] for _ in range(N_INTERVALS)]
     skip_report: list[dict] = []
     splits: list[dict] = []
@@ -555,22 +559,23 @@ def build_turn_counts(net, locs: list[dict]) -> dict:
                 splits.append({"location": loc["name"], "approach": a,
                                "edges": [e.getID() for e in edges], "lane_weights": weights})
             bands_per_edge = [movement_exits(net, loc["node_id"], e) for e in edges]
-            for i in range(N_INTERVALS):
-                cell = per_interval.get(i, {}).get(a)
-                if cell is None:
+            for g in range(n_groups):
+                cells = [per_interval.get(i, {}).get(a) for i in range(g * agg, (g + 1) * agg)]
+                merged_cell = {t: sum(c[t] for c in cells if c) for t in TURNS}
+                if not any(merged_cell.values()) and all(c is None for c in cells):
                     continue
                 for t in TURNS:
-                    parts = apportion(cell[t], weights)
+                    parts = apportion(merged_cell[t], weights)
                     for e, bands, part in zip(edges, bands_per_edge, parts):
                         if not bands[t]:
                             if part:
                                 skip_report.append({"location": loc["name"], "approach": a, "turn": t,
-                                                    "interval": i, "reason": "no exit edge in band",
+                                                    "interval": g, "reason": "no exit edge in band",
                                                     "count": part})
                                 loc_skipped += part
                             continue
                         exit_e = _best_exit(e, bands[t], t)
-                        intervals[i].append(f'    <edgeRelation from={quoteattr(e.getID())} '
+                        intervals[g].append(f'    <edgeRelation from={quoteattr(e.getID())} '
                                             f'to={quoteattr(exit_e.getID())} count="{part}"/>')
                         loc_emitted += part
         emitted_total += loc_emitted
@@ -579,10 +584,11 @@ def build_turn_counts(net, locs: list[dict]) -> dict:
 
     DATA_DEMAND.mkdir(parents=True, exist_ok=True)
     path = DATA_DEMAND / "turn_counts.am.xml"
+    span = INTERVAL_S * agg
     lines = ["<data>"]
-    for i, rels in enumerate(intervals):
-        lines.append(f'  <interval id="am_{i}" begin="{i * INTERVAL_S}" end="{(i + 1) * INTERVAL_S}">')
-        lines.extend(rels)
+    for g in range(n_groups):
+        lines.append(f'  <interval id="am_{g}" begin="{g * span}" end="{(g + 1) * span}">')
+        lines.extend(intervals[g])
         lines.append("  </interval>")
     lines.append("</data>")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -687,9 +693,9 @@ def newest_provenance() -> Path:
     return paths[-1]
 
 
-def emit_counts(net, locs: list[dict]) -> Path:
+def emit_counts(net, locs: list[dict], agg: int = 1) -> Path:
     inv_path = newest_inventory()
-    turn_stats = build_turn_counts(net, locs)
+    turn_stats = build_turn_counts(net, locs, agg=agg)
     bike_stats = build_bike_edgedata(net, locs)
     ped_total = ped_counted_total(locs)
     prov = write_provenance(inv_path, locs, turn_stats, bike_stats, ped_total)
@@ -729,15 +735,18 @@ def _run_tool(cmd: list, log_name: str) -> tuple[float, str, str]:
     return wall, proc.stdout or "", cmdline
 
 
-def build_candidates() -> list[str]:
+def build_candidates(period: float = 0.5, fringe: float = 10.0, intermediate: int = 0,
+                     routing_factor: float = 1.5) -> list[str]:
     """randomTrips candidate pools (cars + bikes) under LOCAL. Deterministic seeds; --validate routes
-    via duarouter so routeSampler gets a real .rou.xml pool."""
+    via duarouter so routeSampler gets a real .rou.xml pool. The car-pool knobs are the GEH-iteration
+    levers (density/variety/origin spread)."""
     cmdlines = []
     car = [sys.executable, TOOLS / "randomTrips.py", "-n", run_sim.NET,
            "-o", LOCAL / "cand.car.trips.xml", "-r", LOCAL / "cand.car.rou.xml",
-           "-b", "0", "-e", str(WINDOW_S), "-p", "0.5", "--fringe-factor", "10",
+           "-b", "0", "-e", str(WINDOW_S), "-p", str(period), "--fringe-factor", str(fringe),
+           *(["--intermediate", str(intermediate)] if intermediate else []),
            "--min-distance", "300", "--validate", "--edge-permission", "passenger",
-           "--random-routing-factor", "1.5", "--seed", "42", "--prefix", "c"]
+           "--random-routing-factor", str(routing_factor), "--seed", "42", "--prefix", "c"]
     wall, _, cmdline = _run_tool(car, "randomtrips.car.log")
     print(f"[candidates] cars: {wall:.0f}s")
     cmdlines.append(cmdline)
@@ -858,7 +867,7 @@ RECORDER_BYTES_PER_STEP = 300
 SPILL_THRESHOLD_BYTES = 1.5e9
 
 
-def probe() -> dict:
+def probe(time_to_teleport: int = 300) -> dict:
     """Run the calibrated baseline HEADLESS (tripinfo + edgeData only) to learn the real scale before
     any trajectory-recording strategy is chosen. Appends measurements + the memory-gate verdict to
     provenance; the edgeData output feeds geh_validation.py directly."""
@@ -877,6 +886,7 @@ def probe() -> dict:
            "--tripinfo-output", LOCAL / "probe.tripinfo.xml",
            "--additional-files", add_file,
            "--statistic-output", LOCAL / "probe.stats.xml",
+           "--time-to-teleport", str(time_to_teleport),
            "--duration-log.statistics", "--no-step-log", "--seed", "42"]
     wall, stdout, cmdline = _run_tool(cmd, "probe.sumo.log")
 
@@ -943,15 +953,24 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="V2.1b calibrated AM-peak demand build.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("verify-convention", help="M1 gate: empirically verify the n_appr compass mapping")
-    sub.add_parser("emit-counts", help="M2: turn-count + bike edgeData files + provenance skeleton")
-    sub.add_parser("candidates", help="M3: randomTrips candidate route pools (cars + bikes)")
+    emit = sub.add_parser("emit-counts", help="M2: turn-count + bike edgeData files + provenance skeleton")
+    emit.add_argument("--hourly", action="store_true",
+                      help="aggregate the 8x900s bins to two HOURLY intervals (DMRB GEH is hourly; "
+                           "easier for routeSampler; departures spread uniformly within the hour)")
+    cand = sub.add_parser("candidates", help="M3: randomTrips candidate route pools (cars + bikes)")
+    cand.add_argument("--period", type=float, default=0.5, help="car candidate period (lower = denser pool)")
+    cand.add_argument("--fringe-factor", type=float, default=10.0)
+    cand.add_argument("--intermediate", type=int, default=0, help="via-points per trip (turn variety)")
+    cand.add_argument("--routing-factor", type=float, default=1.5)
     sub.add_parser("sample", help="M3: routeSampler passes -> python/scenario/calibrated/")
-    sub.add_parser("probe", help="M4: headless calibrated baseline -> scale/wall-clock measurements")
+    pr = sub.add_parser("probe", help="M4: headless calibrated baseline -> scale/wall-clock measurements")
+    pr.add_argument("--time-to-teleport", type=int, default=300,
+                    help="SUMO teleport threshold (s); higher = fewer teleport-removals under saturation")
     sub.add_parser("full", help="verify -> emit-counts -> candidates -> sample")
     args = ap.parse_args()
 
     if args.cmd == "probe":  # needs no net read / inventory
-        probe()
+        probe(time_to_teleport=args.time_to_teleport)
         return
 
     net = sumolib.net.readNet(str(run_sim.NET))
@@ -960,9 +979,11 @@ def main() -> None:
         verify_convention(net, locs)
     elif args.cmd == "emit-counts":
         verify_convention(net, locs)  # the gate always precedes a build
-        emit_counts(net, locs)
+        emit_counts(net, locs, agg=4 if args.hourly else 1)
     elif args.cmd == "candidates":
-        append_provenance({"tool_cmdlines": build_candidates()})
+        append_provenance({"tool_cmdlines": build_candidates(
+            period=args.period, fringe=args.fringe_factor,
+            intermediate=args.intermediate, routing_factor=args.routing_factor)})
     elif args.cmd == "sample":
         stats = sample_routes()
         prov = append_provenance({"tool_cmdlines": stats.pop("tool_cmdlines"), "build": stats})

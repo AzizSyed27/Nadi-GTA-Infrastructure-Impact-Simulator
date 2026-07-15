@@ -128,10 +128,22 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
   const carDelay =
     cm != null ? `car median ${signedMinutes(cm)}${cs != null ? ` · ${Math.round(cs * 100)}% materially affected` : ''}` : null;
 
+  const demandChip =
+    status?.demand_profile === 'calibrated_am_peak'
+      ? 'calibrated AM peak (07:00–09:00, count-anchored)'
+      : status?.demand_profile === 'synthetic_demo'
+        ? 'synthetic demo demand'
+        : null;
+
   return (
     <div style={card} data-testid="run-card">
       <div style={title}>{done ? 'Run complete' : failed ? 'Run failed' : 'Running…'}</div>
       <div style={sub}>{status?.description || runId}</div>
+      {demandChip && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="demand-chip">
+          demand: {demandChip}
+        </div>
+      )}
 
       {/* staged rail — only the stages this run actually has (runtime changes skip regen) */}
       <ol style={rail} data-testid="run-stages">

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -49,6 +50,7 @@ from contract_models import (
     Conflict,
     Meta,
     Person,
+    RenderSample,
     Scenario,
     TrajectoryArtifact,
     Vehicle,
@@ -260,12 +262,138 @@ def _record(records: dict, eid: str, mode: str, pos, speed: float, t: float, xy_
         tr["t"].append(t)
 
 
+class SpillRecorder:
+    """V2.1b calibrated-scale recording (the M4 gate: ~57M steps ≈ 17 GB as Python lists, and the
+    post-hoc ped-PET pass would index ~57M vehicle segments). Active entities hold compact array('d')
+    columns; an entity is FLUSHED ~10 sim-seconds after it leaves the sim — its artifact record spills
+    to a jsonl (read back selectively at artifact build) and, for vehicles, its raw-xy is PET-tested
+    against the ped segment cell index and dropped. The grace period covers PET's temporal window
+    (PED_PET_THRESHOLD << 10s), so streaming loses no conflicts vs the post-hoc pass; ped segments
+    accumulate in the index as they are recorded (peds are the small population). The synthetic
+    profile NEVER uses this path — its behavior stays byte-identical."""
+
+    GRACE_S = 10.0
+
+    def __init__(self, spill_path: Path):
+        from array import array as _array  # local: keep module imports untouched for the synthetic path
+
+        self._array = _array
+        spill_path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = spill_path
+        self._fh = spill_path.open("w", encoding="utf-8")
+        self._active: dict[str, dict] = {}
+        self._gone: dict[str, float] = {}
+        self._ped_cells: dict = {}           # cell -> [(pid, x1, y1, x2, y2, t1, t2)]
+        self._ped_prev: dict[str, tuple] = {}
+        self._best: dict = {}                # (pid, vid) -> (pet, ix, iy, t) — min PET per pair
+        self.counts: Counter = Counter()     # FULL population recorded, per type
+        self.spilled = 0
+
+    def record(self, eid: str, mode: str, pos, speed: float, t: float) -> None:
+        x, y = pos
+        lon, lat = run_sim.conn.simulation.convertGeo(x, y)
+        rec = self._active.get(eid)
+        if rec is None:
+            rec = self._active[eid] = {"type": mode, "ll": self._array("d"), "ts": self._array("d"),
+                                       "sp": self._array("d"), "xy": self._array("d")}
+            self.counts[mode] += 1
+        rec["ll"].extend((lon, lat))
+        rec["ts"].append(round(t, 3))
+        rec["sp"].append(round(speed, 3))
+        if mode == "pedestrian":
+            prev = self._ped_prev.get(eid)
+            if prev is not None:
+                px, py, pt_ = prev
+                for c in _seg_cells(px, py, x, y):
+                    self._ped_cells.setdefault(c, []).append((eid, px, py, x, y, pt_, t))
+            self._ped_prev[eid] = (x, y, t)
+        else:
+            rec["xy"].extend((x, y, t))
+        self._gone.pop(eid, None)
+
+    def step_end(self, t: float, present: set[str]) -> None:
+        for eid in list(self._active):
+            if eid in present:
+                continue
+            first = self._gone.setdefault(eid, t)
+            if t - first >= self.GRACE_S:
+                self._flush(eid)
+
+    def _flush(self, eid: str) -> None:
+        rec = self._active.pop(eid)
+        self._gone.pop(eid, None)
+        ll = rec["ll"]
+        self._fh.write(json.dumps(
+            {"id": eid, "type": rec["type"], "path": [[ll[i], ll[i + 1]] for i in range(0, len(ll), 2)],
+             "timestamps": list(rec["ts"]), "speeds": list(rec["sp"])}, separators=(",", ":")) + "\n")
+        self.spilled += 1
+        if rec["type"] != "pedestrian":
+            self._pet_test(eid, rec["xy"])
+
+    def _pet_test(self, vid: str, xy) -> None:
+        # a ped segment spanning several cells is tested more than once — harmless (same min-PET).
+        n = len(xy) // 3
+        for j in range(n - 1):
+            x1, y1, t1 = xy[3 * j], xy[3 * j + 1], xy[3 * j + 2]
+            x2, y2, t2 = xy[3 * j + 3], xy[3 * j + 4], xy[3 * j + 5]
+            for c in _seg_cells(x1, y1, x2, y2):
+                for pid, ax, ay, bx, by, ta, tb in self._ped_cells.get(c, ()):
+                    hit = _segment_pet((ax, ay), (bx, by), ta, tb, (x1, y1), (x2, y2), t1, t2)
+                    if hit is None:
+                        continue
+                    k = (pid, vid)
+                    if k not in self._best or hit[2] < self._best[k][0]:
+                        self._best[k] = (hit[2], hit[0], hit[1], min(ta, t1))
+
+    def finalize(self) -> None:
+        for eid in list(self._active):
+            self._flush(eid)
+        self._fh.close()
+
+    def conflicts(self, net, bbox: list[float]) -> list[dict]:
+        """Same shape/thresholds/dedupe as compute_ped_conflicts — computed streamingly."""
+        out: list[dict] = []
+        for (pid, vid), (pet, ix, iy, t) in self._best.items():
+            if pet >= PED_PET_THRESHOLD:
+                continue
+            lon, lat = net.convertXY2LonLat(ix, iy)
+            if not _in_bbox(bbox, lon, lat):
+                continue
+            out.append({"t": round(t, 3), "lon": lon, "lat": lat, "type": "crossing",
+                        "severity": round(_clamp01(1.0 - pet / PED_PET_THRESHOLD), 3),
+                        "pet": round(pet, 3), "entities": [pid, vid]})
+        return out
+
+    def load_records(self, ids: set[str] | None = None) -> dict:
+        """Read back (selected) spilled records as the classic records dict for artifact building."""
+        out: dict[str, dict] = {}
+        with self.path.open(encoding="utf-8") as fh:
+            for line in fh:
+                rec = json.loads(line)
+                if ids is None or rec["id"] in ids:
+                    out[rec["id"]] = {"type": rec["type"], "path": rec["path"],
+                                      "timestamps": rec["timestamps"], "speeds": rec["speeds"]}
+        return out
+
+    def discard(self) -> None:
+        try:
+            self.path.unlink()
+        except OSError:
+            pass
+
+
 def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripinfo_path: Path,
                         vehroute_path: Path, ssm_path: Path, seed: int = DEFAULT_SEED,
-                        ssm_thresholds: str | None = None, net_override: Path | None = None):
-    """Run corridor.multimodal.sumocfg headless with rerouting + the SSM safety-surrogate device; record
+                        ssm_thresholds: str | None = None, net_override: Path | None = None,
+                        cfg_path: Path | None = None, max_t: float | None = None,
+                        recorder: SpillRecorder | None = None):
+    """Run the multimodal sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
     once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
+
+    V2.1b: ``cfg_path``/``max_t`` default to the synthetic multimodal cfg/ceiling (behavior unchanged);
+    the calibrated profile passes its own. With ``recorder`` (SpillRecorder — calibrated scale) records
+    spill on departure and ped-PET streams; the return is then (recorder, sim_end, step, remaining, None).
 
     Two sequential start/close cycles per pair are SAFE on TraCI (fresh subprocess each) but UNSAFE on
     libsumo (global C++ state) — if a libsumo wheel is ever installed, run the two in separate processes.
@@ -274,9 +402,11 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
     post-hoc ped-PET pass (the SSM device can't see pedestrians).
     """
     conn = run_sim.conn
+    cfg = cfg_path if cfg_path is not None else MULTIMODAL_CFG
+    ceiling = max_t if max_t is not None else MULTIMODAL_MAX_T
     ssm_th = ssm_thresholds if ssm_thresholds is not None else f"{SSM_TTC_THRESHOLD} {SSM_PET_THRESHOLD} {SSM_DRAC_THRESHOLD}"
     args = [
-        str(run_sim.SUMO_BINARY), "-c", str(MULTIMODAL_CFG), "--end", str(MULTIMODAL_MAX_T),
+        str(run_sim.SUMO_BINARY), "-c", str(cfg), "--end", str(ceiling),
         *(["--net-file", str(net_override)] if net_override is not None else []),  # 5.1: per-run patched net
         "--tripinfo-output", str(tripinfo_path), "--vehroute-output", str(vehroute_path),
         "--device.ssm.file", str(ssm_path),
@@ -304,9 +434,20 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
         while conn.simulation.getMinExpectedNumber() > 0:
             conn.simulationStep()
             t = conn.simulation.getTime()
-            if t <= prev_t or t >= MULTIMODAL_MAX_T:  # anti-hang
+            if t <= prev_t or t >= ceiling:  # anti-hang
                 break
             prev_t = t
+            if recorder is not None:  # calibrated scale: compact columns + flush-on-departure spill
+                present: set[str] = set()
+                for vid in conn.vehicle.getIDList():
+                    present.add(vid)
+                    mode = "bicycle" if conn.vehicle.getVehicleClass(vid) == "bicycle" else "car"
+                    recorder.record(vid, mode, conn.vehicle.getPosition(vid), conn.vehicle.getSpeed(vid), t)
+                for pid in conn.person.getIDList():
+                    present.add(pid)
+                    recorder.record(pid, "pedestrian", conn.person.getPosition(pid), conn.person.getSpeed(pid), t)
+                recorder.step_end(t, present)
+                continue
             for vid in conn.vehicle.getIDList():
                 mode = "bicycle" if conn.vehicle.getVehicleClass(vid) == "bicycle" else "car"
                 _record(records, vid, mode, conn.vehicle.getPosition(vid), conn.vehicle.getSpeed(vid), t, xy_tracks)
@@ -318,6 +459,11 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
         raise RuntimeError(f"SUMO run failed mid-sim: {e} — SUMO error-log: {run_sim._read_tail(err_log)}") from e
     finally:
         conn.close()
+    if recorder is not None:
+        recorder.finalize()
+        if not recorder.counts:
+            raise RuntimeError("No entities recorded — multimodal demand/config problem?")
+        return recorder, sim_end, step, remaining, None
     if not records:
         raise RuntimeError("No entities recorded — multimodal demand/config problem?")
     return records, sim_end, step, remaining, xy_tracks
@@ -633,9 +779,13 @@ def compute_ped_conflicts(xy_tracks: dict, net, bbox: list[float]) -> list[dict]
 
 def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: str, baseline_run_id: str,
                               change: Change, target_lane: int, bbox: list[float], sim_end: float,
-                              step: float, scenario_network_name: str | None = None) -> TrajectoryArtifact:
-    """Assemble the FIRST real v0.3.0 artifact from multi-modal trajectories + scenario conflicts.
-    scorecard stays None (2.4b), agents stays [] (2.6). Ocean-guards a sample vehicle position."""
+                              step: float, scenario_network_name: str | None = None,
+                              demand_profile: str = "synthetic_demo",
+                              render_meta: dict | None = None) -> TrajectoryArtifact:
+    """Assemble the artifact from multi-modal trajectories + scenario conflicts. scorecard stays None
+    (injected later), agents stays []. Ocean-guards a sample vehicle position. V2.1b: stamps
+    meta.demand_profile (v0.6.0 REQUIRED); when ``render_meta`` is given the passed ``records`` are the
+    capped render sample and meta.render_sample carries the rendered-vs-total counts."""
     vehicles = [
         Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
         for vid, r in records.items() if r["type"] in ("car", "bicycle")
@@ -659,7 +809,8 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
         meta=Meta(
             run_id=run_id, network=scenario_network_name or run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
             step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
-            demand_profile="synthetic_demo",  # v0.6.0: required; M7 threads the real profile through
+            demand_profile=demand_profile,  # v0.6.0: required — which demand this run simulated
+            render_sample=RenderSample(**render_meta) if render_meta else None,
             # v0.5.0 wrap: the producer still applies exactly ONE change, emitted as the changes[] list authority.
             scenario=Scenario(baseline_run_id=baseline_run_id, changes=[change]),
         ),
@@ -697,12 +848,22 @@ def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | N
 
 
 def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None = None,
-                        scenario_net_path: Path | None = None, on_stage=None) -> dict:
+                        scenario_net_path: Path | None = None, on_stage=None,
+                        profile: str = "synthetic_demo") -> dict:
     """Baseline (no change) then scenario, SAME multimodal demand + IDENTICAL rerouting + SSM. For a runtime
     change (bike_lane/speed_limit) both runs share the canonical net and the change is applied in-sim. For a
     GEOMETRY change (new_road) the SCENARIO run uses ``scenario_net_path`` (the patched net) with NO runtime
     edit — the net IS the change; baseline stays canonical. ``ts`` may be supplied so the job runner can track
-    a known run id. Returns the scenario trajectories + per-run conflicts for the caller to promote."""
+    a known run id. Returns the scenario trajectories + per-run conflicts for the caller to promote.
+
+    V2.1b: ``profile`` selects the demand (see demand_profiles.PROFILES). The default keeps today's
+    synthetic behavior exactly; the calibrated profile records via the SpillRecorder — the return then
+    carries ``recorder_s`` (records on its spill) with ``recs_s=None`` — and wall-clock per run."""
+    import time as _time
+
+    from demand_profiles import get_profile
+
+    prof = get_profile(profile)
     bbox = run_sim.net_bbox(run_sim.NET)  # canonical geo-ref; the patched net is geo-identical (gauntlet proved it)
     ts = ts or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base_id, scen_id = f"multimodal-baseline-{ts}", f"multimodal-scenario-{ts}"
@@ -714,36 +875,61 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     # scenario conflicts resolve edges against the SCENARIO net (the new edge exists only there).
     scen_net = sumolib.net.readNet(str(scenario_net_path)) if scenario_net_path is not None else net
+    spill_root = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("TMP") or ".") / "nadi-demand" / "runs"
+    rec_b = SpillRecorder(spill_root / f"{base_id}.jsonl") if prof.spill else None
+    rec_s = SpillRecorder(spill_root / f"{scen_id}.jsonl") if prof.spill else None
+    profile_kw = {"cfg_path": prof.cfg, "max_t": prof.max_t}
 
     if on_stage:
         on_stage("baseline")
-    print(f"\n=== BASELINE run ({base_id}) — no change, rerouting + SSM ON ===")
+    print(f"\n=== BASELINE run ({base_id}) — no change, {profile} demand, rerouting + SSM ON ===")
+    t0 = _time.perf_counter()
     recs_b, end_b, step_b, rem_b, xy_b = simulate_multimodal(
-        None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"])
-    _write_provisional(RUNS_DIR / f"{base_id}.json", run_id=base_id, role="baseline", change=None,
-                       target_lane=None, bbox=bbox, sim_end=end_b, step=step_b, records=recs_b)
-    conf_b = {"ssm": parse_ssm(paths["base_ssm"], net, bbox), "ped": compute_ped_conflicts(xy_b, net, bbox)}
-    print(f"[baseline] sim_end={end_b:.0f}s remaining={rem_b}  entities={len(recs_b)}  "
+        None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"],
+        recorder=rec_b, **profile_kw)
+    wall_b = _time.perf_counter() - t0
+    if rec_b is not None:  # spill: counts-only provisional (dumping ~60k entities would be huge); PET streamed
+        (RUNS_DIR / f"{base_id}.json").write_text(json.dumps({
+            "provisional": True, "run_id": base_id, "role": "baseline", "demand_profile": profile,
+            "entities_by_mode": dict(rec_b.counts), "spilled": rec_b.spilled}, indent=2), encoding="utf-8")
+        conf_b = {"ssm": parse_ssm(paths["base_ssm"], net, bbox), "ped": rec_b.conflicts(net, bbox)}
+        n_ents_b = sum(rec_b.counts.values())
+        rec_b.discard()  # baseline trajectories are never rendered — free the spill
+    else:
+        _write_provisional(RUNS_DIR / f"{base_id}.json", run_id=base_id, role="baseline", change=None,
+                           target_lane=None, bbox=bbox, sim_end=end_b, step=step_b, records=recs_b)
+        conf_b = {"ssm": parse_ssm(paths["base_ssm"], net, bbox), "ped": compute_ped_conflicts(xy_b, net, bbox)}
+        n_ents_b = len(recs_b)
+    print(f"[baseline] sim_end={end_b:.0f}s remaining={rem_b}  entities={n_ents_b}  wall={wall_b:.0f}s  "
           f"conflicts: {len(conf_b['ssm'])} veh + {len(conf_b['ped'])} ped")
 
     if on_stage:
         on_stage("scenario")
     print(f"\n=== SCENARIO run ({scen_id}) — {change.description}, rerouting + SSM ON ===")
+    t0 = _time.perf_counter()
     if scenario_net_path is not None:  # new_road: the net IS the change (no runtime apply_change)
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             None, None, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
-            ssm_path=paths["scen_ssm"], net_override=scenario_net_path)
+            ssm_path=paths["scen_ssm"], net_override=scenario_net_path, recorder=rec_s, **profile_kw)
     else:
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
-            ssm_path=paths["scen_ssm"])
-    conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": compute_ped_conflicts(xy_s, scen_net, bbox)}
-    print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={len(recs_s)}  "
+            ssm_path=paths["scen_ssm"], recorder=rec_s, **profile_kw)
+    wall_s = _time.perf_counter() - t0
+    if rec_s is not None:
+        conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": rec_s.conflicts(scen_net, bbox)}
+        n_ents_s = sum(rec_s.counts.values())
+    else:
+        conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": compute_ped_conflicts(xy_s, scen_net, bbox)}
+        n_ents_s = len(recs_s)
+    print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={n_ents_s}  wall={wall_s:.0f}s  "
           f"conflicts: {len(conf_s['ssm'])} veh + {len(conf_s['ped'])} ped")
 
     return {
         "ts": ts, "base_id": base_id, "scen_id": scen_id, **paths,
-        "recs_s": recs_s, "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
+        "recs_s": None if rec_s is not None else recs_s, "recorder_s": rec_s,
+        "profile": profile, "wall_clock_s": {"baseline": round(wall_b, 1), "scenario": round(wall_s, 1)},
+        "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
         "conf_b": conf_b, "conf_s": conf_s,
     }
 
@@ -908,7 +1094,7 @@ def _run_speed_limit(args) -> None:
     try:
         run_state.set_stage(run_id, "baseline", change.description,  # records change.type for the RunCard
                             description=change.description, change=change.model_dump(exclude_none=True))
-        res = run_quant_runtime(change, ts, None)
+        res = run_quant_runtime(change, ts, None, profile=getattr(args, "demand_profile", "synthetic_demo"))
         print(f"\n[speed_limit] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
@@ -943,7 +1129,8 @@ def _run_bike_lane(args) -> None:
     try:
         run_state.set_stage(run_id, "baseline", change.description,
                             description=change.description, change=change.model_dump(exclude_none=True))
-        res = run_quant_runtime(change, ts, target_lane, severed=severed)
+        res = run_quant_runtime(change, ts, target_lane, severed=severed,
+                                profile=getattr(args, "demand_profile", "synthetic_demo"))
         print(f"\n[bike_lane] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s; severed={res['severed']}")
     except Exception as e:  # noqa: BLE001
@@ -951,7 +1138,36 @@ def _run_bike_lane(args) -> None:
         raise
 
 
-def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: list[str]) -> tuple[str, int]:
+def _resolve_records_for_artifact(ids: dict, buckets: dict, profile: str) -> tuple[dict, dict | None]:
+    """(records, render_meta) for the artifact build. Synthetic path: the full in-memory records,
+    no cap (behavior unchanged). Spill path: the outcome-stratified render sample read back from the
+    scenario recorder's spill — outcomes/conflicts/scorecard were already computed full-population."""
+    rec = ids.get("recorder_s")
+    if rec is None:
+        return ids["recs_s"], None
+    from demand_profiles import get_profile
+    from render_sample import build_render_sample
+
+    prof = get_profile(profile)
+    render_ids = build_render_sample(buckets, prof.render_cap_vehicles or 10 ** 9,
+                                     prof.render_cap_persons or 10 ** 9)
+    records = rec.load_records(render_ids)
+    render_meta = {
+        "strategy": "outcome_stratified",
+        "rendered_vehicles": sum(1 for r in records.values() if r["type"] in ("car", "bicycle")),
+        "total_vehicles": rec.counts.get("car", 0) + rec.counts.get("bicycle", 0),
+        "rendered_persons": sum(1 for r in records.values() if r["type"] == "pedestrian"),
+        "total_persons": rec.counts.get("pedestrian", 0),
+    }
+    rec.discard()
+    print(f"[render-sample] rendering {render_meta['rendered_vehicles']}/{render_meta['total_vehicles']} "
+          f"vehicles + {render_meta['rendered_persons']}/{render_meta['total_persons']} persons "
+          "(outcomes/conflicts/scorecard are full-population)")
+    return records, render_meta
+
+
+def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: list[str],
+              profile: str = "synthetic_demo") -> tuple[str, int]:
     """Shared new_road QUANT pipeline (CLI + server): baseline (canonical) + scenario (patched net) + per-mode
     outcomes + conflicts + reroute + scorecard, all under a KNOWN ts. Writes the v0.3.0 artifact, sidecars,
     and latest.json. Returns (scenario_run_id, cars_on_new_road). No LLM, no enrich."""
@@ -961,9 +1177,12 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     run_id = f"multimodal-scenario-{ts}"
     net = sumolib.net.readNet(str(run_sim.NET))  # canonical (baseline)
     ids = run_pair_multimodal(change, None, net, ts=ts, scenario_net_path=scenario_net_path,
-                              on_stage=lambda s: run_state.set_stage(run_id, s))
+                              on_stage=lambda s: run_state.set_stage(run_id, s), profile=profile)
 
-    demand = {"car": count_demand(ROUTES), "bicycle": count_demand(BIKE_ROUTES), "pedestrian": count_persons(PED_ROUTES)}
+    from demand_profiles import get_profile
+    prof = get_profile(profile)
+    demand = {"car": count_demand(prof.car_routes), "bicycle": count_demand(prof.bike_routes),
+              "pedestrian": count_persons(prof.ped_routes)}
     buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
     run_state.set_stage(run_id, "analysis", "joining outcomes + conflicts + scorecard")
     car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
@@ -971,10 +1190,11 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     on_new = count_on_new_edges(ids["scen_vr"], new_edge_ids)  # THE number
 
     conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
+    records, render_meta = _resolve_records_for_artifact(ids, buckets, profile)
     artifact = build_multimodal_artifact(
-        ids["recs_s"], conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
+        records, conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
         target_lane=None, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
-        scenario_network_name=scenario_net_path.name)
+        scenario_network_name=scenario_net_path.name, demand_profile=profile, render_meta=render_meta)
     art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
 
     (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
@@ -982,6 +1202,7 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
         encoding="utf-8")
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
+        "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": [],
         "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched, "cars_on_new_road": on_new},
         "modes": buckets}, indent=2), encoding="utf-8")
@@ -1004,7 +1225,8 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     return ids["scen_id"], on_new
 
 
-def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed: set | None = None) -> dict:
+def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed: set | None = None,
+                      profile: str = "synthetic_demo") -> dict:
     """The RUNTIME twin of ``run_quant`` (speed_limit / bike_lane), shared by the CLI + the job runner. Canonical
     net for BOTH runs (no netconvert → NO regen stage); the change is applied LIVE in the scenario run. Stages:
     baseline → scenario → analysis → done. Writes the v0.3.0 artifact + sidecars + scorecard + web/public +
@@ -1016,18 +1238,24 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     run_id = f"multimodal-scenario-{ts}"
     net = sumolib.net.readNet(str(run_sim.NET))  # canonical for both runs (runtime change, no patch)
     ids = run_pair_multimodal(change, target_lane, net, ts=ts,
-                              on_stage=lambda s: run_state.set_stage(run_id, s))  # emits baseline, scenario
+                              on_stage=lambda s: run_state.set_stage(run_id, s),
+                              profile=profile)  # emits baseline, scenario
 
-    demand = {"car": count_demand(ROUTES), "bicycle": count_demand(BIKE_ROUTES), "pedestrian": count_persons(PED_ROUTES)}
+    from demand_profiles import get_profile
+    prof = get_profile(profile)
+    demand = {"car": count_demand(prof.car_routes), "bicycle": count_demand(prof.bike_routes),
+              "pedestrian": count_persons(prof.ped_routes)}
     buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
     run_state.set_stage(run_id, "analysis", "joining outcomes + conflicts + scorecard")
     car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
     rerouted, reroute_matched = reroute_count(ids["base_vr"], ids["scen_vr"], car_ids)
 
     conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
+    records, render_meta = _resolve_records_for_artifact(ids, buckets, profile)
     artifact = build_multimodal_artifact(
-        ids["recs_s"], conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
-        target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"])
+        records, conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
+        target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
+        demand_profile=profile, render_meta=render_meta)
     art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
 
     (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
@@ -1035,6 +1263,7 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
         encoding="utf-8")
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
+        "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": sorted(severed or []),
         "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched}, "modes": buckets}, indent=2),
         encoding="utf-8")
@@ -1055,7 +1284,8 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     car_share = round(sum(1 for d in car_out if d > 30) / len(car_out), 3) if car_out else None
     run_state.set_stage(run_id, "done", f"cars_rerouted={rerouted}; car_median_delta_s={car_median}",
                         scenario_run_id=ids["scen_id"], cars_rerouted=rerouted,
-                        car_median_delta_s=car_median, car_affected_share=car_share)
+                        car_median_delta_s=car_median, car_affected_share=car_share,
+                        demand_profile=profile, wall_clock_s=ids["wall_clock_s"])
     print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
           f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json updated")
     return {"scen_id": ids["scen_id"], "cars_rerouted": rerouted, "car_median_delta_s": car_median,
@@ -1081,7 +1311,8 @@ def _run_new_road(args) -> None:
                             description=change.description, change=change.model_dump(exclude_none=True))
         patched, new_edge_ids, stats = network_edit.patch_network(change, run_id)
         print(f"[new_road] patched net {patched.name} + gauntlet OK: {stats}")
-        scen_id, on_new = run_quant(change, ts, patched, new_edge_ids)
+        scen_id, on_new = run_quant(change, ts, patched, new_edge_ids,
+                                    profile=getattr(args, "demand_profile", "synthetic_demo"))
         print(f"\n[new_road] DONE — scenario {scen_id}; cars that took the new road: {on_new}")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
         run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
@@ -1102,6 +1333,9 @@ def main() -> None:
     ap.add_argument("--bidirectional", action="store_true", help="new_road: build both directions")
     ap.add_argument("--description", default=None)
     ap.add_argument("--run-ts", default=None, help="use this timestamp as the run id (the job runner passes it)")
+    ap.add_argument("--demand-profile", choices=["synthetic_demo", "calibrated_am_peak"],
+                    default="synthetic_demo",
+                    help="which demand to simulate (V2.1b; calibrated needs demand_calibration.py full first)")
     args = ap.parse_args()
     if args.change_type == "speed_limit":
         _run_speed_limit(args)

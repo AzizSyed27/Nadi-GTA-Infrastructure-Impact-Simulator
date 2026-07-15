@@ -198,7 +198,22 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                        "ped_pet_s": PED_PET_THRESHOLD_S, "materiality_s": MATERIALITY_S},
         # seeds prefer the persisted verdict's list (source of truth) → fall back to the known 42/43/44.
         "seeds": (verdict or {}).get("seeds", DEFAULT_SEEDS),
+        # V2.1b: which demand the run simulated (v0.6.0 meta) + calibration provenance for the methodology
+        # section. Older (pre-0.6.0) artifacts have no demand_profile — rendered as the synthetic demo.
+        "demand_profile": getattr(meta, "demand_profile", None) or "synthetic_demo",
+        "render_sample": getattr(meta, "render_sample", None),
+        "calibration": _load_calibration_provenance() if getattr(meta, "demand_profile", None) == "calibrated_am_peak" else None,
     }
+
+
+def _load_calibration_provenance() -> dict | None:
+    """The newest data/demand provenance (GEH acceptance + caveats) for calibrated-run methodology.
+    Missing file -> None (the report renders a labeled absence, never silence)."""
+    demand_dir = Path(__file__).resolve().parents[2] / "data" / "demand"
+    paths = sorted(demand_dir.glob("demand-calibrated-am-*.json"))
+    if not paths:
+        return None
+    return json.loads(paths[-1].read_text(encoding="utf-8"))
 
 
 # ===================================================================================================
@@ -913,6 +928,48 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     L.append(f"- **Seeds:** {', '.join(str(s) for s in facts['seeds'])}")
     L.append(f"- **Thresholds:** time-to-collision {th['ttc_s']}s, vehicle PET {th['veh_pet_s']}s, "
              f"pedestrian PET {th['ped_pet_s']}s, delay materiality >{th['materiality_s']}s")
+    # V2.1b — the demand statement (which traffic this run simulated) + calibrated-run GEH acceptance.
+    # ALL numbers here are code-rendered (the report honesty rule); prose slots never carry them.
+    if facts.get("demand_profile") == "calibrated_am_peak":
+        L.append("- **Demand:** count-calibrated AM peak (07:00–09:00; sim t=0 is 07:00), built from Toronto "
+                 "Open Data turning-movement counts via SUMO routeSampler. Each counted intersection "
+                 "contributes its own latest post-2020 count day — a composite typical AM peak, not one "
+                 "observed morning. Vehicle classes (cars/trucks/buses) are merged per movement; bike demand "
+                 "is anchored at approach level and pedestrian demand at corridor total only — no "
+                 "count-fidelity claim for bike/ped volumes.")
+        rs_meta = facts.get("render_sample")
+        if rs_meta is not None:
+            L.append(f"- **Rendering:** the map shows {rs_meta.rendered_vehicles} of {rs_meta.total_vehicles} "
+                     f"vehicles and {rs_meta.rendered_persons} of {rs_meta.total_persons} pedestrians "
+                     "(an outcome-stratified sample); every number in this report is computed over the "
+                     "full simulated population.")
+        cal = facts.get("calibration")
+        acc = (cal or {}).get("geh_acceptance")
+        if acc:
+            pct = round(acc["share_geh_lt5"] * 100, 1)
+            target_pct = round(acc["target_share"] * 100)
+            L.append(f"- **Count reproduction (GEH):** simulated vs counted mean-hourly flows at "
+                     f"{acc['n_links']} counted approach lanes: GEH under {acc['geh_ok']:.0f} at {pct}% "
+                     f"(planning practice targets {target_pct}%; "
+                     + ("met" if acc.get("meets_target") else
+                        "not met — treat absolute volumes as approximate; baseline-vs-scenario comparisons "
+                        "remain like-for-like") + "). Worst locations:")
+            L.append("")
+            L.append("  | location | approach | counted (veh/h) | simulated (veh/h) | GEH |")
+            L.append("  |---|---|---|---|---|")
+            for r in sorted(acc.get("rows", []), key=lambda r: -r["geh"])[:5]:
+                L.append(f"  | {r['location']} | {r['label']} | {r['counted_hourly']:.0f} "
+                         f"| {r['simulated_hourly']:.0f} | {r['geh']:.1f} |")
+            L.append("")
+            L.append(f"  Full per-location table + iteration log: `data/demand/` provenance "
+                     f"(`{(cal or {}).get('inventory', 'counts inventory')}` lineage).")
+        else:
+            L.append("- **Count reproduction (GEH):** acceptance table unavailable (calibration provenance "
+                     "missing) — a labeled absence, not an implied pass.")
+    else:
+        L.append("- **Demand:** synthetic demonstration demand (a small random-trips set) — traffic volumes "
+                 "are illustrative, not calibrated to counts; read volume-dependent numbers as "
+                 "baseline-vs-scenario comparisons, not real-world magnitudes.")
     L.append(f"- **Generated:** {meta['generated_at']} · {meta['provider']}/{meta['model']}")
     L.append(f"- **Audit:** {meta['audit_summary']}")
     L.append("")

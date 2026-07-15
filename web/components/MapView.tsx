@@ -797,6 +797,18 @@ export default function MapView() {
 
       <ScenarioHeader scenario={meta.scenario} />
 
+      {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
+          fewer dots than the simulated population must never read as the population itself. */}
+      {meta.render_sample && (
+        <div style={renderSampleNote} data-testid="render-sample-note">
+          rendering {meta.render_sample.rendered_vehicles.toLocaleString()} of{' '}
+          {meta.render_sample.total_vehicles.toLocaleString()} vehicles ·{' '}
+          {meta.render_sample.rendered_persons.toLocaleString()} of{' '}
+          {meta.render_sample.total_persons.toLocaleString()} pedestrians (outcome-stratified sample;
+          scorecard &amp; conflicts cover the full population)
+        </div>
+      )}
+
       {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
           v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
       {changeGeom?.runId === meta.run_id && (
@@ -947,6 +959,22 @@ const changeLegend: React.CSSProperties = {
   fontFamily: 'system-ui, sans-serif',
 };
 const legendSwatch: React.CSSProperties = { width: 16, height: 4, borderRadius: 2, display: 'inline-block' };
+
+// V2.1b: the render-sample framing note — bottom-center, always visible while a capped artifact is loaded.
+const renderSampleNote: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 10,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  background: 'rgba(20,20,25,0.85)',
+  color: '#cfd3dc',
+  borderRadius: 6,
+  padding: '5px 10px',
+  fontSize: 11,
+  zIndex: 5,
+  maxWidth: 560,
+  textAlign: 'center',
+};
 const changeOfflineNote: React.CSSProperties = {
   position: 'absolute',
   top: 16,
