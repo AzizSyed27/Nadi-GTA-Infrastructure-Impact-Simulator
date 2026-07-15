@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2026-07-14 23:20:29.494227 by Eclipse SUMO randomTrips.py v1_27_0+0000-e238ea04b71
+<!-- generated on 2026-07-15 00:52:39.671750 by Eclipse SUMO randomTrips.py v1_27_0+0000-e238ea04b71
 <configuration>
     <net-file value="C:\Users\azizs\OneDrive\Desktop\Projects\Personal Projects\Nadi-GTA-Infrastructure-Impact-Simulator\python\scenario\corridor.net.xml"/>
     <output-trip-file value="C:\Users\azizs\AppData\Local\nadi-demand\cand.ped.trips.xml"/>
@@ -14,7 +14,7 @@
 </configuration>
 -->
 
-<!-- generated on 2026-07-14T23:20:27.727074-05:00 by Eclipse SUMO duarouter 1.27.0
+<!-- generated on 2026-07-15T00:52:38.253514-05:00 by Eclipse SUMO duarouter 1.27.0
 <duarouterConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/duarouterConfiguration.xsd">
 
     <input>
