@@ -704,6 +704,238 @@ def emit_counts(net, locs: list[dict]) -> Path:
 
 
 # --------------------------------------------------------------------------------------
+# M3 — candidates + routeSampler build
+# --------------------------------------------------------------------------------------
+
+CAR_VTYPE = '    <vType id="passenger" vClass="passenger"/>'
+BIKE_VTYPE = '    <vType id="bike_bicycle" vClass="bicycle"/>'
+PED_WALK_SHARE = 3.0  # assumed counted-crossing events per walking trip (order-of-magnitude anchor)
+
+
+def _run_tool(cmd: list, log_name: str) -> tuple[float, str, str]:
+    """Run a SUMO tool, log full output under LOCAL, fail loudly. Returns (wall_s, stdout, cmdline)."""
+    LOCAL.mkdir(parents=True, exist_ok=True)
+    argv = [str(c) for c in cmd]
+    t0 = time.perf_counter()
+    proc = subprocess.run(argv, capture_output=True, text=True,
+                          env={**os.environ, "SUMO_HOME": str(run_sim.SUMO_HOME)})
+    wall = time.perf_counter() - t0
+    log = LOCAL / log_name
+    log.write_text((proc.stdout or "") + "\n--- stderr ---\n" + (proc.stderr or ""), encoding="utf-8")
+    if proc.returncode != 0:
+        raise SystemExit(f"{Path(argv[1] if len(argv) > 1 else argv[0]).name} failed "
+                         f"(exit {proc.returncode}) — see {log}")
+    cmdline = " ".join(Path(a).name if os.sep in a or "/" in a else a for a in argv)
+    return wall, proc.stdout or "", cmdline
+
+
+def build_candidates() -> list[str]:
+    """randomTrips candidate pools (cars + bikes) under LOCAL. Deterministic seeds; --validate routes
+    via duarouter so routeSampler gets a real .rou.xml pool."""
+    cmdlines = []
+    car = [sys.executable, TOOLS / "randomTrips.py", "-n", run_sim.NET,
+           "-o", LOCAL / "cand.car.trips.xml", "-r", LOCAL / "cand.car.rou.xml",
+           "-b", "0", "-e", str(WINDOW_S), "-p", "0.5", "--fringe-factor", "10",
+           "--min-distance", "300", "--validate", "--edge-permission", "passenger",
+           "--random-routing-factor", "1.5", "--seed", "42", "--prefix", "c"]
+    wall, _, cmdline = _run_tool(car, "randomtrips.car.log")
+    print(f"[candidates] cars: {wall:.0f}s")
+    cmdlines.append(cmdline)
+    bike = [sys.executable, TOOLS / "randomTrips.py", "-n", run_sim.NET,
+            "-o", LOCAL / "cand.bike.trips.xml", "-r", LOCAL / "cand.bike.rou.xml",
+            "-b", "0", "-e", str(WINDOW_S), "-p", "4", "--fringe-factor", "3",
+            "--min-distance", "200", "--max-distance", "4000", "--validate",
+            "--vehicle-class", "bicycle", "--edge-permission", "bicycle",
+            "--seed", "42", "--prefix", "cb"]
+    wall, _, cmdline = _run_tool(bike, "randomtrips.bike.log")
+    print(f"[candidates] bikes: {wall:.0f}s")
+    cmdlines.append(cmdline)
+    return cmdlines
+
+
+def _prepend_vtype(path: Path, vtype_xml: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    head_end = text.index(">", text.index("<routes")) + 1
+    path.write_text(text[:head_end] + "\n" + vtype_xml + text[head_end:], encoding="utf-8")
+
+
+def _assert_prefixes(car_path: Path, bike_path: Path) -> tuple[int, int]:
+    """join_per_mode splits car/bike on the literal `bike` id prefix — this invariant is load-bearing."""
+    import xml.etree.ElementTree as ET
+    car_ids = [v.get("id", "") for v in ET.parse(car_path).getroot().iter("vehicle")]
+    bike_ids = [v.get("id", "") for v in ET.parse(bike_path).getroot().iter("vehicle")]
+    assert car_ids and all(i.startswith("veh") and not i.startswith("bike") for i in car_ids), \
+        "car ids must start with 'veh' (and never 'bike')"
+    assert bike_ids and all(i.startswith("bike") for i in bike_ids), "bike ids must start with 'bike'"
+    return len(car_ids), len(bike_ids)
+
+
+def _geh_lines(stdout: str) -> list[str]:
+    return [ln.strip() for ln in stdout.splitlines() if "GEH" in ln or "achieving" in ln]
+
+
+def sample_routes() -> dict:
+    """routeSampler passes (cars: turn counts; bikes: approach edgeData) + scaled ped walks into
+    python/scenario/calibrated/, plus the calibrated sumocfg. Returns build stats for provenance."""
+    CAL_DIR.mkdir(parents=True, exist_ok=True)
+    stats: dict = {"tool_cmdlines": [], "build_geh": {}}
+
+    car_out = CAL_DIR / "calibrated.am.rou.xml"
+    car = [sys.executable, TOOLS / "routeSampler.py", "-r", LOCAL / "cand.car.rou.xml",
+           "-t", DATA_DEMAND / "turn_counts.am.xml", "-o", car_out,
+           "--prefix", "veh", "--geh-ok", "5", "--turn-max-gap", "2", "--optimize", "full",
+           "--seed", "42", "--mismatch-output", LOCAL / "mismatch.car.xml",
+           "--attributes", 'type="passenger" departLane="best"']
+    wall, stdout, cmdline = _run_tool(car, "routesampler.car.log")
+    print(f"[sample] cars: {wall:.0f}s")
+    stats["tool_cmdlines"].append(cmdline)
+    stats["build_geh"]["car"] = _geh_lines(stdout)
+
+    bike_out = CAL_DIR / "calibrated.am.bike.rou.xml"
+    bike = [sys.executable, TOOLS / "routeSampler.py", "-r", LOCAL / "cand.bike.rou.xml",
+            "-d", DATA_DEMAND / "bike_edgedata.am.xml", "-o", bike_out,
+            "--prefix", "bike", "--geh-ok", "5", "--seed", "42",
+            "--mismatch-output", LOCAL / "mismatch.bike.xml",
+            "--attributes", 'type="bike_bicycle"']
+    wall, stdout, cmdline = _run_tool(bike, "routesampler.bike.log")
+    print(f"[sample] bikes: {wall:.0f}s")
+    stats["tool_cmdlines"].append(cmdline)
+    stats["build_geh"]["bike"] = _geh_lines(stdout)
+
+    _prepend_vtype(car_out, CAR_VTYPE)
+    _prepend_vtype(bike_out, BIKE_VTYPE)
+
+    ped_total = ped_counted_total(load_supported_locations())
+    walks = max(1, int(ped_total / PED_WALK_SHARE))
+    ped_out = CAL_DIR / "calibrated.am.ped.rou.xml"
+    ped = [sys.executable, TOOLS / "randomTrips.py", "-n", run_sim.NET,
+           "-o", LOCAL / "cand.ped.trips.xml", "-r", ped_out,
+           "-b", "0", "-e", str(WINDOW_S), "-p", f"{WINDOW_S / walks:.4f}",
+           "--pedestrians", "--prefix", "ped", "--min-distance", "50", "--max-distance", "1500",
+           "--seed", "42"]
+    wall, stdout, cmdline = _run_tool(ped, "randomtrips.ped.log")
+    print(f"[sample] peds: {wall:.0f}s ({walks} walks anchored to {ped_total} counted crossings "
+          f"/ {PED_WALK_SHARE} crossings-per-walk)")
+    stats["tool_cmdlines"].append(cmdline)
+    stats["ped"] = {"counted_crossings_2h": ped_total, "crossings_per_walk_assumed": PED_WALK_SHARE,
+                    "walks": walks}
+
+    n_car, n_bike = _assert_prefixes(car_out, bike_out)
+    stats["vehicles"] = {"car": n_car, "bike": n_bike}
+    print(f"[sample] calibrated demand: {n_car} cars, {n_bike} bikes, {walks} peds")
+
+    cfg = CAL_DIR / "corridor.calibrated.am.sumocfg"
+    cfg.write_text(
+        "<configuration>\n"
+        "  <!-- V2.1b calibrated AM-peak demand (t=0 == 07:00; departs 0-7200s). Generated by\n"
+        "       demand_calibration.py sample — provenance in data/demand/. SEPARATE from the synthetic\n"
+        "       corridor.sumocfg / corridor.multimodal.sumocfg (golden test + default harness). -->\n"
+        "  <input>\n"
+        '    <net-file value="../corridor.net.xml"/>\n'
+        '    <route-files value="calibrated.am.rou.xml,calibrated.am.bike.rou.xml,'
+        'calibrated.am.ped.rou.xml"/>\n'
+        "  </input>\n"
+        "  <time>\n"
+        '    <begin value="0"/>\n'
+        '    <end value="10800"/>\n'
+        "  </time>\n"
+        "  <processing>\n"
+        '    <pedestrian.model value="striping"/>\n'
+        "  </processing>\n"
+        "</configuration>\n",
+        encoding="utf-8")
+    stats["cfg"] = cfg.name
+    return stats
+
+
+# --------------------------------------------------------------------------------------
+# M4 — measure-first probe (plain sumo, NO TraCI, no trajectory recording)
+# --------------------------------------------------------------------------------------
+
+# Python-object cost per recorded sim step in the harness recorder (records lon/lat list + timestamp
+# + speed floats + xy_tracks tuple) — the basis of the trajectory-strategy decision gate.
+RECORDER_BYTES_PER_STEP = 300
+SPILL_THRESHOLD_BYTES = 1.5e9
+
+
+def probe() -> dict:
+    """Run the calibrated baseline HEADLESS (tripinfo + edgeData only) to learn the real scale before
+    any trajectory-recording strategy is chosen. Appends measurements + the memory-gate verdict to
+    provenance; the edgeData output feeds geh_validation.py directly."""
+    cfg = CAL_DIR / "corridor.calibrated.am.sumocfg"
+    if not cfg.is_file():
+        raise SystemExit("no calibrated cfg — run `demand_calibration.py sample` first")
+    LOCAL.mkdir(parents=True, exist_ok=True)
+    edgedata_out = LOCAL / "probe.edgedata.xml"
+    add_file = LOCAL / "edgedata_def.add.xml"  # embeds an absolute output path -> stays untracked
+    add_file.write_text(
+        f'<additional>\n  <edgeData id="am" file={quoteattr(str(edgedata_out))} '
+        f'begin="0" end="{WINDOW_S}" period="{INTERVAL_S}" excludeEmpty="true"/>\n</additional>\n',
+        encoding="utf-8")
+
+    cmd = [run_sim.SUMO_BINARY, "-c", cfg,
+           "--tripinfo-output", LOCAL / "probe.tripinfo.xml",
+           "--additional-files", add_file,
+           "--statistic-output", LOCAL / "probe.stats.xml",
+           "--duration-log.statistics", "--no-step-log", "--seed", "42"]
+    wall, stdout, cmdline = _run_tool(cmd, "probe.sumo.log")
+
+    stats_root = None
+    stats_path = LOCAL / "probe.stats.xml"
+    if stats_path.is_file():
+        import xml.etree.ElementTree as ET
+        stats_root = ET.parse(stats_path).getroot()
+
+    def _attr(xpath: str, attr: str) -> float | None:
+        if stats_root is None:
+            return None
+        el = stats_root.find(xpath)
+        return float(el.get(attr)) if el is not None and el.get(attr) is not None else None
+
+    inserted = _attr("vehicles", "inserted") or 0
+    trip_duration = _attr("vehicleTripStatistics", "duration") or 0
+    measurements = {
+        "wall_clock_s": round(wall, 1),
+        "vehicles_loaded": _attr("vehicles", "loaded"),
+        "vehicles_inserted": inserted,
+        "persons_loaded": _attr("persons", "loaded"),
+        "teleports": _attr("teleports", "total"),
+        "avg_trip_duration_s": trip_duration,
+        "avg_depart_delay_s": _attr("vehicleTripStatistics", "departDelay"),
+        "avg_time_loss_s": _attr("vehicleTripStatistics", "timeLoss"),
+    }
+    est_steps = inserted * trip_duration
+    est_bytes = est_steps * RECORDER_BYTES_PER_STEP
+    measurements["recorder_estimate"] = {
+        "est_recorded_steps": int(est_steps),
+        "est_recorder_bytes": int(est_bytes),
+        "bytes_per_step_assumed": RECORDER_BYTES_PER_STEP,
+        "strategy": "spill" if est_bytes > SPILL_THRESHOLD_BYTES else "in_memory",
+    }
+    print(json.dumps(measurements, indent=2))
+    print(f"[probe] trajectory-strategy gate: est {est_bytes / 1e9:.2f} GB of recorder objects -> "
+          f"{measurements['recorder_estimate']['strategy'].upper()} "
+          f"(threshold {SPILL_THRESHOLD_BYTES / 1e9:.1f} GB)")
+    append_provenance({"measurements": {"baseline_probe": measurements},
+                       "tool_cmdlines": [cmdline]})
+    return measurements
+
+
+def append_provenance(updates: dict) -> Path:
+    path = newest_provenance()
+    blob = json.loads(path.read_text(encoding="utf-8"))
+    for k, v in updates.items():
+        if isinstance(v, list) and isinstance(blob.get(k), list):
+            blob[k].extend(v)
+        elif isinstance(v, dict) and isinstance(blob.get(k), dict):
+            blob[k].update(v)
+        else:
+            blob[k] = v
+    path.write_text(json.dumps(blob, indent=2, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+# --------------------------------------------------------------------------------------
 # CLI (subcommands grow with M2-M4)
 # --------------------------------------------------------------------------------------
 
@@ -712,7 +944,15 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("verify-convention", help="M1 gate: empirically verify the n_appr compass mapping")
     sub.add_parser("emit-counts", help="M2: turn-count + bike edgeData files + provenance skeleton")
+    sub.add_parser("candidates", help="M3: randomTrips candidate route pools (cars + bikes)")
+    sub.add_parser("sample", help="M3: routeSampler passes -> python/scenario/calibrated/")
+    sub.add_parser("probe", help="M4: headless calibrated baseline -> scale/wall-clock measurements")
+    sub.add_parser("full", help="verify -> emit-counts -> candidates -> sample")
     args = ap.parse_args()
+
+    if args.cmd == "probe":  # needs no net read / inventory
+        probe()
+        return
 
     net = sumolib.net.readNet(str(run_sim.NET))
     locs = load_supported_locations()
@@ -721,6 +961,19 @@ def main() -> None:
     elif args.cmd == "emit-counts":
         verify_convention(net, locs)  # the gate always precedes a build
         emit_counts(net, locs)
+    elif args.cmd == "candidates":
+        append_provenance({"tool_cmdlines": build_candidates()})
+    elif args.cmd == "sample":
+        stats = sample_routes()
+        prov = append_provenance({"tool_cmdlines": stats.pop("tool_cmdlines"), "build": stats})
+        print(f"[sample] provenance updated -> {prov}")
+    elif args.cmd == "full":
+        verify_convention(net, locs)
+        emit_counts(net, locs)
+        append_provenance({"tool_cmdlines": build_candidates()})
+        stats = sample_routes()
+        prov = append_provenance({"tool_cmdlines": stats.pop("tool_cmdlines"), "build": stats})
+        print(f"[full] done -> {prov}")
 
 
 if __name__ == "__main__":

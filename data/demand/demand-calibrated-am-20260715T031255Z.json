@@ -4176,7 +4176,49 @@
     "total": 781
   },
   "ped_counted_total_2h": 15232,
-  "tool_cmdlines": [],
+  "tool_cmdlines": [
+    "python.exe randomTrips.py -n corridor.net.xml -o cand.car.trips.xml -r cand.car.rou.xml -b 0 -e 7200 -p 0.5 --fringe-factor 10 --min-distance 300 --validate --edge-permission passenger --random-routing-factor 1.5 --seed 42 --prefix c",
+    "python.exe randomTrips.py -n corridor.net.xml -o cand.bike.trips.xml -r cand.bike.rou.xml -b 0 -e 7200 -p 4 --fringe-factor 3 --min-distance 200 --max-distance 4000 --validate --vehicle-class bicycle --edge-permission bicycle --seed 42 --prefix cb",
+    "python.exe routeSampler.py -r cand.car.rou.xml -t turn_counts.am.xml -o calibrated.am.rou.xml --prefix veh --geh-ok 5 --turn-max-gap 2 --optimize full --seed 42 --mismatch-output mismatch.car.xml --attributes type=\"passenger\" departLane=\"best\"",
+    "python.exe routeSampler.py -r cand.bike.rou.xml -d bike_edgedata.am.xml -o calibrated.am.bike.rou.xml --prefix bike --geh-ok 5 --seed 42 --mismatch-output mismatch.bike.xml --attributes type=\"bike_bicycle\"",
+    "python.exe randomTrips.py -n corridor.net.xml -o cand.ped.trips.xml -r calibrated.am.ped.rou.xml -b 0 -e 7200 -p 1.4182 --pedestrians --prefix ped --min-distance 50 --max-distance 1500 --seed 42"
+  ],
   "iterations": [],
-  "measurements": {}
+  "measurements": {},
+  "build": {
+    "build_geh": {
+      "car": [
+        "0: Wrote 6180 routes (542 distinct) achieving total count 20426 (78.16%) at 1068 locations. GEH<5.0 for 87.27%",
+        "900: Wrote 6853 routes (538 distinct) achieving total count 23549 (78.70%) at 1068 locations. GEH<5.0 for 86.89%",
+        "1800: Wrote 7525 routes (577 distinct) achieving total count 25159 (78.14%) at 1068 locations. GEH<5.0 for 85.96%",
+        "2700: Wrote 8313 routes (588 distinct) achieving total count 28120 (77.81%) at 1068 locations. GEH<5.0 for 84.55%",
+        "3600: Wrote 8929 routes (600 distinct) achieving total count 29856 (78.15%) at 1068 locations. GEH<5.0 for 83.80%",
+        "4500: Wrote 9690 routes (601 distinct) achieving total count 31850 (77.58%) at 1068 locations. GEH<5.0 for 82.49%",
+        "5400: Wrote 9860 routes (622 distinct) achieving total count 33898 (78.75%) at 1068 locations. GEH<5.0 for 82.30%",
+        "6300: Wrote 9979 routes (626 distinct) achieving total count 35351 (79.43%) at 1068 locations. GEH<5.0 for 81.65%",
+        "avg interval GEH%: count 8, min 81.65 (6300.0), max 87.27 (0.0), mean 84.36, Q1 82.49, median 84.55, Q3 86.89"
+      ],
+      "bike": [
+        "0: Wrote 60 routes (52 distinct) achieving total count 72 (93.51%) at 54 locations. GEH<5.0 for 100.00%",
+        "900: Wrote 42 routes (42 distinct) achieving total count 60 (92.31%) at 52 locations. GEH<5.0 for 100.00%",
+        "1800: Wrote 50 routes (46 distinct) achieving total count 72 (94.74%) at 52 locations. GEH<5.0 for 100.00%",
+        "2700: Wrote 58 routes (54 distinct) achieving total count 88 (93.62%) at 73 locations. GEH<5.0 for 100.00%",
+        "3600: Wrote 55 routes (52 distinct) achieving total count 83 (92.22%) at 57 locations. GEH<5.0 for 100.00%",
+        "4500: Wrote 59 routes (56 distinct) achieving total count 95 (85.59%) at 77 locations. GEH<5.0 for 100.00%",
+        "5400: Wrote 84 routes (68 distinct) achieving total count 120 (88.89%) at 85 locations. GEH<5.0 for 100.00%",
+        "6300: Wrote 71 routes (67 distinct) achieving total count 119 (89.47%) at 94 locations. GEH<5.0 for 100.00%",
+        "avg interval GEH%: count 8, min 100.00 (0.0), max 100.00 (0.0), mean 100.00, Q1 100.00, median 100.00, Q3 100.00"
+      ]
+    },
+    "ped": {
+      "counted_crossings_2h": 15232,
+      "crossings_per_walk_assumed": 3.0,
+      "walks": 5077
+    },
+    "vehicles": {
+      "car": 67329,
+      "bike": 479
+    },
+    "cfg": "corridor.calibrated.am.sumocfg"
+  }
 }
