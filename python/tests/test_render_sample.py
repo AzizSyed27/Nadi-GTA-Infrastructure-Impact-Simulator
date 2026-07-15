@@ -64,3 +64,38 @@ def test_profiles_registry() -> None:
         demand_profiles.get_profile("nope")
     cal = demand_profiles.PROFILES["calibrated_am_peak"]
     assert cal.spill is True and cal.render_cap_vehicles and cal.max_t == 10800.0
+
+
+def test_spill_recorder_roundtrip_and_streaming_pet(tmp_path) -> None:
+    """SpillRecorder without TraCI: record -> departure flush -> selective read-back, and the streaming
+    ped-PET catches a fabricated crossing (vehicle passes the ped's path ~1s later at the same point)."""
+    import scenario_harness as sh
+
+    rec = sh.SpillRecorder(tmp_path / "spill.jsonl", convert=lambda x, y: (x / 1000.0, y / 1000.0))
+    # a ped walking +y through (50, 0..20); a vehicle driving +x through (0..100, 10) crossing at (50,10)
+    for i, t in enumerate(range(0, 21)):
+        rec.record("ped0", "pedestrian", 50.0, float(i), 1.0, float(t))
+    for i, t in enumerate(range(9, 12)):
+        rec.record("veh0", "car", (i * 50.0), 10.0, 25.0, float(t))  # x: 0 -> 50 -> 100; crosses at t=~10
+    rec.record("bike0", "bicycle", 5.0, 5.0, 4.0, 0.0)
+    # veh0 + bike0 depart; after GRACE_S they flush (spill + PET-test); ped0 stays active until finalize
+    rec.step_end(30.0, {"ped0"})
+    rec.step_end(30.0 + sh.SpillRecorder.GRACE_S, {"ped0"})
+    assert rec.spilled == 2
+    rec.finalize()
+    assert rec.counts == {"pedestrian": 1, "car": 1, "bicycle": 1}
+
+    conflicts = rec.conflicts(_FakeNet(), [-180.0, -90.0, 180.0, 90.0])
+    assert len(conflicts) == 1 and conflicts[0]["entities"] == ["ped0", "veh0"]
+    assert conflicts[0]["pet"] < sh.PED_PET_THRESHOLD
+
+    picked = rec.load_records({"veh0"})
+    assert set(picked) == {"veh0"} and picked["veh0"]["type"] == "car"
+    assert picked["veh0"]["path"][0] == [0.0, 0.01]  # offline converter applied at flush
+    everything = rec.load_records(None)
+    assert set(everything) == {"ped0", "veh0", "bike0"}
+
+
+class _FakeNet:
+    def convertXY2LonLat(self, x: float, y: float):
+        return (x / 1000.0, y / 1000.0)

@@ -274,10 +274,14 @@ class SpillRecorder:
 
     GRACE_S = 10.0
 
-    def __init__(self, spill_path: Path):
+    def __init__(self, spill_path: Path, convert=None):
         from array import array as _array  # local: keep module imports untouched for the synthetic path
 
         self._array = _array
+        # Offline geo-conversion at flush (sumolib net.convertXY2LonLat — same projParameter+netOffset
+        # as TraCI convertGeo, verified vs the 1.27 sources; needs pyproj). A per-step-per-entity
+        # convertGeo round-trip would be ~57M TraCI calls at calibrated scale.
+        self._convert = convert
         spill_path.parent.mkdir(parents=True, exist_ok=True)
         self.path = spill_path
         self._fh = spill_path.open("w", encoding="utf-8")
@@ -289,15 +293,13 @@ class SpillRecorder:
         self.counts: Counter = Counter()     # FULL population recorded, per type
         self.spilled = 0
 
-    def record(self, eid: str, mode: str, pos, speed: float, t: float) -> None:
-        x, y = pos
-        lon, lat = run_sim.conn.simulation.convertGeo(x, y)
+    def record(self, eid: str, mode: str, x: float, y: float, speed: float, t: float) -> None:
         rec = self._active.get(eid)
         if rec is None:
-            rec = self._active[eid] = {"type": mode, "ll": self._array("d"), "ts": self._array("d"),
-                                       "sp": self._array("d"), "xy": self._array("d")}
+            rec = self._active[eid] = {"type": mode, "xy": self._array("d"), "ts": self._array("d"),
+                                       "sp": self._array("d")}
             self.counts[mode] += 1
-        rec["ll"].extend((lon, lat))
+        rec["xy"].extend((x, y))
         rec["ts"].append(round(t, 3))
         rec["sp"].append(round(speed, 3))
         if mode == "pedestrian":
@@ -307,8 +309,6 @@ class SpillRecorder:
                 for c in _seg_cells(px, py, x, y):
                     self._ped_cells.setdefault(c, []).append((eid, px, py, x, y, pt_, t))
             self._ped_prev[eid] = (x, y, t)
-        else:
-            rec["xy"].extend((x, y, t))
         self._gone.pop(eid, None)
 
     def step_end(self, t: float, present: set[str]) -> None:
@@ -322,20 +322,22 @@ class SpillRecorder:
     def _flush(self, eid: str) -> None:
         rec = self._active.pop(eid)
         self._gone.pop(eid, None)
-        ll = rec["ll"]
+        xy = rec["xy"]
+        convert = self._convert or run_sim.conn.simulation.convertGeo  # converter is the normal path
+        path = [list(convert(xy[i], xy[i + 1])) for i in range(0, len(xy), 2)]
         self._fh.write(json.dumps(
-            {"id": eid, "type": rec["type"], "path": [[ll[i], ll[i + 1]] for i in range(0, len(ll), 2)],
+            {"id": eid, "type": rec["type"], "path": path,
              "timestamps": list(rec["ts"]), "speeds": list(rec["sp"])}, separators=(",", ":")) + "\n")
         self.spilled += 1
         if rec["type"] != "pedestrian":
-            self._pet_test(eid, rec["xy"])
+            self._pet_test(eid, xy, rec["ts"])
 
-    def _pet_test(self, vid: str, xy) -> None:
+    def _pet_test(self, vid: str, xy, ts) -> None:
         # a ped segment spanning several cells is tested more than once — harmless (same min-PET).
-        n = len(xy) // 3
+        n = len(ts)
         for j in range(n - 1):
-            x1, y1, t1 = xy[3 * j], xy[3 * j + 1], xy[3 * j + 2]
-            x2, y2, t2 = xy[3 * j + 3], xy[3 * j + 4], xy[3 * j + 5]
+            x1, y1, t1 = xy[2 * j], xy[2 * j + 1], ts[j]
+            x2, y2, t2 = xy[2 * j + 2], xy[2 * j + 3], ts[j + 1]
             for c in _seg_cells(x1, y1, x2, y2):
                 for pid, ax, ay, bx, by, ta, tb in self._ped_cells.get(c, ()):
                     hit = _segment_pet((ax, ay), (bx, by), ta, tb, (x1, y1), (x2, y2), t1, t2)
@@ -437,16 +439,27 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
             if t <= prev_t or t >= ceiling:  # anti-hang
                 break
             prev_t = t
-            if recorder is not None:  # calibrated scale: compact columns + flush-on-departure spill
-                present: set[str] = set()
-                for vid in conn.vehicle.getIDList():
-                    present.add(vid)
-                    mode = "bicycle" if conn.vehicle.getVehicleClass(vid) == "bicycle" else "car"
-                    recorder.record(vid, mode, conn.vehicle.getPosition(vid), conn.vehicle.getSpeed(vid), t)
-                for pid in conn.person.getIDList():
-                    present.add(pid)
-                    recorder.record(pid, "pedestrian", conn.person.getPosition(pid), conn.person.getSpeed(pid), t)
-                recorder.step_end(t, present)
+            if recorder is not None:
+                # Calibrated scale: TraCI SUBSCRIPTIONS — one batch retrieval per step instead of
+                # 3 round-trips per entity per step (~194M socket calls over a calibrated run).
+                # Verified vs the installed 1.27 client: results reset each step; arrived entities
+                # simply vanish from getAllSubscriptionResults. Mode from the id prefix — the same
+                # convention join_per_mode splits on (bike*); routeSampler builds enforce it.
+                import traci.constants as tc
+                for vid in conn.simulation.getDepartedIDList():
+                    conn.vehicle.subscribe(vid, (tc.VAR_POSITION, tc.VAR_SPEED))
+                for pid in conn.simulation.getDepartedPersonIDList():
+                    conn.person.subscribe(pid, (tc.VAR_POSITION, tc.VAR_SPEED))
+                veh = conn.vehicle.getAllSubscriptionResults()
+                ped = conn.person.getAllSubscriptionResults()
+                for vid, d in veh.items():
+                    x, y = d[tc.VAR_POSITION]
+                    recorder.record(vid, "bicycle" if vid.startswith("bike") else "car",
+                                    x, y, d[tc.VAR_SPEED], t)
+                for pid, d in ped.items():
+                    x, y = d[tc.VAR_POSITION]
+                    recorder.record(pid, "pedestrian", x, y, d[tc.VAR_SPEED], t)
+                recorder.step_end(t, veh.keys() | ped.keys())
                 continue
             for vid in conn.vehicle.getIDList():
                 mode = "bicycle" if conn.vehicle.getVehicleClass(vid) == "bicycle" else "car"
@@ -876,8 +889,10 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     # scenario conflicts resolve edges against the SCENARIO net (the new edge exists only there).
     scen_net = sumolib.net.readNet(str(scenario_net_path)) if scenario_net_path is not None else net
     spill_root = Path(os.environ.get("LOCALAPPDATA") or os.environ.get("TMP") or ".") / "nadi-demand" / "runs"
-    rec_b = SpillRecorder(spill_root / f"{base_id}.jsonl") if prof.spill else None
-    rec_s = SpillRecorder(spill_root / f"{scen_id}.jsonl") if prof.spill else None
+    # offline geo-conversion at flush: same projection as convertGeo (canonical net; the patched net is
+    # geo-identical — the 5.1 gauntlet proves it), without a TraCI round-trip per recorded point.
+    rec_b = SpillRecorder(spill_root / f"{base_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
+    rec_s = SpillRecorder(spill_root / f"{scen_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
     profile_kw = {"cfg_path": prof.cfg, "max_t": prof.max_t}
 
     if on_stage:
