@@ -1,5 +1,8 @@
 // TypeScript half of the frozen trajectory contract.
-// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.5.0).
+// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.6.0).
+// v0.6.0 (additive over 0.5.0): meta.demand_profile (REQUIRED at 0.6.0 — which demand the run simulated)
+// + optional meta.render_sample (vehicles[]/persons[] capped to a stratified render sample; outcomes/
+// conflicts/scorecard stay full-population).
 // v0.5.0 (additive over 0.4.0): meta.scenario.changes[] (the new authority) + tags[]; Change gains
 // window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. Read the
 // change(s) via changesOf(artifact), never `.change` directly. All prior (0.1.0..0.4.0) artifacts stay valid.
@@ -79,6 +82,21 @@ export interface Scenario {
   tags?: string[];
 }
 
+/** v0.6.0+. Which demand the run simulated: the small randomTrips demo set vs the count-calibrated AM peak. */
+export type DemandProfile = 'synthetic_demo' | 'calibrated_am_peak';
+
+/**
+ * v0.6.0+, optional. Present ONLY when vehicles[]/persons[] are capped to a stratified render sample;
+ * outcomes/conflicts/scorecard stay full-population. Drives the "rendering 1 in N of X travelers" framing.
+ */
+export interface RenderSample {
+  strategy: 'outcome_stratified';
+  rendered_vehicles: number;
+  total_vehicles: number;
+  rendered_persons: number;
+  total_persons: number;
+}
+
 export interface Meta {
   run_id: string;
   network: string;
@@ -87,6 +105,10 @@ export interface Meta {
   sim_end: number;
   step_length: number;
   created_at: string;
+  /** v0.6.0: REQUIRED at 0.6.0 (forbidden before) — optional here so older artifacts stay typed. */
+  demand_profile?: DemandProfile;
+  /** v0.6.0+, optional (capped artifacts only). */
+  render_sample?: RenderSample;
   /** v0.2.0+, optional. */
   scenario?: Scenario;
 }

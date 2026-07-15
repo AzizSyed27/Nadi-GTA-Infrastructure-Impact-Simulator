@@ -41,23 +41,33 @@ def validate_artifact(data: dict) -> None:
 
 
 def audit_version_gate(data: dict) -> None:
-    """v0.5.0 emitted-shape self-check: the version must match the scenario shape.
+    """Emitted-shape self-check: the version must match the version-gated shapes.
 
-    A ``0.5.0`` artifact's scenario carries ``changes`` and NO legacy ``change``; a pre-0.5.0 scenario
-    carries ``change`` and no ``changes``. Baseline runs (no scenario) are skipped. This is belt-and-
-    suspenders over the schema ``if/then`` gate (and independent of it) so a mis-wrapped producer emission
-    fails LOUDLY at write time. Raises ``ValueError`` on mismatch."""
-    scenario = data.get("meta", {}).get("scenario")
+    v0.5.0+: a scenario carries ``changes`` (the list authority) and NO legacy ``change``; a pre-0.5.0
+    scenario carries ``change`` and no ``changes``. v0.6.0: ``meta.demand_profile`` is REQUIRED (and,
+    with render_sample, forbidden before 0.6.0). Baseline runs (no scenario) skip the scenario check.
+    Belt-and-suspenders over the schema ``if/then`` gates (and independent of them) so a mis-wrapped
+    producer emission fails LOUDLY at write time. Raises ``ValueError`` on mismatch."""
+    version = data.get("schema_version")
+    meta = data.get("meta", {})
+    if version == "0.6.0":
+        if not meta.get("demand_profile"):
+            raise ValueError("version-gate: a 0.6.0 artifact's meta must declare demand_profile")
+    elif "demand_profile" in meta or "render_sample" in meta:
+        raise ValueError(
+            f"version-gate: a {version} artifact must not carry meta.demand_profile/render_sample "
+            "(v0.6.0 fields)"
+        )
+    scenario = meta.get("scenario")
     if scenario is None:
         return
-    version = data.get("schema_version")
     has_change = "change" in scenario
     has_changes = "changes" in scenario
-    if version == "0.5.0":
+    if version in ("0.5.0", "0.6.0"):
         if not has_changes or has_change:
             raise ValueError(
-                "version-gate: a 0.5.0 artifact's scenario must carry `changes` (the list authority) and "
-                f"NOT the legacy `change` (got change={has_change}, changes={has_changes})"
+                f"version-gate: a {version} artifact's scenario must carry `changes` (the list authority) "
+                f"and NOT the legacy `change` (got change={has_change}, changes={has_changes})"
             )
     else:  # pre-0.5.0
         if not has_change or has_changes:

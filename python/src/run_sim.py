@@ -266,6 +266,7 @@ def build_artifact(
             sim_end=sim_end,
             step_length=step_length,
             created_at=datetime.now(timezone.utc).isoformat(),
+            demand_profile="synthetic_demo",  # v0.6.0: required — this entrypoint runs the demo demand
             scenario=scenario,
         ),
         vehicles=[

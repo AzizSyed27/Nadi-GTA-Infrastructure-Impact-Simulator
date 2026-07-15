@@ -24,7 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.4.0" for back-compat reads.
-SCHEMA_VERSION: Literal["0.5.0"] = "0.5.0"
+SCHEMA_VERSION: Literal["0.6.0"] = "0.6.0"
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
@@ -112,6 +112,27 @@ class Scenario(BaseModel):
     tags: list[str] | None = None  # v0.5.0+, optional free-text scenario tags
 
 
+class RenderSample(BaseModel):
+    """v0.6.0+. Present ONLY when vehicles[]/persons[] are capped to a stratified render sample;
+    outcomes/conflicts/scorecard stay full-population. rendered <= total per population."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy: Literal["outcome_stratified"]
+    rendered_vehicles: int = Field(ge=0)
+    total_vehicles: int = Field(ge=0)
+    rendered_persons: int = Field(ge=0)
+    total_persons: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _check_bounds(self) -> "RenderSample":
+        if self.rendered_vehicles > self.total_vehicles:
+            raise ValueError("render_sample: rendered_vehicles exceeds total_vehicles")
+        if self.rendered_persons > self.total_persons:
+            raise ValueError("render_sample: rendered_persons exceeds total_persons")
+        return self
+
+
 class Meta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -122,6 +143,10 @@ class Meta(BaseModel):
     sim_end: float
     step_length: float = Field(gt=0)
     created_at: str  # ISO-8601 UTC
+    # v0.6.0: REQUIRED at 0.6.0 (forbidden before) — which demand the run simulated. Optional on the
+    # model for back-compat reads; the schema gate + audit_version_gate enforce presence per version.
+    demand_profile: Literal["synthetic_demo", "calibrated_am_peak"] | None = None
+    render_sample: RenderSample | None = None  # v0.6.0+, optional (capped artifacts only)
     scenario: Scenario | None = None  # v0.2.0+, optional
 
 
@@ -371,8 +396,8 @@ class Social(BaseModel):
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0..0.4.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.5.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.5.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.6.0).
+    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0"] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional

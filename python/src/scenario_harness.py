@@ -655,10 +655,11 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
 
     change = change.model_copy(update={"target_lane": target_lane})
     return TrajectoryArtifact(
-        schema_version=SCHEMA_VERSION,  # v0.5.0: emit the current contract; wrap the single change as changes[]
+        schema_version=SCHEMA_VERSION,  # v0.6.0: emit the current contract; wrap the single change as changes[]
         meta=Meta(
             run_id=run_id, network=scenario_network_name or run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
             step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
+            demand_profile="synthetic_demo",  # v0.6.0: required; M7 threads the real profile through
             # v0.5.0 wrap: the producer still applies exactly ONE change, emitted as the changes[] list authority.
             scenario=Scenario(baseline_run_id=baseline_run_id, changes=[change]),
         ),

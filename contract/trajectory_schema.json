@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nadi.local/contract/trajectory_schema.json",
   "title": "Trajectory Artifact",
-  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid. v0.5.0 is ADDITIVE over v0.4.0: meta.scenario gains changes[] (the new authority — a scenario may compose several changes) + optional tags[]; Change gains window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. A 0.5.0 artifact carries changes[] and omits the legacy single change; pre-0.5.0 artifacts keep the single change and remain valid.",
+  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid. v0.5.0 is ADDITIVE over v0.4.0: meta.scenario gains changes[] (the new authority — a scenario may compose several changes) + optional tags[]; Change gains window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. A 0.5.0 artifact carries changes[] and omits the legacy single change; pre-0.5.0 artifacts keep the single change and remain valid. v0.6.0 is ADDITIVE over v0.5.0: meta gains demand_profile (REQUIRED at 0.6.0 — which demand the run simulated: the synthetic demo set or the count-calibrated AM peak; forbidden pre-0.6.0) and OPTIONAL render_sample (present only when vehicles[]/persons[] are capped to a stratified render sample while outcomes/conflicts/scorecard remain full-population) — all v0.5.0 artifacts remain valid.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
@@ -134,9 +134,9 @@
   },
   "allOf": [
     {
-      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0, 0.4.0, or 0.5.0 — keeping the bumps additive. EXTENDED for 0.5.0 (existing-gate audit): a version bump must never drop a prior obligation, so 0.5.0 inherits the grounding requirement.",
+      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0+ — keeping the bumps additive. EXTENDED for 0.5.0 and again 0.6.0 (existing-gate audit): a version bump must never drop a prior obligation.",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0"]}},
+        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0", "0.6.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -152,9 +152,9 @@
       }
     },
     {
-      "$comment": "v0.5.0 version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected.",
+      "$comment": "v0.5.0+ version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected. EXTENDED for 0.6.0 (existing-gate audit).",
       "if": {
-        "properties": {"schema_version": {"const": "0.5.0"}},
+        "properties": {"schema_version": {"enum": ["0.5.0", "0.6.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -168,6 +168,35 @@
                 "not": {"required": ["change"]}
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "v0.6.0 version gate: meta MUST declare which demand the run simulated (demand_profile). Introduced with the calibrated AM-peak demand — a run's numbers are meaningless without knowing the demand behind them.",
+      "if": {
+        "properties": {"schema_version": {"const": "0.6.0"}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "meta": {
+            "type": "object",
+            "required": ["demand_profile"]
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Pre-0.6.0 gate: demand_profile (and render_sample) did not exist — an older artifact carrying them is mis-versioned and must fail.",
+      "if": {
+        "properties": {"schema_version": {"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "meta": {
+            "not": {"anyOf": [{"required": ["demand_profile"]}, {"required": ["render_sample"]}]}
           }
         }
       }
@@ -195,8 +224,8 @@
   ],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. 0.5.0 is current; 0.1.0/0.2.0/0.3.0/0.4.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, and use the legacy single meta.scenario.change).",
-      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]
+      "description": "Semantic version of THIS contract. 0.6.0 is current; 0.1.0..0.5.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, meta.demand_profile, and pre-0.5.0 use the legacy single meta.scenario.change).",
+      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0"]
     },
     "meta": {
       "type": "object",
@@ -216,6 +245,23 @@
         "sim_end": {"type": "number"},
         "step_length": {"type": "number", "exclusiveMinimum": 0},
         "created_at": {"type": "string", "format": "date-time"},
+        "demand_profile": {
+          "description": "REQUIRED at v0.6.0 (forbidden before): which demand the run simulated. 'synthetic_demo' = the small randomTrips demo set; 'calibrated_am_peak' = the count-calibrated 07:00-09:00 demand (provenance in data/demand/). Extend additively as profiles are added.",
+          "enum": ["synthetic_demo", "calibrated_am_peak"]
+        },
+        "render_sample": {
+          "description": "OPTIONAL (v0.6.0+). Present ONLY when vehicles[]/persons[] are capped to a stratified render sample; outcomes/conflicts/scorecard stay full-population. rendered <= total is a semantic invariant enforced in the pydantic model.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy", "rendered_vehicles", "total_vehicles", "rendered_persons", "total_persons"],
+          "properties": {
+            "strategy": {"enum": ["outcome_stratified"]},
+            "rendered_vehicles": {"type": "integer", "minimum": 0},
+            "total_vehicles": {"type": "integer", "minimum": 0},
+            "rendered_persons": {"type": "integer", "minimum": 0},
+            "total_persons": {"type": "integer", "minimum": 0}
+          }
+        },
         "scenario": {
           "description": "OPTIONAL (v0.2.0+). The proposed change(s) this run represents, vs. a baseline run. Absent for plain baseline runs. v0.5.0: `changes` is the authority (a scenario may compose several changes); pre-0.5.0 artifacts carry the single legacy `change`. The version gate (allOf) requires the right one per schema_version.",
           "type": "object",

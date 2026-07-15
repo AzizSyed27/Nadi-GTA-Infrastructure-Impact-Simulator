@@ -35,6 +35,7 @@ SAMPLE_PATH = REPO_ROOT / "web" / "public" / "sample_v0_2_0.json"
 SAMPLE_V3_PATH = REPO_ROOT / "web" / "public" / "sample_v0_3_0.json"
 SAMPLE_V4_PATH = REPO_ROOT / "web" / "public" / "sample_v0_4_0.json"
 SAMPLE_V5_PATH = REPO_ROOT / "web" / "public" / "sample_v0_5_0.json"
+SAMPLE_V6_PATH = REPO_ROOT / "web" / "public" / "sample_v0_6_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -230,10 +231,11 @@ def test_multimodal_artifact_valid() -> None:
     if not runs:
         pytest.skip("No multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.")
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
-    # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); v0.5.0 producers emit 0.5.0.
-    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0")
+    # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); current producers emit
+    # the current SCHEMA_VERSION — keep the accepted set open-ended forward (pin the SHAPE, not the version).
+    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0")
     if art.social is not None:
-        assert art.schema_version in ("0.4.0", "0.5.0"), "an artifact carrying a social{} block must be v0.4.0+"
+        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0"), "an artifact carrying a social{} block must be v0.4.0+"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -588,6 +590,80 @@ def test_v0_5_0_semantic_roundtrip() -> None:
         trajectory_io.dump_artifact(art, path=out)  # validates + audits on write
         redumped = json.loads(out.read_text(encoding="utf-8"))
         trajectory_io.load_artifact(out)  # re-validate + model round-trip
+    finally:
+        out.unlink(missing_ok=True)
+    assert src == redumped, "semantic round-trip must be equal"
+
+
+# ---------------------------------------------------------------------------
+# v0.6.0 contract (additive over v0.5.0): meta.demand_profile (REQUIRED at 0.6.0, forbidden before) +
+# optional meta.render_sample (vehicles[]/persons[] capped to a stratified render sample; outcomes/
+# conflicts/scorecard stay full-population). All older tests above run unchanged — the back-compat proof.
+# ---------------------------------------------------------------------------
+
+
+def _v6_raw() -> dict:
+    return json.loads(SAMPLE_V6_PATH.read_text(encoding="utf-8"))
+
+
+def test_v0_6_0_sample() -> None:
+    """The committed v0.6.0 sample validates (schema + model + gate) and the new meta fields are typed."""
+    assert SAMPLE_V6_PATH.is_file(), f"committed v0.6.0 sample missing: {SAMPLE_V6_PATH}"
+    raw = _v6_raw()
+    trajectory_io.validate_artifact(raw)
+    trajectory_io.audit_version_gate(raw)
+    art = trajectory_io.load_artifact(SAMPLE_V6_PATH)
+    assert raw["schema_version"] == "0.6.0"
+    assert art.meta.demand_profile == "calibrated_am_peak"
+    rs = art.meta.render_sample
+    assert rs is not None and rs.strategy == "outcome_stratified"
+    assert rs.rendered_vehicles <= rs.total_vehicles and rs.rendered_persons <= rs.total_persons
+
+
+def test_older_samples_validate_under_v0_6_0_schema() -> None:
+    """Explicit back-compat: every older sample validates against the bumped 0.6.0 schema."""
+    for p in (SAMPLE_PATH, SAMPLE_V3_PATH, SAMPLE_V4_PATH, SAMPLE_V5_PATH):
+        trajectory_io.validate_artifact(json.loads(p.read_text(encoding="utf-8")))
+
+
+def test_v0_6_0_missing_demand_profile_fails() -> None:
+    """NEGATIVE: a 0.6.0 artifact without meta.demand_profile fails BOTH the schema gate and the audit."""
+    raw = _v6_raw()
+    raw["meta"].pop("demand_profile")
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_pre_0_6_0_carrying_demand_profile_fails() -> None:
+    """NEGATIVE: an older artifact carrying the v0.6.0 meta fields is mis-versioned and fails."""
+    raw = _v5_raw()
+    raw["meta"]["demand_profile"] = "synthetic_demo"
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_render_sample_rendered_exceeds_total_fails() -> None:
+    """NEGATIVE (model): rendered > total. Schema stays loose; the pydantic RenderSample enforces it."""
+    raw = _v6_raw()
+    raw["meta"]["render_sample"]["rendered_vehicles"] = raw["meta"]["render_sample"]["total_vehicles"] + 1
+    trajectory_io.validate_artifact(raw)  # schema PASSES (loose)
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+
+
+def test_v0_6_0_semantic_roundtrip() -> None:
+    """load -> dump -> reload at 0.6.0: dicts EQUAL, dump re-validates + passes the version gate."""
+    src = _v6_raw()
+    art = trajectory_io.load_artifact(SAMPLE_V6_PATH)
+    out = RUNS_DIR / "_rt_v0_6_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)
     finally:
         out.unlink(missing_ok=True)
     assert src == redumped, "semantic round-trip must be equal"
