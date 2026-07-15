@@ -81,6 +81,45 @@ def test_interval_counts_bins_by_slot() -> None:
     assert 3 not in per  # empty slots absent, not zero-filled
 
 
+# ---------------------------------------------------------------- apportion + label assignment
+
+def test_apportion_exact_sums() -> None:
+    assert sum(dc.apportion(101, [3, 1])) == 101
+    assert dc.apportion(100, [1, 1]) == [50, 50]
+    assert dc.apportion(0, [2, 3]) == [0, 0]
+    assert dc.apportion(7, []) == []
+    assert dc.apportion(9, [0, 0]) == [5, 4] or sum(dc.apportion(9, [0, 0])) == 9  # zero weights survive
+
+
+def _leg(bearing: float) -> dict:
+    return {"bearing": bearing, "in": ["in_edge"], "out": ["out_edge"], "_bearings": [bearing]}
+
+
+def test_assign_labels_grid_aligned_is_identity() -> None:
+    legs = [_leg(b) for b in (0.0, 90.0, 180.0, 270.0)]
+    mapping, unmatched = dc.assign_labels(legs, {"n": 100, "e": 100, "s": 100, "w": 100})
+    assert not unmatched
+    assert {a: leg["bearing"] for a, leg in mapping.items()} == {"n": 0.0, "e": 90.0, "s": 180.0, "w": 270.0}
+
+
+def test_assign_labels_semantic_diagonal() -> None:
+    """The Kingston/Falaise shape: a nominally east-west arterial locally bearing ~33/213 keeps its
+    e/w labels; the cross leg at 322 takes n; the counted-but-absent s leg is unmatched (logged)."""
+    legs = [_leg(b) for b in (33.0, 212.0, 322.0)]
+    mapping, unmatched = dc.assign_labels(legs, {"n": 400, "e": 3000, "s": 50, "w": 2800})
+    assert unmatched == ["s"]  # the least-volume label is the one dropped
+    assert mapping["e"]["bearing"] == 33.0
+    assert mapping["w"]["bearing"] == 212.0
+    assert mapping["n"]["bearing"] == 322.0
+
+
+def test_assign_labels_prefers_low_volume_drop() -> None:
+    # two legs, three counted labels: the tiny label is sacrificed, not the big ones
+    legs = [_leg(0.0), _leg(180.0)]
+    mapping, unmatched = dc.assign_labels(legs, {"n": 900, "s": 800, "e": 10})
+    assert unmatched == ["e"] and set(mapping) == {"n", "s"}
+
+
 # ---------------------------------------------------------------- net-gated approach mapping
 
 @pytest.fixture(scope="module")
@@ -99,6 +138,28 @@ def test_approach_edges_on_known_cluster(net) -> None:
     for q in non_empty:
         for e in appr[q]:
             assert e.allows("passenger")
+
+
+@NET_GATED
+def test_build_turn_counts_invariant(net, monkeypatch, tmp_path) -> None:
+    """Emitted + skipped == raw counted total, exactly — nothing silently dropped or invented."""
+    fixture_bins = [
+        {"count_date": "2024-11-02", "start_time": f"2024-11-02T07:{m:02d}:00",
+         "n_appr_cars_t": 40, "n_appr_truck_t": 3, "n_appr_cars_l": 7,
+         "s_appr_cars_t": 55, "e_appr_cars_r": 12, "w_appr_bus_t": 2}
+        for m in (0, 15, 30, 45)
+    ]
+    raw_total = 4 * (40 + 3 + 7 + 55 + 12 + 2)
+    monkeypatch.setattr(dc, "load_bins", lambda cid, date: fixture_bins)
+    monkeypatch.setattr(dc, "DATA_DEMAND", tmp_path)
+    loc = {"count_id": 1, "node_id": "cluster_427757616_427761342",
+           "name": "fixture", "date": "2024-11-02"}
+    stats = dc.build_turn_counts(net, [loc])
+    assert stats["emitted_total"] + stats["skipped_total"] == raw_total
+    import xml.etree.ElementTree as ET
+    root = ET.parse(stats["path"]).getroot()
+    emitted = sum(int(rel.get("count")) for rel in root.iter("edgeRelation"))
+    assert emitted == stats["emitted_total"]
 
 
 @NET_GATED

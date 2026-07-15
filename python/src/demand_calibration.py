@@ -37,7 +37,26 @@ from xml.sax.saxutils import quoteattr
 
 import run_sim  # wires SUMO_HOME/tools so sumolib imports; exposes NET / ROOT / SUMO_HOME
 import sumolib
-from count_inventory import ATTRIBUTION, DATASET_URLS, _edge_bearing
+from count_inventory import ATTRIBUTION, DATASET_URLS
+
+
+def _segment_bearing(p0, p1) -> float:
+    """Compass bearing (0=N, clockwise) of the segment p0->p1 in UTM XY."""
+    return math.degrees(math.atan2(p1[0] - p0[0], p1[1] - p0[1])) % 360.0
+
+
+def arrival_bearing(edge) -> float:
+    """Travel bearing of an INCOMING edge AT the junction (last shape segment). Long edges curve —
+    Kingston Rd's chord bearing is tens of degrees off its local approach direction — so the chord
+    (count_inventory._edge_bearing) must never classify approaches."""
+    shape = edge.getShape()
+    return _segment_bearing(shape[-2], shape[-1])
+
+
+def departure_bearing(edge) -> float:
+    """Travel bearing of an OUTGOING edge AT the junction (first shape segment)."""
+    shape = edge.getShape()
+    return _segment_bearing(shape[0], shape[1])
 
 ROOT = run_sim.ROOT
 INVENTORY_GLOB = str(ROOT / "data" / "counts" / "counts-inventory-*.json")
@@ -192,34 +211,180 @@ def _passenger_edges(edges) -> list:
     return [e for e in edges if e.allows("passenger")]
 
 
-def approach_edges(net, node_id: str, rotation: float = 0.0) -> dict[str, list]:
-    """{n/e/s/w: [incoming passenger edges arriving from that compass leg]}. Cluster nodes are single
-    sumolib nodes (junctions.join happened at netconvert); dual carriageways group as a list."""
-    node = net.getNode(node_id)
-    if node is None:
+def fit_leg_rotation(leg_bearings: list[float]) -> float:
+    """Per-junction compass skew θ ∈ [-45, 45): the offset that best aligns {θ, θ+90, θ+180, θ+270}
+    with the junction's actual leg bearings. Toronto's TMC approach labels are SEMANTIC (Kingston Rd
+    legs are 'e/w' even where the road runs ~60° NE); a strict geometric quadrant drops those legs
+    into the wrong bucket. Grid-aligned junctions fit θ≈0 — behavior there is unchanged."""
+    if not leg_bearings:
+        return 0.0
+    best_theta, best_err = 0.0, math.inf
+    for theta_deg in range(-45, 45):
+        err = sum(min(abs(signed_delta(b, (theta_deg + k * 90.0) % 360.0)) for k in range(4))
+                  for b in leg_bearings)
+        if err < best_err:
+            best_theta, best_err = float(theta_deg), err
+    return best_theta
+
+
+CLUSTER_RADIUS_M = 45.0   # divided-road carriageway crossings sit ~20-40 m apart
+CLUSTER_EDGE_M = 60.0     # only short connector edges chain nodes into one intersection
+CLUSTER_MAX_NODES = 6
+
+
+def cluster_nodes(net, node_id: str) -> list:
+    """The matched node + neighbors that are really the SAME intersection: at divided roads the side
+    street crosses each carriageway at a separate net node 20-40 m apart, so approaches on the far
+    carriageway are invisible to the matched node's getIncoming(). BFS over short passenger edges
+    within CLUSTER_RADIUS_M of the matched node (bounded — never chains down the block)."""
+    root = net.getNode(node_id)
+    if root is None:
         raise KeyError(f"junction {node_id!r} not in net")
+    rx, ry = root.getCoord()
+    seen = {root.getID(): root}
+    frontier = [root]
+    while frontier and len(seen) < CLUSTER_MAX_NODES:
+        node = frontier.pop()
+        for e in _passenger_edges(list(node.getIncoming()) + list(node.getOutgoing())):
+            if e.getLength() > CLUSTER_EDGE_M:
+                continue
+            for n in (e.getFromNode(), e.getToNode()):
+                nid = n.getID()
+                if nid in seen:
+                    continue
+                nx, ny = n.getCoord()
+                if math.hypot(nx - rx, ny - ry) <= CLUSTER_RADIUS_M:
+                    seen[nid] = n
+                    frontier.append(n)
+    return list(seen.values())
+
+
+def _boundary_edges(net, node_id: str) -> tuple[list, list]:
+    """(incoming-from-outside, outgoing-to-outside) passenger edges of the virtual cluster. Internal
+    connector edges (both ends inside) are the --turn-max-gap hop, not approaches/exits."""
+    nodes = cluster_nodes(net, node_id)
+    ids = {n.getID() for n in nodes}
+    inc, out = [], []
+    for n in nodes:
+        for e in _passenger_edges(n.getIncoming()):
+            if e.getFromNode().getID() not in ids:
+                inc.append(e)
+        for e in _passenger_edges(n.getOutgoing()):
+            if e.getToNode().getID() not in ids:
+                out.append(e)
+    return inc, out
+
+
+def _junction_rotation(net, node_id: str) -> float:
+    """The fitted skew from ALL cluster-boundary legs (junction-local bearings)."""
+    inc, out = _boundary_edges(net, node_id)
+    legs = [(arrival_bearing(e) + 180.0) % 360.0 for e in inc] + [departure_bearing(e) for e in out]
+    return fit_leg_rotation(legs)
+
+
+def approach_edges(net, node_id: str, rotation: float = 0.0) -> dict[str, list]:
+    """{n/e/s/w: [cluster-boundary incoming edges arriving from that compass leg]}, labeled in the
+    junction's FITTED frame (see fit_leg_rotation). ``rotation`` adds on top of the fit — the
+    verify-convention rotation test spins the PRODUCTION mapping by 90/180/270."""
+    rot = rotation - _junction_rotation(net, node_id)
+    inc, _ = _boundary_edges(net, node_id)
     out: dict[str, list] = {a: [] for a in APPROACHES}
-    for e in _passenger_edges(node.getIncoming()):
-        out[approach_quadrant(_edge_bearing(e), rotation)].append(e)
+    for e in inc:
+        out[approach_quadrant(arrival_bearing(e), rot)].append(e)
     return out
 
 
 def exit_edges(net, node_id: str, rotation: float = 0.0) -> dict[str, list]:
-    """{n/e/s/w: [outgoing passenger edges LEAVING toward that compass leg]}."""
-    node = net.getNode(node_id)
+    """{n/e/s/w: [cluster-boundary outgoing edges LEAVING toward that compass leg]}, same frame."""
+    rot = rotation - _junction_rotation(net, node_id)
+    _, outs = _boundary_edges(net, node_id)
     out: dict[str, list] = {a: [] for a in APPROACHES}
-    for e in _passenger_edges(node.getOutgoing()):
-        out[compass_quadrant((_edge_bearing(e) + rotation) % 360.0)].append(e)
+    for e in outs:
+        out[compass_quadrant((departure_bearing(e) + rot) % 360.0)].append(e)
     return out
 
 
+LEG_CLUSTER_DEG = 30.0     # boundary edges within this bearing spread form one street leg
+LABEL_DEVIATION_CAP = 80.0  # a label never binds to a leg more than this far from its nominal compass
+
+
+def leg_groups(net, node_id: str) -> list[dict]:
+    """Cluster the junction's boundary edges into street LEGS by bearing: each leg carries its
+    approach-from bearing plus its in/out edges, sorted clockwise. (A leg's in-edges arrive FROM that
+    compass side; its out-edges depart TOWARD it.)"""
+    inc, outs = _boundary_edges(net, node_id)
+    items = [((arrival_bearing(e) + 180.0) % 360.0, "in", e) for e in inc]
+    items += [(departure_bearing(e), "out", e) for e in outs]
+    items.sort(key=lambda x: x[0])
+    legs: list[dict] = []
+    for b, kind, e in items:
+        home = None
+        for leg in legs:
+            if abs(signed_delta(b, leg["bearing"])) <= LEG_CLUSTER_DEG:
+                home = leg
+                break
+        if home is None:
+            home = {"bearing": b, "in": [], "out": [], "_bearings": []}
+            legs.append(home)
+        home[kind].append(e)
+        home["_bearings"].append(b)
+        # circular mean keeps the leg center honest as edges accumulate
+        sines = sum(math.sin(math.radians(x)) for x in home["_bearings"])
+        cosines = sum(math.cos(math.radians(x)) for x in home["_bearings"])
+        home["bearing"] = math.degrees(math.atan2(sines, cosines)) % 360.0
+    legs.sort(key=lambda leg: leg["bearing"])
+    return legs
+
+
+def assign_labels(legs: list[dict], label_volumes: dict[str, int]) -> tuple[dict[str, dict], list[str]]:
+    """Match counted compass labels to street legs. Toronto's TMC labels are STREET-SEMANTIC —
+    Kingston Rd's legs are always 'e'/'w' because Kingston is nominally east-west, even where it
+    locally bears ~33° — so no quadrant or global rotation can place them. Instead: enumerate
+    injective, cyclic-order-preserving maps from the counted labels onto legs (deviation-capped),
+    minimizing (unmatched counted volume, then total angular deviation).
+
+    Returns ({label: leg}, unmatched_labels)."""
+    labels = [a for a in APPROACHES if label_volumes.get(a, 0) > 0]
+    if not labels or not legs:
+        return {}, labels
+    from itertools import permutations
+
+    def cyclic_ok(idx: list[int]) -> bool:
+        # leg indices must advance clockwise exactly once as labels do
+        rel = [(i - idx[0]) % len(legs) for i in idx]
+        return all(rel[k] < rel[k + 1] for k in range(len(rel) - 1))
+
+    from itertools import combinations
+
+    best_key, best_map = None, None
+    n = len(legs)
+    for k in range(min(len(labels), n), 0, -1):  # all sizes — a smaller map can drop LESS volume
+        for keep in combinations(labels, k):
+            for idx in permutations(range(n), k):
+                if not cyclic_ok(list(idx)):
+                    continue
+                devs = [abs(signed_delta(legs[i]["bearing"], _QUADRANT_CENTER[lab]))
+                        for lab, i in zip(keep, idx)]
+                if any(d > LABEL_DEVIATION_CAP for d in devs):
+                    continue
+                unmatched = sum(label_volumes.get(a, 0) for a in labels if a not in keep)
+                key = (unmatched, sum(devs))
+                if best_key is None or key < best_key:
+                    best_key = key
+                    best_map = {lab: legs[i] for lab, i in zip(keep, idx)}
+    if best_map is None:
+        return {}, labels
+    return best_map, [a for a in labels if a not in best_map]
+
+
 def movement_exits(net, node_id: str, in_edge) -> dict[str, list]:
-    """{'l'/'t'/'r': [outgoing passenger edges in that band]} for one approach edge (u-turns skipped)."""
-    node = net.getNode(node_id)
-    in_b = _edge_bearing(in_edge)
+    """{'l'/'t'/'r': [cluster-boundary exit edges in that band]} for one approach edge (u-turns
+    skipped). from->to may span an internal connector edge — routeSampler's --turn-max-gap covers it."""
+    _, outs = _boundary_edges(net, node_id)
+    in_b = arrival_bearing(in_edge)
     out: dict[str, list] = {t: [] for t in TURNS}
-    for e in _passenger_edges(node.getOutgoing()):
-        band = classify_turn(in_b, _edge_bearing(e))
+    for e in outs:
+        band = classify_turn(in_b, departure_bearing(e))
         if band in out:
             out[band].append(e)
     return out
@@ -326,6 +491,219 @@ def verify_convention(net, locs: list[dict], sample_n: int = 20) -> dict:
 
 
 # --------------------------------------------------------------------------------------
+# M2 — count-file emitters + provenance
+# --------------------------------------------------------------------------------------
+
+def apportion(total: int, weights: list[int]) -> list[int]:
+    """Split ``total`` across ``weights`` (e.g. lane counts) by largest remainder — sums exactly."""
+    if not weights:
+        return []
+    wsum = sum(weights) or len(weights)
+    shares = [total * (w or 1) / wsum for w in weights]
+    floors = [int(s) for s in shares]
+    rem = total - sum(floors)
+    order = sorted(range(len(shares)), key=lambda i: shares[i] - floors[i], reverse=True)
+    for i in order[:rem]:
+        floors[i] += 1
+    return floors
+
+
+_IDEAL_REL = {"t": 0.0, "r": 90.0, "l": -90.0}
+
+
+def _best_exit(in_edge, band_edges: list, turn: str):
+    """The exit edge whose junction-local bearing sits closest to the turn's ideal relative bearing."""
+    in_b = arrival_bearing(in_edge)
+    return min(band_edges,
+               key=lambda e: abs(signed_delta(departure_bearing(e), (in_b + _IDEAL_REL[turn]) % 360.0)))
+
+
+def build_turn_counts(net, locs: list[dict]) -> dict:
+    """Emit data/demand/turn_counts.am.xml (8x900s intervals of <edgeRelation from to count>) from the
+    supported locations' bins. Multi-edge approaches split by lane-count apportionment (exact sums);
+    unmappable counts are SKIPPED AND LOGGED, never silently dropped. Counted zeros are kept (a zero
+    is real data). Returns {path, emitted_total, skipped_total, skip_report, splits, per_location}."""
+    intervals: list[list[str]] = [[] for _ in range(N_INTERVALS)]
+    skip_report: list[dict] = []
+    splits: list[dict] = []
+    emitted_total = skipped_total = 0
+    per_location: list[dict] = []
+    deviations: list[float] = []
+
+    for loc in locs:
+        per_interval = interval_counts(load_bins(loc["count_id"], loc["date"]))
+        appr_totals = {a: sum(per_interval.get(i, {}).get(a, {}).get(t, 0)
+                              for i in range(N_INTERVALS) for t in TURNS) for a in APPROACHES}
+        mapping, unmatched = assign_labels(leg_groups(net, loc["node_id"]), appr_totals)
+        loc_emitted = loc_skipped = 0
+        for a in unmatched:
+            skip_report.append({"location": loc["name"], "approach": a,
+                                "reason": "no leg matches this counted label", "count_2h": appr_totals[a]})
+            loc_skipped += appr_totals[a]
+        for a, leg in mapping.items():
+            deviations.append(abs(signed_delta(leg["bearing"], _QUADRANT_CENTER[a])))
+            edges = leg["in"]
+            if not edges:
+                if appr_totals[a]:
+                    skip_report.append({"location": loc["name"], "approach": a,
+                                        "reason": "matched leg has no incoming edge (one-way outbound)",
+                                        "count_2h": appr_totals[a]})
+                    loc_skipped += appr_totals[a]
+                continue
+            weights = [len(e.getLanes()) for e in edges]
+            if len(edges) > 1:
+                splits.append({"location": loc["name"], "approach": a,
+                               "edges": [e.getID() for e in edges], "lane_weights": weights})
+            bands_per_edge = [movement_exits(net, loc["node_id"], e) for e in edges]
+            for i in range(N_INTERVALS):
+                cell = per_interval.get(i, {}).get(a)
+                if cell is None:
+                    continue
+                for t in TURNS:
+                    parts = apportion(cell[t], weights)
+                    for e, bands, part in zip(edges, bands_per_edge, parts):
+                        if not bands[t]:
+                            if part:
+                                skip_report.append({"location": loc["name"], "approach": a, "turn": t,
+                                                    "interval": i, "reason": "no exit edge in band",
+                                                    "count": part})
+                                loc_skipped += part
+                            continue
+                        exit_e = _best_exit(e, bands[t], t)
+                        intervals[i].append(f'    <edgeRelation from={quoteattr(e.getID())} '
+                                            f'to={quoteattr(exit_e.getID())} count="{part}"/>')
+                        loc_emitted += part
+        emitted_total += loc_emitted
+        skipped_total += loc_skipped
+        per_location.append({"name": loc["name"], "emitted": loc_emitted, "skipped": loc_skipped})
+
+    DATA_DEMAND.mkdir(parents=True, exist_ok=True)
+    path = DATA_DEMAND / "turn_counts.am.xml"
+    lines = ["<data>"]
+    for i, rels in enumerate(intervals):
+        lines.append(f'  <interval id="am_{i}" begin="{i * INTERVAL_S}" end="{(i + 1) * INTERVAL_S}">')
+        lines.extend(rels)
+        lines.append("  </interval>")
+    lines.append("</data>")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assignment = {"mean_deviation_deg": round(sum(deviations) / len(deviations), 1) if deviations else 0,
+                  "max_deviation_deg": round(max(deviations), 1) if deviations else 0}
+    return {"path": path, "emitted_total": emitted_total, "skipped_total": skipped_total,
+            "skip_report": skip_report, "splits": splits, "per_location": per_location,
+            "assignment": assignment}
+
+
+def build_bike_edgedata(net, locs: list[dict]) -> dict:
+    """Approach-level bike counts as an edgeData file (bike TMC has NO turn resolution — coarser,
+    stated). Assigned to approach edges by the same lane apportionment."""
+    intervals: list[list[str]] = [[] for _ in range(N_INTERVALS)]
+    total = 0
+    for loc in locs:
+        per_interval = interval_counts(load_bins(loc["count_id"], loc["date"]))
+        bike_totals = {a: sum(per_interval.get(i, {}).get(a, {}).get("bike", 0)
+                              for i in range(N_INTERVALS)) for a in APPROACHES}
+        mapping, _ = assign_labels(leg_groups(net, loc["node_id"]), bike_totals)
+        for a, leg in mapping.items():
+            edges = leg["in"]
+            if not edges:
+                continue
+            weights = [len(e.getLanes()) for e in edges]
+            for i in range(N_INTERVALS):
+                cell = per_interval.get(i, {}).get(a)
+                if not cell or not cell["bike"]:
+                    continue
+                for e, part in zip(edges, apportion(cell["bike"], weights)):
+                    if part:
+                        intervals[i].append(f'    <edge id={quoteattr(e.getID())} entered="{part}"/>')
+                        total += part
+    DATA_DEMAND.mkdir(parents=True, exist_ok=True)
+    path = DATA_DEMAND / "bike_edgedata.am.xml"
+    lines = ["<data>"]
+    for i, rows in enumerate(intervals):
+        lines.append(f'  <interval id="am_bike_{i}" begin="{i * INTERVAL_S}" end="{(i + 1) * INTERVAL_S}">')
+        lines.extend(rows)
+        lines.append("  </interval>")
+    lines.append("</data>")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"path": path, "total": total}
+
+
+def ped_counted_total(locs: list[dict]) -> int:
+    """2h pedestrian crossings summed over counted intersections — the corridor walk-demand anchor
+    (order-of-magnitude only; peds are crossing counts, not link volumes — NO GEH claim)."""
+    total = 0
+    for loc in locs:
+        per_interval = interval_counts(load_bins(loc["count_id"], loc["date"]))
+        total += sum(per_interval[i][a]["peds"] for i in per_interval for a in APPROACHES)
+    return total
+
+
+def write_provenance(inv_path: Path, locs: list[dict], turn_stats: dict, bike_stats: dict,
+                     ped_total: int) -> Path:
+    """The demand-profile provenance artifact. GEH tables / iterations / measurements are APPENDED by
+    later steps (geh_validation.py, the probe) — this writes the build-side truth."""
+    inv = json.loads(inv_path.read_text(encoding="utf-8"))
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = DATA_DEMAND / f"demand-calibrated-am-{ts}.json"
+    dates = sorted({loc["date"] for loc in locs})
+    blob = {
+        "profile": "calibrated_am_peak",
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "attribution": ATTRIBUTION,
+        "datasets": {k: {"url": v, "retrieved_at": inv["retrieved_at"]} for k, v in DATASET_URLS.items()},
+        "inventory": inv_path.name,
+        "sim_time_convention": "t=0 == 07:00; window 0-7200s; 8x900s intervals",
+        "locations_used": [{"count_id": loc["count_id"], "junction": loc["node_id"],
+                            "name": loc["name"], "count_date": loc["date"]} for loc in locs],
+        "caveats": {
+            "composite_day": f"each location contributes its own latest covering date "
+                             f"({dates[0]}..{dates[-1]}, {len(dates)} distinct days) — this demand is a "
+                             "COMPOSITE typical AM peak, not one observed morning",
+            "class_merge": "cars+truck+bus merged per movement (the pipeline's mode taxonomy is "
+                           "car/bike/ped); no separate heavy-vehicle demand",
+            "bike": "bike counts anchor APPROACH-LEVEL edgeData only (TMC bikes carry no turn "
+                    "resolution) — coarser than vehicle turn calibration",
+            "ped": "ped counts are intersection CROSSINGS; they anchor a corridor-total walk scale, "
+                   "order-of-magnitude only — NO GEH claim for bike/ped",
+        },
+        "turn_counts": {"file": turn_stats["path"].name, "emitted_total": turn_stats["emitted_total"],
+                        "skipped_total": turn_stats["skipped_total"],
+                        "label_assignment": turn_stats["assignment"],
+                        "skip_report": turn_stats["skip_report"], "splits": turn_stats["splits"]},
+        "bike_edgedata": {"file": bike_stats["path"].name, "total": bike_stats["total"]},
+        "ped_counted_total_2h": ped_total,
+        "tool_cmdlines": [],   # appended by the candidates/sample steps
+        "iterations": [],      # appended by geh_validation
+        "measurements": {},    # appended by the probe
+    }
+    path.write_text(json.dumps(blob, indent=2, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def newest_provenance() -> Path:
+    paths = sorted(DATA_DEMAND.glob("demand-calibrated-am-*.json"))
+    if not paths:
+        raise SystemExit("no provenance JSON — run `demand_calibration.py emit-counts` first")
+    return paths[-1]
+
+
+def emit_counts(net, locs: list[dict]) -> Path:
+    inv_path = newest_inventory()
+    turn_stats = build_turn_counts(net, locs)
+    bike_stats = build_bike_edgedata(net, locs)
+    ped_total = ped_counted_total(locs)
+    prov = write_provenance(inv_path, locs, turn_stats, bike_stats, ped_total)
+    kept = turn_stats["emitted_total"]
+    skipped = turn_stats["skipped_total"]
+    print(f"[emit] turn counts: {kept} vehicles emitted, {skipped} skipped "
+          f"({len(turn_stats['skip_report'])} skip entries) -> {turn_stats['path']}")
+    print(f"[emit] bike edgeData: {bike_stats['total']} -> {bike_stats['path']}")
+    print(f"[emit] ped counted total (2h crossings): {ped_total}")
+    print(f"[emit] provenance -> {prov}")
+    return prov
+
+
+# --------------------------------------------------------------------------------------
 # CLI (subcommands grow with M2-M4)
 # --------------------------------------------------------------------------------------
 
@@ -333,12 +711,16 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="V2.1b calibrated AM-peak demand build.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("verify-convention", help="M1 gate: empirically verify the n_appr compass mapping")
+    sub.add_parser("emit-counts", help="M2: turn-count + bike edgeData files + provenance skeleton")
     args = ap.parse_args()
 
     net = sumolib.net.readNet(str(run_sim.NET))
     locs = load_supported_locations()
     if args.cmd == "verify-convention":
         verify_convention(net, locs)
+    elif args.cmd == "emit-counts":
+        verify_convention(net, locs)  # the gate always precedes a build
+        emit_counts(net, locs)
 
 
 if __name__ == "__main__":

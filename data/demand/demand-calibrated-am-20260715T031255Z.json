@@ -1,0 +1,4182 @@
+{
+  "profile": "calibrated_am_peak",
+  "generated_at": "2026-07-15T03:12:55Z",
+  "attribution": "Contains information licensed under the Open Government Licence – Toronto.",
+  "datasets": {
+    "TMC": {
+      "url": "https://open.toronto.ca/dataset/traffic-volumes-at-intersections-for-all-modes/",
+      "retrieved_at": {
+        "tmc_recent": "2026-07-14T04:10:14Z",
+        "svc_recent": "2026-07-14T04:10:17Z",
+        "tmc_summary": "2026-07-14T04:10:24Z",
+        "svc_summary": "2026-07-14T04:10:33Z"
+      }
+    },
+    "SVC": {
+      "url": "https://open.toronto.ca/dataset/traffic-volumes-midblock-vehicle-speed-volume-and-classification-counts/",
+      "retrieved_at": {
+        "tmc_recent": "2026-07-14T04:10:14Z",
+        "svc_recent": "2026-07-14T04:10:17Z",
+        "tmc_summary": "2026-07-14T04:10:24Z",
+        "svc_summary": "2026-07-14T04:10:33Z"
+      }
+    }
+  },
+  "inventory": "counts-inventory-20260714T043040Z.json",
+  "sim_time_convention": "t=0 == 07:00; window 0-7200s; 8x900s intervals",
+  "locations_used": [
+    {
+      "count_id": 116417,
+      "junction": "cluster_427757616_427761342",
+      "name": "Lawrence Ave E / Orton Park Rd",
+      "count_date": "2026-06-30"
+    },
+    {
+      "count_id": 116418,
+      "junction": "33510585",
+      "name": "Lawrence Ave E / Overture Rd",
+      "count_date": "2026-06-30"
+    },
+    {
+      "count_id": 116413,
+      "junction": "cluster_427760918_427761463",
+      "name": "Lawrence Ave E / Fortune Gt",
+      "count_date": "2026-06-30"
+    },
+    {
+      "count_id": 116415,
+      "junction": "59834239",
+      "name": "Lawrence Ave E / Mossbank Dr",
+      "count_date": "2026-06-30"
+    },
+    {
+      "count_id": 116249,
+      "junction": "427658763",
+      "name": "Bellamy Rd N / Northleigh Dr",
+      "count_date": "2026-06-16"
+    },
+    {
+      "count_id": 116014,
+      "junction": "266262066",
+      "name": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+      "count_date": "2026-05-05"
+    },
+    {
+      "count_id": 115999,
+      "junction": "cluster_648905220_648905225_648905395_648905399",
+      "name": "Brimley Rd / Progress Ave",
+      "count_date": "2026-05-05"
+    },
+    {
+      "count_id": 115984,
+      "junction": "281308180",
+      "name": "Rochman Blvd / Bellamy Rd N / Ben Alder Dr",
+      "count_date": "2026-04-28"
+    },
+    {
+      "count_id": 115854,
+      "junction": "418980436",
+      "name": "Farmbrook Rd / Nelson St",
+      "count_date": "2026-04-14"
+    },
+    {
+      "count_id": 115509,
+      "junction": "418982515",
+      "name": "Brimley Rd / Gully Dr / Knob Hill Park Trl",
+      "count_date": "2026-04-09"
+    },
+    {
+      "count_id": 115586,
+      "junction": "418980412",
+      "name": "Bakerton Dr / Porchester Dr",
+      "count_date": "2026-02-19"
+    },
+    {
+      "count_id": 115585,
+      "junction": "418980406",
+      "name": "Farmbrook Rd / Porchester Dr",
+      "count_date": "2026-02-19"
+    },
+    {
+      "count_id": 115587,
+      "junction": "259698521",
+      "name": "Porchester Dr / Nelson St",
+      "count_date": "2026-02-19"
+    },
+    {
+      "count_id": 115564,
+      "junction": "278359874",
+      "name": "Perivale Cres / Dignam Crt",
+      "count_date": "2026-02-19"
+    },
+    {
+      "count_id": 115562,
+      "junction": "134209636",
+      "name": "Amberjack Blvd / Bellamy Rd N / Lynnbrook Dr",
+      "count_date": "2026-02-19"
+    },
+    {
+      "count_id": 115486,
+      "junction": "296403598",
+      "name": "Ellesmere Rd / Mornelle Crt",
+      "count_date": "2026-02-04"
+    },
+    {
+      "count_id": 115443,
+      "junction": "cluster_297561913_297561952_32476101_32476102_#1more",
+      "name": "Borough Dr / Omni Dr",
+      "count_date": "2026-01-29"
+    },
+    {
+      "count_id": 115235,
+      "junction": "cluster_32414945_428554462",
+      "name": "Kingston Rd / Falaise Rd",
+      "count_date": "2026-01-29"
+    },
+    {
+      "count_id": 115425,
+      "junction": "cluster_32476043_32476081",
+      "name": "Borough Dr / Town Centre Crt (South)",
+      "count_date": "2026-01-29"
+    },
+    {
+      "count_id": 115234,
+      "junction": "cluster_5467979724_5467979725",
+      "name": "Kingston Rd / Amiens Rd",
+      "count_date": "2026-01-22"
+    },
+    {
+      "count_id": 115219,
+      "junction": "32476071",
+      "name": "Borough Dr / Town Centre Crt (North)",
+      "count_date": "2025-12-11"
+    },
+    {
+      "count_id": 114897,
+      "junction": "266261617",
+      "name": "McCowan Rd / Trudelle St",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114896,
+      "junction": "cluster_32458166_32458168_433592702",
+      "name": "Kingston Rd / Eglinton Ave E",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114894,
+      "junction": "cluster_241343614_433592698",
+      "name": "Eglinton Ave E / Cedar Dr",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114893,
+      "junction": "241342332",
+      "name": "Eglinton Ave E / Beachell St",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114892,
+      "junction": "cluster_3524717298_3524717300_433591055_433591057_#1more",
+      "name": "Eglinton Ave E / Mason Rd",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114891,
+      "junction": "cluster_13284225813_13284225814_433591082_433591083",
+      "name": "Eglinton Ave E / Bellamy Rd N",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114889,
+      "junction": "11224161610",
+      "name": "Eglinton Ave E / Torrance Rd",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114905,
+      "junction": "cluster_137437710_137437716",
+      "name": "Kingston Rd / Scarborough Golf Club Rd",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114903,
+      "junction": "266264574",
+      "name": "Markham Rd / Markanna Dr",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114901,
+      "junction": "266262552",
+      "name": "Markham Rd / Luella St",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114900,
+      "junction": "418980459",
+      "name": "Bellamy Rd N / Nelson St",
+      "count_date": "2025-11-22"
+    },
+    {
+      "count_id": 114876,
+      "junction": "266261662",
+      "name": "Bellamy Rd N / Porchester Dr",
+      "count_date": "2025-11-11"
+    },
+    {
+      "count_id": 114667,
+      "junction": "293051697",
+      "name": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+      "count_date": "2025-10-26"
+    },
+    {
+      "count_id": 114668,
+      "junction": "32348006",
+      "name": "Neilson Rd / Livonia Pl / Purpledusk Trl",
+      "count_date": "2025-10-26"
+    },
+    {
+      "count_id": 114669,
+      "junction": "cluster_427761610_428591834",
+      "name": "Ellesmere Rd / Neilson Rd",
+      "count_date": "2025-10-26"
+    },
+    {
+      "count_id": 113797,
+      "junction": "418523575",
+      "name": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+      "count_date": "2025-10-21"
+    },
+    {
+      "count_id": 114495,
+      "junction": "cluster_429374813_429374814_429374818_429374823",
+      "name": "McCowan Rd / Sheppard Ave E",
+      "count_date": "2025-10-19"
+    },
+    {
+      "count_id": 114658,
+      "junction": "32376758",
+      "name": "Neilson Rd / Military Trl",
+      "count_date": "2025-10-16"
+    },
+    {
+      "count_id": 113181,
+      "junction": "427659366",
+      "name": "Markham Rd / Rochman Blvd",
+      "count_date": "2025-10-07"
+    },
+    {
+      "count_id": 113546,
+      "junction": "277490664",
+      "name": "Poplar Rd / Waldock St",
+      "count_date": "2025-09-30"
+    },
+    {
+      "count_id": 113548,
+      "junction": "428550609",
+      "name": "Morningside Ave / Pixley Cres / Gardentree St",
+      "count_date": "2025-08-27"
+    },
+    {
+      "count_id": 113540,
+      "junction": "277156095",
+      "name": "Dearham Wood / Toynbee Trl",
+      "count_date": "2025-08-26"
+    },
+    {
+      "count_id": 113480,
+      "junction": "257892178",
+      "name": "Milner Ave / Mid-Dominion Acres / Executive Crt",
+      "count_date": "2025-08-06"
+    },
+    {
+      "count_id": 112961,
+      "junction": "cluster_414411286_414457402_469627192_469627202",
+      "name": "Lawrence Ave E / Midland Ave",
+      "count_date": "2025-07-03"
+    },
+    {
+      "count_id": 112938,
+      "junction": "cluster_428559727_428559729_428559734_428559740",
+      "name": "Kingston Rd / Morningside Ave",
+      "count_date": "2025-07-03"
+    },
+    {
+      "count_id": 112937,
+      "junction": "32474189",
+      "name": "Brimley Rd / Lawrence Ave E / Gatineau Hydro Corridor Trl",
+      "count_date": "2025-07-03"
+    },
+    {
+      "count_id": 112901,
+      "junction": "cluster_297565688_297565703",
+      "name": "Brimley Rd / Triton Rd",
+      "count_date": "2025-07-03"
+    },
+    {
+      "count_id": 112890,
+      "junction": "32346645",
+      "name": "Ellesmere Rd / Morningside Ave",
+      "count_date": "2025-07-03"
+    },
+    {
+      "count_id": 112957,
+      "junction": "cluster_13722263967_13722263968_13722263969_13722263970",
+      "name": "Ellesmere Rd / McCowan Rd",
+      "count_date": "2025-06-25"
+    },
+    {
+      "count_id": 112963,
+      "junction": "cluster_13722262591_13722262592_13722262593_13722262594",
+      "name": "Ellesmere Rd / Brimley Rd",
+      "count_date": "2025-06-25"
+    },
+    {
+      "count_id": 112905,
+      "junction": "cluster_297561822_427685525_427685527",
+      "name": "Ellesmere Rd / Borough Approach W",
+      "count_date": "2025-06-25"
+    },
+    {
+      "count_id": 112675,
+      "junction": "418523858",
+      "name": "Bellamy Rd N / Amarillo Dr",
+      "count_date": "2025-05-28"
+    },
+    {
+      "count_id": 112689,
+      "junction": "418523721",
+      "name": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+      "count_date": "2025-05-28"
+    },
+    {
+      "count_id": 112686,
+      "junction": "241338706",
+      "name": "Mason Rd / Adanac Dr",
+      "count_date": "2025-05-28"
+    },
+    {
+      "count_id": 112676,
+      "junction": "266261971",
+      "name": "Cedar Brae Blvd / Banmoor Blvd / Bellamy Rd N",
+      "count_date": "2025-05-28"
+    },
+    {
+      "count_id": 112661,
+      "junction": "427728885",
+      "name": "Lawrence Ave E / Valparaiso Ave",
+      "count_date": "2025-05-21"
+    },
+    {
+      "count_id": 112662,
+      "junction": "1430604103",
+      "name": "Lawrence Ave E / Burnview Cres",
+      "count_date": "2025-05-21"
+    },
+    {
+      "count_id": 112663,
+      "junction": "cluster_544177060_544177062_544177064_544177065",
+      "name": "Lawrence Ave E / Bellamy Rd N",
+      "count_date": "2025-05-21"
+    },
+    {
+      "count_id": 112665,
+      "junction": "33539443",
+      "name": "Manse Rd / Lawrence Ave E",
+      "count_date": "2025-05-21"
+    },
+    {
+      "count_id": 112084,
+      "junction": "427658354",
+      "name": "Amberjack Blvd / Brimorton Dr",
+      "count_date": "2025-03-19"
+    },
+    {
+      "count_id": 111745,
+      "junction": "427757443",
+      "name": "Janray Dr / Fortune Gt",
+      "count_date": "2025-01-28"
+    },
+    {
+      "count_id": 111640,
+      "junction": "272059697",
+      "name": "Midland Ave / Millbridge Gt",
+      "count_date": "2024-12-18"
+    },
+    {
+      "count_id": 111656,
+      "junction": "258022227",
+      "name": "Brimley Rd / Elgar Ave / Dallyn Cres",
+      "count_date": "2024-12-18"
+    },
+    {
+      "count_id": 111642,
+      "junction": "cluster_276486026_427653445",
+      "name": "Ellesmere Rd / Saratoga Dr",
+      "count_date": "2024-12-18"
+    },
+    {
+      "count_id": 111617,
+      "junction": "427659012",
+      "name": "Bellamy Rd N / Painted Post Dr",
+      "count_date": "2024-12-11"
+    },
+    {
+      "count_id": 111145,
+      "junction": "418514407",
+      "name": "Midland Ave / Stansbury Cres",
+      "count_date": "2024-11-23"
+    },
+    {
+      "count_id": 111147,
+      "junction": "266298477",
+      "name": "Midland Ave / Dorcot Ave",
+      "count_date": "2024-11-23"
+    },
+    {
+      "count_id": 111146,
+      "junction": "11591354578",
+      "name": "Midland Ave / Brockley Dr",
+      "count_date": "2024-11-23"
+    },
+    {
+      "count_id": 111136,
+      "junction": "cluster_134185914_7450278104",
+      "name": "Midland Ave / Prudential Dr",
+      "count_date": "2024-11-23"
+    },
+    {
+      "count_id": 111137,
+      "junction": "127755975",
+      "name": "Midland Ave / Marcos Blvd / Romulus Dr",
+      "count_date": "2024-11-23"
+    },
+    {
+      "count_id": 111494,
+      "junction": "276550196",
+      "name": "Dubarry Ave / Darlingside Dr",
+      "count_date": "2024-11-19"
+    },
+    {
+      "count_id": 111491,
+      "junction": "277490895",
+      "name": "Gloaming Dr / Danzig St",
+      "count_date": "2024-11-14"
+    },
+    {
+      "count_id": 111310,
+      "junction": "cluster_32472336_648921944",
+      "name": "Consilium Pl / Hwy 401 Collectors E Mccowan Rd Ramp / McCowan Rd",
+      "count_date": "2024-11-13"
+    },
+    {
+      "count_id": 111308,
+      "junction": "cluster_32474466_32474467",
+      "name": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+      "count_date": "2024-11-12"
+    },
+    {
+      "count_id": 111492,
+      "junction": "277490558",
+      "name": "Kitchener Rd / Danzig St",
+      "count_date": "2024-11-12"
+    },
+    {
+      "count_id": 111493,
+      "junction": "277490561",
+      "name": "Marlena Dr / Danzig St",
+      "count_date": "2024-11-12"
+    },
+    {
+      "count_id": 110886,
+      "junction": "258017384",
+      "name": "Brimley Rd / Pitfield Rd",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110879,
+      "junction": "268735945",
+      "name": "Brimley Rd / Heather Rd",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110882,
+      "junction": "cluster_764519750_764519772_764519774_764519776",
+      "name": "Brimley Rd / Sheppard Ave E",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 111223,
+      "junction": "418523271",
+      "name": "Danforth Rd / Trudelle St",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 111222,
+      "junction": "32496583",
+      "name": "Danforth Rd / Savarin St",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 111221,
+      "junction": "418980085",
+      "name": "Danforth Rd / Seminole Ave",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 111220,
+      "junction": "266901178",
+      "name": "Danforth Rd / Barrymore Rd",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110888,
+      "junction": "266292947",
+      "name": "Brimley Rd / Omni Dr / Golden Gate Crt",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110891,
+      "junction": "32474180",
+      "name": "Brimley Rd / Applefield Dr / Bernadine St",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110892,
+      "junction": "272056708",
+      "name": "Brimley Rd / Waterfield Dr / Brimorton Dr",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110893,
+      "junction": "32474182",
+      "name": "Brimley Rd / St Andrews Rd / Applefield Dr",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110894,
+      "junction": "266298287",
+      "name": "Brimley Rd / Dorcot Ave / Thomson Memorial Park Trl",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110896,
+      "junction": "59360644",
+      "name": "Brimley Rd / Shediac Rd / Fraserton Gt",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110897,
+      "junction": "418979773",
+      "name": "Brimley Rd / Deerfield Rd",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110899,
+      "junction": "127757334",
+      "name": "Brimley Rd / Chillery Ave",
+      "count_date": "2024-11-02"
+    },
+    {
+      "count_id": 110824,
+      "junction": "258019366",
+      "name": "Sheppard Ave E / Brownspring Rd",
+      "count_date": "2024-10-30"
+    },
+    {
+      "count_id": 111305,
+      "junction": "cluster_1367253549_1367253551_1367253558_1367253561",
+      "name": "Consilium Pl / Corporate Dr",
+      "count_date": "2024-10-29"
+    },
+    {
+      "count_id": 111304,
+      "junction": "cluster_32476072_648921963_648921972_648921974",
+      "name": "McCowan Rd / Bushby Dr / Town Centre Crt",
+      "count_date": "2024-10-29"
+    },
+    {
+      "count_id": 111041,
+      "junction": "cluster_427825255_427825257_427825263_427825264",
+      "name": "Kingston Rd / Lawrence Ave E",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111040,
+      "junction": "cluster_427820922_427820923",
+      "name": "Lawrence Ave E / Galloway Rd",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111039,
+      "junction": "59834168",
+      "name": "Lawrence Ave E / Greenholm Crct / Greencrest Crct",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111037,
+      "junction": "cluster_427756971_427760272_427760649_427761298",
+      "name": "Lawrence Ave E / Scarborough Golf Club Rd",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111035,
+      "junction": "427731061",
+      "name": "Lawrence Ave E / Barrymore Rd",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111045,
+      "junction": "134219967",
+      "name": "Lawrence Ave E / Greenbrae Crct / Greencedar Crct",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111042,
+      "junction": "cluster_427826636_427826638_427826642_427826650",
+      "name": "Lawrence Ave E / Morningside Ave",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111044,
+      "junction": "32346406",
+      "name": "Collinsgrove Rd / Ling Rd / Lawrence Ave E",
+      "count_date": "2024-10-22"
+    },
+    {
+      "count_id": 111027,
+      "junction": "241327103",
+      "name": "Eglinton Ave E / McCowan Rd",
+      "count_date": "2024-10-19"
+    },
+    {
+      "count_id": 111028,
+      "junction": "cluster_433591041_433591047_433591049_433591050",
+      "name": "Markham Rd / Eglinton Ave E",
+      "count_date": "2024-10-19"
+    },
+    {
+      "count_id": 111293,
+      "junction": "cluster_429374811_429374827",
+      "name": "McCowan Rd / Pitfield Rd / Invergordon Ave",
+      "count_date": "2024-10-16"
+    },
+    {
+      "count_id": 111292,
+      "junction": "cluster_356949804_429374545",
+      "name": "McCowan Rd / Milner Ave / Channel Nine Crt",
+      "count_date": "2024-10-16"
+    },
+    {
+      "count_id": 111014,
+      "junction": "cluster_33512745_33512850",
+      "name": "Livingston Rd / Guildwood Pkwy",
+      "count_date": "2024-10-08"
+    },
+    {
+      "count_id": 110402,
+      "junction": "cluster_292958354_8713098229",
+      "name": "Markham Rd / Tuxedo Crt",
+      "count_date": "2024-09-11"
+    },
+    {
+      "count_id": 110248,
+      "junction": "cluster_427758711_427773231",
+      "name": "Markham Rd / Greencedar Crct / Greencrest Crct",
+      "count_date": "2024-07-03"
+    },
+    {
+      "count_id": 110249,
+      "junction": "143985919",
+      "name": "Markham Rd / Greenbrae Crct / Greenholm Crct",
+      "count_date": "2024-07-03"
+    },
+    {
+      "count_id": 110077,
+      "junction": "cluster_32412880_33513422_33513448",
+      "name": "Kingston Rd / Cromwell Rd / Guildwood Pkwy",
+      "count_date": "2024-06-19"
+    },
+    {
+      "count_id": 109883,
+      "junction": "cluster_257892052_257892053_65238151_65238305",
+      "name": "Markham Rd / Milner Ave",
+      "count_date": "2024-06-13"
+    },
+    {
+      "count_id": 110181,
+      "junction": "427658932",
+      "name": "McCowan Rd / Brimorton Dr",
+      "count_date": "2024-06-11"
+    },
+    {
+      "count_id": 109415,
+      "junction": "306312329",
+      "name": "Lee Centre Dr / Corporate Dr / Lee Centre Park Trl",
+      "count_date": "2024-04-21"
+    },
+    {
+      "count_id": 109413,
+      "junction": "cluster_32474412_648917567",
+      "name": "Corporate Dr / Hwy 401 Collectors E Ramp",
+      "count_date": "2024-04-21"
+    },
+    {
+      "count_id": 109412,
+      "junction": "cluster_414467162_414468957",
+      "name": "Progress Ave / Corporate Dr",
+      "count_date": "2024-04-21"
+    },
+    {
+      "count_id": 109261,
+      "junction": "cluster_427773214_427773222_427773228_427773233",
+      "name": "Markham Rd / Lawrence Ave E",
+      "count_date": "2024-03-26"
+    },
+    {
+      "count_id": 109159,
+      "junction": "427761433",
+      "name": "Orton Park Rd / Thornbeck Dr",
+      "count_date": "2024-03-06"
+    },
+    {
+      "count_id": 109095,
+      "junction": "245027598",
+      "name": "Midland Ave / Lord Roberts Dr",
+      "count_date": "2024-03-06"
+    },
+    {
+      "count_id": 108968,
+      "junction": "59834332",
+      "name": "Ellesmere Rd / Orton Park Rd / Military Trl / Hydro Corridor",
+      "count_date": "2024-02-28"
+    },
+    {
+      "count_id": 107615,
+      "junction": "427756564",
+      "name": "Brimorton Dr / Painted Post Dr",
+      "count_date": "2023-12-06"
+    },
+    {
+      "count_id": 107398,
+      "junction": "428587898",
+      "name": "Highcastle Rd / Oakmeadow Blvd (South)",
+      "count_date": "2023-10-17"
+    },
+    {
+      "count_id": 107376,
+      "junction": "cluster_5467979726_5467979727",
+      "name": "Kingston Rd / Collinsgrove Rd",
+      "count_date": "2023-10-14"
+    },
+    {
+      "count_id": 107563,
+      "junction": "127757162",
+      "name": "Brimley Rd / Citadel Dr",
+      "count_date": "2023-10-12"
+    },
+    {
+      "count_id": 107112,
+      "junction": "cluster_134189341_8279525552",
+      "name": "Lawrence Ave E / Brockley Dr",
+      "count_date": "2023-09-19"
+    }
+  ],
+  "caveats": {
+    "composite_day": "each location contributes its own latest covering date (2023-09-19..2026-06-30, 56 distinct days) — this demand is a COMPOSITE typical AM peak, not one observed morning",
+    "class_merge": "cars+truck+bus merged per movement (the pipeline's mode taxonomy is car/bike/ped); no separate heavy-vehicle demand",
+    "bike": "bike counts anchor APPROACH-LEVEL edgeData only (TMC bikes carry no turn resolution) — coarser than vehicle turn calibration",
+    "ped": "ped counts are intersection CROSSINGS; they anchor a corridor-total walk scale, order-of-magnitude only — NO GEH claim for bike/ped"
+  },
+  "turn_counts": {
+    "file": "turn_counts.am.xml",
+    "emitted_total": 291199,
+    "skipped_total": 16373,
+    "label_assignment": {
+      "mean_deviation_deg": 19.7,
+      "max_deviation_deg": 71.1
+    },
+    "skip_report": [
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 115
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "n",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "s",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Markham Rd / 435 Markham Rd / Blakemanor Blvd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Brimley Rd / Gully Dr / Knob Hill Park Trl",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 6
+      },
+      {
+        "location": "Brimley Rd / Gully Dr / Knob Hill Park Trl",
+        "approach": "n",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Brimley Rd / Gully Dr / Knob Hill Park Trl",
+        "approach": "s",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Brimley Rd / Gully Dr / Knob Hill Park Trl",
+        "approach": "s",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Brimley Rd / Gully Dr / Knob Hill Park Trl",
+        "approach": "s",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 173
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Borough Dr / Omni Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 12
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 128
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 13
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "e",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 14
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "s",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "s",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "s",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "s",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "s",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "s",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Borough Dr / Town Centre Crt (North)",
+        "approach": "w",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Kingston Rd / Eglinton Ave E",
+        "approach": "w",
+        "reason": "matched leg has no incoming edge (one-way outbound)",
+        "count_2h": 774
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 61
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 9
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 17
+      },
+      {
+        "location": "Eglinton Ave E / Cedar Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 16
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 29
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "n",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "n",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "n",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "n",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "e",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "e",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "e",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "e",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "e",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "e",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / Bellamy Rd N",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 73
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 937
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 100
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 46
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 58
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 62
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 74
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 81
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 75
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 112
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 21
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 132
+      },
+      {
+        "location": "Eglinton Ave E / Torrance Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 12
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 502
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 39
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 12
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 13
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "e",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 17
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 39
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 55
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 53
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 60
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 67
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 56
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 63
+      },
+      {
+        "location": "Neilson Rd / Keeler Blvd / Oakmeadow Blvd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 81
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 13
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 71
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 38
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 20
+      },
+      {
+        "location": "Lochleven Dr / Knowlton Dr / Coltbridge Crt",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Ellesmere Rd / Borough Approach W",
+        "approach": "n",
+        "reason": "matched leg has no incoming edge (one-way outbound)",
+        "count_2h": 193
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 27
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "n",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "n",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "n",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "e",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "e",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "e",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "e",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "e",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "s",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "s",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "s",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Adanac Dr / Bellamy Rd S / McCowan District Park Trl",
+        "approach": "s",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 18
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Mason Rd / Adanac Dr",
+        "approach": "w",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 41
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 13
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 9
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "e",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "s",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "s",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "s",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "s",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "s",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Lawrence Ave E / Burnview Cres",
+        "approach": "w",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 526
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 1333
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 459
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 35
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 43
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 13
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 50
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 12
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 36
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 16
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 68
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 30
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 12
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 79
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 28
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 60
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 52
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 56
+      },
+      {
+        "location": "Manse Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 22
+      },
+      {
+        "location": "Midland Ave / Millbridge Gt",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 2
+      },
+      {
+        "location": "Midland Ave / Millbridge Gt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Millbridge Gt",
+        "approach": "s",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Dorcot Ave",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 1
+      },
+      {
+        "location": "Midland Ave / Dorcot Ave",
+        "approach": "n",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Brockley Dr",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 8
+      },
+      {
+        "location": "Midland Ave / Brockley Dr",
+        "approach": "n",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Midland Ave / Brockley Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 21
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "n",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Prudential Dr",
+        "approach": "w",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Consilium Pl / Hwy 401 Collectors E Mccowan Rd Ramp / McCowan Rd",
+        "approach": "e",
+        "reason": "matched leg has no incoming edge (one-way outbound)",
+        "count_2h": 658
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 162
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 118
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 122
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 143
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 159
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 139
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 159
+      },
+      {
+        "location": "Hwy 401 Collectors W Mccowan Rd Ramp / Hwy 401 Collectors W Ramp / McCowan Rd / Mccowan Rd S",
+        "approach": "n",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 149
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 718
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 16
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 22
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 33
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 35
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 45
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 49
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 60
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 59
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Brimley Rd / Heather Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 100
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 557
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 31
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 51
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 41
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 66
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 56
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 67
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 83
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "n",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 105
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 9
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 9
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 9
+      },
+      {
+        "location": "Danforth Rd / Trudelle St",
+        "approach": "e",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Sheppard Ave E / Brownspring Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Sheppard Ave E / Brownspring Rd",
+        "approach": "s",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Sheppard Ave E / Brownspring Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Sheppard Ave E / Brownspring Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Sheppard Ave E / Brownspring Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 53
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 55
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 57
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 65
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 61
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 85
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 100
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "n",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 92
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 59
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 71
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 80
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 83
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 77
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 59
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 74
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 55
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "e",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 15
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 22
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 21
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 27
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 30
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 38
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 29
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "s",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 29
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 32
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 34
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 36
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 37
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 32
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 45
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 54
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 14
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 49
+      },
+      {
+        "location": "Kingston Rd / Lawrence Ave E",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "n",
+        "reason": "no leg matches this counted label",
+        "count_2h": 202
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 829
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 303
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 57
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 41
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 44
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 10
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 58
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 14
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 64
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 12
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 70
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 18
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 74
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 15
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 87
+      },
+      {
+        "location": "Eglinton Ave E / McCowan Rd",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 23
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "w",
+        "reason": "no leg matches this counted label",
+        "count_2h": 9
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "n",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "e",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Markham Rd / Tuxedo Crt",
+        "approach": "s",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 6
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 11
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 14
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 14
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 16
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 19
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "e",
+        "reason": "matched leg has no incoming edge (one-way outbound)",
+        "count_2h": 78
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "s",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 1,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Progress Ave / Corporate Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "e",
+        "reason": "no leg matches this counted label",
+        "count_2h": 15
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 0,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Midland Ave / Lord Roberts Dr",
+        "approach": "s",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 4
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "s",
+        "reason": "no leg matches this counted label",
+        "count_2h": 37
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 5
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "n",
+        "turn": "t",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 2
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 3,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 20
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 8
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "e",
+        "turn": "l",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 3
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 2,
+        "reason": "no exit edge in band",
+        "count": 1
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 4,
+        "reason": "no exit edge in band",
+        "count": 7
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 5,
+        "reason": "no exit edge in band",
+        "count": 14
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 6,
+        "reason": "no exit edge in band",
+        "count": 13
+      },
+      {
+        "location": "Lawrence Ave E / Brockley Dr",
+        "approach": "w",
+        "turn": "r",
+        "interval": 7,
+        "reason": "no exit edge in band",
+        "count": 1
+      }
+    ],
+    "splits": [
+      {
+        "location": "Ellesmere Rd / Borough Approach W",
+        "approach": "e",
+        "edges": [
+          "445946531",
+          "27121487#0"
+        ],
+        "lane_weights": [
+          4,
+          2
+        ]
+      }
+    ]
+  },
+  "bike_edgedata": {
+    "file": "bike_edgedata.am.xml",
+    "total": 781
+  },
+  "ped_counted_total_2h": 15232,
+  "tool_cmdlines": [],
+  "iterations": [],
+  "measurements": {}
+}
