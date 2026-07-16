@@ -94,6 +94,19 @@ def test_spill_recorder_roundtrip_and_streaming_pet(tmp_path) -> None:
     assert len(conflicts) == 1 and conflicts[0]["entities"] == ["ped0", "veh0"]
     assert conflicts[0]["pet"] < sh.PED_PET_THRESHOLD
 
+    # teleport-jump guard: a vehicle "moving" 3 km in one step must not rasterize (the deterministic
+    # freeze at the first teleport), and a flushed-then-reappearing id counts once in the population.
+    rec2 = sh.SpillRecorder(tmp_path / "spill2.jsonl", convert=lambda x, y: (x, y))
+    rec2.record("pedX", "pedestrian", 0.0, 0.0, 1.0, 0.0)
+    rec2.record("pedX", "pedestrian", 0.0, 3000.0, 1.0, 1.0)  # jump — re-anchored, not indexed
+    assert sum(len(v) for v in rec2._ped_cells.values()) == 0
+    rec2.record("vehX", "car", 0.0, 0.0, 20.0, 0.0)
+    rec2.record("vehX", "car", 3000.0, 0.0, 20.0, 1.0)  # teleport jump — _pet_test must skip it
+    rec2.step_end(20.0, set())
+    rec2.record("vehX", "car", 3010.0, 0.0, 20.0, 21.0)  # reappears after the flush
+    rec2.finalize()
+    assert rec2.counts["car"] == 1, "a teleport re-appearance must not double-count"
+
     picked = rec.load_records({"veh0"})
     assert set(picked) == {"veh0"} and picked["veh0"]["type"] == "car"
     assert picked["veh0"]["path"][0] == [0.0, 0.01]  # offline converter applied at flush

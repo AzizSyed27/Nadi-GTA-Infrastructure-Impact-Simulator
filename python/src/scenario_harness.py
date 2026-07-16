@@ -274,6 +274,7 @@ class SpillRecorder:
 
     GRACE_S = 10.0
     MIN_SEG_M2 = 0.09  # (0.3 m)^2 — below this a step is "not moving"; degenerate segments never index/test
+    MAX_SEG_M2 = 200.0 ** 2  # no physical entity moves 200 m/step — teleport jumps/bad coords never rasterize
 
     def __init__(self, spill_path: Path, convert=None):
         from array import array as _array  # local: keep module imports untouched for the synthetic path
@@ -291,6 +292,7 @@ class SpillRecorder:
         self._ped_cells: dict = {}           # cell -> [(pid, x1, y1, x2, y2, t1, t2)]
         self._ped_prev: dict[str, tuple] = {}
         self._best: dict = {}                # (pid, vid) -> (pet, ix, iy, t) — min PET per pair
+        self._seen: set[str] = set()         # a long teleport can flush + re-record an id — count once
         self.counts: Counter = Counter()     # FULL population recorded, per type
         self.spilled = 0
 
@@ -299,7 +301,9 @@ class SpillRecorder:
         if rec is None:
             rec = self._active[eid] = {"type": mode, "xy": self._array("d"), "ts": self._array("d"),
                                        "sp": self._array("d")}
-            self.counts[mode] += 1
+            if eid not in self._seen:  # re-appearance after a teleport flush is the same traveler
+                self._seen.add(eid)
+                self.counts[mode] += 1
         rec["xy"].extend((x, y))
         rec["ts"].append(round(t, 3))
         rec["sp"].append(round(speed, 3))
@@ -312,9 +316,12 @@ class SpillRecorder:
                 # the quadratic hot-loop that drowned the first calibrated runs (~10^10 PET tests).
                 # Degenerate segments cannot produce a crossing INTERSECTION, so skipping is lossless
                 # for the crossing-anchored PET; the waiting ped is indexed the moment they step off.
-                if (x - px) ** 2 + (y - py) ** 2 >= self.MIN_SEG_M2:
+                move2 = (x - px) ** 2 + (y - py) ** 2
+                if self.MIN_SEG_M2 <= move2 <= self.MAX_SEG_M2:
                     for c in _seg_cells(px, py, x, y):
                         self._ped_cells.setdefault(c, []).append((eid, px, py, x, y, pt_, t))
+                    self._ped_prev[eid] = (x, y, t)
+                elif move2 > self.MAX_SEG_M2:  # a jump, not a walk — re-anchor without indexing
                     self._ped_prev[eid] = (x, y, t)
             else:
                 self._ped_prev[eid] = (x, y, t)
@@ -347,8 +354,9 @@ class SpillRecorder:
         for j in range(n - 1):
             x1, y1, t1 = xy[2 * j], xy[2 * j + 1], ts[j]
             x2, y2, t2 = xy[2 * j + 2], xy[2 * j + 3], ts[j + 1]
-            if (x2 - x1) ** 2 + (y2 - y1) ** 2 < self.MIN_SEG_M2:
-                continue  # a queued vehicle's zero-movement steps can't cross anything — skip (see record)
+            move2 = (x2 - x1) ** 2 + (y2 - y1) ** 2
+            if move2 < self.MIN_SEG_M2 or move2 > self.MAX_SEG_M2:
+                continue  # zero-movement can't cross; >200m/step is a teleport jump, not driving
             for c in _seg_cells(x1, y1, x2, y2):
                 for pid, ax, ay, bx, by, ta, tb in self._ped_cells.get(c, ()):
                     hit = _segment_pet((ax, ay), (bx, by), ta, tb, (x1, y1), (x2, y2), t1, t2)
@@ -463,12 +471,20 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                     conn.person.subscribe(pid, (tc.VAR_POSITION, tc.VAR_SPEED))
                 veh = conn.vehicle.getAllSubscriptionResults()
                 ped = conn.person.getAllSubscriptionResults()
+                # TELEPORTING entities stay in subscription results with SUMO's INVALID position
+                # sentinel (~-1.07e9) — the legacy getIDList() path never saw them. Recording one such
+                # point creates a 2-billion-metre "segment" whose cell rasterization allocates GBs
+                # (the deterministic freeze at the first teleport). Skip off-net points entirely.
                 for vid, d in veh.items():
                     x, y = d[tc.VAR_POSITION]
+                    if x < -1e8 or y < -1e8:
+                        continue
                     recorder.record(vid, "bicycle" if vid.startswith("bike") else "car",
                                     x, y, d[tc.VAR_SPEED], t)
                 for pid, d in ped.items():
                     x, y = d[tc.VAR_POSITION]
+                    if x < -1e8 or y < -1e8:
+                        continue
                     recorder.record(pid, "pedestrian", x, y, d[tc.VAR_SPEED], t)
                 recorder.step_end(t, veh.keys() | ped.keys())
                 continue
