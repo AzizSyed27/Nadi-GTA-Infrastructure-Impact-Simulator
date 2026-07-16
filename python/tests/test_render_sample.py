@@ -72,7 +72,12 @@ def test_spill_recorder_roundtrip_and_streaming_pet(tmp_path) -> None:
     import scenario_harness as sh
 
     rec = sh.SpillRecorder(tmp_path / "spill.jsonl", convert=lambda x, y: (x / 1000.0, y / 1000.0))
-    # a ped walking +y through (50, 0..20); a vehicle driving +x through (0..100, 10) crossing at (50,10)
+    # the ped WAITS at a signal for 50 steps first — waiting must NOT bloat the cell index (the
+    # zero-movement pile-up was the hot-loop that drowned the first calibrated runs)
+    for t in range(-50, 0):
+        rec.record("ped0", "pedestrian", 50.0, 0.0, 0.0, float(t))
+    assert sum(len(v) for v in rec._ped_cells.values()) == 0, "waiting steps must not be indexed"
+    # then walks +y through (50, 0..20); a vehicle drives +x through (0..100, 10) crossing at (50,10)
     for i, t in enumerate(range(0, 21)):
         rec.record("ped0", "pedestrian", 50.0, float(i), 1.0, float(t))
     for i, t in enumerate(range(9, 12)):

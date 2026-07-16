@@ -273,6 +273,7 @@ class SpillRecorder:
     profile NEVER uses this path — its behavior stays byte-identical."""
 
     GRACE_S = 10.0
+    MIN_SEG_M2 = 0.09  # (0.3 m)^2 — below this a step is "not moving"; degenerate segments never index/test
 
     def __init__(self, spill_path: Path, convert=None):
         from array import array as _array  # local: keep module imports untouched for the synthetic path
@@ -306,9 +307,17 @@ class SpillRecorder:
             prev = self._ped_prev.get(eid)
             if prev is not None:
                 px, py, pt_ = prev
-                for c in _seg_cells(px, py, x, y):
-                    self._ped_cells.setdefault(c, []).append((eid, px, py, x, y, pt_, t))
-            self._ped_prev[eid] = (x, y, t)
+                # Index only MOVING segments. A ped waiting at a signal emits a zero-length segment
+                # every step — thousands pile into ONE cell and every queued vehicle then scans them:
+                # the quadratic hot-loop that drowned the first calibrated runs (~10^10 PET tests).
+                # Degenerate segments cannot produce a crossing INTERSECTION, so skipping is lossless
+                # for the crossing-anchored PET; the waiting ped is indexed the moment they step off.
+                if (x - px) ** 2 + (y - py) ** 2 >= self.MIN_SEG_M2:
+                    for c in _seg_cells(px, py, x, y):
+                        self._ped_cells.setdefault(c, []).append((eid, px, py, x, y, pt_, t))
+                    self._ped_prev[eid] = (x, y, t)
+            else:
+                self._ped_prev[eid] = (x, y, t)
         self._gone.pop(eid, None)
 
     def step_end(self, t: float, present: set[str]) -> None:
@@ -338,6 +347,8 @@ class SpillRecorder:
         for j in range(n - 1):
             x1, y1, t1 = xy[2 * j], xy[2 * j + 1], ts[j]
             x2, y2, t2 = xy[2 * j + 2], xy[2 * j + 3], ts[j + 1]
+            if (x2 - x1) ** 2 + (y2 - y1) ** 2 < self.MIN_SEG_M2:
+                continue  # a queued vehicle's zero-movement steps can't cross anything — skip (see record)
             for c in _seg_cells(x1, y1, x2, y2):
                 for pid, ax, ay, bx, by, ta, tb in self._ped_cells.get(c, ()):
                     hit = _segment_pet((ax, ay), (bx, by), ta, tb, (x1, y1), (x2, y2), t1, t2)
