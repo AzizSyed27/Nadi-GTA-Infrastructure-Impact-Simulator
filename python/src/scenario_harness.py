@@ -475,17 +475,19 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                 # sentinel (~-1.07e9) — the legacy getIDList() path never saw them. Recording one such
                 # point creates a 2-billion-metre "segment" whose cell rasterization allocates GBs
                 # (the deterministic freeze at the first teleport). Skip off-net points entirely.
+                # Index, never unpack: a teleporting entity's result can arrive as a 3-tuple (z rider),
+                # which crashed `x, y = ...` BEFORE the sentinel skip could run.
                 for vid, d in veh.items():
-                    x, y = d[tc.VAR_POSITION]
-                    if x < -1e8 or y < -1e8:
+                    pos = d.get(tc.VAR_POSITION) or ()
+                    if len(pos) < 2 or pos[0] < -1e8 or pos[1] < -1e8:
                         continue
                     recorder.record(vid, "bicycle" if vid.startswith("bike") else "car",
-                                    x, y, d[tc.VAR_SPEED], t)
+                                    pos[0], pos[1], d[tc.VAR_SPEED], t)
                 for pid, d in ped.items():
-                    x, y = d[tc.VAR_POSITION]
-                    if x < -1e8 or y < -1e8:
+                    pos = d.get(tc.VAR_POSITION) or ()
+                    if len(pos) < 2 or pos[0] < -1e8 or pos[1] < -1e8:
                         continue
-                    recorder.record(pid, "pedestrian", x, y, d[tc.VAR_SPEED], t)
+                    recorder.record(pid, "pedestrian", pos[0], pos[1], d[tc.VAR_SPEED], t)
                 recorder.step_end(t, veh.keys() | ped.keys())
                 continue
             for vid in conn.vehicle.getIDList():
