@@ -74,6 +74,66 @@ def test_profiles_registry() -> None:
     assert cal.spill is True and cal.render_cap_vehicles and cal.max_t == 10800.0
 
 
+def _bimodal_conflicts(n: int = 20000) -> list[dict]:
+    """A fixture mirroring the Read-2 calibrated TTC distribution: a hard-conflict mode (severity ~0.7)
+    and a dominant soft mode near the threshold (severity ~0.15). Seeded RNG — deterministic."""
+    import random
+
+    rng = random.Random(7)
+    out = []
+    for i in range(n):
+        if rng.random() < 0.6:
+            sev = min(0.999, max(0.0, rng.gauss(0.15, 0.06)))  # soft mode (near-threshold)
+        else:
+            sev = min(0.999, max(0.0, rng.gauss(0.70, 0.10)))  # hard mode
+        out.append({"t": float(i % 3600), "lon": -79.2 + (i % 97) * 1e-4, "lat": 43.75 + (i % 89) * 1e-4,
+                    "type": "rear_end", "severity": round(sev, 3), "entities": [f"veh{i}", f"veh{i+1}"]})
+    return out
+
+
+def test_stratify_conflicts_uncapped_identity() -> None:
+    conflicts = _bimodal_conflicts(300)
+    assert rs.stratify_conflicts(conflicts, None) is conflicts
+    assert rs.stratify_conflicts(conflicts, 300) is conflicts
+    assert rs.stratify_conflicts(conflicts, 5000) is conflicts  # below cap -> untouched
+
+
+def test_stratify_conflicts_preserves_band_shape() -> None:
+    """THE distribution test: a capped set's severity-band shares match the full set's within ±0.02
+    absolute — never truncate/keep-worst-N (that erases the soft-mode mass; Read 2)."""
+    full = _bimodal_conflicts(20000)
+    cap = 2000
+    capped = rs.stratify_conflicts(full, cap)
+    assert len(capped) == cap
+
+    def band_shares(cs):
+        bands = [0] * 10
+        for c in cs:
+            bands[min(9, int(c["severity"] * 10))] += 1
+        return [b / len(cs) for b in bands]
+
+    # the extreme tail is guaranteed: every one of the top-100 by severity is in the capped set
+    top = sorted(full, key=lambda c: (-c["severity"], c["t"], c["lon"], c["lat"]))[:rs.CONFLICT_TAIL_K]
+    top_keys = {(c["t"], c["lon"], c["lat"], c["severity"]) for c in top}
+    capped_keys = {(c["t"], c["lon"], c["lat"], c["severity"]) for c in capped}
+    assert top_keys <= capped_keys, "extreme tail dropped"
+
+    # shape preserved on the PROPORTIONAL portion (the guaranteed tail intentionally over-weights the
+    # top band at small caps — compare tail-less capped vs top100-less full, apples to apples)
+    full_rest = [c for c in full if (c["t"], c["lon"], c["lat"], c["severity"]) not in top_keys]
+    capped_rest = [c for c in capped if (c["t"], c["lon"], c["lat"], c["severity"]) not in top_keys]
+    fs, cs_ = band_shares(full_rest), band_shares(capped_rest)
+    for i, (a, b) in enumerate(zip(fs, cs_)):
+        assert abs(a - b) <= 0.02, f"band {i}: full {a:.3f} vs capped {b:.3f} — shape not preserved"
+    # and the OVERALL shape (tail included) stays recognizably bimodal: loose end-to-end bound
+    for i, (a, b) in enumerate(zip(band_shares(full), band_shares(capped))):
+        assert abs(a - b) <= 0.06, f"band {i}: overall shape drifted (full {a:.3f} vs capped {b:.3f})"
+
+    # deterministic (no RNG in the sampler)
+    again = rs.stratify_conflicts(full, cap)
+    assert capped == again
+
+
 def test_spill_recorder_roundtrip_and_streaming_pet(tmp_path) -> None:
     """SpillRecorder without TraCI: record -> departure flush -> selective read-back, and the streaming
     ped-PET catches a fabricated crossing (vehicle passes the ped's path ~1s later at the same point)."""

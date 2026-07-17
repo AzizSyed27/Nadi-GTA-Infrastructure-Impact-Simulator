@@ -19,9 +19,11 @@ interface ScorecardPanelProps {
   scorecard: Scorecard | undefined;
   activeGroup: string | null;
   onSelectGroup: (group: string) => void;
+  /** V2.1b: meta.demand_profile — calibrated runs surface the comparison-validity line in the header. */
+  demandProfile?: string;
 }
 
-export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup }: ScorecardPanelProps) {
+export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup, demandProfile }: ScorecardPanelProps) {
   const [open, setOpen] = useState(true);
   if (!scorecard || !scorecard.groups?.length) return null;
 
@@ -42,6 +44,11 @@ export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup }: Scorec
 
       {open && (
         <div style={body}>
+          {demandProfile === 'calibrated_am_peak' && (
+            <div style={{ ...legend, opacity: 0.9 }} data-testid="comparison-validity-note">
+              calibrated demand: absolute volumes approximate · scenario-vs-baseline is like-for-like
+            </div>
+          )}
           <div style={legend}>
             <span style={{ color: WORSE }}>＋ worse</span> ·{' '}
             <span style={{ color: BETTER }}>− better</span> · ± = magnitude only (direction not claimed)

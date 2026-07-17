@@ -1,13 +1,13 @@
 {
   "report_version": "3.1",
-  "generated_at": "2026-07-17T02:27:34.091732+00:00",
+  "generated_at": "2026-07-17T05:40:36.398357+00:00",
   "provider": "deepseek",
   "model": "deepseek-v4-flash",
   "usage": {
-    "prompt_cache_hit_tokens": 4480,
-    "prompt_cache_miss_tokens": 5236,
-    "completion_tokens": 709,
-    "calls": 12
+    "prompt_cache_hit_tokens": 10880,
+    "prompt_cache_miss_tokens": 1207,
+    "completion_tokens": 908,
+    "calls": 14
   },
   "run": {
     "scenario_run_id": "multimodal-scenario-20260717T005226Z",
@@ -62,7 +62,7 @@
         "safety_delta": {
           "value": 1024.206,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 201670 observed events"
         }
       },
       {
@@ -77,7 +77,7 @@
         "safety_delta": {
           "value": 9.707,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 201670 observed events"
         }
       },
       {
@@ -92,7 +92,7 @@
         "safety_delta": {
           "value": -81.339,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 201670 observed events"
         }
       },
       {
@@ -101,7 +101,7 @@
         "safety_delta": {
           "value": 1027.211,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 201670 observed events"
         }
       },
       {
@@ -127,7 +127,7 @@
   },
   "sections": {
     "what_tested": {
-      "framing": "This report previews a proposed change to lower Kingston Road's speed limit during the morning rush hour. It anticipates how drivers, residents, and businesses might be affected by the slower pace. The analysis focuses on travel delays and community reactions, without judging the outcome."
+      "framing": "This report previews how a proposed reduction of the speed limit on Kingston Road during the morning peak hour would affect people who drive, walk, or cycle along the corridor."
     },
     "who_affected": {
       "group_order": [
@@ -151,7 +151,7 @@
       "glosses": {
         "car_commuter": "Most car commuters see no change in travel time, but a small group experiences a noticeable slowdown.",
         "cyclist": "Most cyclists see no change in travel time, but a small group experiences a notable slowdown.",
-        "pedestrian": "Most pedestrians see no change in travel time, but a small group is markedly slower, while a near-miss magnitude is present but its direction is not claimed.",
+        "pedestrian": "Most pedestrians see no change in travel time, but a small group is noticeably slower, while safety signals are present but directionally unclear.",
         "local_resident": "A near-miss magnitude is present for this group, but its direction is not seed-stable and is not claimed here — the table shows the magnitude only.",
         "business_owner": "There isn't enough measurable signal in this run to characterize how this change affects business owners.",
         "accessibility": "There isn't enough measurable signal in this run to characterize how this change affects accessibility.",
@@ -163,7 +163,7 @@
         {
           "key": "drivers",
           "label": "Drivers",
-          "synthesis": "Some drivers worry about lost time and income from slower trips, while others welcome the possibility of calmer streets and quieter neighborhoods. A few are torn, seeing both a personal delay and a potential benefit for their home street. Others are pleased with time savings or neutral if their trip is unchanged.",
+          "synthesis": "Some drivers worry about added travel time disrupting tight schedules and income, while others hope the change might bring calmer streets. A few see a slight time savings as a welcome surprise. The tension is between those focused on personal efficiency and those open to trading a minor delay for a quieter neighborhood.",
           "quotes": [
             {
               "label": "Time-pressed commuter",
@@ -181,7 +181,7 @@
         {
           "key": "cyclists",
           "label": "Cyclists",
-          "synthesis": "Cyclists share a recurring wish for protected lanes, with some noting that slower car speeds make them more willing to ride here. Delivery riders emphasize time savings and reduced stress from calmer traffic. A few express frustration that the change adds to their commute time.",
+          "synthesis": "Cyclists are split between those who welcome slower car speeds for a calmer ride and those who worry about added travel time. A recurring hope is for a protected lane, which many feel would make the route more inviting. Some delivery cyclists see time savings, while others feel the change penalizes them.",
           "quotes": [
             {
               "label": "Cautious newer rider",
@@ -189,8 +189,8 @@
               "grounding": "sim"
             },
             {
-              "label": "Bicycle delivery courier",
-              "comment": "I'm all for this—saving 1.7 minutes per trip means more drops per shift, and if it cuts down on close calls from speeding cars, that's a huge bonus for me on my bike.",
+              "label": "Daily bike commuter",
+              "comment": "I'm all for safer streets, but adding nearly 3 minutes to my bike commute when I'm already dodging traffic every day feels like a penalty rather than a protection.",
               "grounding": "sim"
             }
           ],
@@ -199,7 +199,7 @@
         {
           "key": "pedestrians",
           "label": "Pedestrians",
-          "synthesis": "Pedestrians and transit users describe a trade-off: some welcome a slightly faster bus trip, while others focus on the slower traffic and what it might mean for crossing the street. A recurring hope is that the change will make the corridor feel more comfortable for walking, especially near schools. There is no single view—some prioritize time savings, others the quality of the walking environment.",
+          "synthesis": "Pedestrians and transit users express a recurring hope that slower traffic will make crossing streets feel more comfortable, especially for children. Some welcome modest time savings for bus trips, while others are willing to accept small delays in exchange for a calmer street environment. The main tension is between those who prioritize travel time and those who prioritize ease of crossing.",
           "quotes": [
             {
               "label": "School-run parent on foot",
@@ -217,7 +217,7 @@
         {
           "key": "community",
           "label": "Community voices",
-          "synthesis": "Business owners fear losing curbside parking and customer access, while some commuters worry about slower bus travel. Others welcome calmer streets for safety and accessibility, especially for children and people with disabilities. A few question whether the change is needed or effective.",
+          "synthesis": "Business owners worry that slower traffic and lost parking will reduce customer access and delivery efficiency. Some commuters fear buses will be delayed behind slower cars. Others welcome calmer streets and improved crossing conditions for people with disabilities or children. A recurring tension is between perceived benefits for pedestrians and perceived costs for drivers and businesses.",
           "quotes": [
             {
               "label": "Small business owner",
@@ -225,8 +225,8 @@
               "grounding": "inferred"
             },
             {
-              "label": "Long-time corridor resident",
-              "comment": "I've lived on Kingston Road for over 20 years and I'm all for slowing traffic down—it's about time we made this street safer for our kids and quieter for us.",
+              "label": "Accessibility advocate",
+              "comment": "Slowing traffic on Kingston Rd during peak hours will make crossings safer and give me more time to navigate intersections with my cane. This is a win for accessibility.",
               "grounding": "inferred"
             }
           ],
@@ -240,7 +240,7 @@
       "caveats": [
         {
           "title": "Safety direction is not established",
-          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported”. Do not read the safety column as 'the change made things safer or more dangerous'."
+          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 201670 observed events”. Do not read the safety column as 'the change made things safer or more dangerous'."
         },
         {
           "title": "Surrogate measures are not crash predictions",
@@ -268,7 +268,7 @@
   "audit": {
     "passed": true,
     "slots_checked": 13,
-    "summary": "passed — 13 slots (9 LLM-audited: 6 clean, 3 corrected on retry, 0 unresolved; 4 code-rendered).",
+    "summary": "passed — 13 slots (9 LLM-audited: 4 clean, 5 corrected on retry, 0 unresolved; 4 code-rendered).",
     "log": [
       {
         "slot": "framing",
@@ -276,7 +276,7 @@
         "violations": [
           {
             "rule": "digits",
-            "sentence": "This report tests what would happen if Kingston Road's speed limit were lowered to 40 km/h during the morning rush hour."
+            "sentence": "This report previews how a proposed reduction of the speed limit on Kingston Road to 40 km/h during the morning peak hour would affect people who drive, walk, or cycle along the corridor."
           }
         ]
       },
@@ -317,8 +317,13 @@
       },
       {
         "slot": "synthesis:drivers",
-        "status": "clean",
-        "violations": []
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "safety_direction",
+            "sentence": "A few see a clear benefit, with faster trips and the potential for safer, more pleasant neighborhoods."
+          }
+        ]
       },
       {
         "slot": "synthesis:cyclists",
@@ -326,7 +331,7 @@
         "violations": [
           {
             "rule": "safety_direction",
-            "sentence": "Many feel a bit safer but still wish for protected lanes, while delivery riders highlight time savings and reduced stress as major benefits."
+            "sentence": "Cyclists share a hope that slower car speeds will make them feel safer, but many still express nervousness about riding next to cars and wish for a protected lane."
           }
         ]
       },
@@ -342,8 +347,13 @@
       },
       {
         "slot": "synthesis:community",
-        "status": "clean",
-        "violations": []
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "safety_direction",
+            "sentence": "Others hope the change will make the street quieter and safer for pedestrians and children."
+          }
+        ]
       },
       {
         "slot": "caveat_intro",

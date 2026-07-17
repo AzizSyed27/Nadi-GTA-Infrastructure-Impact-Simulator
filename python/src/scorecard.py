@@ -102,18 +102,35 @@ def _severity_sums(conflicts: list[dict]) -> dict[str, float]:
 
 
 def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts: list[dict],
-                      changes: list[dict]) -> Scorecard:
+                      changes: list[dict], demand_profile: str = "synthetic_demo",
+                      conflict_sample_of: int | None = None) -> Scorecard:
     """Assemble the 7-group scorecard. ``buckets`` = outcomes['modes']; conflicts are lists of dicts.
-    ``changes`` is the v0.5.0 change list (a single-change scenario is a list of one → identical output)."""
+    ``changes`` is the v0.5.0 change list (a single-change scenario is a list of one → identical output).
+
+    V2.1b: at calibrated demand the safety cells carry a demand-conditional honesty note (Read 2:
+    the surrogate is queue-dominated at peak density); ``conflict_sample_of`` (the FULL observed count,
+    passed only when the artifact's conflict stream was capped) appends the sample disclosure so the
+    map legend's sample count never reads as the population. Synthetic runs are byte-unchanged."""
     # travel_time (MEASURED, sim groups only)
     tt = {g: _travel_cell(buckets.get(mode, {}).get("outcomes", [])) for mode, g in _MODE_TO_GROUP.items()}
 
     # safety = Δ severity-sum (scenario − baseline). Sim groups MEASURED; local_resident = overall ESTIMATED.
     base_s, scen_s = _severity_sums(base_conflicts), _severity_sums(scen_conflicts)
 
+    safety_note = _SAFETY_NOTE
+    if demand_profile == "calibrated_am_peak":
+        safety_note += (
+            ". At peak density, safety surrogates are dominated by queue interactions; raw conflict "
+            "counts are not comparable across demand profiles, and pedestrian conflicts are "
+            "proportionally under-represented relative to vehicle car-following events"
+        )
+        if conflict_sample_of is not None:
+            safety_note += (f". Conflict stream in the artifact is a severity-stratified sample of "
+                            f"{conflict_sample_of} observed events")
+
     def safety_cell(key: str) -> ScorecardCell:
         # confidence LOW: the sign flips across seeds (precursor) — a magnitude, not a directional claim.
-        return ScorecardCell(value=round(scen_s[key] - base_s[key], 3), confidence="low", note=_SAFETY_NOTE)
+        return ScorecardCell(value=round(scen_s[key] - base_s[key], 3), confidence="low", note=safety_note)
 
     def access_cell(group: str) -> ScorecardCell | None:
         # v0.5.0 composite: collect this group's access heuristic across every change in the scenario.
@@ -187,9 +204,21 @@ def main() -> None:
             f"artifact.meta.run_id={raw_art['meta']['run_id']!r}"
         )
 
+    # V2.1b: a CAPPED artifact carries a severity-stratified conflict SAMPLE — the full scenario set
+    # lives in the conflicts-scenario sidecar (symmetric with conflicts-baseline). Prefer it so the
+    # safety deltas stay full-population; older/uncapped runs fall back to the artifact's own list.
+    scen_sidecar = RUNS_DIR / f"conflicts-scenario-{ts}.json"
+    if scen_sidecar.is_file():
+        scen_conflicts = json.loads(scen_sidecar.read_text(encoding="utf-8"))["conflicts"]
+    else:
+        scen_conflicts = raw_art["conflicts"]
+    sample_of = len(scen_conflicts) if len(raw_art["conflicts"]) < len(scen_conflicts) else None
+
     scorecard = compute_scorecard(
-        outcomes["modes"], baseline["conflicts"], raw_art["conflicts"],
+        outcomes["modes"], baseline["conflicts"], scen_conflicts,
         changes_of_scenario(raw_art["meta"]["scenario"]),
+        demand_profile=raw_art["meta"].get("demand_profile", "synthetic_demo"),
+        conflict_sample_of=sample_of,
     )
 
     # Inject + re-validate (dump_artifact validates against the frozen schema on write).

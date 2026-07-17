@@ -144,6 +144,11 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
           demand: {demandChip}
         </div>
       )}
+      {status?.demand_profile === 'calibrated_am_peak' && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="comparison-validity-chip">
+          absolute volumes approximate · scenario-vs-baseline is like-for-like
+        </div>
+      )}
 
       {/* staged rail — only the stages this run actually has (runtime changes skip regen) */}
       <ol style={rail} data-testid="run-stages">

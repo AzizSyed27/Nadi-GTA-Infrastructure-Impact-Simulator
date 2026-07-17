@@ -34,6 +34,7 @@ class DemandProfile:
     max_t: float                   # sim safety ceiling (the drain loop exits earlier when empty)
     render_cap_vehicles: int | None  # None = never cap (synthetic); int = outcome-stratified cap
     render_cap_persons: int | None
+    conflict_cap: int | None       # None = never cap; int = severity-stratified conflict render sample
     spill: bool                    # flush-on-departure recording + streaming ped-PET (M4 gate verdict)
 
 
@@ -47,6 +48,7 @@ PROFILES: dict[str, DemandProfile] = {
         max_t=7200.0,              # == the historical MULTIMODAL_MAX_T; behavior unchanged
         render_cap_vehicles=None,
         render_cap_persons=None,
+        conflict_cap=None,
         spill=False,
     ),
     "calibrated_am_peak": DemandProfile(
@@ -58,6 +60,7 @@ PROFILES: dict[str, DemandProfile] = {
         max_t=10800.0,             # 2h demand window + 1h drain
         render_cap_vehicles=1500,
         render_cap_persons=800,
+        conflict_cap=5000,         # severity-stratified sample (201k raw events ≈ 100 MB otherwise)
         spill=True,
     ),
 }

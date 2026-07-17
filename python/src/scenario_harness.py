@@ -1235,8 +1235,10 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
 
     conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
     records, render_meta = _resolve_records_for_artifact(ids, buckets, profile)
+    from render_sample import stratify_conflicts
+    conflicts_render = stratify_conflicts(conflicts_s, prof.conflict_cap)  # artifact stream only
     artifact = build_multimodal_artifact(
-        records, conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
+        records, conflicts_render, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
         target_lane=None, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
         scenario_network_name=scenario_net_path.name, demand_profile=profile, render_meta=render_meta)
     art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
@@ -1244,6 +1246,10 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
         json.dumps({"baseline_run_id": ids["base_id"], "conflicts": ids["conf_b"]["ssm"] + ids["conf_b"]["ped"]}, indent=2),
         encoding="utf-8")
+    if len(conflicts_render) < len(conflicts_s):  # capped: persist the FULL set for recompute integrity
+        (RUNS_DIR / f"conflicts-scenario-{ids['ts']}.json").write_text(
+            json.dumps({"scenario_run_id": ids["scen_id"], "conflicts": conflicts_s}, indent=2),
+            encoding="utf-8")
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
@@ -1253,8 +1259,11 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
 
     # scorecard inject + latest.json (reuse scorecard.compute_scorecard; scenario conflicts on the patched net).
     # v0.5.0: compute_scorecard takes the change LIST (the producer applies one change → a list of one).
+    # V2.1b: FULL conflict lists (never the render sample) + the demand-conditional safety note.
     sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
-                                     [change.model_dump(exclude_none=True)])
+                                     [change.model_dump(exclude_none=True)], demand_profile=profile,
+                                     conflict_sample_of=len(conflicts_s)
+                                     if len(conflicts_render) < len(conflicts_s) else None)
     art2 = trajectory_io.load_artifact(art_path)
     art2.scorecard = sc
     trajectory_io.dump_artifact(art2, path=art_path)
@@ -1296,8 +1305,10 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
 
     conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
     records, render_meta = _resolve_records_for_artifact(ids, buckets, profile)
+    from render_sample import stratify_conflicts
+    conflicts_render = stratify_conflicts(conflicts_s, prof.conflict_cap)  # artifact stream only
     artifact = build_multimodal_artifact(
-        records, conflicts_s, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
+        records, conflicts_render, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
         target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
         demand_profile=profile, render_meta=render_meta)
     art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
@@ -1305,6 +1316,10 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
         json.dumps({"baseline_run_id": ids["base_id"], "conflicts": ids["conf_b"]["ssm"] + ids["conf_b"]["ped"]}, indent=2),
         encoding="utf-8")
+    if len(conflicts_render) < len(conflicts_s):  # capped: persist the FULL set for recompute integrity
+        (RUNS_DIR / f"conflicts-scenario-{ids['ts']}.json").write_text(
+            json.dumps({"scenario_run_id": ids["scen_id"], "conflicts": conflicts_s}, indent=2),
+            encoding="utf-8")
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
@@ -1313,7 +1328,9 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
         encoding="utf-8")
 
     sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
-                                     [change.model_dump(exclude_none=True)])
+                                     [change.model_dump(exclude_none=True)], demand_profile=profile,
+                                     conflict_sample_of=len(conflicts_s)
+                                     if len(conflicts_render) < len(conflicts_s) else None)
     art2 = trajectory_io.load_artifact(art_path)
     art2.scorecard = sc
     trajectory_io.dump_artifact(art2, path=art_path)

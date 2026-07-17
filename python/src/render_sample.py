@@ -35,6 +35,43 @@ def _stratified_ids(outcomes: list[dict], cap: int, tail_k: int = TAIL_K) -> set
     return picked
 
 
+CONFLICT_TAIL_K = 100   # the worst events by severity are ALWAYS kept — the extreme tail is the story
+_N_SEVERITY_BANDS = 10  # deciles over severity [0,1]
+
+
+def stratify_conflicts(conflicts: list[dict], cap: int | None, tail_k: int = CONFLICT_TAIL_K) -> list[dict]:
+    """Severity-stratified conflict sampling for the artifact's render stream. NEVER truncate or
+    keep-worst-N: either erases the soft-mode (near-threshold) mass that characterizes calibrated
+    density (Read 2: the TTC distribution is bimodal — a hard mode near 0.75s and a soft mode near
+    the threshold). Severity is an affine map of the breaching measure, so preserving severity-band
+    mass preserves the TTC-band shape. Deterministic (no RNG): top-``tail_k`` by severity guaranteed,
+    remaining budget split across severity deciles proportionally (largest remainder), evenly-spaced
+    selection within each (t, lon, lat)-sorted band. Scorecard/outcomes are computed from the FULL
+    list upstream — this bounds only what the artifact carries."""
+    if cap is None or len(conflicts) <= cap:
+        return conflicts
+    from demand_calibration import apportion
+    from sampler import evenly_spaced
+
+    by_sev = sorted(conflicts, key=lambda c: (-c["severity"], c["t"], c["lon"], c["lat"]))
+    tail = by_sev[:tail_k]
+    tail_ids = {id(c) for c in tail}
+    rest = [c for c in conflicts if id(c) not in tail_ids]
+
+    bands: list[list[dict]] = [[] for _ in range(_N_SEVERITY_BANDS)]
+    for c in rest:
+        idx = min(_N_SEVERITY_BANDS - 1, int(c["severity"] * _N_SEVERITY_BANDS))
+        bands[idx].append(c)
+    budget = max(0, cap - len(tail))
+    shares = apportion(budget, [len(b) for b in bands])
+    picked: list[dict] = list(tail)
+    for band, take in zip(bands, shares):
+        ordered = sorted(band, key=lambda c: (c["t"], c["lon"], c["lat"]))
+        picked.extend(evenly_spaced(ordered, min(take, len(ordered))))
+    picked.sort(key=lambda c: (c["t"], c["lon"], c["lat"]))
+    return picked
+
+
 def build_render_sample(buckets: dict, cap_vehicles: int, cap_persons: int) -> set[str]:
     """The rendered id set from the per-mode outcome buckets (matched completers-in-both — entities
     with a comparable story). Bikes are usually few: they get their own headroom inside the vehicle

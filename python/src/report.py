@@ -931,29 +931,40 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     # V2.1b — the demand statement (which traffic this run simulated) + calibrated-run GEH acceptance.
     # ALL numbers here are code-rendered (the report honesty rule); prose slots never carry them.
     if facts.get("demand_profile") == "calibrated_am_peak":
-        L.append("- **Demand:** count-calibrated AM peak (07:00–09:00; sim t=0 is 07:00), built from Toronto "
-                 "Open Data turning-movement counts via SUMO routeSampler. Each counted intersection "
-                 "contributes its own latest post-2020 count day — a composite typical AM peak, not one "
-                 "observed morning. Vehicle classes (cars/trucks/buses) are merged per movement; bike demand "
-                 "is anchored at approach level and pedestrian demand at corridor total only — no "
-                 "count-fidelity claim for bike/ped volumes.")
+        cal = facts.get("calibration")
+        acc = (cal or {}).get("geh_acceptance")
+        if cal and acc:
+            # V2.1b closeout framing — every number code-rendered from the calibration provenance.
+            # "Interior" is the diagnosis finding (data/demand/V2.1b-diagnosis.md): boundary-clipped
+            # intersections never matched, so the scored set is interior by construction.
+            n_locs = len(cal.get("locations_used", []))
+            years = sorted({str(loc.get("count_date", ""))[:4]
+                            for loc in cal.get("locations_used", []) if loc.get("count_date")})
+            y_range = f"{years[0]}–{years[-1]}" if years else "post-2020"
+            pct = round(acc["share_geh_lt5"] * 100, 1)
+            L.append(f"- **Demand:** anchored to {n_locs} interior counted intersections ({y_range}, "
+                     f"multimodal 15-min counts), GEH-validated at {pct}% of {acc['n_links']} counted "
+                     "approach links (industry target 85%). Absolute volumes are approximate — the "
+                     "corridor's boundary inflow and default signal timing under-deliver demand at busy "
+                     "links. Baseline-vs-scenario comparisons use identical demand, so this systematic "
+                     "bias cancels in the delta: the tool's comparisons are like-for-like even where "
+                     "absolute volumes are approximate.")
+            L.append("- **Demand construction:** Toronto Open Data turning-movement counts via SUMO "
+                     "routeSampler (sim t=0 is 07:00); each intersection contributes its own latest count "
+                     "day — a composite typical AM peak. Vehicle classes merged per movement; bike demand "
+                     "anchored at approach level and pedestrian demand at corridor total only — no "
+                     "count-fidelity claim for bike/ped volumes.")
+        else:
+            L.append("- **Demand:** count-calibrated AM peak — calibration provenance missing; "
+                     "anchoring numbers unavailable (a labeled absence, not an implied pass).")
         rs_meta = facts.get("render_sample")
         if rs_meta is not None:
             L.append(f"- **Rendering:** the map shows {rs_meta.rendered_vehicles} of {rs_meta.total_vehicles} "
                      f"vehicles and {rs_meta.rendered_persons} of {rs_meta.total_persons} pedestrians "
-                     "(an outcome-stratified sample); every number in this report is computed over the "
-                     "full simulated population.")
-        cal = facts.get("calibration")
-        acc = (cal or {}).get("geh_acceptance")
+                     "(an outcome-stratified sample); conflict flares are a severity-stratified sample; "
+                     "every number in this report is computed over the full simulated population.")
         if acc:
-            pct = round(acc["share_geh_lt5"] * 100, 1)
-            target_pct = round(acc["target_share"] * 100)
-            L.append(f"- **Count reproduction (GEH):** simulated vs counted mean-hourly flows at "
-                     f"{acc['n_links']} counted approach lanes: GEH under {acc['geh_ok']:.0f} at {pct}% "
-                     f"(planning practice targets {target_pct}%; "
-                     + ("met" if acc.get("meets_target") else
-                        "not met — treat absolute volumes as approximate; baseline-vs-scenario comparisons "
-                        "remain like-for-like") + "). Worst locations:")
+            L.append("- **Worst counted locations (GEH):**")
             L.append("")
             L.append("  | location | approach | counted (veh/h) | simulated (veh/h) | GEH |")
             L.append("  |---|---|---|---|---|")
@@ -963,9 +974,6 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
             L.append("")
             L.append(f"  Full per-location table + iteration log: `data/demand/` provenance "
                      f"(`{(cal or {}).get('inventory', 'counts inventory')}` lineage).")
-        else:
-            L.append("- **Count reproduction (GEH):** acceptance table unavailable (calibration provenance "
-                     "missing) — a labeled absence, not an implied pass.")
     else:
         L.append("- **Demand:** synthetic demonstration demand (a small random-trips set) — traffic volumes "
                  "are illustrative, not calibrated to counts; read volume-dependent numbers as "

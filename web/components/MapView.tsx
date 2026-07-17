@@ -805,8 +805,8 @@ export default function MapView() {
           {meta.render_sample.total_vehicles.toLocaleString()} vehicles ·{' '}
           {meta.render_sample.rendered_persons.toLocaleString()} of{' '}
           {meta.render_sample.total_persons.toLocaleString()}{' '}
-          pedestrians (outcome-stratified sample;
-          scorecard &amp; conflicts cover the full population)
+          pedestrians (outcome-stratified sample); conflict flares shown are a severity-stratified
+          sample; scorecard counts cover the full population
         </div>
       )}
 
@@ -900,6 +900,7 @@ export default function MapView() {
               scorecard={artifact.scorecard}
               activeGroup={feedGroup}
               onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
+              demandProfile={meta.demand_profile}
             />
             <AgentPanel agent={selected} onClose={() => setSelected(null)} />
           </div>

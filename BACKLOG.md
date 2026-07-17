@@ -21,6 +21,18 @@ most demo-worthy first:
   change has a schedule → the frozen contract, the SUMO application (mid-sim `apply_change`), and the playback all
   need a time dimension. Decide the shape deliberately before building any windowed change type.
 
+## V2.1 calibration — foundation-level, requires recalibration
+These are the levers that move interior GEH past ~55% toward the 85% bar (diagnosis:
+`data/demand/V2.1b-diagnosis.md` — the composite ceiling is build-residual × loading × clipped net,
+and no loading knob recovers it). Both are phase-opening rebuilds, never patches:
+
+- **bbox expansion** — a larger net extent so boundary demand has upstream origin (the clipped
+  boundary is why 22% of counted movements could not be placed and entries saturate). Regenerates
+  `corridor.net.xml`, which invalidates `network.json`, the golden trajectory fixtures, AND the entire
+  current calibration (junction ids, matched links, routes).
+- **real signal-plan import** — replace netconvert-default green splits at arterial intersections with
+  the city's coordinated timings. Shifts every baseline; requires recalibration end-to-end.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).
