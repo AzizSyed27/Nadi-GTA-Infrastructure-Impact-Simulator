@@ -14,7 +14,8 @@ calibrated_am_peak    — the count-calibrated 07:00-09:00 demand (t=0 == 07:00;
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -71,4 +72,11 @@ def get_profile(name: str) -> DemandProfile:
             f"demand profile {name!r}: cfg missing at {p.cfg} — "
             + ("run `python python/src/demand_calibration.py full` to build the calibrated demand"
                if name == "calibrated_am_peak" else "scenario files missing"))
+    # Debug/smoke knob: bound the sim ceiling (e.g. 3600 = the 07:00-08:00 peak hour only). The
+    # truncation is VISIBLE in the artifact (meta.sim_end) and must be labeled in the run description —
+    # a full-fidelity calibrated pair crawls for hours at saturation on this box (V2.1b finding).
+    override = os.environ.get("NADI_MAX_T_OVERRIDE")
+    if override:
+        p = replace(p, max_t=float(override))
+        print(f"[demand-profiles] NADI_MAX_T_OVERRIDE={override} -> max_t={p.max_t:.0f}s (bounded run)")
     return p

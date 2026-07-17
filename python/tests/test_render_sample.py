@@ -57,6 +57,14 @@ def test_deterministic() -> None:
     assert rs.build_render_sample(b, 60, 8) == rs.build_render_sample(b, 60, 8)
 
 
+def test_max_t_override_env(monkeypatch) -> None:
+    monkeypatch.delenv("NADI_MAX_T_OVERRIDE", raising=False)
+    assert demand_profiles.get_profile("synthetic_demo").max_t == 7200.0  # absent -> untouched
+    monkeypatch.setenv("NADI_MAX_T_OVERRIDE", "3600")
+    assert demand_profiles.get_profile("synthetic_demo").max_t == 3600.0
+    assert demand_profiles.PROFILES["synthetic_demo"].max_t == 7200.0, "registry itself never mutates"
+
+
 def test_profiles_registry() -> None:
     p = demand_profiles.get_profile("synthetic_demo")
     assert p.max_t == 7200.0 and p.render_cap_vehicles is None and p.spill is False
