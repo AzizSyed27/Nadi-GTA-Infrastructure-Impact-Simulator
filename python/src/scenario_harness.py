@@ -408,7 +408,8 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                         vehroute_path: Path, ssm_path: Path, seed: int = DEFAULT_SEED,
                         ssm_thresholds: str | None = None, net_override: Path | None = None,
                         cfg_path: Path | None = None, max_t: float | None = None,
-                        recorder: SpillRecorder | None = None):
+                        recorder: SpillRecorder | None = None,
+                        route_override: list[Path] | None = None):
     """Run the multimodal sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
     once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
@@ -430,6 +431,9 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
     args = [
         str(run_sim.SUMO_BINARY), "-c", str(cfg), "--end", str(ceiling),
         *(["--net-file", str(net_override)] if net_override is not None else []),  # 5.1: per-run patched net
+        # V2.1c: settled legs swap in iterated car routes (+ the profile's fixed bike/ped files);
+        # the CLI option supersedes the cfg's <route-files> — mirrors the net_override precedent.
+        *(["--route-files", ",".join(str(p) for p in route_override)] if route_override else []),
         "--tripinfo-output", str(tripinfo_path), "--vehroute-output", str(vehroute_path),
         "--device.ssm.file", str(ssm_path),
         "--device.ssm.probability", "1",
@@ -447,6 +451,19 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
         raise RuntimeError(f"SUMO failed to start: {e} — SUMO error-log: {run_sim._read_tail(err_log)}") from e
     if change is not None:
         run_sim.apply_change(change, target_lane=target_lane)  # after start, before stepping -> in force from t=0
+        # READBACK (verify, never assume): in a SETTLED runtime leg the change is expressed twice —
+        # the netconvert runtime patch (the net the settle legs used, also this leg's net) plus the
+        # TraCI apply above. Assert the EFFECTIVE state equals the intended single-application value,
+        # catching a doubled or nulled effect. Cheap, so it runs on day-one legs too (same invariant).
+        if change.type == "speed_limit" and change.value_mps:
+            got = conn.edge.getMaxSpeed(change.target_edge) if hasattr(conn.edge, "getMaxSpeed") else \
+                conn.lane.getMaxSpeed(f"{change.target_edge}_0")
+            assert abs(got - change.value_mps) < 1e-6, \
+                f"readback: effective speed {got} != intended {change.value_mps} on {change.target_edge}"
+        elif change.type == "bike_lane" and target_lane is not None:
+            allowed = set(conn.lane.getAllowed(f"{change.target_edge}_{target_lane}"))
+            assert allowed == {"bicycle"}, \
+                f"readback: lane {target_lane} of {change.target_edge} allows {allowed}, not bicycle-only"
     step = conn.simulation.getDeltaT()
 
     records: dict[str, dict] = {}
@@ -895,7 +912,7 @@ def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | N
 
 def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None = None,
                         scenario_net_path: Path | None = None, on_stage=None,
-                        profile: str = "synthetic_demo") -> dict:
+                        profile: str = "synthetic_demo", assignment: str = "day_one") -> dict:
     """Baseline (no change) then scenario, SAME multimodal demand + IDENTICAL rerouting + SSM. For a runtime
     change (bike_lane/speed_limit) both runs share the canonical net and the change is applied in-sim. For a
     GEOMETRY change (new_road) the SCENARIO run uses ``scenario_net_path`` (the patched net) with NO runtime
@@ -928,13 +945,53 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     rec_s = SpillRecorder(spill_root / f"{scen_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
     profile_kw = {"cfg_path": prof.cfg, "max_t": prof.max_t}
 
+    # ---- V2.1c SETTLED assignment: iterate CAR routes per leg (meso duaIterate) before the micro pair.
+    # Scope honesty: bikes/peds keep their fixed day-one routes (contract assignment.scope="cars_only").
+    route_ov_b = route_ov_s = None
+    settle_stats: dict = {}
+    micro_scenario_net = scenario_net_path
+    if assignment == "settled":
+        import settle as settle_mod
+
+        # The settle legs run plain sumo/duarouter (no TraCI), so a RUNTIME change must be baked into a
+        # patched net. new_road is explicitly SINGLE-EXPRESSION: its additive patched net already
+        # carries the road, so it skips patch_runtime_net, gets NO TraCI re-application in the micro
+        # leg (unchanged below) and needs no readback double-check — do not ever give new_road a
+        # runtime patch on top.
+        if scenario_net_path is not None:
+            settle_scen_net = scenario_net_path
+        else:
+            import network_edit
+            settle_scen_net = network_edit.patch_runtime_net(change, scen_id)
+            # the settled RUNTIME micro leg also runs on the patched net (change expressed net-side)
+            # AND still applies the TraCI change — the readback in simulate_multimodal verifies the
+            # double expression lands on the intended single-application value.
+            micro_scenario_net = settle_scen_net
+
+        def _prog(stage_name):
+            return (lambda k, cap: on_stage(stage_name, f"iteration {k}/{cap}")) if on_stage else None
+
+        if on_stage:
+            on_stage("settle_baseline")
+        base_settled = settle_mod.settle_leg(
+            run_sim.NET, prof.car_routes, settle_mod.SETTLE_ROOT / scen_id / "baseline",
+            max_t=prof.max_t, on_iteration=_prog("settle_baseline"))
+        if on_stage:
+            on_stage("settle_scenario")
+        scen_settled = settle_mod.settle_leg(
+            settle_scen_net, prof.car_routes, settle_mod.SETTLE_ROOT / scen_id / "scenario",
+            max_t=prof.max_t, on_iteration=_prog("settle_scenario"))
+        route_ov_b = [base_settled["routes"], prof.bike_routes, prof.ped_routes]
+        route_ov_s = [scen_settled["routes"], prof.bike_routes, prof.ped_routes]
+        settle_stats = {"baseline": base_settled["stats"], "scenario": scen_settled["stats"]}
+
     if on_stage:
         on_stage("baseline")
     print(f"\n=== BASELINE run ({base_id}) — no change, {profile} demand, rerouting + SSM ON ===")
     t0 = _time.perf_counter()
     recs_b, end_b, step_b, rem_b, xy_b = simulate_multimodal(
         None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"],
-        recorder=rec_b, **profile_kw)
+        recorder=rec_b, route_override=route_ov_b, **profile_kw)
     wall_b = _time.perf_counter() - t0
     if rec_b is not None:  # spill: counts-only provisional (dumping ~60k entities would be huge); PET streamed
         (RUNS_DIR / f"{base_id}.json").write_text(json.dumps({
@@ -958,11 +1015,15 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     if scenario_net_path is not None:  # new_road: the net IS the change (no runtime apply_change)
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             None, None, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
-            ssm_path=paths["scen_ssm"], net_override=scenario_net_path, recorder=rec_s, **profile_kw)
+            ssm_path=paths["scen_ssm"], net_override=scenario_net_path, recorder=rec_s,
+            route_override=route_ov_s, **profile_kw)
     else:
+        # runtime change: settled runs pass the runtime-patched net (micro_scenario_net) AND apply the
+        # TraCI change — the readback in simulate_multimodal verifies the double expression.
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
-            ssm_path=paths["scen_ssm"], recorder=rec_s, **profile_kw)
+            ssm_path=paths["scen_ssm"], net_override=micro_scenario_net, recorder=rec_s,
+            route_override=route_ov_s, **profile_kw)
     wall_s = _time.perf_counter() - t0
     if rec_s is not None:
         conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": rec_s.conflicts(scen_net, bbox)}
@@ -977,6 +1038,7 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
         "ts": ts, "base_id": base_id, "scen_id": scen_id, **paths,
         "recs_s": None if rec_s is not None else recs_s, "recorder_s": rec_s,
         "profile": profile, "wall_clock_s": {"baseline": round(wall_b, 1), "scenario": round(wall_s, 1)},
+        "assignment": assignment, "settle_stats": settle_stats,
         "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
         "conf_b": conf_b, "conf_s": conf_s,
     }
@@ -1142,7 +1204,8 @@ def _run_speed_limit(args) -> None:
     try:
         run_state.set_stage(run_id, "baseline", change.description,  # records change.type for the RunCard
                             description=change.description, change=change.model_dump(exclude_none=True))
-        res = run_quant_runtime(change, ts, None, profile=getattr(args, "demand_profile", "synthetic_demo"))
+        res = run_quant_runtime(change, ts, None, profile=getattr(args, "demand_profile", "synthetic_demo"),
+                                assignment=getattr(args, "assignment", "day_one"))
         print(f"\n[speed_limit] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
@@ -1178,7 +1241,8 @@ def _run_bike_lane(args) -> None:
         run_state.set_stage(run_id, "baseline", change.description,
                             description=change.description, change=change.model_dump(exclude_none=True))
         res = run_quant_runtime(change, ts, target_lane, severed=severed,
-                                profile=getattr(args, "demand_profile", "synthetic_demo"))
+                                profile=getattr(args, "demand_profile", "synthetic_demo"),
+                                assignment=getattr(args, "assignment", "day_one"))
         print(f"\n[bike_lane] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s; severed={res['severed']}")
     except Exception as e:  # noqa: BLE001
@@ -1214,8 +1278,19 @@ def _resolve_records_for_artifact(ids: dict, buckets: dict, profile: str) -> tup
     return records, render_meta
 
 
+def _assignment_obj(assignment: str, settle_stats: dict) -> Assignment:
+    """The contract Assignment block: day_one = nulls; settled = the SCENARIO leg's convergence stats
+    (the artifact IS the scenario run; the baseline leg's stats live in the outcomes sidecar)."""
+    if assignment != "settled":
+        return Assignment(mode="day_one")
+    s = settle_stats.get("scenario", {})
+    return Assignment(mode="settled", scope="cars_only", iterations=s.get("iterations_run"),
+                      relative_deviation=s.get("relative_deviation"), converged=s.get("converged"),
+                      engine="duaIterate_meso")
+
+
 def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: list[str],
-              profile: str = "synthetic_demo") -> tuple[str, int]:
+              profile: str = "synthetic_demo", assignment: str = "day_one") -> tuple[str, int]:
     """Shared new_road QUANT pipeline (CLI + server): baseline (canonical) + scenario (patched net) + per-mode
     outcomes + conflicts + reroute + scorecard, all under a KNOWN ts. Writes the v0.3.0 artifact, sidecars,
     and latest.json. Returns (scenario_run_id, cars_on_new_road). No LLM, no enrich."""
@@ -1225,7 +1300,8 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     run_id = f"multimodal-scenario-{ts}"
     net = sumolib.net.readNet(str(run_sim.NET))  # canonical (baseline)
     ids = run_pair_multimodal(change, None, net, ts=ts, scenario_net_path=scenario_net_path,
-                              on_stage=lambda s: run_state.set_stage(run_id, s), profile=profile)
+                              on_stage=lambda s, d="": run_state.set_stage(run_id, s, d),
+                              profile=profile, assignment=assignment)
 
     from demand_profiles import get_profile
     prof = get_profile(profile)
@@ -1244,7 +1320,8 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     artifact = build_multimodal_artifact(
         records, conflicts_render, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
         target_lane=None, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
-        scenario_network_name=scenario_net_path.name, demand_profile=profile, render_meta=render_meta)
+        scenario_network_name=scenario_net_path.name, demand_profile=profile, render_meta=render_meta,
+        assignment=_assignment_obj(assignment, ids["settle_stats"]))
     art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
 
     (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
@@ -1257,6 +1334,7 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
+        "assignment": ids["assignment"], "settle_stats": ids["settle_stats"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": [],
         "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched, "cars_on_new_road": on_new},
         "modes": buckets}, indent=2), encoding="utf-8")
@@ -1283,7 +1361,7 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
 
 
 def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed: set | None = None,
-                      profile: str = "synthetic_demo") -> dict:
+                      profile: str = "synthetic_demo", assignment: str = "day_one") -> dict:
     """The RUNTIME twin of ``run_quant`` (speed_limit / bike_lane), shared by the CLI + the job runner. Canonical
     net for BOTH runs (no netconvert → NO regen stage); the change is applied LIVE in the scenario run. Stages:
     baseline → scenario → analysis → done. Writes the v0.3.0 artifact + sidecars + scorecard + web/public +
@@ -1295,8 +1373,8 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     run_id = f"multimodal-scenario-{ts}"
     net = sumolib.net.readNet(str(run_sim.NET))  # canonical for both runs (runtime change, no patch)
     ids = run_pair_multimodal(change, target_lane, net, ts=ts,
-                              on_stage=lambda s: run_state.set_stage(run_id, s),
-                              profile=profile)  # emits baseline, scenario
+                              on_stage=lambda s, d="": run_state.set_stage(run_id, s, d),
+                              profile=profile, assignment=assignment)  # emits settle?/baseline/scenario
 
     from demand_profiles import get_profile
     prof = get_profile(profile)
@@ -1314,7 +1392,8 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     artifact = build_multimodal_artifact(
         records, conflicts_render, run_id=ids["scen_id"], baseline_run_id=ids["base_id"], change=change,
         target_lane=target_lane, bbox=ids["bbox"], sim_end=ids["sim_end_s"], step=ids["step_s"],
-        demand_profile=profile, render_meta=render_meta)
+        demand_profile=profile, render_meta=render_meta,
+        assignment=_assignment_obj(assignment, ids["settle_stats"]))
     art_path = trajectory_io.dump_artifact(artifact, path=RUNS_DIR / f"{ids['scen_id']}.json")  # validates
 
     (RUNS_DIR / f"conflicts-baseline-{ids['ts']}.json").write_text(
@@ -1327,6 +1406,7 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
+        "assignment": ids["assignment"], "settle_stats": ids["settle_stats"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": sorted(severed or []),
         "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched}, "modes": buckets}, indent=2),
         encoding="utf-8")
@@ -1350,7 +1430,8 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     run_state.set_stage(run_id, "done", f"cars_rerouted={rerouted}; car_median_delta_s={car_median}",
                         scenario_run_id=ids["scen_id"], cars_rerouted=rerouted,
                         car_median_delta_s=car_median, car_affected_share=car_share,
-                        demand_profile=profile, wall_clock_s=ids["wall_clock_s"])
+                        demand_profile=profile, wall_clock_s=ids["wall_clock_s"],
+                        assignment=assignment, settle_stats=ids["settle_stats"] or None)
     print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
           f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json updated")
     return {"scen_id": ids["scen_id"], "cars_rerouted": rerouted, "car_median_delta_s": car_median,
@@ -1377,7 +1458,8 @@ def _run_new_road(args) -> None:
         patched, new_edge_ids, stats = network_edit.patch_network(change, run_id)
         print(f"[new_road] patched net {patched.name} + gauntlet OK: {stats}")
         scen_id, on_new = run_quant(change, ts, patched, new_edge_ids,
-                                    profile=getattr(args, "demand_profile", "synthetic_demo"))
+                                    profile=getattr(args, "demand_profile", "synthetic_demo"),
+                                    assignment=getattr(args, "assignment", "day_one"))
         print(f"\n[new_road] DONE — scenario {scen_id}; cars that took the new road: {on_new}")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
         run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
@@ -1401,6 +1483,9 @@ def main() -> None:
     ap.add_argument("--demand-profile", choices=["synthetic_demo", "calibrated_am_peak"],
                     default="synthetic_demo",
                     help="which demand to simulate (V2.1b; calibrated needs demand_calibration.py full first)")
+    ap.add_argument("--assignment", choices=["day_one", "settled"], default="day_one",
+                    help="day_one = today's route habits; settled = iterated assignment "
+                         "(duaIterate meso, cars only) before the micro pair (V2.1c)")
     args = ap.parse_args()
     if args.change_type == "speed_limit":
         _run_speed_limit(args)
