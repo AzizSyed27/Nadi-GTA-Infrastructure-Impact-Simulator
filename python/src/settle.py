@@ -72,15 +72,15 @@ def settle_leg(net_path: Path, car_routes: Path, out_dir: Path, *, cap: int = DE
     last = 1 if first_iteration_only else cap
     cmd = [sys.executable, str(DUAITERATE),
            "-n", str(net_path), "-r", str(car_routes),
-           "-l", str(last), "--skip-first-routing",
+           "-l", str(last), "--skip-first-routing", "--no-gzip",
            "--max-convergence-deviation", str(conv_dev),
            "--convergence-iterations", str(conv_it),
            "-m", "-j",                      # meso + junction control (signals matter on this corridor)
            "--meso-recheck", "30",
+           # NOTE: duaIterate itself already passes --time-to-teleport (default 300) and --no-step-log
+           # to every sumo call — passing them through again is a hard "already set" error.
            # glued pass-through form (validated by duaIterate against the installed binary's --help)
            "sumo--seed", str(seed),
-           "sumo--time-to-teleport", "300",
-           "sumo--no-step-log", "true",
            ]
     if max_t is not None:
         cmd += ["sumo--end", str(max_t)]
