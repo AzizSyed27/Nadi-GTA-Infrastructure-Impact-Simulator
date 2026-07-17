@@ -12,11 +12,16 @@ const RUNTIME_STAGES = ['queued', 'baseline', 'scenario', 'analysis', 'done'] as
 const STAGE_LABEL: Record<string, string> = {
   queued: 'Queued',
   regen: 'Regenerating network',
+  settle_baseline: 'Settling baseline',
+  settle_scenario: 'Settling scenario',
   baseline: 'Baseline run',
   scenario: 'Scenario run',
   analysis: 'Analysis',
   done: 'Done',
 };
+// V2.1c: settled runs iterate assignment BEFORE the micro pair — the settle stages appear on the rail
+// only when the run's assignment is 'settled' (day-one rails are byte-identical to before).
+const SETTLE_STAGES = ['settle_baseline', 'settle_scenario'] as const;
 
 // Enrich buttons with cost labels pulled from the METERED actuals (approximate — the tooltip says so).
 // Understating a cost-consent label is worse than none: voices ≈0.7¢, report ≈$0.05, discourse ≈$2.2 (3 cascades).
@@ -112,8 +117,13 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
   const done = status?.stage === 'done';
   const enriching = stage.startsWith('enrich:');
   const isNewRoad = status?.change?.type === 'new_road';
-  const STAGES = isNewRoad ? NEWROAD_STAGES : RUNTIME_STAGES; // runtime changes have NO regen stage
-  const activeIdx = (STAGES as readonly string[]).indexOf(stage);
+  const baseStages: readonly string[] = isNewRoad ? NEWROAD_STAGES : RUNTIME_STAGES; // runtime: NO regen
+  const STAGES =
+    status?.assignment === 'settled'
+      ? [...baseStages.slice(0, baseStages.indexOf('baseline')), ...SETTLE_STAGES,
+         ...baseStages.slice(baseStages.indexOf('baseline'))]
+      : baseStages;
+  const activeIdx = STAGES.indexOf(stage);
 
   // THE number, framed honestly: for a runtime lane/speed change 0-reroute is expected — cars absorb it as
   // delay, not detour (the 2.2 finding) — so surface the car delay alongside so 0 doesn't read as failure.
@@ -147,6 +157,12 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
       {status?.demand_profile === 'calibrated_am_peak' && (
         <div style={{ ...sub, opacity: 0.8 }} data-testid="comparison-validity-chip">
           absolute volumes approximate · scenario-vs-baseline is like-for-like
+        </div>
+      )}
+      {status?.assignment === 'settled' && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="assignment-chip">
+          settled response (iterated assignment, drivers only)
+          {stage.startsWith('settle') && status?.detail ? ` — ${status.detail}` : ''}
         </div>
       )}
 

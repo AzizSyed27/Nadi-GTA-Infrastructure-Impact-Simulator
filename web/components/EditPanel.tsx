@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Junction, Edge } from '@/lib/api';
+import type { Junction, Edge, RunOptions } from '@/lib/api';
 import type { Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { RunSwitcher } from '@/components/RunSwitcher';
@@ -23,6 +23,9 @@ interface EditPanelProps {
   submitError: string | null;
   onSubmit: (p: DrawParams) => void;
   onReset: () => void; // clear the in-progress draw
+  // V2.1b/c run options for the NEXT submitted run (demand profile + day-one/settled assignment)
+  runOptions: RunOptions;
+  onRunOptions: (o: RunOptions) => void;
   activeRunId: string | null;
   onDrawAnother: () => void; // clear the active run + draw state, back to drawing
   onLoaded: (id: string) => void; // RunCard reached done → parent re-fetches the artifact
@@ -121,12 +124,47 @@ function DrawForm({
   );
 }
 
+/** V2.1b/c — run options for the NEXT run. The assignment copy is the ratified honest framing. */
+function RunOptionsBlock({ options, onChange }: { options: RunOptions; onChange: (o: RunOptions) => void }) {
+  const assignment = options.assignment ?? 'day_one';
+  return (
+    <div style={card} data-testid="run-options">
+      <label style={field}>
+        Traffic volumes
+        <select
+          value={options.demand_profile ?? 'synthetic_demo'}
+          onChange={(e) => onChange({ ...options, demand_profile: e.target.value as RunOptions['demand_profile'] })}
+          style={input}
+          data-testid="option-demand"
+        >
+          <option value="synthetic_demo">Synthetic demo (fast)</option>
+          <option value="calibrated_am_peak">Calibrated AM peak (count-anchored; slower)</option>
+        </select>
+      </label>
+      <label style={checkRow}>
+        <input
+          type="checkbox"
+          checked={assignment === 'settled'}
+          onChange={(e) => onChange({ ...options, assignment: e.target.checked ? 'settled' : 'day_one' })}
+          data-testid="option-assignment"
+        />
+        Settled response
+      </label>
+      <div style={hintText}>
+        Day-one response: travelers react with today&apos;s habits (minutes). Settled response: travelers
+        have adjusted to the change (iterated assignment; takes substantially longer).
+      </div>
+    </div>
+  );
+}
+
 export function EditPanel(props: EditPanelProps) {
   const { ptA, ptB, hint, submitting, submitError, onSubmit, onReset, activeRunId, onDrawAnother } = props;
 
   return (
     <div style={rail} data-testid="edit-panel">
       <RunSwitcher activeRunId={activeRunId} onLoad={props.onLoadRun} />
+      {!activeRunId && <RunOptionsBlock options={props.runOptions} onChange={props.onRunOptions} />}
 
       {activeRunId ? (
         <>

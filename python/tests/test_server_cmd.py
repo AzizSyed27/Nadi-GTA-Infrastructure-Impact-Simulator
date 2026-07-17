@@ -58,3 +58,15 @@ def test_demand_profile_flag() -> None:
 def test_simulate_req_defaults_synthetic() -> None:
     req = server.SimulateReq(change=server.SimChange(type="speed_limit", target_edge="e", value_mps=8.0))
     assert req.demand_profile == "synthetic_demo"
+    assert req.assignment == "day_one"
+
+
+def test_assignment_flag() -> None:
+    """V2.1c: --assignment appended ONLY for settled — the default cmd stays byte-stable."""
+    ch = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)
+    default_cmd = server._build_harness_cmd(ch, "TS", "d")
+    assert "--assignment" not in default_cmd
+    settled_cmd = server._build_harness_cmd(ch, "TS", "d", assignment="settled")
+    assert settled_cmd[settled_cmd.index("--assignment") + 1] == "settled"
+    both = server._build_harness_cmd(ch, "TS", "d", demand_profile="calibrated_am_peak", assignment="settled")
+    assert "--demand-profile" in both and "--assignment" in both

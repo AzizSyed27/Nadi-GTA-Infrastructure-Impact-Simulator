@@ -86,6 +86,8 @@ export interface RunStatus {
   car_affected_share?: number | null; // fraction of cars materially (>30s) slower
   demand_profile?: string; // V2.1b: which demand the run simulates (synthetic_demo | calibrated_am_peak)
   wall_clock_s?: { baseline?: number; scenario?: number }; // V2.1b: per-run sim wall-clock (V2.1c inputs)
+  assignment?: string; // V2.1c: day_one | settled (drives the settling stages on the rail)
+  settle_stats?: unknown; // V2.1c: per-leg convergence stats on the terminal state
 }
 
 /** Uniform result: ok with a value, or a friendly error (status set for HTTP failures like 409). */
@@ -123,12 +125,18 @@ export function getEdges(): Promise<ApiResult<{ edges: EdgeEligibility[]; count:
   return req(`/api/edges`);
 }
 
+/** V2.1b/c run options riding beside the change: which demand + day-one vs settled assignment. */
+export interface RunOptions {
+  demand_profile?: 'synthetic_demo' | 'calibrated_am_peak';
+  assignment?: 'day_one' | 'settled';
+}
+
 /** POST /api/simulate — launch an edit run (new_road | speed_limit | bike_lane). 409 if a job is already active. */
-export function postSimulate(change: SimChange): Promise<ApiResult<{ run_id: string }>> {
+export function postSimulate(change: SimChange, options?: RunOptions): Promise<ApiResult<{ run_id: string }>> {
   return req(`/api/simulate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ change }),
+    body: JSON.stringify({ change, ...options }),
   });
 }
 

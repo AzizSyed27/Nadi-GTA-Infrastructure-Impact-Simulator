@@ -201,6 +201,7 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         # V2.1b: which demand the run simulated (v0.6.0 meta) + calibration provenance for the methodology
         # section. Older (pre-0.6.0) artifacts have no demand_profile — rendered as the synthetic demo.
         "demand_profile": getattr(meta, "demand_profile", None) or "synthetic_demo",
+        "assignment": getattr(meta, "assignment", None),  # v0.7.0; None for older artifacts = day-one
         "render_sample": getattr(meta, "render_sample", None),
         "calibration": _load_calibration_provenance() if getattr(meta, "demand_profile", None) == "calibrated_am_peak" else None,
     }
@@ -978,6 +979,28 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         L.append("- **Demand:** synthetic demonstration demand (a small random-trips set) — traffic volumes "
                  "are illustrative, not calibrated to counts; read volume-dependent numbers as "
                  "baseline-vs-scenario comparisons, not real-world magnitudes.")
+    # V2.1c — the assignment mode (day-one vs settled) + the one plain-language paragraph. All numbers
+    # code-rendered; the paragraph is static prose (no LLM slot), so the honesty audit rules are moot.
+    asn = facts.get("assignment")
+    if asn is not None and getattr(asn, "mode", "day_one") == "settled":
+        conv = ("converged" if asn.converged else "stopped at the iteration cap without converging")
+        L.append(f"- **Assignment:** settled response — driver routes iterated "
+                 f"{asn.iterations if asn.iterations is not None else '?'} times "
+                 f"(mesoscopic assignment, micro-simulated final state); travel-time stability "
+                 f"{'' if asn.relative_deviation is None else f'{asn.relative_deviation:.3f} relative deviation, '}"
+                 f"{conv}.")
+    else:
+        L.append("- **Assignment:** day-one response — travelers use today's route habits; no iterated "
+                 "adjustment was applied.")
+    L.append("- **Day-one vs settled, in plain terms:** a day-one run answers \"what happens the morning "
+             "this change appears\" — every traveler still follows the route habits they had before, and "
+             "the numbers show the shock response. A settled run answers \"what does this corridor look "
+             "like after people have had time to adjust\" — driver route choices are re-computed "
+             "repeatedly until overall travel times stop shifting, approximating the adjusted state. "
+             "Neither is more true; they answer different planning questions, and the difference between "
+             "them is itself informative (it shows how much adaptation the change invites). Settled "
+             "response iterates driver route choice; pedestrian and cyclist routes are held fixed, so "
+             "adaptation is modeled for drivers only.")
     L.append(f"- **Generated:** {meta['generated_at']} · {meta['provider']}/{meta['model']}")
     L.append(f"- **Audit:** {meta['audit_summary']}")
     L.append("")

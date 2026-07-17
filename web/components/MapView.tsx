@@ -13,7 +13,7 @@ import { changesOf } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
-import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type EdgeEligibility, type SimChange } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -444,11 +444,16 @@ export default function MapView() {
     [ptA, ptB],
   );
 
+  // V2.1b/c run options for the NEXT submitted run (demand profile + day-one/settled assignment).
+  const [runOptions, setRunOptions] = useState<RunOptions>({});
+  const runOptionsRef = useRef(runOptions);
+  runOptionsRef.current = runOptions;
+
   // Submit any edit → POST /api/simulate. On success the run card takes over (it polls + loads on done).
   const submitChange = useCallback(async (change: SimChange) => {
     setSubmitting(true);
     setSubmitError(null);
-    const res = await postSimulate(change);
+    const res = await postSimulate(change, runOptionsRef.current);
     setSubmitting(false);
     if (!res.ok) {
       setSubmitError(res.error); // includes the 409 lock message + the bike-lane ineligibility reason
@@ -867,6 +872,8 @@ export default function MapView() {
           submitError={submitError}
           onSubmit={onSubmitDraw}
           onReset={resetDraw}
+          runOptions={runOptions}
+          onRunOptions={setRunOptions}
           activeRunId={activeRunId}
           onDrawAnother={drawAnother}
           onLoaded={loadRun}
