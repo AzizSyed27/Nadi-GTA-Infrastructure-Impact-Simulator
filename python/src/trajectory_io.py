@@ -50,20 +50,27 @@ def audit_version_gate(data: dict) -> None:
     producer emission fails LOUDLY at write time. Raises ``ValueError`` on mismatch."""
     version = data.get("schema_version")
     meta = data.get("meta", {})
-    if version == "0.6.0":
+    if version in ("0.6.0", "0.7.0"):
         if not meta.get("demand_profile"):
-            raise ValueError("version-gate: a 0.6.0 artifact's meta must declare demand_profile")
+            raise ValueError(f"version-gate: a {version} artifact's meta must declare demand_profile")
     elif "demand_profile" in meta or "render_sample" in meta:
         raise ValueError(
             f"version-gate: a {version} artifact must not carry meta.demand_profile/render_sample "
             "(v0.6.0 fields)"
         )
+    if version == "0.7.0":
+        if not meta.get("assignment"):
+            raise ValueError("version-gate: a 0.7.0 artifact's meta must declare assignment "
+                             "(day_one vs settled)")
+    elif "assignment" in meta:
+        raise ValueError(f"version-gate: a {version} artifact must not carry meta.assignment "
+                         "(a v0.7.0 field)")
     scenario = meta.get("scenario")
     if scenario is None:
         return
     has_change = "change" in scenario
     has_changes = "changes" in scenario
-    if version in ("0.5.0", "0.6.0"):
+    if version in ("0.5.0", "0.6.0", "0.7.0"):
         if not has_changes or has_change:
             raise ValueError(
                 f"version-gate: a {version} artifact's scenario must carry `changes` (the list authority) "

@@ -36,6 +36,7 @@ SAMPLE_V3_PATH = REPO_ROOT / "web" / "public" / "sample_v0_3_0.json"
 SAMPLE_V4_PATH = REPO_ROOT / "web" / "public" / "sample_v0_4_0.json"
 SAMPLE_V5_PATH = REPO_ROOT / "web" / "public" / "sample_v0_5_0.json"
 SAMPLE_V6_PATH = REPO_ROOT / "web" / "public" / "sample_v0_6_0.json"
+SAMPLE_V7_PATH = REPO_ROOT / "web" / "public" / "sample_v0_7_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -233,9 +234,9 @@ def test_multimodal_artifact_valid() -> None:
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
     # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); current producers emit
     # the current SCHEMA_VERSION — keep the accepted set open-ended forward (pin the SHAPE, not the version).
-    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0")
+    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0")
     if art.social is not None:
-        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0"), "an artifact carrying a social{} block must be v0.4.0+"
+        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0"), "an artifact carrying a social{} block must be v0.4.0+"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -665,6 +666,78 @@ def test_v0_6_0_semantic_roundtrip() -> None:
     src = _v6_raw()
     art = trajectory_io.load_artifact(SAMPLE_V6_PATH)
     out = RUNS_DIR / "_rt_v0_6_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)
+    finally:
+        out.unlink(missing_ok=True)
+    assert src == redumped, "semantic round-trip must be equal"
+
+
+# ---------------------------------------------------------------------------
+# v0.7.0 contract (additive over v0.6.0): meta.assignment (REQUIRED at 0.7.0, forbidden before) —
+# day-one vs settled iterated assignment + convergence stats + the cars_only scope disclosure.
+# All older tests above run unchanged — the back-compat proof.
+# ---------------------------------------------------------------------------
+
+
+def _v7_raw() -> dict:
+    return json.loads(SAMPLE_V7_PATH.read_text(encoding="utf-8"))
+
+
+def test_v0_7_0_sample() -> None:
+    assert SAMPLE_V7_PATH.is_file(), f"committed v0.7.0 sample missing: {SAMPLE_V7_PATH}"
+    raw = _v7_raw()
+    trajectory_io.validate_artifact(raw)
+    trajectory_io.audit_version_gate(raw)
+    art = trajectory_io.load_artifact(SAMPLE_V7_PATH)
+    assert raw["schema_version"] == "0.7.0"
+    a = art.meta.assignment
+    assert a is not None and a.mode == "settled" and a.scope == "cars_only"
+    assert a.converged is True and a.iterations == 9 and a.engine == "duaIterate_meso"
+
+
+def test_older_samples_validate_under_v0_7_0_schema() -> None:
+    for p in (SAMPLE_PATH, SAMPLE_V3_PATH, SAMPLE_V4_PATH, SAMPLE_V5_PATH, SAMPLE_V6_PATH):
+        trajectory_io.validate_artifact(json.loads(p.read_text(encoding="utf-8")))
+
+
+def test_v0_7_0_missing_assignment_fails() -> None:
+    raw = _v7_raw()
+    raw["meta"].pop("assignment")
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_pre_0_7_0_carrying_assignment_fails() -> None:
+    raw = _v6_raw()  # a 0.6.0 artifact
+    raw["meta"]["assignment"] = {"mode": "day_one"}
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_settled_without_scope_fails_model() -> None:
+    """NEGATIVE (model): a settled assignment must declare its scope; day_one must not carry one."""
+    raw = _v7_raw()
+    raw["meta"]["assignment"].pop("scope")
+    trajectory_io.validate_artifact(raw)  # schema stays loose on the invariant
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+    raw2 = _v7_raw()
+    raw2["meta"]["assignment"] = {"mode": "day_one", "scope": "cars_only"}
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw2)
+
+
+def test_v0_7_0_semantic_roundtrip() -> None:
+    src = _v7_raw()
+    art = trajectory_io.load_artifact(SAMPLE_V7_PATH)
+    out = RUNS_DIR / "_rt_v0_7_0.json"
     try:
         trajectory_io.dump_artifact(art, path=out)
         redumped = json.loads(out.read_text(encoding="utf-8"))

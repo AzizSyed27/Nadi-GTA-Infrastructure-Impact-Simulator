@@ -46,6 +46,7 @@ import sumolib
 import trajectory_io
 from contract_models import (
     SCHEMA_VERSION,
+    Assignment,
     Change,
     Conflict,
     Meta,
@@ -823,7 +824,8 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
                               change: Change, target_lane: int, bbox: list[float], sim_end: float,
                               step: float, scenario_network_name: str | None = None,
                               demand_profile: str = "synthetic_demo",
-                              render_meta: dict | None = None) -> TrajectoryArtifact:
+                              render_meta: dict | None = None,
+                              assignment: Assignment | None = None) -> TrajectoryArtifact:
     """Assemble the artifact from multi-modal trajectories + scenario conflicts. scorecard stays None
     (injected later), agents stays []. Ocean-guards a sample vehicle position. V2.1b: stamps
     meta.demand_profile (v0.6.0 REQUIRED); when ``render_meta`` is given the passed ``records`` are the
@@ -852,6 +854,8 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
             run_id=run_id, network=scenario_network_name or run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
             step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
             demand_profile=demand_profile,  # v0.6.0: required — which demand this run simulated
+            # v0.7.0: required — day-one habits vs settled (iterated) assignment; default day_one
+            assignment=assignment if assignment is not None else Assignment(mode="day_one"),
             render_sample=RenderSample(**render_meta) if render_meta else None,
             # v0.5.0 wrap: the producer still applies exactly ONE change, emitted as the changes[] list authority.
             scenario=Scenario(baseline_run_id=baseline_run_id, changes=[change]),

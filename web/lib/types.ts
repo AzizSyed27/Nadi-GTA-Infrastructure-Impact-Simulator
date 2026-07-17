@@ -1,5 +1,8 @@
 // TypeScript half of the frozen trajectory contract.
-// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.6.0).
+// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.7.0).
+// v0.7.0 (additive over 0.6.0): meta.assignment (REQUIRED at 0.7.0 — day-one habits vs settled
+// iterated assignment, with convergence stats and the honesty-critical scope: settled iteration covers
+// driver route choice only; ped/bike routes stay fixed).
 // v0.6.0 (additive over 0.5.0): meta.demand_profile (REQUIRED at 0.6.0 — which demand the run simulated)
 // + optional meta.render_sample (vehicles[]/persons[] capped to a stratified render sample; outcomes/
 // conflicts/scorecard stay full-population).
@@ -97,6 +100,21 @@ export interface RenderSample {
   total_persons: number;
 }
 
+/**
+ * v0.7.0+. The traffic-assignment mode this run represents. day_one = today's route habits (other
+ * fields null). settled = iterated assignment until travel times stabilized. scope 'cars_only' is the
+ * honesty disclosure: only DRIVER route choice is iterated — ped/bike routes stay fixed, so their rows
+ * reflect unadapted behavior even in a settled run.
+ */
+export interface Assignment {
+  mode: 'day_one' | 'settled';
+  scope?: 'cars_only' | null;
+  iterations?: number | null;
+  relative_deviation?: number | null;
+  converged?: boolean | null;
+  engine?: 'duaIterate_meso' | null;
+}
+
 export interface Meta {
   run_id: string;
   network: string;
@@ -107,6 +125,8 @@ export interface Meta {
   created_at: string;
   /** v0.6.0: REQUIRED at 0.6.0 (forbidden before) — optional here so older artifacts stay typed. */
   demand_profile?: DemandProfile;
+  /** v0.7.0: REQUIRED at 0.7.0 (forbidden before) — optional here so older artifacts stay typed. */
+  assignment?: Assignment;
   /** v0.6.0+, optional (capped artifacts only). */
   render_sample?: RenderSample;
   /** v0.2.0+, optional. */

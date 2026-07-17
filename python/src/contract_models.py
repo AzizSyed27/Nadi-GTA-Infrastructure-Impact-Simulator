@@ -24,7 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.4.0" for back-compat reads.
-SCHEMA_VERSION: Literal["0.6.0"] = "0.6.0"
+SCHEMA_VERSION: Literal["0.7.0"] = "0.7.0"
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
@@ -112,6 +112,32 @@ class Scenario(BaseModel):
     tags: list[str] | None = None  # v0.5.0+, optional free-text scenario tags
 
 
+class Assignment(BaseModel):
+    """v0.7.0+. The traffic-assignment mode this run represents. day_one = today's route habits (all
+    other fields null). settled = iterated assignment (duaIterate meso + micro final) until travel
+    times stabilized. HONESTY-CRITICAL scope: the meso model iterates ONLY car routes — bikes/peds keep
+    their fixed day-one routes — so a settled run's pedestrian scorecard row reflects UNadapted
+    pedestrian behavior; without scope on the wire, a consumer reading that row would overstate what
+    "settled" covers. scope is 'cars_only' (extensible Literal) on settled runs, None on day_one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["day_one", "settled"]
+    scope: Literal["cars_only"] | None = None
+    iterations: int | None = Field(default=None, ge=0)
+    relative_deviation: float | None = Field(default=None, ge=0)
+    converged: bool | None = None
+    engine: Literal["duaIterate_meso"] | None = None
+
+    @model_validator(mode="after")
+    def _check_scope(self) -> "Assignment":
+        if self.mode == "settled" and self.scope is None:
+            raise ValueError("assignment: a settled run must declare its scope (e.g. 'cars_only')")
+        if self.mode == "day_one" and self.scope is not None:
+            raise ValueError("assignment: a day_one run carries no settling scope")
+        return self
+
+
 class RenderSample(BaseModel):
     """v0.6.0+. Present ONLY when vehicles[]/persons[] are capped to a stratified render sample;
     outcomes/conflicts/scorecard stay full-population. rendered <= total per population."""
@@ -146,6 +172,9 @@ class Meta(BaseModel):
     # v0.6.0: REQUIRED at 0.6.0 (forbidden before) — which demand the run simulated. Optional on the
     # model for back-compat reads; the schema gate + audit_version_gate enforce presence per version.
     demand_profile: Literal["synthetic_demo", "calibrated_am_peak"] | None = None
+    # v0.7.0: REQUIRED at 0.7.0 (forbidden before) — day-one vs settled assignment. Optional on the
+    # model for back-compat reads; the schema gate + audit_version_gate enforce presence per version.
+    assignment: Assignment | None = None
     render_sample: RenderSample | None = None  # v0.6.0+, optional (capped artifacts only)
     scenario: Scenario | None = None  # v0.2.0+, optional
 
@@ -396,8 +425,8 @@ class Social(BaseModel):
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0..0.5.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.6.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.6.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.7.0).
+    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional

@@ -212,6 +212,83 @@ def patch_network(change: Change, run_id: str) -> tuple[Path, list[str], dict]:
 
 
 # ==================================================================================================
+# V2.1c — runtime-change net patch (for SETTLE legs, which run plain sumo/duarouter without TraCI)
+# ==================================================================================================
+def patch_runtime_net(change: Change, run_id: str) -> Path:
+    """Bake a RUNTIME change (speed_limit / bike_lane) into a per-run patched net via a netconvert
+    OVERWRITE patch — needed because the settle legs (duaIterate → plain sumo) cannot apply TraCI
+    changes. Semantics deliberately mirror run_sim.apply_change exactly: speed_limit = edge-wide
+    speed; bike_lane = the curbside car lane becomes bicycle-only.
+
+    Kept SEPARATE from patch_network's additive new_road gauntlet (which FORBIDS mutating existing
+    edges — that invariant stays for new_road). This patch's light gauntlet: edge count UNCHANGED,
+    geo-ref identical, and the patched attribute VERIFIED via sumolib readback (never assumed).
+    Returns the patched net path."""
+    if change.type not in ("speed_limit", "bike_lane"):
+        raise ValueError(f"patch_runtime_net handles speed_limit/bike_lane, not {change.type!r}")
+    if not NETCONVERT.is_file():
+        raise FileNotFoundError(f"netconvert not found: {NETCONVERT} (set SUMO_HOME)")
+
+    canonical = run_sim.NET
+    can_net = sumolib.net.readNet(str(canonical))
+    edge = can_net.getEdge(change.target_edge)  # raises KeyError for unknown edges — fail loudly
+    n_edges_before = len(can_net.getEdges(withInternal=False))
+
+    NETS_DIR.mkdir(parents=True, exist_ok=True)
+    edg_path = NETS_DIR / f"{run_id}.runtime.edg.xml"
+    out_path = NETS_DIR / f"{run_id}.runtime.net.xml"
+    if out_path.resolve() == canonical.resolve():
+        raise AssertionError("refusing to write the patched net over the canonical corridor.net.xml")
+
+    if change.type == "speed_limit":
+        assert change.value_mps, "speed_limit needs value_mps"
+        body = f'  <edge id={_q(change.target_edge)} speed="{change.value_mps}"/>'
+        expected = ("speed", float(change.value_mps))
+    else:  # bike_lane — the curbside car lane becomes bicycle-only (same lane apply_change targets)
+        from scenario_harness import curbside_car_lane  # local: avoids a module-level import cycle
+        lane_idx = change.target_lane if change.target_lane is not None else curbside_car_lane(
+            can_net, change.target_edge)
+        body = (f'  <edge id={_q(change.target_edge)}>\n'
+                f'    <lane index="{lane_idx}" allow="bicycle"/>\n'
+                f'  </edge>')
+        expected = ("bike_lane", lane_idx)
+    edg_path.write_text(f"<edges>\n{body}\n</edges>\n", encoding="utf-8")
+
+    before = (canonical.stat().st_mtime_ns, canonical.stat().st_size)
+    cmd = [str(NETCONVERT), "--sumo-net-file", str(canonical), "--edge-files", str(edg_path),
+           "-o", str(out_path)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"netconvert runtime-patch failed (exit {proc.returncode}):\n{proc.stderr[-2000:]}")
+    after = (canonical.stat().st_mtime_ns, canonical.stat().st_size)
+    if before != after:
+        raise AssertionError("CANONICAL-UNTOUCHED violated — corridor.net.xml changed during the patch")
+
+    # light gauntlet: same edge count, same geo-ref, and READBACK of the patched attribute.
+    patched = sumolib.net.readNet(str(out_path))
+    n_edges_after = len(patched.getEdges(withInternal=False))
+    if n_edges_after != n_edges_before:
+        raise AssertionError(f"runtime patch changed the edge count ({n_edges_before} -> {n_edges_after})")
+    if patched.getLocationOffset() != can_net.getLocationOffset():
+        raise AssertionError("runtime patch changed the geo-reference (netOffset)")
+    p_edge = patched.getEdge(change.target_edge)
+    if expected[0] == "speed":
+        got = p_edge.getSpeed()
+        if abs(got - expected[1]) > 1e-6:
+            raise AssertionError(f"readback: patched speed {got} != intended {expected[1]}")
+    else:
+        lane = p_edge.getLanes()[expected[1]]
+        if not (lane.allows("bicycle") and not lane.allows("passenger")):
+            raise AssertionError(f"readback: lane {expected[1]} of {change.target_edge} is not bicycle-only")
+    return out_path
+
+
+def _q(s: str) -> str:
+    from xml.sax.saxutils import quoteattr
+    return quoteattr(s)
+
+
+# ==================================================================================================
 # junction snap targets (for the editor / CLI junction-picking)
 # ==================================================================================================
 def list_junctions(bbox: list[float] | None = None) -> list[dict]:

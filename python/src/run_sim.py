@@ -33,7 +33,7 @@ SUMO_BINARY = SUMO_HOME / "bin" / "sumo.exe"
 sys.path.insert(0, str(SUMO_HOME / "tools"))
 # Sibling imports: this file runs as a script, so sys.path[0] is python/src/.
 import trajectory_io  # noqa: E402
-from contract_models import Change, Meta, Scenario, TrajectoryArtifact, Vehicle  # noqa: E402
+from contract_models import Assignment, Change, Meta, Scenario, TrajectoryArtifact, Vehicle  # noqa: E402
 
 # libsumo-first, TraCI fallback. Both expose the identical .start/.simulationStep/.vehicle/.simulation/.close API.
 # NOTE: the two-run harness calls start()/close() twice in one process. That is safe on TraCI (a fresh
@@ -267,6 +267,7 @@ def build_artifact(
             step_length=step_length,
             created_at=datetime.now(timezone.utc).isoformat(),
             demand_profile="synthetic_demo",  # v0.6.0: required — this entrypoint runs the demo demand
+            assignment=Assignment(mode="day_one"),  # v0.7.0: required — this entrypoint never settles
             scenario=scenario,
         ),
         vehicles=[
