@@ -240,12 +240,17 @@ def test_multimodal_artifact_valid() -> None:
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
     s0, s1 = art.meta.sim_start, art.meta.sim_end
+    # v0.6.0: a CAPPED artifact (meta.render_sample present) keeps FULL-POPULATION conflicts while
+    # vehicles[]/persons[] hold only the render sample — conflict entities may legitimately not be
+    # rendered. The strict membership invariant applies only to uncapped artifacts.
+    capped = getattr(art.meta, "render_sample", None) is not None
     for c in art.conflicts:
         assert s0 <= c.t <= s1, f"conflict t {c.t} outside sim window"
         assert c.type in ("rear_end", "crossing", "lane_change", "other")
         assert 0.0 <= c.severity <= 1.0
-        for e in c.entities or []:
-            assert e in veh_ids or e in ped_ids, f"conflict entity {e!r} not in vehicles/persons"
+        if not capped:
+            for e in c.entities or []:
+                assert e in veh_ids or e in ped_ids, f"conflict entity {e!r} not in vehicles/persons"
 
     # 2.5b: agents[] are wired by the (generative) reaction step. Validate WHEN present (a fresh run may
     # not have them yet). The model already enforced the grounding invariant on load; here we additionally
