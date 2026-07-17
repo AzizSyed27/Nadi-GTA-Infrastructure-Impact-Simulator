@@ -804,7 +804,8 @@ export default function MapView() {
           rendering {meta.render_sample.rendered_vehicles.toLocaleString()} of{' '}
           {meta.render_sample.total_vehicles.toLocaleString()} vehicles ·{' '}
           {meta.render_sample.rendered_persons.toLocaleString()} of{' '}
-          {meta.render_sample.total_persons.toLocaleString()} pedestrians (outcome-stratified sample;
+          {meta.render_sample.total_persons.toLocaleString()}{' '}
+          pedestrians (outcome-stratified sample;
           scorecard &amp; conflicts cover the full population)
         </div>
       )}

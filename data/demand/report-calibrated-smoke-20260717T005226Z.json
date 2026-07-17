@@ -1,0 +1,360 @@
+{
+  "report_version": "3.1",
+  "generated_at": "2026-07-17T02:27:34.091732+00:00",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "usage": {
+    "prompt_cache_hit_tokens": 4480,
+    "prompt_cache_miss_tokens": 5236,
+    "completion_tokens": 709,
+    "calls": 12
+  },
+  "run": {
+    "scenario_run_id": "multimodal-scenario-20260717T005226Z",
+    "baseline_run_id": "multimodal-baseline-20260717T005226Z",
+    "network": "corridor.net.xml",
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "thresholds": {
+      "ttc_s": 3.0,
+      "veh_pet_s": 2.0,
+      "ped_pet_s": 5.0,
+      "materiality_s": 30
+    },
+    "demand": {
+      "car": 67329,
+      "bicycle": 479,
+      "pedestrian": 5077
+    },
+    "cars_rerouted": 948,
+    "severed_edges": []
+  },
+  "scenario_change": {
+    "type": "speed_limit",
+    "target_edge": "42140001",
+    "target_lane": null,
+    "target_lanes": null,
+    "value_mps": 11.11,
+    "window": null,
+    "effect": null,
+    "position_m": null,
+    "description": "PEAK-HOUR SMOKE (07:00-08:00, max_t=3600): Kingston Rd speed limit to 40 km/h at calibrated AM-peak demand",
+    "from_junction": null,
+    "to_junction": null,
+    "lanes": null,
+    "speed_mps": null,
+    "bidirectional": null
+  },
+  "scorecard": {
+    "groups": [
+      {
+        "group": "car_commuter",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 0.0,
+          "affected_share": 0.179,
+          "confidence": "measured",
+          "note": "affected_share = fraction of this group's travelers >30s slower"
+        },
+        "safety_delta": {
+          "value": 1024.206,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        }
+      },
+      {
+        "group": "cyclist",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 0.0,
+          "affected_share": 0.193,
+          "confidence": "measured",
+          "note": "affected_share = fraction of this group's travelers >30s slower"
+        },
+        "safety_delta": {
+          "value": 9.707,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        }
+      },
+      {
+        "group": "pedestrian",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 0.0,
+          "affected_share": 0.034,
+          "confidence": "measured",
+          "note": "affected_share = fraction of this group's travelers >30s slower"
+        },
+        "safety_delta": {
+          "value": -81.339,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        }
+      },
+      {
+        "group": "local_resident",
+        "grounding": "inferred",
+        "safety_delta": {
+          "value": 1027.211,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        }
+      },
+      {
+        "group": "business_owner",
+        "grounding": "inferred"
+      },
+      {
+        "group": "accessibility",
+        "grounding": "inferred"
+      },
+      {
+        "group": "transit_riders",
+        "grounding": "inferred"
+      }
+    ]
+  },
+  "car_tail": {
+    "median_s": 0.0,
+    "share_gt30_pct": 17.9,
+    "cross_seed": null,
+    "cross_seed_available": false,
+    "sentence": "This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail with the vast majority of cars unaffected (exact cross-seed range not available for this run)."
+  },
+  "sections": {
+    "what_tested": {
+      "framing": "This report previews a proposed change to lower Kingston Road's speed limit during the morning rush hour. It anticipates how drivers, residents, and businesses might be affected by the slower pace. The analysis focuses on travel delays and community reactions, without judging the outcome."
+    },
+    "who_affected": {
+      "group_order": [
+        "car_commuter",
+        "cyclist",
+        "pedestrian",
+        "local_resident",
+        "business_owner",
+        "accessibility",
+        "transit_riders"
+      ],
+      "group_labels": {
+        "car_commuter": "Car commuters",
+        "cyclist": "Cyclists",
+        "pedestrian": "Pedestrians",
+        "local_resident": "Local residents",
+        "business_owner": "Business owners",
+        "accessibility": "Accessibility",
+        "transit_riders": "Transit riders"
+      },
+      "glosses": {
+        "car_commuter": "Most car commuters see no change in travel time, but a small group experiences a noticeable slowdown.",
+        "cyclist": "Most cyclists see no change in travel time, but a small group experiences a notable slowdown.",
+        "pedestrian": "Most pedestrians see no change in travel time, but a small group is markedly slower, while a near-miss magnitude is present but its direction is not claimed.",
+        "local_resident": "A near-miss magnitude is present for this group, but its direction is not seed-stable and is not claimed here — the table shows the magnitude only.",
+        "business_owner": "There isn't enough measurable signal in this run to characterize how this change affects business owners.",
+        "accessibility": "There isn't enough measurable signal in this run to characterize how this change affects accessibility.",
+        "transit_riders": "There isn't enough measurable signal in this run to characterize how this change affects transit riders."
+      }
+    },
+    "what_they_say": {
+      "groups": [
+        {
+          "key": "drivers",
+          "label": "Drivers",
+          "synthesis": "Some drivers worry about lost time and income from slower trips, while others welcome the possibility of calmer streets and quieter neighborhoods. A few are torn, seeing both a personal delay and a potential benefit for their home street. Others are pleased with time savings or neutral if their trip is unchanged.",
+          "quotes": [
+            {
+              "label": "Time-pressed commuter",
+              "comment": "That's brutal—adding 33 minutes to my morning commute means I'll miss my shift start for sure. This change wrecks my tight schedule.",
+              "grounding": "sim"
+            },
+            {
+              "label": "Resident who drives the corridor",
+              "comment": "Ugh, an extra six seconds? Not great for my morning rush, but if it slows down the racers flying past my house, maybe I'll trade that tiny delay for a bit more peace and quiet here.",
+              "grounding": "sim"
+            }
+          ],
+          "sample_size": 18
+        },
+        {
+          "key": "cyclists",
+          "label": "Cyclists",
+          "synthesis": "Cyclists share a recurring wish for protected lanes, with some noting that slower car speeds make them more willing to ride here. Delivery riders emphasize time savings and reduced stress from calmer traffic. A few express frustration that the change adds to their commute time.",
+          "quotes": [
+            {
+              "label": "Cautious newer rider",
+              "comment": "I'd still feel nervous with cars going 40 km/h right beside me, but if they slow down a bit it might feel a little safer. I wish there was a protected lane, that would make me ride here more.",
+              "grounding": "sim"
+            },
+            {
+              "label": "Bicycle delivery courier",
+              "comment": "I'm all for this—saving 1.7 minutes per trip means more drops per shift, and if it cuts down on close calls from speeding cars, that's a huge bonus for me on my bike.",
+              "grounding": "sim"
+            }
+          ],
+          "sample_size": 18
+        },
+        {
+          "key": "pedestrians",
+          "label": "Pedestrians",
+          "synthesis": "Pedestrians and transit users describe a trade-off: some welcome a slightly faster bus trip, while others focus on the slower traffic and what it might mean for crossing the street. A recurring hope is that the change will make the corridor feel more comfortable for walking, especially near schools. There is no single view—some prioritize time savings, others the quality of the walking environment.",
+          "quotes": [
+            {
+              "label": "School-run parent on foot",
+              "comment": "I don't mind the extra few seconds if it means cars are moving slower and my kids can cross the street more safely. That's a trade-off I'm happy to make.",
+              "grounding": "sim"
+            },
+            {
+              "label": "Walk-to-transit commuter",
+              "comment": "If this change shaves a minute and a half off my bus ride, I'm all for it—that means I can leave home a bit later and still catch my connection.",
+              "grounding": "sim"
+            }
+          ],
+          "sample_size": 18
+        },
+        {
+          "key": "community",
+          "label": "Community voices",
+          "synthesis": "Business owners fear losing curbside parking and customer access, while some commuters worry about slower bus travel. Others welcome calmer streets for safety and accessibility, especially for children and people with disabilities. A few question whether the change is needed or effective.",
+          "quotes": [
+            {
+              "label": "Small business owner",
+              "comment": "Slowing down cars to 40 km/h might help, but if it means losing curbside parking for my customers, that's a direct hit to my business. I can't afford fewer people stopping by.",
+              "grounding": "inferred"
+            },
+            {
+              "label": "Long-time corridor resident",
+              "comment": "I've lived on Kingston Road for over 20 years and I'm all for slowing traffic down—it's about time we made this street safer for our kids and quieter for us.",
+              "grounding": "inferred"
+            }
+          ],
+          "sample_size": 12
+        }
+      ]
+    },
+    "discourse": null,
+    "cannot_tell": {
+      "intro": "The following limits bound what this preview can and cannot claim, and should be read alongside the findings.",
+      "caveats": [
+        {
+          "title": "Safety direction is not established",
+          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported”. Do not read the safety column as 'the change made things safer or more dangerous'."
+        },
+        {
+          "title": "Surrogate measures are not crash predictions",
+          "body": "Safety here means trajectory-derived surrogates (time-to-collision, hard braking, blocked junctions), counted as near-miss events observed in this run. They are not crashes, and this tool does not predict crashes, injuries, or their probability."
+        },
+        {
+          "title": "One corridor, one demand level",
+          "body": "The simulation is bounded to a single corridor at a single modelled demand (67329 cars, 479 bicycles, 5077 pedestrians). It does not model the wider network, other times of day, or induced demand."
+        },
+        {
+          "title": "In-run adaptation is not settled equilibrium",
+          "body": "Travelers do not re-plan across days here: 948 cars rerouted within the run. Real corridors reach a new equilibrium over weeks as people adjust routes, modes, and times — this preview shows the immediate response, not that settled state."
+        },
+        {
+          "title": "A stratified sample, not a census",
+          "body": "The voiced reactions come from a stratified sample of personas pinned to specific simulated travelers (deliberately including the hardest-hit tail), not a poll of everyone. They show the texture of who wins and loses, never a headcount of support or opposition."
+        },
+        {
+          "title": "The access column is a rule-based estimate",
+          "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), labelled low-confidence — an estimate to reason about, not a measurement."
+        }
+      ]
+    }
+  },
+  "audit": {
+    "passed": true,
+    "slots_checked": 13,
+    "summary": "passed — 13 slots (9 LLM-audited: 6 clean, 3 corrected on retry, 0 unresolved; 4 code-rendered).",
+    "log": [
+      {
+        "slot": "framing",
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "digits",
+            "sentence": "This report tests what would happen if Kingston Road's speed limit were lowered to 40 km/h during the morning rush hour."
+          }
+        ]
+      },
+      {
+        "slot": "gloss:car_commuter",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:cyclist",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:pedestrian",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:local_resident",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "gloss:business_owner",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "gloss:accessibility",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "gloss:transit_riders",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "synthesis:drivers",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "synthesis:cyclists",
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "safety_direction",
+            "sentence": "Many feel a bit safer but still wish for protected lanes, while delivery riders highlight time savings and reduced stress as major benefits."
+          }
+        ]
+      },
+      {
+        "slot": "synthesis:pedestrians",
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "safety_direction",
+            "sentence": "Pedestrians and transit users express a recurring hope that slower traffic will make crossing streets feel safer, especially for children."
+          }
+        ]
+      },
+      {
+        "slot": "synthesis:community",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "caveat_intro",
+        "status": "clean",
+        "violations": []
+      }
+    ]
+  },
+  "sources": [
+    "multimodal-scenario-20260717T005226Z.json",
+    "outcomes-20260717T005226Z.json",
+    "conflicts-baseline-20260717T005226Z.json"
+  ]
+}
