@@ -618,10 +618,18 @@ def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
                  f"({facts['demand']['car']} cars, {facts['demand']['bicycle']} bicycles, "
                  f"{facts['demand']['pedestrian']} pedestrians). It does not model the wider network, other "
                  "times of day, or induced demand."},
-        {"title": "In-run adaptation is not settled equilibrium",
-         "body": f"Travelers do not re-plan across days here: {rerouted} cars rerouted within the run. Real "
-                 "corridors reach a new equilibrium over weeks as people adjust routes, modes, and times — this "
-                 "preview shows the immediate response, not that settled state."},
+        # V2.1c: this caveat must MATCH the run's assignment mode — the day-one wording on a settled
+        # artifact would contradict the methodology's Assignment bullet on the same page.
+        ({"title": "Iterated assignment is a model equilibrium, not observed adaptation",
+          "body": f"Driver routes were re-computed until travel times stabilized ({rerouted} cars ended on "
+                  "different routes than day one), approximating the adjusted state. Real corridors settle "
+                  "over weeks as people also shift modes and departure times — neither is modeled here, and "
+                  "pedestrian and cyclist routes were held fixed."}
+         if (facts.get("assignment") is not None and getattr(facts["assignment"], "mode", None) == "settled") else
+         {"title": "In-run adaptation is not settled equilibrium",
+          "body": f"Travelers do not re-plan across days here: {rerouted} cars rerouted within the run. Real "
+                  "corridors reach a new equilibrium over weeks as people adjust routes, modes, and times — this "
+                  "preview shows the immediate response, not that settled state."}),
         {"title": "A stratified sample, not a census",
          "body": "The voiced reactions come from a stratified sample of personas pinned to specific simulated "
                  "travelers (deliberately including the hardest-hit tail), not a poll of everyone. They show the "
