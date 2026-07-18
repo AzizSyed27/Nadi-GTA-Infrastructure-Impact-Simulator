@@ -672,11 +672,22 @@ def _ssm_float(v: str | None) -> float | None:
 
 
 def _parse_xy(pos: str | None) -> tuple[float, float] | None:
-    if not pos or pos == "NA":
-        return None
-    first = pos.split()[0]  # a Span may list many; take the first sample
-    x, y = first.split(",")
-    return float(x), float(y)
+    """First usable x,y from an SSM position value. A Span may list many samples; a sample may be "NA";
+    a teleporting vehicle's sample is the INVALID sentinel (~-1.07e9) written as 3D "x,y,z" — one such
+    record killed a 50-min calibrated leg, so: index the first two components (never unpack) and reject
+    sentinel/off-net coords with the same guard the subscription recorder uses."""
+    for tok in (pos or "").split():
+        parts = tok.split(",")
+        if len(parts) < 2:
+            continue  # "NA" sample inside a Span
+        try:
+            x, y = float(parts[0]), float(parts[1])
+        except ValueError:
+            continue
+        if x < -1e8 or y < -1e8:  # SUMO INVALID position sentinel
+            continue
+        return x, y
+    return None
 
 
 def parse_ssm(ssm_path: Path, net, bbox: list[float], ttc_th: float = SSM_TTC_THRESHOLD,
