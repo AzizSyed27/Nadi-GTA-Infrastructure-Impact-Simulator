@@ -124,9 +124,10 @@ function DrawForm({
   );
 }
 
-/** V2.1b/c — run options for the NEXT run. The assignment copy is the ratified honest framing. */
+/** V2.1b/c/d — run options for the NEXT run. The assignment + seeds copy is the ratified honest framing. */
 function RunOptionsBlock({ options, onChange }: { options: RunOptions; onChange: (o: RunOptions) => void }) {
   const assignment = options.assignment ?? 'day_one';
+  const seeds = options.n_seeds ?? 1;
   return (
     <div style={card} data-testid="run-options">
       <label style={field}>
@@ -154,6 +155,24 @@ function RunOptionsBlock({ options, onChange }: { options: RunOptions; onChange:
         Day-one response: travelers react with today&apos;s habits (minutes). Settled response: travelers
         have adjusted to the change (iterated assignment; takes substantially longer).
       </div>
+      <label style={{ ...checkRow, marginTop: 10 }}>
+        <input
+          type="checkbox"
+          checked={seeds === 3}
+          onChange={(e) => onChange({ ...options, n_seeds: e.target.checked ? 3 : 1 })}
+          data-testid="option-seeds"
+        />
+        Robustness probe (3 seeds)
+      </label>
+      <div style={hintText}>
+        Runs the baseline+scenario pair three times (seeds 42, 43, 44) and shows per-cell ranges —
+        roughly 3&times; the simulation time.
+      </div>
+      {seeds === 3 && options.demand_profile === 'calibrated_am_peak' && (
+        <div style={hintText} data-testid="seeds-cost-warning">
+          With calibrated demand this is a batch-scale run — expect hours, not minutes.
+        </div>
+      )}
     </div>
   );
 }

@@ -165,6 +165,14 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
           {stage.startsWith('settle') && status?.detail ? ` — ${status.detail}` : ''}
         </div>
       )}
+      {(status?.n_seeds ?? 1) > 1 && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="seeds-chip">
+          robustness probe: {status?.n_seeds} seeds (42, 43, 44)
+          {(stage === 'baseline' || stage === 'scenario') && status?.detail?.startsWith('seed probe')
+            ? ` — ${status.detail}`
+            : ''}
+        </div>
+      )}
 
       {/* staged rail — only the stages this run actually has (runtime changes skip regen) */}
       <ol style={rail} data-testid="run-stages">
