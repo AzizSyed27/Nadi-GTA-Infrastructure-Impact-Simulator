@@ -92,9 +92,31 @@ class _SynthWire(BaseModel):
 # CODE-RENDERED cell rendering — mirrors web/components/ScorecardPanel.tsx honesty treatment
 # ===================================================================================================
 
+def _is_unstable(cell: ScorecardCell | None) -> bool:
+    """V2.1d: sign-unstable = this cell carries a cross-seed range whose sign flipped. None-safe by
+    design — sign_stable exists ONLY on CellRange, so a rangeless cell is stable-by-absence (this is
+    the ONE guard every consumer goes through; never read cell.range.sign_stable bare)."""
+    return cell is not None and cell.range is not None and cell.range.sign_stable is False
+
+
+def _range_clause(cell: ScorecardCell, kind: str) -> str:
+    """The code-rendered cross-seed range appendix. Travel keeps SIGNED endpoints (measured data —
+    on an unstable cell the straddle IS the evidence); safety uses ABSOLUTE endpoints (a safety
+    render never emits a sign character on any surface)."""
+    r = cell.range
+    if r is None:
+        return ""
+    if kind == "safety":
+        lo, hi = sorted((abs(r.min), abs(r.max)))
+        return f" (range ±{lo:.2f} to ±{hi:.2f} across {r.n_seeds} seeds)"
+    return f" (range {r.min:+.1f} to {r.max:+.1f}s across {r.n_seeds} seeds)"
+
+
 def render_cell(cell: ScorecardCell | None, kind: Literal["travel", "safety", "access"]) -> str:
     """Render one scorecard cell as text, MIRRORING the panel:
     - safety = ±magnitude, NO sign (every safety value is positive and the note refuses the direction);
+    - V2.1d: ANY sign-unstable cell = ±magnitude (a signed unstable value would assert a direction
+      the seeds refute — map panel and report agree); ranged cells append the range clause;
     - travel/access = signed (+/-), POSITIVE = worse;
     - missing cell = em dash; [MEAS]/[LOW] confidence badge.
     """
@@ -102,21 +124,34 @@ def render_cell(cell: ScorecardCell | None, kind: Literal["travel", "safety", "a
         return "—"
     badge = "MEAS" if cell.confidence == "measured" else "LOW"
     if kind == "safety":
-        return f"±{abs(cell.value):.2f} [{badge}]"
+        return f"±{abs(cell.value):.2f} [{badge}]{_range_clause(cell, 'safety')}"
     if kind == "travel":
-        s = f"{cell.value:+.1f}s"
+        if _is_unstable(cell):
+            s = f"±{abs(cell.value):.1f}s"
+        else:
+            s = f"{cell.value:+.1f}s"
         if cell.affected_share is not None:
             s += f", {cell.affected_share * 100:.1f}% >{MATERIALITY_S}s"
-        return f"{s} [{badge}]"
+        return f"{s} [{badge}]{_range_clause(cell, 'travel')}"
+    if _is_unstable(cell):  # access never gets ranges today, but the guard is uniform
+        return f"±{abs(cell.value):.2f} [{badge}]{_range_clause(cell, 'access')}"
     return f"{cell.value:+.2f} [{badge}]"  # access — directional heuristic
 
 
 def cell_valence(cell: ScorecardCell | None, kind: Literal["travel", "safety", "access"]) -> str:
     """A CODE-RENDERED plain-language valence for a cell — no numbers, but the DIRECTION is resolved here
-    (POSITIVE = worse) so the LLM gloss can't invert it. Safety never gets a direction (magnitude only)."""
+    (POSITIVE = worse) so the LLM gloss can't invert it. Safety never gets a direction (magnitude only);
+    V2.1d: a sign-unstable cell of ANY kind gets no direction either (the sign flips across seeds), so
+    the LLM slots and the chat corpus can never launder an unstable sign into a directional claim."""
     if cell is None or cell.value is None:
         return "no measurable signal"
+    if _is_unstable(cell):
+        return ("a magnitude is present, but its direction is not claimed (the sign flips across "
+                "this run's seeds)")
     if kind == "safety":
+        if cell.range is not None:  # a measured-stable safety range earns a better caveat, not a direction
+            return ("a near-miss magnitude is present; its sign held across this run's seeds, but "
+                    "direction is still reported as magnitude only")
         return "a near-miss magnitude is present, but its direction is not claimed (not seed-stable)"
     v = cell.value
     if kind == "travel":
@@ -153,7 +188,11 @@ def _resolve(run_id: str | None) -> tuple[Path, str]:
 
 def _load_verdict(ts: str, artifact: TrajectoryArtifact) -> dict | None:
     """Load the persisted cross-seed verdict IF it matches this run AND this change (the seed-43/44 tripinfo
-    that produced it is not ts-stamped, so a run-id match alone isn't enough). Else None → qualitative note."""
+    that produced it is not ts-stamped, so a run-id match alone isn't enough). Else None → qualitative note.
+
+    V2.1d precedence: native cell ranges (contract 0.8.0, --n-seeds runs) are the seed authority for
+    CELL values; this verdict remains the source for the affected-share tail range (which cell ranges
+    don't cover — they are value-only) and for pre-0.8.0 runs."""
     path = RUNS_DIR / f"robustness-verdict-{ts}.json"
     if not path.is_file():
         return None
@@ -181,6 +220,15 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
 
     demand = {m: outcomes["modes"][m]["counts"]["total_demand"] for m in ("car", "bicycle", "pedestrian")}
 
+    # V2.1d seed provenance, native-first: the outcomes sidecar (a real multi-seed run) → the verdict's
+    # list (the legacy robustness sweep genuinely ran) → [42] only. The old [42,43,44] fallback printed
+    # unearned provenance on every single-seed run.
+    sc_seeds = outcomes.get("seeds") or {}
+    if sc_seeds:
+        seeds = [sc_seeds["canonical"], *sc_seeds.get("probes", [])]
+    else:
+        seeds = (verdict or {}).get("seeds") or [42]
+
     return {
         "scenario_run_id": meta.run_id,
         "baseline_run_id": meta.scenario.baseline_run_id,
@@ -196,8 +244,17 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         "verdict": verdict,  # {per_seed, range_gt30, verdict, ...} or None
         "thresholds": {"ttc_s": TTC_THRESHOLD_S, "veh_pet_s": VEH_PET_THRESHOLD_S,
                        "ped_pet_s": PED_PET_THRESHOLD_S, "materiality_s": MATERIALITY_S},
-        # seeds prefer the persisted verdict's list (source of truth) → fall back to the known 42/43/44.
-        "seeds": (verdict or {}).get("seeds", DEFAULT_SEEDS),
+        "seeds": seeds,
+        "n_seeds": sc_seeds.get("n_seeds", 1),
+        "seed_basis": sc_seeds.get("basis"),
+        # every (group, kind) whose cross-seed sign flipped — drives the methodology line + checks
+        "sign_unstable_cells": [
+            (g.group, kind)
+            for g in artifact.scorecard.groups
+            for kind, attr in (("travel", "travel_time_delta"), ("safety", "safety_delta"),
+                               ("access", "access_delta"))
+            if _is_unstable(getattr(g, attr))
+        ],
         # V2.1b: which demand the run simulated (v0.6.0 meta) + calibration provenance for the methodology
         # section. Older (pre-0.6.0) artifacts have no demand_profile — rendered as the synthetic demo.
         "demand_profile": getattr(meta, "demand_profile", None) or "synthetic_demo",
@@ -242,6 +299,26 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
         s = render_cell(g.safety_delta, "safety")
         if s != "—" and (not s.startswith("±") or "+" in s or "-" in s or "−" in s):
             problems.append(f"safety cell for {g.group} rendered with a direction: {s!r}")
+
+    # V2.1d: (a) every SIGN-UNSTABLE cell of any kind renders ±magnitude (a signed render would
+    # assert the direction the seeds refute); (b) every range is internally consistent. Belt and
+    # suspenders over the pydantic validators — a render bug would slip the model layer.
+    for g in artifact.scorecard.groups:
+        for kind, attr in (("travel", "travel_time_delta"), ("safety", "safety_delta"),
+                           ("access", "access_delta")):
+            cell = getattr(g, attr)
+            if cell is None:
+                continue
+            if _is_unstable(cell):
+                s = render_cell(cell, kind)  # type: ignore[arg-type]
+                if s != "—" and not s.startswith("±"):
+                    problems.append(f"sign-unstable {kind} cell for {g.group} rendered signed: {s!r}")
+            if cell.range is not None:
+                r = cell.range
+                if r.min > r.max:
+                    problems.append(f"{g.group}.{kind} range min > max")
+                if cell.value is not None and not (r.min <= cell.value <= r.max):
+                    problems.append(f"{g.group}.{kind} canonical value outside its own range")
 
     th = facts["thresholds"]
     if (th["ttc_s"], th["veh_pet_s"], th["ped_pet_s"]) != (TTC_THRESHOLD_S, VEH_PET_THRESHOLD_S, PED_PET_THRESHOLD_S):
@@ -509,8 +586,9 @@ def _deterministic_gloss(g, group_label: str) -> str:
         return f"There isn't enough measurable signal in this run to characterize how this change affects {group_label.lower()}."
     cell, kind = dims[0]  # sparse groups carry exactly one signal
     if kind == "safety":
-        return ("A near-miss magnitude is present for this group, but its direction is not seed-stable and is "
-                "not claimed here — the table shows the magnitude only.")
+        # V2.1d: valence-driven so a measured-stable range doesn't get the stale "not seed-stable"
+        # wording (and an unstable one states the flip) — one source of truth, cell_valence.
+        return f"For this group, {cell_valence(cell, 'safety')} — the table shows the magnitude only."
     if kind == "access":
         v = cell.value
         word = "unchanged" if abs(v) < 1e-9 else ("slightly worse" if v > 0 else "slightly better")
@@ -891,7 +969,12 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         L.extend(notes)
         L.append("")
     median = facts["tail_median_s"]
-    median_phrase = "about no change" if abs(median) < 0.05 else f"{median:+.1f}s"
+    # V2.1d: a sign-unstable car travel cell must not have its median rendered SIGNED even here.
+    car_travel_cell = facts["by_group"]["car_commuter"].travel_time_delta
+    if _is_unstable(car_travel_cell):
+        median_phrase = f"±{abs(median):.1f}s (direction not seed-stable)"
+    else:
+        median_phrase = "about no change" if abs(median) < 0.05 else f"{median:+.1f}s"
     L.append(f"**Travel-time tail (cars):** median {median_phrase}; {facts['tail_share_pct']:.1f}% of cars are "
              f">{MATERIALITY_S}s slower. {_cross_seed_sentence(facts)}")
     L.append("")
@@ -934,7 +1017,22 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     L.append("## Methodology & provenance")
     L.append("")
     L.append(f"- **Runs:** scenario `{facts['scenario_run_id']}`, baseline `{facts['baseline_run_id']}`")
-    L.append(f"- **Seeds:** {', '.join(str(s) for s in facts['seeds'])}")
+    # V2.1d: the seeds line is EARNED — single-seed runs say "42" (or the verdict-era list when that
+    # sweep genuinely ran); multi-seed runs name the convention + which cells were sign-unstable.
+    if facts.get("n_seeds", 1) > 1:
+        unstable = facts.get("sign_unstable_cells") or []
+        unstable_txt = (", ".join(f"{GROUP_LABEL.get(g, g)} {k}" for g, k in unstable)
+                        if unstable else "none")
+        seeds_line = (f"- **Seeds:** {', '.join(str(s) for s in facts['seeds'])} — "
+                      f"{facts['n_seeds']} baseline+scenario pairs; seed {facts['seeds'][0]} is the "
+                      f"canonical run (all trajectories and cell values), extra seeds contribute "
+                      f"per-cell ranges. Sign-unstable this run: {unstable_txt}.")
+        if facts.get("seed_basis") == "settled_fixed_routes":
+            seeds_line += (" On settled runs, ranges reflect simulation stochasticity at fixed "
+                           "equilibrium routes, not assignment seed-sensitivity.")
+        L.append(seeds_line)
+    else:
+        L.append(f"- **Seeds:** {', '.join(str(s) for s in facts['seeds'])}")
     L.append(f"- **Thresholds:** time-to-collision {th['ttc_s']}s, vehicle PET {th['veh_pet_s']}s, "
              f"pedestrian PET {th['ped_pet_s']}s, delay materiality >{th['materiality_s']}s")
     # V2.1b — the demand statement (which traffic this run simulated) + calibrated-run GEH acceptance.
