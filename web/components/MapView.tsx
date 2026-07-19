@@ -24,6 +24,8 @@ import { AgentPanel } from '@/components/AgentPanel';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
+import { CompareView } from '@/components/CompareView';
+import { loadCompareSide, slimFromArtifact, type CompareSide } from '@/lib/compare';
 import { activeAt, agentId, nearestWithin, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
@@ -91,7 +93,13 @@ export default function MapView() {
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
   const [showReport, setShowReport] = useState(false); // full-screen Report view (toggled from the map)
-  const [mode, setMode] = useState<'playback' | 'discourse' | 'edit'>('playback'); // playback ⇄ discourse ⇄ edit
+  // playback ⇄ discourse ⇄ edit ⇄ compare. `?compare=` deep-links straight into compare mode — read in
+  // the initializer (hydration-safe: the pre-artifact shell renders identically whatever the mode).
+  const [mode, setMode] = useState<'playback' | 'discourse' | 'edit' | 'compare'>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare')
+      ? 'compare'
+      : 'playback',
+  );
   const [cascadeId, setCascadeId] = useState<string | null>(null); // selected cascade in discourse mode
   // --- edit mode (5.2): draw-a-road + job runner ---
   const [junctions, setJunctions] = useState<Junction[]>([]); // snap targets in the viewport
@@ -108,6 +116,13 @@ export default function MapView() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // V2.1d part ii — compare mode: two SLIM sides ({meta, scorecard} only; the 74MB bulk is never
+  // retained). Side A defaults to the loaded artifact; both re-pickable. Picks survive mode switches.
+  const [compareA, setCompareA] = useState<CompareSide | null>(null);
+  const [compareB, setCompareB] = useState<CompareSide | null>(null);
+  const [compareLoading, setCompareLoading] = useState({ a: false, b: false });
+  const [compareError, setCompareError] = useState<{ a: string | null; b: string | null }>({ a: null, b: null });
+  const compareReq = useRef<{ a: string | null; b: string | null }>({ a: null, b: null }); // stale-pick guard
   // 5.3 change-visibility overlay: the loaded run's change LOCATION, fetched once per run (survives switching +
   // ?run=). Tagged with runId so a stale fetch from a prior run is ignored; error=true → labeled degradation.
   // v0.5.0: a scenario may compose several changes — resolve + render each. `items` is one entry per change.
@@ -145,6 +160,45 @@ export default function MapView() {
       cancelled = true;
     };
   }, []);
+
+  // V2.1d compare picks. Stale-guard: only the LAST requested id per side may land (a fast
+  // re-pick must not be overwritten by a slow earlier fetch resolving late).
+  const pickCompareSide = useCallback((side: 'a' | 'b', id: string) => {
+    compareReq.current[side] = id;
+    setCompareLoading((s) => ({ ...s, [side]: true }));
+    setCompareError((s) => ({ ...s, [side]: null }));
+    loadCompareSide(id)
+      .then((cs) => {
+        if (compareReq.current[side] !== id) return; // stale
+        (side === 'a' ? setCompareA : setCompareB)(cs);
+      })
+      .catch((e: unknown) => {
+        if (compareReq.current[side] !== id) return;
+        setCompareError((s) => ({ ...s, [side]: e instanceof Error ? e.message : String(e) }));
+      })
+      .finally(() => {
+        if (compareReq.current[side] === id) setCompareLoading((s) => ({ ...s, [side]: false }));
+      });
+  }, []);
+  const pickCompareA = useCallback((id: string) => pickCompareSide('a', id), [pickCompareSide]);
+  const pickCompareB = useCallback((id: string) => pickCompareSide('b', id), [pickCompareSide]);
+
+  // `?compare=<id>` kicks side B's fetch once (mode was already set by the initializer above).
+  // queueMicrotask: the pick's loading-state flip must not run synchronously inside the effect body
+  // (react-hooks/set-state-in-effect); one microtask later is indistinguishable to the user.
+  useEffect(() => {
+    const cmp = new URLSearchParams(window.location.search).get('compare');
+    if (cmp) queueMicrotask(() => pickCompareSide('b', cmp));
+  }, [pickCompareSide]);
+
+  // Side A DERIVED during render: the loaded artifact's slim view until explicitly picked. This makes
+  // a cold `?run=X&compare=Y` start deterministic by construction — side A is a pure function of the
+  // loaded artifact (whenever X's fetch lands), side B is independent state; no fetch-ordering race
+  // can blank side A. An explicit pick (compareA) always wins.
+  const effectiveCompareA = useMemo(
+    () => compareA ?? (artifact ? slimFromArtifact(artifact) : null),
+    [compareA, artifact],
+  );
 
   // V2.0b: load the exported canonical network ONCE (the base road layer). Static asset → default cache.
   // Sets a deterministic test seam (window.__nadiNetworkEdges) so Playwright can assert the network rendered.
@@ -447,7 +501,10 @@ export default function MapView() {
   // V2.1b/c run options for the NEXT submitted run (demand profile + day-one/settled assignment).
   const [runOptions, setRunOptions] = useState<RunOptions>({});
   const runOptionsRef = useRef(runOptions);
-  runOptionsRef.current = runOptions;
+  // Keep the ref fresh in an effect, not during render (the RunCard onLoadedRef pattern).
+  useEffect(() => {
+    runOptionsRef.current = runOptions;
+  }, [runOptions]);
 
   // Submit any edit → POST /api/simulate. On success the run card takes over (it polls + loads on done).
   const submitChange = useCallback(async (change: SimChange) => {
@@ -860,6 +917,13 @@ export default function MapView() {
         >
           ✏️ Edit
         </button>
+        <button
+          style={{ ...modeBtn, ...(effectiveMode === 'compare' ? modeBtnActive : null) }}
+          onClick={() => setMode('compare')}
+          data-testid="mode-compare"
+        >
+          ⇄ Compare
+        </button>
       </div>
 
       {editing ? (
@@ -925,6 +989,17 @@ export default function MapView() {
             vehicleCount={artifact.vehicles.length}
           />
         </>
+      ) : effectiveMode === 'compare' ? (
+        // V2.1d part ii — the sheet occludes the (static) map; Timeline is unmounted so playback's
+        // rAF loop stops for free. Picks live in MapView state and survive mode switches.
+        <CompareView
+          a={effectiveCompareA}
+          b={compareB}
+          loading={compareLoading}
+          error={compareError}
+          onPickA={pickCompareA}
+          onPickB={pickCompareB}
+        />
       ) : (
         <>
           <DiscourseFeed
