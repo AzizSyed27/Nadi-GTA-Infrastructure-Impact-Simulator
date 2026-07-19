@@ -3,12 +3,16 @@
  * ScorecardPanel and the Report view render cells identically:
  *  - sign color only where a direction is claimed (travel_time = measured, access = heuristic estimate);
  *  - SAFETY as a ± magnitude with NO direction color (the sign is not seed-stable — magnitude only);
+ *  - V2.1d: ANY sign-unstable cell (range.sign_stable === false) gets the safety treatment — the main
+ *    value renders ±magnitude with no sign or color ANYWHERE (a "+2.3s" would assert a direction the
+ *    seeds refute); the range sub-line's signed endpoints are the one deliberate exception (they are
+ *    the evidence OF the flip, not a direction claim), plus a SIGN? badge (top-left);
  *  - every [LOW]-confidence cell visually muted vs the [MEAS] cells;
  *  - the cell note surfaced as the native hover tooltip.
  * (This file is `.tsx` because it exports the shared <ScoreCell> component, not just style constants.)
  */
 
-import type { ScorecardCell } from '@/lib/types';
+import type { CellRange, ScorecardCell } from '@/lib/types';
 
 export const WORSE = '#c64545'; // POSITIVE value = worse for the group
 export const BETTER = '#3caa5a';
@@ -25,6 +29,21 @@ export function fmtSigned(value: number, unit: string): string {
 }
 
 export type CellKind = 'travel' | 'safety' | 'access';
+
+/**
+ * V2.1d: format a cross-seed range. Travel shows SIGNED endpoints ("+1.8 to +2.9s") — measured data,
+ * and on an unstable cell the straddle itself is the honest evidence. Safety shows ABSOLUTE endpoints
+ * ("±0.20 to ±2.40") — a safety render never emits a sign character on any surface.
+ */
+export function fmtRange(range: CellRange, kind: CellKind): string {
+  const dec = kind === 'travel' ? 1 : 2;
+  if (kind === 'safety') {
+    const [lo, hi] = [Math.abs(range.min), Math.abs(range.max)].sort((a, b) => a - b);
+    return `±${lo.toFixed(dec)} to ±${hi.toFixed(dec)}`;
+  }
+  const f = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(dec)}`;
+  return `${f(range.min)} to ${f(range.max)}${kind === 'travel' ? 's' : ''}`;
+}
 
 /** One scorecard cell, rendered with the shared honesty treatment. `testid` lets each surface tag its own. */
 export function ScoreCell({
@@ -45,11 +64,19 @@ export function ScoreCell({
   }
   const badge = cell.confidence === 'measured' ? 'MEAS' : 'LOW';
   const low = cell.confidence !== 'measured';
+  // V2.1d: sign_stable lives ONLY on range — a rangeless cell is stable-by-absence (never throws).
+  const unstable = cell.range?.sign_stable === false;
 
   let valueEl: React.ReactNode;
-  if (kind === 'safety') {
-    // Magnitude only — direction not claimed (seed-unstable sign). Neutral, no sign color.
-    valueEl = <span style={{ color: NEUTRAL }}>±{Math.abs(cell.value).toFixed(2)}</span>;
+  if (kind === 'safety' || unstable) {
+    // Magnitude only — direction not claimed (safety always; ANY cell whose sign flips across seeds).
+    // The signed value must not appear anywhere for an unstable cell — map panel and report agree.
+    valueEl = (
+      <span style={{ color: NEUTRAL }}>
+        ±{Math.abs(cell.value).toFixed(kind === 'travel' ? 1 : 2)}
+        {kind === 'travel' ? 's' : ''}
+      </span>
+    );
   } else if (kind === 'travel') {
     valueEl = <span style={{ color: signColor(cell.value) }}>{fmtSigned(cell.value, 's')}</span>;
   } else {
@@ -62,6 +89,16 @@ export function ScoreCell({
       <div style={cellValRow}>{valueEl}</div>
       {kind === 'travel' && cell.affected_share != null && (
         <div style={cellSub}>{Math.round(cell.affected_share * 100)}% &gt;30s</div>
+      )}
+      {cell.range != null && (
+        <div style={cellSub} data-testid="cell-range">
+          {fmtRange(cell.range, kind)} · {cell.range.n_seeds} seeds
+        </div>
+      )}
+      {unstable && (
+        <span style={badgeUnstable} data-testid="unstable-badge">
+          SIGN?
+        </span>
       )}
       <span style={badge === 'MEAS' ? badgeMeas : badgeLow}>{badge}</span>
     </div>
@@ -85,7 +122,7 @@ export const cellLow: React.CSSProperties = { background: '#f7f7f8', opacity: 0.
 export const cellValRow: React.CSSProperties = { fontSize: 13, fontWeight: 600 };
 export const cellSub: React.CSSProperties = { fontSize: 9, color: '#8a8a8a', marginTop: 1 };
 
-const badgeBase: React.CSSProperties = {
+export const badgeBase: React.CSSProperties = {
   position: 'absolute',
   top: 2,
   right: 3,
@@ -97,6 +134,15 @@ const badgeBase: React.CSSProperties = {
 };
 export const badgeMeas: React.CSSProperties = { ...badgeBase, color: '#2f855a', background: '#e3f3e9' };
 export const badgeLow: React.CSSProperties = { ...badgeBase, color: '#9aa0a6', background: '#ececee' };
+// V2.1d: the sign-instability flag — top-LEFT so it coexists with MEAS/LOW at top-right. Amber: a
+// warning about the DIRECTION, not the magnitude (the note tooltip carries the full explanation).
+export const badgeUnstable: React.CSSProperties = {
+  ...badgeBase,
+  right: undefined,
+  left: 3,
+  color: '#92600a',
+  background: '#fdf1dc',
+};
 
 const chipBase: React.CSSProperties = {
   fontSize: 9,
