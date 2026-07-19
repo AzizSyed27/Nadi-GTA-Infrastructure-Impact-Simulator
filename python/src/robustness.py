@@ -1,5 +1,11 @@
 """Precursor to 2.5 — robustness of the 2.4 safety deltas. ANALYSIS ONLY (no artifact/contract changes).
 
+V2.1d NOTE: the SEED-sensitivity portion is SUPERSEDED for new runs — `scenario_harness --n-seeds 3`
+runs the probe pairs natively and lands per-cell ranges + sign_stable IN the artifact (contract
+v0.8.0, scorecard.attach_ranges). This script remains the THRESHOLD-sweep / materiality analysis
+tool and the verdict-file producer for legacy runs (report.py still reads that verdict as the
+car-tail-share fallback).
+
 Three stress tests on the 2.4b safety story:
   1. SEED sensitivity  — do the per-group safety-delta SIGNS survive seeds 43/44 (vs 42)?
   2. THRESHOLD sensitivity — do conflict counts/signs survive TTC {2.5,3.0,3.5} and ped PET {4.0,5.0}?

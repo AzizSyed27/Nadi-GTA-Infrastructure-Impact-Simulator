@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "python" / "src"))
 import trajectory_io  # noqa: E402
-from contract_models import Scorecard, ScorecardCell, ScorecardGroup, changes_of_scenario  # noqa: E402
+from contract_models import CellRange, Scorecard, ScorecardCell, ScorecardGroup, changes_of_scenario  # noqa: E402
 
 RUNS_DIR = trajectory_io.RUNS_DIR
 WEB_PUBLIC = ROOT / "web" / "public"
@@ -165,6 +165,89 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
     return Scorecard(groups=groups, bca=None)  # bca null for v0 — the distribution is the point
 
 
+# ---- V2.1d: cross-seed ranges (contract v0.8.0) -------------------------------------------------
+# Only these two fields get ranges. Access is a deterministic heuristic — identical across seeds by
+# construction, so a [x,x] range would imply MEASURED stability it doesn't have. Excluded on purpose.
+RANGED_FIELDS = ("travel_time_delta", "safety_delta")
+
+# The settled-run range-semantics disclosure (the cars_only lesson: scope limitations ride the
+# artifact, not a docstring). Appended to every ranged cell's note on a settled run.
+_SETTLED_RANGE_NOTE = ("ranges hold the settled routes fixed (simulation stochasticity, "
+                       "not assignment seed-sensitivity)")
+
+
+def _probe_value(probe: Scorecard, group: str, field: str) -> float | None:
+    g = next((pg for pg in probe.groups if pg.group == group), None)
+    cell = getattr(g, field, None) if g is not None else None
+    return cell.value if cell is not None else None
+
+
+def attach_ranges(canonical: Scorecard, probes: list[Scorecard], seeds: list[int],
+                  *, settled: bool = False) -> dict:
+    """Attach CellRange to the canonical scorecard's travel/safety cells from probe scorecards.
+
+    The CANONICAL (seed-42) cells' value/affected_share/confidence are NEVER touched — seed 42 IS
+    the artifact (V1 robustness convention: no cross-seed central aggregate). Per group x field the
+    range spans [canonical] + probe values (all already 3dp-rounded by compute_scorecard, so
+    min <= value <= max holds exactly). A probe cell that is None (or value None) is EXCLUDED; if
+    fewer than 2 values remain, NO range is attached — we don't claim robustness we didn't measure.
+    sign_stable = False iff the values STRICTLY straddle zero (a 0.0 endpoint doesn't flip it).
+    ``settled`` appends the fixed-routes semantics disclosure to every ranged cell's note.
+    Returns the per-seed provenance dict ({group: {field: {seed: value}}}) for the outcomes sidecar
+    (and for ``attach_ranges_from_sidecar`` to rebuild ranges idempotently on recompute)."""
+    values: dict[str, dict[str, dict[str, float]]] = {}
+    for g in canonical.groups:
+        for field in RANGED_FIELDS:
+            cell = getattr(g, field)
+            if cell is None or cell.value is None:
+                continue
+            per_seed = {str(seeds[0]): cell.value}
+            for seed, probe in zip(seeds[1:], probes):
+                pv = _probe_value(probe, g.group, field)
+                if pv is not None:
+                    per_seed[str(seed)] = pv
+            if len(per_seed) < 2:
+                continue
+            values.setdefault(g.group, {})[field] = per_seed
+    _apply_ranges(canonical, values, settled=settled)
+    return values
+
+
+def attach_ranges_from_sidecar(sc: Scorecard, seed_cells: dict, seeds_meta: dict | None) -> None:
+    """Rebuild ranges from the outcomes sidecar's stored per-seed values — the recompute path
+    (``main()``). Without this, re-running scorecard.py on a multi-seed artifact would silently
+    DROP its ranges (the probe tripinfos may be long gone)."""
+    _apply_ranges(sc, seed_cells, settled=(seeds_meta or {}).get("basis") == "settled_fixed_routes")
+
+
+def _apply_ranges(sc: Scorecard, values: dict, *, settled: bool) -> None:
+    for g in sc.groups:
+        for field, per_seed in (values.get(g.group) or {}).items():
+            cell = getattr(g, field, None)
+            if cell is None or cell.value is None:
+                continue
+            vs = list(per_seed.values())
+            lo, hi = min(vs), max(vs)
+            cell.range = CellRange(min=lo, max=hi, n_seeds=len(vs), sign_stable=not (lo < 0 < hi))
+            seed_list = ", ".join(sorted(per_seed, key=int))
+            if field == "safety_delta":
+                # EARNED note: this run measured its own stability — the V1 clause is replaced by
+                # what the seeds actually showed; the calibrated/sample suffixes survive verbatim.
+                earned = (
+                    f"sign flips across seeds {seed_list} in this run; directional claim not supported"
+                    if not cell.range.sign_stable else
+                    f"sign consistent across seeds {seed_list} in this run; still reported as "
+                    f"magnitude only (a {len(vs)}-seed probe, not proof of direction)"
+                )
+                old = cell.note or ""
+                cell.note = earned + old.removeprefix(_SAFETY_NOTE)
+            elif not cell.range.sign_stable:
+                appendix = "sign not stable across seeds this run — magnitude only"
+                cell.note = f"{cell.note}; {appendix}" if cell.note else appendix
+            if settled:
+                cell.note = f"{cell.note}; {_SETTLED_RANGE_NOTE}" if cell.note else _SETTLED_RANGE_NOTE
+
+
 def _resolve(run_id: str | None) -> tuple[Path, str]:
     if run_id:
         art = RUNS_DIR / f"{run_id}.json"
@@ -220,6 +303,10 @@ def main() -> None:
         demand_profile=raw_art["meta"].get("demand_profile", "synthetic_demo"),
         conflict_sample_of=sample_of,
     )
+    # V2.1d: a multi-seed run's sidecar carries per-seed cell values — re-attach the ranges, else
+    # this recompute would silently DROP them (the probe tripinfos may be gone).
+    if outcomes.get("seed_cells"):
+        attach_ranges_from_sidecar(scorecard, outcomes["seed_cells"], outcomes.get("seeds"))
 
     # Inject + re-validate (dump_artifact validates against the frozen schema on write).
     artifact = trajectory_io.load_artifact(art_path)
