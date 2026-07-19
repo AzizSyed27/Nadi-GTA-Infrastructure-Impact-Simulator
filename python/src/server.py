@@ -235,6 +235,9 @@ class SimulateReq(BaseModel):
     demand_profile: Literal["synthetic_demo", "calibrated_am_peak"] = "synthetic_demo"
     # V2.1c: day_one = today's route habits (minutes); settled = iterated assignment (substantially longer).
     assignment: Literal["day_one", "settled"] = "day_one"
+    # V2.1d: 1 = single canonical seed (default); 3 = the V1 robustness ladder (42,43,44) — ~3x sim
+    # wall-clock; combined with calibrated demand this is a batch-scale run (the form copy says so).
+    n_seeds: Literal[1, 3] = 1
 
 
 class EnrichReq(BaseModel):
@@ -293,17 +296,19 @@ def _edges_by_id() -> dict:
 
 
 def _build_harness_cmd(ch: SimChange, ts: str, desc: str, demand_profile: str = "synthetic_demo",
-                       assignment: str = "day_one") -> list[str]:
+                       assignment: str = "day_one", n_seeds: int = 1) -> list[str]:
     """PURE scenario_harness command construction (no validation / no IO) so it's unit-testable. Uses the
     ``--target-edge=<id>`` (=form) because SUMO edge ids can start with '-' (reverse edges), which argparse would
-    otherwise read as an option — the reverse-edge bug this helper's test guards against. V2.1b/c: the
-    ``--demand-profile``/``--assignment`` flags are appended ONLY for non-defaults (the default cmd stays
-    byte-stable)."""
+    otherwise read as an option — the reverse-edge bug this helper's test guards against. V2.1b/c/d: the
+    ``--demand-profile``/``--assignment``/``--n-seeds`` flags are appended ONLY for non-defaults (the default
+    cmd stays byte-stable)."""
     base = [sys.executable, str(HARNESS), "--change-type", ch.type, "--run-ts", ts]
     if demand_profile != "synthetic_demo":
         base += ["--demand-profile", demand_profile]
     if assignment != "day_one":
         base += ["--assignment", assignment]
+    if n_seeds != 1:
+        base += ["--n-seeds", str(n_seeds)]
     if ch.type == "new_road":
         cmd = base + ["--from-junction", ch.from_junction, "--to-junction", ch.to_junction,
                       "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps), "--description", desc]
@@ -357,11 +362,13 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
         except (KeyError, FileNotFoundError) as e:
             raise HTTPException(400, str(e)) from e
 
-    cmd = _build_harness_cmd(ch, ts, desc, demand_profile=req.demand_profile, assignment=req.assignment)
+    cmd = _build_harness_cmd(ch, ts, desc, demand_profile=req.demand_profile, assignment=req.assignment,
+                             n_seeds=req.n_seeds)
     if not run_state.try_acquire(run_id):  # synchronous, race-free reject-if-active
         raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
     run_state.set_stage(run_id, "queued", "queued", description=desc, change=ch.model_dump(exclude_none=True),
-                        demand_profile=req.demand_profile, assignment=req.assignment)
+                        demand_profile=req.demand_profile, assignment=req.assignment,
+                        n_seeds=req.n_seeds)
     bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate")
     return {"run_id": run_id}
 

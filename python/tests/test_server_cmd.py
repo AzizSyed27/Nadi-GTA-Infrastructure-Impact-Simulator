@@ -59,6 +59,7 @@ def test_simulate_req_defaults_synthetic() -> None:
     req = server.SimulateReq(change=server.SimChange(type="speed_limit", target_edge="e", value_mps=8.0))
     assert req.demand_profile == "synthetic_demo"
     assert req.assignment == "day_one"
+    assert req.n_seeds == 1
 
 
 def test_assignment_flag() -> None:
@@ -70,3 +71,15 @@ def test_assignment_flag() -> None:
     assert settled_cmd[settled_cmd.index("--assignment") + 1] == "settled"
     both = server._build_harness_cmd(ch, "TS", "d", demand_profile="calibrated_am_peak", assignment="settled")
     assert "--demand-profile" in both and "--assignment" in both
+
+
+def test_n_seeds_flag() -> None:
+    """V2.1d: --n-seeds appended ONLY when != 1 — the default cmd stays byte-stable."""
+    ch = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)
+    default_cmd = server._build_harness_cmd(ch, "TS", "d")
+    assert "--n-seeds" not in default_cmd
+    seeded_cmd = server._build_harness_cmd(ch, "TS", "d", n_seeds=3)
+    assert seeded_cmd[seeded_cmd.index("--n-seeds") + 1] == "3"
+    all_three = server._build_harness_cmd(ch, "TS", "d", demand_profile="calibrated_am_peak",
+                                          assignment="settled", n_seeds=3)
+    assert "--demand-profile" in all_three and "--assignment" in all_three and "--n-seeds" in all_three
