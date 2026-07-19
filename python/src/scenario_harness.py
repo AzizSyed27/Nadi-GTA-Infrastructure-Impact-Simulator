@@ -77,6 +77,9 @@ REROUTING_ARGS = [
     "--device.rerouting.adaptation-interval", "10",
 ]
 DEFAULT_SEED = 42
+# V2.1d: the V1 robustness ladder. Seed 42 is CANONICAL (its run IS the artifact — trajectories,
+# outcomes, cell values); extra seeds are PROBES contributing only per-cell ranges + sign_stable.
+SEED_LADDER = [42, 43, 44]
 
 # ---- Safety surrogate (SSM) config — CONFLICT THRESHOLDS. A conflict is defined relative to these. ----
 # SUMO SSM device is VEHICLE-VEHICLE ONLY (it ignores persons) — ped conflicts are computed post-hoc
@@ -923,12 +926,22 @@ def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | N
 
 def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None = None,
                         scenario_net_path: Path | None = None, on_stage=None,
-                        profile: str = "synthetic_demo", assignment: str = "day_one") -> dict:
+                        profile: str = "synthetic_demo", assignment: str = "day_one",
+                        seed: int = DEFAULT_SEED, extra_seeds: list[int] | None = None) -> dict:
     """Baseline (no change) then scenario, SAME multimodal demand + IDENTICAL rerouting + SSM. For a runtime
     change (bike_lane/speed_limit) both runs share the canonical net and the change is applied in-sim. For a
     GEOMETRY change (new_road) the SCENARIO run uses ``scenario_net_path`` (the patched net) with NO runtime
     edit — the net IS the change; baseline stays canonical. ``ts`` may be supplied so the job runner can track
     a known run id. Returns the scenario trajectories + per-run conflicts for the caller to promote.
+
+    V2.1d: ``extra_seeds`` runs one cheap PROBE pair per seed after the canonical pair — same demand,
+    same nets, same NATIVE SSM thresholds (the one conflict definition, never permissive), records
+    discarded — whose only output is per-seed tripinfos + conflicts (``seed_probes`` in the return)
+    for cross-seed cell ranges. On a SETTLED run the probes REUSE the canonical settled routes (a
+    per-seed duaIterate would be 3x a multi-hour settle): the ranges then measure micro-simulation
+    stochasticity AT FIXED equilibrium routes, not assignment seed-sensitivity — that scope is
+    disclosed on the artifact (sidecar seeds.basis + every ranged cell's note + report methodology),
+    per the cars_only lesson.
 
     V2.1b: ``profile`` selects the demand (see demand_profiles.PROFILES). The default keeps today's
     synthetic behavior exactly; the calibrated profile records via the SpillRecorder — the return then
@@ -1002,7 +1015,7 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     t0 = _time.perf_counter()
     recs_b, end_b, step_b, rem_b, xy_b = simulate_multimodal(
         None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"],
-        recorder=rec_b, route_override=route_ov_b, **profile_kw)
+        seed=seed, recorder=rec_b, route_override=route_ov_b, **profile_kw)
     wall_b = _time.perf_counter() - t0
     if rec_b is not None:  # spill: counts-only provisional (dumping ~60k entities would be huge); PET streamed
         (RUNS_DIR / f"{base_id}.json").write_text(json.dumps({
@@ -1026,14 +1039,14 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     if scenario_net_path is not None:  # new_road: the net IS the change (no runtime apply_change)
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             None, None, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
-            ssm_path=paths["scen_ssm"], net_override=scenario_net_path, recorder=rec_s,
+            ssm_path=paths["scen_ssm"], net_override=scenario_net_path, seed=seed, recorder=rec_s,
             route_override=route_ov_s, **profile_kw)
     else:
         # runtime change: settled runs pass the runtime-patched net (micro_scenario_net) AND apply the
         # TraCI change — the readback in simulate_multimodal verifies the double expression.
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
-            ssm_path=paths["scen_ssm"], net_override=micro_scenario_net, recorder=rec_s,
+            ssm_path=paths["scen_ssm"], net_override=micro_scenario_net, seed=seed, recorder=rec_s,
             route_override=route_ov_s, **profile_kw)
     wall_s = _time.perf_counter() - t0
     if rec_s is not None:
@@ -1045,11 +1058,67 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={n_ents_s}  wall={wall_s:.0f}s  "
           f"conflicts: {len(conf_s['ssm'])} veh + {len(conf_s['ped'])} ped")
 
+    # ---- V2.1d SEED PROBES: one cheap pair per extra seed. Same demand/nets/routes/SSM thresholds
+    # as the canonical pair; the ONLY kept outputs are per-seed tripinfos + conflicts (for cell
+    # ranges) — trajectories are dropped (synthetic) or spilled-then-discarded (calibrated, the
+    # baseline-leg pattern). Stage name stays "scenario" (the RunCard rail is untouched); progress
+    # rides the detail chip. Emits NOTHING when extra_seeds is falsy — single-seed byte-identity.
+    seed_probes: list[dict] = []
+    if extra_seeds:
+        n_total = 1 + len(extra_seeds)
+        for i, s in enumerate(extra_seeds):
+            sfx = f"{ts}-s{s}"
+            p_ti_b = RUNS_DIR / f"multimodal-baseline-{sfx}.tripinfo.xml"
+            p_ti_s = RUNS_DIR / f"multimodal-scenario-{sfx}.tripinfo.xml"
+            p_vr_b = RUNS_DIR / f"multimodal-baseline-{sfx}.vehroute.xml"
+            p_vr_s = RUNS_DIR / f"multimodal-scenario-{sfx}.vehroute.xml"
+            p_ssm_b = RUNS_DIR / f"multimodal-baseline-{sfx}.ssm.xml"
+            p_ssm_s = RUNS_DIR / f"multimodal-scenario-{sfx}.ssm.xml"
+
+            if on_stage:
+                on_stage("scenario", f"seed probe {s} — pair {i + 2}/{n_total}: baseline leg")
+            rec_pb = SpillRecorder(spill_root / f"{base_id}-s{s}.jsonl",
+                                   convert=net.convertXY2LonLat) if prof.spill else None
+            _pr, _pe, _ps, _prem, pxy = simulate_multimodal(
+                None, None, tripinfo_path=p_ti_b, vehroute_path=p_vr_b, ssm_path=p_ssm_b,
+                seed=s, recorder=rec_pb, route_override=route_ov_b, **profile_kw)
+            if rec_pb is not None:
+                pconf_b = parse_ssm(p_ssm_b, net, bbox) + rec_pb.conflicts(net, bbox)
+                rec_pb.discard()
+            else:
+                pconf_b = parse_ssm(p_ssm_b, net, bbox) + compute_ped_conflicts(pxy, net, bbox)
+
+            if on_stage:
+                on_stage("scenario", f"seed probe {s} — pair {i + 2}/{n_total}: scenario leg")
+            rec_ps = SpillRecorder(spill_root / f"{scen_id}-s{s}.jsonl",
+                                   convert=net.convertXY2LonLat) if prof.spill else None
+            if scenario_net_path is not None:  # mirror the canonical scenario leg exactly
+                _pr2, _pe2, _ps2, _prem2, pxy2 = simulate_multimodal(
+                    None, None, tripinfo_path=p_ti_s, vehroute_path=p_vr_s, ssm_path=p_ssm_s,
+                    net_override=scenario_net_path, seed=s, recorder=rec_ps,
+                    route_override=route_ov_s, **profile_kw)
+            else:
+                _pr2, _pe2, _ps2, _prem2, pxy2 = simulate_multimodal(
+                    change, target_lane, tripinfo_path=p_ti_s, vehroute_path=p_vr_s, ssm_path=p_ssm_s,
+                    net_override=micro_scenario_net, seed=s, recorder=rec_ps,
+                    route_override=route_ov_s, **profile_kw)
+            if rec_ps is not None:
+                pconf_s = parse_ssm(p_ssm_s, scen_net, bbox) + rec_ps.conflicts(scen_net, bbox)
+                rec_ps.discard()
+            else:
+                pconf_s = parse_ssm(p_ssm_s, scen_net, bbox) + compute_ped_conflicts(pxy2, scen_net, bbox)
+
+            seed_probes.append({"seed": s, "ti_base": p_ti_b, "ti_scen": p_ti_s,
+                                "conf_b": pconf_b, "conf_s": pconf_s})
+            print(f"[seed probe {s}] pair {i + 2}/{n_total} done — "
+                  f"conflicts: base {len(pconf_b)} / scen {len(pconf_s)}")
+
     return {
         "ts": ts, "base_id": base_id, "scen_id": scen_id, **paths,
         "recs_s": None if rec_s is not None else recs_s, "recorder_s": rec_s,
         "profile": profile, "wall_clock_s": {"baseline": round(wall_b, 1), "scenario": round(wall_s, 1)},
         "assignment": assignment, "settle_stats": settle_stats,
+        "seed": seed, "seed_probes": seed_probes,
         "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
         "conf_b": conf_b, "conf_s": conf_s,
     }
@@ -1216,7 +1285,8 @@ def _run_speed_limit(args) -> None:
         run_state.set_stage(run_id, "baseline", change.description,  # records change.type for the RunCard
                             description=change.description, change=change.model_dump(exclude_none=True))
         res = run_quant_runtime(change, ts, None, profile=getattr(args, "demand_profile", "synthetic_demo"),
-                                assignment=getattr(args, "assignment", "day_one"))
+                                assignment=getattr(args, "assignment", "day_one"),
+                                n_seeds=getattr(args, "n_seeds", 1))
         print(f"\n[speed_limit] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
@@ -1253,7 +1323,8 @@ def _run_bike_lane(args) -> None:
                             description=change.description, change=change.model_dump(exclude_none=True))
         res = run_quant_runtime(change, ts, target_lane, severed=severed,
                                 profile=getattr(args, "demand_profile", "synthetic_demo"),
-                                assignment=getattr(args, "assignment", "day_one"))
+                                assignment=getattr(args, "assignment", "day_one"),
+                                n_seeds=getattr(args, "n_seeds", 1))
         print(f"\n[bike_lane] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s; severed={res['severed']}")
     except Exception as e:  # noqa: BLE001
@@ -1300,8 +1371,36 @@ def _assignment_obj(assignment: str, settle_stats: dict) -> Assignment:
                       engine="duaIterate_meso")
 
 
+def _attach_seed_ranges(sc, ids: dict, change: Change, profile: str, demand: dict,
+                        assignment: str) -> tuple[dict | None, dict | None]:
+    """V2.1d: probe scorecards -> per-cell ranges on the canonical scorecard (scorecard.attach_ranges).
+    Each probe's cells use the EXACT canonical convention (compute_scorecard on its own pair join —
+    per-traveler median, severity-sum delta; full-population, no conflict_sample_of). Returns the
+    sidecar (seeds, seed_cells) or (None, None) for single-seed runs — the sidecar stays byte-identical.
+    seeds.basis discloses the range semantics: settled probes reuse the canonical settled routes, so
+    their ranges measure micro stochasticity at fixed equilibrium routes ("settled_fixed_routes")."""
+    import scorecard
+
+    probes = ids.get("seed_probes") or []
+    if not probes:
+        return None, None
+    probe_cards = []
+    for p in probes:
+        pb = join_per_mode(p["ti_base"], p["ti_scen"], demand)
+        probe_cards.append(scorecard.compute_scorecard(
+            pb, p["conf_b"], p["conf_s"], [change.model_dump(exclude_none=True)],
+            demand_profile=profile))
+    settled = assignment == "settled"
+    seeds_used = [ids.get("seed", DEFAULT_SEED)] + [p["seed"] for p in probes]
+    seed_cells = scorecard.attach_ranges(sc, probe_cards, seeds_used, settled=settled)
+    seeds_obj = {"canonical": seeds_used[0], "probes": seeds_used[1:], "n_seeds": len(seeds_used),
+                 "basis": "settled_fixed_routes" if settled else "day_one_resim"}
+    return seeds_obj, seed_cells
+
+
 def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: list[str],
-              profile: str = "synthetic_demo", assignment: str = "day_one") -> tuple[str, int]:
+              profile: str = "synthetic_demo", assignment: str = "day_one",
+              n_seeds: int = 1) -> tuple[str, int]:
     """Shared new_road QUANT pipeline (CLI + server): baseline (canonical) + scenario (patched net) + per-mode
     outcomes + conflicts + reroute + scorecard, all under a KNOWN ts. Writes the v0.3.0 artifact, sidecars,
     and latest.json. Returns (scenario_run_id, cars_on_new_road). No LLM, no enrich."""
@@ -1312,7 +1411,8 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     net = sumolib.net.readNet(str(run_sim.NET))  # canonical (baseline)
     ids = run_pair_multimodal(change, None, net, ts=ts, scenario_net_path=scenario_net_path,
                               on_stage=lambda s, d="": run_state.set_stage(run_id, s, d),
-                              profile=profile, assignment=assignment)
+                              profile=profile, assignment=assignment,
+                              extra_seeds=SEED_LADDER[1:n_seeds] if n_seeds > 1 else None)
 
     from demand_profiles import get_profile
     prof = get_profile(profile)
@@ -1342,21 +1442,25 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
         (RUNS_DIR / f"conflicts-scenario-{ids['ts']}.json").write_text(
             json.dumps({"scenario_run_id": ids["scen_id"], "conflicts": conflicts_s}, indent=2),
             encoding="utf-8")
+    # scorecard (computed BEFORE the outcomes write so a multi-seed run's per-seed provenance can
+    # ride the sidecar). v0.5.0: compute_scorecard takes the change LIST. V2.1b: FULL conflict lists
+    # (never the render sample) + the demand-conditional safety note. V2.1d: probe pairs -> ranges.
+    sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
+                                     [change.model_dump(exclude_none=True)], demand_profile=profile,
+                                     conflict_sample_of=len(conflicts_s)
+                                     if len(conflicts_render) < len(conflicts_s) else None)
+    seeds_obj, seed_cells = _attach_seed_ranges(sc, ids, change, profile, demand, assignment)
+
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
         "assignment": ids["assignment"], "settle_stats": ids["settle_stats"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": [],
         "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched, "cars_on_new_road": on_new},
-        "modes": buckets}, indent=2), encoding="utf-8")
+        "modes": buckets,
+        **({"seeds": seeds_obj, "seed_cells": seed_cells} if seeds_obj else {})}, indent=2),
+        encoding="utf-8")
 
-    # scorecard inject + latest.json (reuse scorecard.compute_scorecard; scenario conflicts on the patched net).
-    # v0.5.0: compute_scorecard takes the change LIST (the producer applies one change → a list of one).
-    # V2.1b: FULL conflict lists (never the render sample) + the demand-conditional safety note.
-    sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
-                                     [change.model_dump(exclude_none=True)], demand_profile=profile,
-                                     conflict_sample_of=len(conflicts_s)
-                                     if len(conflicts_render) < len(conflicts_s) else None)
     art2 = trajectory_io.load_artifact(art_path)
     art2.scorecard = sc
     trajectory_io.dump_artifact(art2, path=art_path)
@@ -1365,14 +1469,16 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     (web / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
     (web / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
     run_state.set_stage(run_id, "done", f"cars_on_new_road={on_new}", scenario_run_id=ids["scen_id"],
-                        cars_on_new_road=on_new, cars_rerouted=rerouted)
+                        cars_on_new_road=on_new, cars_rerouted=rerouted,
+                        **({"n_seeds": n_seeds} if n_seeds > 1 else {}))
     print(f"[run_quant] {ids['scen_id']} — cars_on_new_road={on_new} (rerouted {rerouted}/{reroute_matched}); "
           f"scorecard injected; latest.json updated")
     return ids["scen_id"], on_new
 
 
 def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed: set | None = None,
-                      profile: str = "synthetic_demo", assignment: str = "day_one") -> dict:
+                      profile: str = "synthetic_demo", assignment: str = "day_one",
+                      n_seeds: int = 1) -> dict:
     """The RUNTIME twin of ``run_quant`` (speed_limit / bike_lane), shared by the CLI + the job runner. Canonical
     net for BOTH runs (no netconvert → NO regen stage); the change is applied LIVE in the scenario run. Stages:
     baseline → scenario → analysis → done. Writes the v0.3.0 artifact + sidecars + scorecard + web/public +
@@ -1385,7 +1491,8 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     net = sumolib.net.readNet(str(run_sim.NET))  # canonical for both runs (runtime change, no patch)
     ids = run_pair_multimodal(change, target_lane, net, ts=ts,
                               on_stage=lambda s, d="": run_state.set_stage(run_id, s, d),
-                              profile=profile, assignment=assignment)  # emits settle?/baseline/scenario
+                              profile=profile, assignment=assignment,  # emits settle?/baseline/scenario
+                              extra_seeds=SEED_LADDER[1:n_seeds] if n_seeds > 1 else None)
 
     from demand_profiles import get_profile
     prof = get_profile(profile)
@@ -1414,18 +1521,22 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
         (RUNS_DIR / f"conflicts-scenario-{ids['ts']}.json").write_text(
             json.dumps({"scenario_run_id": ids["scen_id"], "conflicts": conflicts_s}, indent=2),
             encoding="utf-8")
+    # scorecard BEFORE the outcomes write (V2.1d: the per-seed provenance rides the sidecar).
+    sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
+                                     [change.model_dump(exclude_none=True)], demand_profile=profile,
+                                     conflict_sample_of=len(conflicts_s)
+                                     if len(conflicts_render) < len(conflicts_s) else None)
+    seeds_obj, seed_cells = _attach_seed_ranges(sc, ids, change, profile, demand, assignment)
+
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
         "assignment": ids["assignment"], "settle_stats": ids["settle_stats"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": sorted(severed or []),
-        "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched}, "modes": buckets}, indent=2),
+        "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched}, "modes": buckets,
+        **({"seeds": seeds_obj, "seed_cells": seed_cells} if seeds_obj else {})}, indent=2),
         encoding="utf-8")
 
-    sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
-                                     [change.model_dump(exclude_none=True)], demand_profile=profile,
-                                     conflict_sample_of=len(conflicts_s)
-                                     if len(conflicts_render) < len(conflicts_s) else None)
     art2 = trajectory_io.load_artifact(art_path)
     art2.scorecard = sc
     trajectory_io.dump_artifact(art2, path=art_path)
@@ -1442,7 +1553,8 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
                         scenario_run_id=ids["scen_id"], cars_rerouted=rerouted,
                         car_median_delta_s=car_median, car_affected_share=car_share,
                         demand_profile=profile, wall_clock_s=ids["wall_clock_s"],
-                        assignment=assignment, settle_stats=ids["settle_stats"] or None)
+                        assignment=assignment, settle_stats=ids["settle_stats"] or None,
+                        **({"n_seeds": n_seeds} if n_seeds > 1 else {}))
     print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
           f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json updated")
     return {"scen_id": ids["scen_id"], "cars_rerouted": rerouted, "car_median_delta_s": car_median,
@@ -1470,7 +1582,8 @@ def _run_new_road(args) -> None:
         print(f"[new_road] patched net {patched.name} + gauntlet OK: {stats}")
         scen_id, on_new = run_quant(change, ts, patched, new_edge_ids,
                                     profile=getattr(args, "demand_profile", "synthetic_demo"),
-                                    assignment=getattr(args, "assignment", "day_one"))
+                                    assignment=getattr(args, "assignment", "day_one"),
+                                    n_seeds=getattr(args, "n_seeds", 1))
         print(f"\n[new_road] DONE — scenario {scen_id}; cars that took the new road: {on_new}")
     except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
         run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
@@ -1497,6 +1610,9 @@ def main() -> None:
     ap.add_argument("--assignment", choices=["day_one", "settled"], default="day_one",
                     help="day_one = today's route habits; settled = iterated assignment "
                          "(duaIterate meso, cars only) before the micro pair (V2.1c)")
+    ap.add_argument("--n-seeds", type=int, choices=[1, 2, 3], default=1, dest="n_seeds",
+                    help="V2.1d: run N baseline+scenario pairs (seeds 42,43,44). Seed 42 is canonical "
+                         "(its run IS the artifact); extra seeds contribute per-cell ranges only")
     args = ap.parse_args()
     if args.change_type == "speed_limit":
         _run_speed_limit(args)
