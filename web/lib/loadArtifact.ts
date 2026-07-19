@@ -1,4 +1,4 @@
-// Runtime loader + validator for the frozen trajectory contract (v0.7.0).
+// Runtime loader + validator for the frozen trajectory contract (v0.8.0).
 //
 // Validates against the SAME authority Python uses — contract/trajectory_schema.json — via ajv,
 // so the TS and Python sides cannot drift. The schema is JSON Schema draft 2020-12, so we use

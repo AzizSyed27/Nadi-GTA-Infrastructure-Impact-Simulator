@@ -23,8 +23,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.4.0" for back-compat reads.
-SCHEMA_VERSION: Literal["0.7.0"] = "0.7.0"
+# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.7.0" for back-compat reads.
+SCHEMA_VERSION: Literal["0.8.0"] = "0.8.0"
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
@@ -284,13 +284,36 @@ class Conflict(BaseModel):
     entities: list[str] | None = None
 
 
+class CellRange(BaseModel):
+    """v0.8.0+. Cross-seed robustness for one cell: [min, max] over the per-seed cell values (the
+    seed-42 canonical value INCLUDED), n_seeds >= 2, and sign_stable=False iff the values STRICTLY
+    straddle zero (min < 0 < max — a zero endpoint does not flip it). Deliberately NO cross-seed
+    central aggregate: seed 42 IS the artifact (V1 robustness convention); probes contribute only
+    this range. sign_stable exists ONLY here — a stability read on a rangeless cell is an
+    attribute-error-by-construction, so consumers must guard on ``cell.range is not None``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    min: float
+    max: float
+    n_seeds: int = Field(ge=2)
+    sign_stable: bool
+
+    @model_validator(mode="after")
+    def _check_bounds(self) -> CellRange:
+        if self.min > self.max:
+            raise ValueError("range.min must be <= range.max")
+        return self
+
+
 class ScorecardCell(BaseModel):
     """v0.3.0+. One scorecard cell: a central ``value`` (POSITIVE = worse) plus an OPTIONAL
     ``affected_share`` (fraction of the group adversely affected, 0..1) that conveys CONCENTRATION —
     e.g. a median value near 0 with a high share = concentrated cost, not "no effect". ``confidence``
     (v0.3.0+) flags trust: ``"measured"`` (from the sim) vs ``"low"`` (heuristic/estimate/not-robust),
     with an optional ``note`` (e.g. a materiality cutoff or a robustness caveat). All fields optional &
-    nullable so the whole cell can be None (no signal) and ``exclude_none`` stays safe."""
+    nullable so the whole cell can be None (no signal) and ``exclude_none`` stays safe.
+    v0.8.0 adds the optional ``range`` (cross-seed robustness; forbidden pre-0.8.0)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -298,6 +321,18 @@ class ScorecardCell(BaseModel):
     affected_share: float | None = Field(default=None, ge=0, le=1)
     confidence: Literal["measured", "low"] | None = None
     note: str | None = None
+    range: CellRange | None = None
+
+    @model_validator(mode="after")
+    def _value_within_range(self) -> ScorecardCell:
+        # The canonical value must lie inside its own cross-seed range. The aggregator computes
+        # min/max over 3dp-rounded per-seed values (canonical included), so this holds EXACTLY.
+        if self.range is not None and self.value is not None:
+            if not (self.range.min <= self.value <= self.range.max):
+                raise ValueError(
+                    f"cell value {self.value} lies outside its cross-seed range "
+                    f"[{self.range.min}, {self.range.max}]")
+        return self
 
 
 class ScorecardGroup(BaseModel):
@@ -425,8 +460,8 @@ class Social(BaseModel):
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0..0.6.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.7.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.7.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.8.0).
+    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional

@@ -2,20 +2,32 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nadi.local/contract/trajectory_schema.json",
   "title": "Trajectory Artifact",
-  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid. v0.5.0 is ADDITIVE over v0.4.0: meta.scenario gains changes[] (the new authority — a scenario may compose several changes) + optional tags[]; Change gains window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. A 0.5.0 artifact carries changes[] and omits the legacy single change; pre-0.5.0 artifacts keep the single change and remain valid. v0.6.0 is ADDITIVE over v0.5.0: meta gains demand_profile (REQUIRED at 0.6.0 — which demand the run simulated: the synthetic demo set or the count-calibrated AM peak; forbidden pre-0.6.0) and OPTIONAL render_sample (present only when vehicles[]/persons[] are capped to a stratified render sample while outcomes/conflicts/scorecard remain full-population) — all v0.5.0 artifacts remain valid. v0.7.0 is ADDITIVE over v0.6.0: meta gains assignment (REQUIRED at 0.7.0, forbidden before — whether the run is a day-one response with today's route habits or a SETTLED response after iterated assignment, with convergence stats and the honesty-critical scope: settled iteration covers driver route choice only, 'cars_only' — pedestrian/cyclist routes stay fixed) — all v0.6.0 artifacts remain valid.",
+  "description": "Frozen Python<->TS contract: a SUMO run reduced to per-entity geographic trajectories, plus the scenario it represents, a sampled stakeholder-reaction layer, safety-surrogate conflicts, and a per-stakeholder scorecard. Positions are ALWAYS [lon, lat] (WGS84), never SUMO internal x/y. Do not change this schema without bumping schema_version and updating BOTH python/ and web/. v0.3.0 is ADDITIVE over v0.2.0: it adds optional persons[], conflicts[], scorecard, meta.scenario.change.target_lane, the agents grounding discriminator (sim|inferred), and optional agent person_id — all existing v0.2.0 artifacts remain valid. v0.4.0 is ADDITIVE over v0.3.0: optional persona.mode / persona.stakeholder, and an optional top-level social{} block (the OASIS opinion-propagation second graph — a PREVIEW, never a verdict) — all v0.3.0 artifacts remain valid. v0.5.0 is ADDITIVE over v0.4.0: meta.scenario gains changes[] (the new authority — a scenario may compose several changes) + optional tags[]; Change gains window/target_lanes/effect/position_m and the types lane_closure/road_closure/incident. A 0.5.0 artifact carries changes[] and omits the legacy single change; pre-0.5.0 artifacts keep the single change and remain valid. v0.6.0 is ADDITIVE over v0.5.0: meta gains demand_profile (REQUIRED at 0.6.0 — which demand the run simulated: the synthetic demo set or the count-calibrated AM peak; forbidden pre-0.6.0) and OPTIONAL render_sample (present only when vehicles[]/persons[] are capped to a stratified render sample while outcomes/conflicts/scorecard remain full-population) — all v0.5.0 artifacts remain valid. v0.7.0 is ADDITIVE over v0.6.0: meta gains assignment (REQUIRED at 0.7.0, forbidden before — whether the run is a day-one response with today's route habits or a SETTLED response after iterated assignment, with convergence stats and the honesty-critical scope: settled iteration covers driver route choice only, 'cars_only' — pedestrian/cyclist routes stay fixed) — all v0.6.0 artifacts remain valid. v0.8.0 is ADDITIVE over v0.7.0: scorecard cells gain an OPTIONAL range {min,max,n_seeds,sign_stable} — cross-seed robustness (seed 42 canonical; probes contribute only the range; sign_stable=false iff values strictly straddle zero); single-seed 0.8.0 artifacts omit it; pre-0.8.0 artifacts carrying it are mis-versioned and fail — all v0.7.0 artifacts remain valid.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "meta", "vehicles"],
   "$defs": {
     "scorecardCell": {
-      "description": "A scorecard cell (v0.3.0): a central value + OPTIONAL concentration/trust signals. All fields OPTIONAL & NULLABLE — a present cell normally carries value; affected_share (fraction of the group adversely affected, 0..1) applies mainly to travel_time on sim-grounded groups; confidence (v0.3.0+) flags how much to trust the cell ('measured' from the sim vs 'low' = heuristic/estimate/not-robust), with an optional free-text note (e.g. a materiality cutoff or a robustness caveat).",
+      "description": "A scorecard cell (v0.3.0): a central value + OPTIONAL concentration/trust signals. All fields OPTIONAL & NULLABLE — a present cell normally carries value; affected_share (fraction of the group adversely affected, 0..1) applies mainly to travel_time on sim-grounded groups; confidence (v0.3.0+) flags how much to trust the cell ('measured' from the sim vs 'low' = heuristic/estimate/not-robust), with an optional free-text note (e.g. a materiality cutoff or a robustness caveat). v0.8.0 adds the optional range (forbidden pre-0.8.0 — see that version gate).",
       "type": ["object", "null"],
       "additionalProperties": false,
       "properties": {
         "value": {"type": ["number", "null"]},
         "affected_share": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
         "confidence": {"enum": ["measured", "low", null]},
-        "note": {"type": ["string", "null"]}
+        "note": {"type": ["string", "null"]},
+        "range": {
+          "description": "OPTIONAL (v0.8.0+, forbidden before — see the pre-0.8.0 gate). Cross-seed robustness for THIS cell's value: the canonical (seed-42) run IS the artifact — its trajectories, outcomes and cell values; extra seeds are probes contributing only [min,max] over the per-seed values (canonical included) and sign_stable. sign_stable=false iff the per-seed values STRICTLY straddle zero (min < 0 < max) — a zero endpoint does NOT flip it. There is deliberately NO cross-seed central aggregate (the V1 robustness convention). min <= value <= max and min <= max are semantic invariants enforced in the pydantic models, not here. NOTE the run-level semantics disclosure: on a SETTLED run the probes reuse the canonical settled routes, so the range measures micro-simulation stochasticity at fixed equilibrium routes, NOT assignment seed-sensitivity — disclosed via meta.assignment + the cell note, not a per-cell field.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max", "n_seeds", "sign_stable"],
+          "properties": {
+            "min": {"type": "number"},
+            "max": {"type": "number"},
+            "n_seeds": {"type": "integer", "minimum": 2},
+            "sign_stable": {"type": "boolean"}
+          }
+        }
       }
     },
     "socialEvent": {
@@ -134,9 +146,9 @@
   },
   "allOf": [
     {
-      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0+ — keeping the bumps additive. EXTENDED for 0.5.0, 0.6.0 and 0.7.0 (existing-gate audit): a version bump must never drop a prior obligation.",
+      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0+ — keeping the bumps additive. EXTENDED for 0.5.0, 0.6.0, 0.7.0 and 0.8.0 (existing-gate audit): a version bump must never drop a prior obligation.",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"]}},
+        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -152,9 +164,9 @@
       }
     },
     {
-      "$comment": "v0.5.0+ version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected. EXTENDED for 0.6.0 and 0.7.0 (existing-gate audit).",
+      "$comment": "v0.5.0+ version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected. EXTENDED for 0.6.0, 0.7.0 and 0.8.0 (existing-gate audit).",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.5.0", "0.6.0", "0.7.0"]}},
+        "properties": {"schema_version": {"enum": ["0.5.0", "0.6.0", "0.7.0", "0.8.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -173,9 +185,9 @@
       }
     },
     {
-      "$comment": "v0.6.0+ version gate: meta MUST declare which demand the run simulated (demand_profile). Introduced with the calibrated AM-peak demand — a run's numbers are meaningless without knowing the demand behind them. EXTENDED for 0.7.0 (existing-gate audit).",
+      "$comment": "v0.6.0+ version gate: meta MUST declare which demand the run simulated (demand_profile). Introduced with the calibrated AM-peak demand — a run's numbers are meaningless without knowing the demand behind them. EXTENDED for 0.7.0 and 0.8.0 (existing-gate audit).",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.6.0", "0.7.0"]}},
+        "properties": {"schema_version": {"enum": ["0.6.0", "0.7.0", "0.8.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -202,9 +214,9 @@
       }
     },
     {
-      "$comment": "v0.7.0 version gate: meta MUST declare the assignment mode (day-one vs settled). A settled run's numbers describe an ADJUSTED corridor — interpretation changes, so the artifact carries it.",
+      "$comment": "v0.7.0+ version gate: meta MUST declare the assignment mode (day-one vs settled). A settled run's numbers describe an ADJUSTED corridor — interpretation changes, so the artifact carries it. EXTENDED for 0.8.0 (existing-gate audit — the const became an enum).",
       "if": {
-        "properties": {"schema_version": {"const": "0.7.0"}},
+        "properties": {"schema_version": {"enum": ["0.7.0", "0.8.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -249,12 +261,38 @@
           }
         }
       }
+    },
+    {
+      "$comment": "Pre-0.8.0 gate: scorecard-cell range did not exist — an older artifact carrying it is mis-versioned and must fail. Uses properties:{range:false} on each of the three delta cells (null-safe: the cells are nullable, and a not:{required} would pass vacuously on null while properties is simply ignored for null). 0.1.0/0.2.0 predate the scorecard entirely and are covered by the same forbid.",
+      "if": {
+        "properties": {"schema_version": {"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"]}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "scorecard": {
+            "type": ["object", "null"],
+            "properties": {
+              "groups": {
+                "type": "array",
+                "items": {
+                  "properties": {
+                    "travel_time_delta": {"properties": {"range": false}},
+                    "safety_delta": {"properties": {"range": false}},
+                    "access_delta": {"properties": {"range": false}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. 0.7.0 is current; 0.1.0..0.6.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, meta.demand_profile, meta.assignment, and pre-0.5.0 use the legacy single meta.scenario.change).",
-      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"]
+      "description": "Semantic version of THIS contract. 0.8.0 is current; 0.1.0..0.7.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, meta.demand_profile, meta.assignment, scorecard cell ranges, and pre-0.5.0 use the legacy single meta.scenario.change).",
+      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"]
     },
     "meta": {
       "type": "object",

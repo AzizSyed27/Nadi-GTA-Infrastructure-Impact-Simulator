@@ -1,5 +1,8 @@
 // TypeScript half of the frozen trajectory contract.
-// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.7.0).
+// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.8.0).
+// v0.8.0 (additive over 0.7.0): scorecard cells gain optional range {min,max,n_seeds,sign_stable} —
+// cross-seed robustness (seed 42 canonical: its run IS the artifact; probes contribute only the range;
+// sign_stable=false iff the per-seed values strictly straddle zero). Forbidden pre-0.8.0.
 // v0.7.0 (additive over 0.6.0): meta.assignment (REQUIRED at 0.7.0 — day-one habits vs settled
 // iterated assignment, with convergence stats and the honesty-critical scope: settled iteration covers
 // driver route choice only; ped/bike routes stay fixed).
@@ -261,6 +264,20 @@ export interface Conflict {
 }
 
 /**
+ * v0.8.0+. Cross-seed robustness for one cell: [min, max] over the per-seed cell values (seed-42
+ * canonical INCLUDED — its run IS the artifact; probes contribute only this range). sign_stable =
+ * false iff the per-seed values STRICTLY straddle zero (a zero endpoint does not flip it). There is
+ * deliberately NO cross-seed central aggregate. sign_stable exists ONLY here — always access it via
+ * `cell.range?.sign_stable === false` so rangeless cells are structurally stable-by-absence.
+ */
+export interface CellRange {
+  min: number;
+  max: number;
+  n_seeds: number;
+  sign_stable: boolean;
+}
+
+/**
  * v0.3.0+. One scorecard cell: a central `value` (POSITIVE = worse) + an optional `affected_share`
  * (fraction of the group adversely affected, 0..1) conveying concentration — a median value near 0
  * with a high share is a concentrated cost, not "no effect".
@@ -272,6 +289,8 @@ export interface ScorecardCell {
   confidence?: 'measured' | 'low' | null;
   /** v0.3.0+. Free-text caveat (e.g. materiality cutoff or robustness note). */
   note?: string | null;
+  /** v0.8.0+. Cross-seed range; absent on single-seed runs (they render exactly as before). */
+  range?: CellRange | null;
 }
 
 /** v0.3.0+. One stakeholder group's outcome. Uniform sign: POSITIVE = WORSE. null cell = no signal/no trip. */

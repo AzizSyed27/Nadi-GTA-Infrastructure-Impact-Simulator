@@ -37,6 +37,7 @@ SAMPLE_V4_PATH = REPO_ROOT / "web" / "public" / "sample_v0_4_0.json"
 SAMPLE_V5_PATH = REPO_ROOT / "web" / "public" / "sample_v0_5_0.json"
 SAMPLE_V6_PATH = REPO_ROOT / "web" / "public" / "sample_v0_6_0.json"
 SAMPLE_V7_PATH = REPO_ROOT / "web" / "public" / "sample_v0_7_0.json"
+SAMPLE_V8_PATH = REPO_ROOT / "web" / "public" / "sample_v0_8_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -234,9 +235,9 @@ def test_multimodal_artifact_valid() -> None:
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
     # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); current producers emit
     # the current SCHEMA_VERSION — keep the accepted set open-ended forward (pin the SHAPE, not the version).
-    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0")
+    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0")
     if art.social is not None:
-        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0"), "an artifact carrying a social{} block must be v0.4.0+"
+        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"), "an artifact carrying a social{} block must be v0.4.0+"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -745,6 +746,97 @@ def test_v0_7_0_semantic_roundtrip() -> None:
     finally:
         out.unlink(missing_ok=True)
     assert src == redumped, "semantic round-trip must be equal"
+
+
+# ---------------------------------------------------------------------------
+# v0.8.0 contract (additive over v0.7.0): scorecard cells gain optional range
+# {min,max,n_seeds,sign_stable} — cross-seed robustness (seed 42 canonical; probes contribute only
+# the range; sign_stable=false iff values strictly straddle zero). Forbidden pre-0.8.0.
+# All older tests above run unchanged — the back-compat proof.
+# ---------------------------------------------------------------------------
+
+
+def _v8_raw() -> dict:
+    return json.loads(SAMPLE_V8_PATH.read_text(encoding="utf-8"))
+
+
+def _v8_car(raw: dict) -> dict:
+    return next(g for g in raw["scorecard"]["groups"] if g["group"] == "car_commuter")
+
+
+def test_v0_8_0_sample() -> None:
+    assert SAMPLE_V8_PATH.is_file(), f"committed v0.8.0 sample missing: {SAMPLE_V8_PATH}"
+    raw = _v8_raw()
+    trajectory_io.validate_artifact(raw)
+    trajectory_io.audit_version_gate(raw)
+    art = trajectory_io.load_artifact(SAMPLE_V8_PATH)
+    assert raw["schema_version"] == "0.8.0"
+    car = next(g for g in art.scorecard.groups if g.group == "car_commuter")
+    tr, sf = car.travel_time_delta.range, car.safety_delta.range
+    assert tr is not None and tr.sign_stable is True and tr.n_seeds == 3
+    assert sf is not None and sf.sign_stable is False  # the V1 safety lesson, now data
+    assert tr.min <= car.travel_time_delta.value <= tr.max
+    # mixed ranged/rangeless cells are legal at 0.8.0
+    biz = next(g for g in art.scorecard.groups if g.group == "business_owner")
+    assert biz.access_delta is not None and biz.access_delta.range is None
+
+
+def test_older_samples_validate_under_v0_8_0_schema() -> None:
+    for p in (SAMPLE_PATH, SAMPLE_V3_PATH, SAMPLE_V4_PATH, SAMPLE_V5_PATH, SAMPLE_V6_PATH,
+              SAMPLE_V7_PATH):
+        trajectory_io.validate_artifact(json.loads(p.read_text(encoding="utf-8")))
+
+
+def test_pre_0_8_0_carrying_range_fails() -> None:
+    """NEGATIVE both layers: a 0.7.0 artifact carrying a cell range is mis-versioned."""
+    raw = _v7_raw()
+    car = _v8_car(raw)  # same group layout as the v8 sample
+    car["safety_delta"]["range"] = {"min": -1.0, "max": 1.0, "n_seeds": 3, "sign_stable": False}
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_v0_8_0_range_semantics_fail() -> None:
+    """NEGATIVE: min>max fails the model; n_seeds<2 fails schema AND model; a canonical value
+    outside its own range fails the model (schema stays loose on that invariant)."""
+    raw = _v8_raw()
+    _v8_car(raw)["travel_time_delta"]["range"]["min"] = 999.0  # > max
+    trajectory_io.validate_artifact(raw)  # schema is loose on min<=max
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+
+    raw2 = _v8_raw()
+    _v8_car(raw2)["travel_time_delta"]["range"]["n_seeds"] = 1
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw2)
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw2)
+
+    raw3 = _v8_raw()
+    _v8_car(raw3)["travel_time_delta"]["value"] = 5000.0  # outside [98.4, 131.7]
+    trajectory_io.validate_artifact(raw3)  # schema loose here too
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw3)
+
+
+def test_v0_8_0_semantic_roundtrip() -> None:
+    """Ranged AND rangeless cells survive dump/load byte-equal (exclude_none must not eat a present
+    range, and must omit an absent one)."""
+    src = _v8_raw()
+    art = trajectory_io.load_artifact(SAMPLE_V8_PATH)
+    out = RUNS_DIR / "_rt_v0_8_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)
+    finally:
+        out.unlink(missing_ok=True)
+    assert src == redumped, "semantic round-trip must be equal"
+    assert "range" in _v8_car(redumped)["travel_time_delta"], "a present range must survive the dump"
+    biz = next(g for g in redumped["scorecard"]["groups"] if g["group"] == "business_owner")
+    assert "range" not in biz["access_delta"], "an absent range must stay omitted (exclude_none)"
 
 
 def _write_golden() -> None:

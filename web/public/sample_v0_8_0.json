@@ -1,0 +1,238 @@
+{
+  "schema_version": "0.8.0",
+  "meta": {
+    "run_id": "sample-v0_5_0-scenario",
+    "network": "corridor.net.xml",
+    "bbox": [
+      -79.3,
+      43.7,
+      -79.2,
+      43.8
+    ],
+    "sim_start": 0.0,
+    "sim_end": 3600.0,
+    "step_length": 1.0,
+    "created_at": "2026-07-12T00:00:00Z",
+    "scenario": {
+      "baseline_run_id": "sample-v0_5_0-baseline",
+      "tags": [
+        "school_zone"
+      ],
+      "changes": [
+        {
+          "type": "lane_closure",
+          "target_edge": "E1",
+          "target_lanes": [
+            2,
+            3
+          ],
+          "window": {
+            "start_s": 0.0,
+            "end_s": 3600.0
+          },
+          "description": "Construction closes 2 of the 4 lanes on E1 for the day"
+        },
+        {
+          "type": "incident",
+          "target_edge": "E1",
+          "window": {
+            "start_s": 600.0,
+            "end_s": 1200.0
+          },
+          "effect": {
+            "speed_factor": 0.3,
+            "blocked": false
+          },
+          "position_m": 120.0,
+          "description": "A stalled vehicle partially obstructs E1 midway for ten minutes"
+        },
+        {
+          "type": "speed_limit",
+          "target_edge": "E1",
+          "value_mps": 8.33,
+          "description": "A permanent 30 km/h limit on E1 (school zone)"
+        }
+      ]
+    },
+    "demand_profile": "calibrated_am_peak",
+    "render_sample": {
+      "strategy": "outcome_stratified",
+      "rendered_vehicles": 2,
+      "total_vehicles": 1202,
+      "rendered_persons": 1,
+      "total_persons": 301
+    },
+    "assignment": {
+      "mode": "settled",
+      "scope": "cars_only",
+      "iterations": 9,
+      "relative_deviation": 0.014,
+      "converged": true,
+      "engine": "duaIterate_meso"
+    }
+  },
+  "vehicles": [
+    {
+      "id": "v1",
+      "type": "car",
+      "path": [
+        [
+          -79.29,
+          43.71
+        ],
+        [
+          -79.285,
+          43.715
+        ],
+        [
+          -79.28,
+          43.72
+        ]
+      ],
+      "timestamps": [
+        0.0,
+        60.0,
+        120.0
+      ],
+      "speeds": [
+        10.0,
+        6.0,
+        8.0
+      ]
+    },
+    {
+      "id": "v2",
+      "type": "bicycle",
+      "path": [
+        [
+          -79.291,
+          43.711
+        ],
+        [
+          -79.288,
+          43.714
+        ]
+      ],
+      "timestamps": [
+        0.0,
+        90.0
+      ],
+      "speeds": [
+        5.0,
+        4.0
+      ]
+    }
+  ],
+  "persons": [
+    {
+      "id": "p1",
+      "type": "pedestrian",
+      "path": [
+        [
+          -79.2915,
+          43.7112
+        ],
+        [
+          -79.2905,
+          43.7122
+        ]
+      ],
+      "timestamps": [
+        0.0,
+        120.0
+      ],
+      "speeds": [
+        1.2,
+        1.1
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "grounding": "sim",
+      "vehicle_id": "v1",
+      "persona": {
+        "id": "time_pressed",
+        "label": "Time-pressed commuter",
+        "mode": "car"
+      },
+      "outcome": {
+        "baseline_duration": 240.0,
+        "scenario_duration": 360.0,
+        "delta_seconds": 120.0,
+        "baseline_timeloss": 20.0,
+        "scenario_timeloss": 100.0
+      },
+      "reaction": {
+        "comment": "Between the closed lanes and the new limit my drive drags \u2014 I feel every extra minute.",
+        "sentiment": -0.7,
+        "stance": "opposed"
+      },
+      "trigger_t": 60.0
+    },
+    {
+      "grounding": "inferred",
+      "persona": {
+        "id": "shop_owner",
+        "label": "Corner shop owner",
+        "mode": "inferred",
+        "stakeholder": "business_owner"
+      },
+      "reaction": {
+        "comment": "With construction out front and cars crawling past, I worry customers just skip us this month.",
+        "sentiment": -0.4,
+        "stance": "opposed"
+      }
+    }
+  ],
+  "conflicts": [
+    {
+      "t": 640.0,
+      "lon": -79.286,
+      "lat": 43.7135,
+      "type": "hard_braking",
+      "severity": 0.6,
+      "entities": [
+        "v1"
+      ]
+    }
+  ],
+  "scorecard": {
+    "groups": [
+      {
+        "group": "car_commuter",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 120.0,
+          "affected_share": 0.6,
+          "confidence": "measured",
+          "range": {
+            "min": 98.4,
+            "max": 131.7,
+            "n_seeds": 3,
+            "sign_stable": true
+          }
+        },
+        "safety_delta": {
+          "value": 0.2,
+          "confidence": "low",
+          "note": "sign flips across seeds 42, 43, 44 in this run; directional claim not supported",
+          "range": {
+            "min": -1.2,
+            "max": 2.4,
+            "n_seeds": 3,
+            "sign_stable": false
+          }
+        }
+      },
+      {
+        "group": "business_owner",
+        "grounding": "inferred",
+        "access_delta": {
+          "confidence": "low",
+          "note": "composite scenario (3 changes) \u2014 per-group access not separable yet"
+        }
+      }
+    ]
+  }
+}
