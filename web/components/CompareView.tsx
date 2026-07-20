@@ -153,7 +153,8 @@ export function CompareView(props: CompareViewProps) {
         <div style={heading}>Compare two runs</div>
         <div style={framing}>
           Side-by-side arrangement of two completed runs, per stakeholder. Δ = B − A per cell. Nothing
-          here is summed, ranked, or recommended — the tool arranges, the planner concludes.
+          here is summed, ranked, or turned into a recommendation — the tool arranges, the planner
+          concludes.
         </div>
         <div style={legendLine}>
           ＋ worse · − better · ± = magnitude only (direction not claimed) ·{' '}
@@ -270,7 +271,7 @@ export function CompareView(props: CompareViewProps) {
 const sheet: React.CSSProperties = {
   position: 'absolute',
   inset: 0,
-  zIndex: 30,
+  zIndex: 24, // BELOW the mode toggle (25) — the way back out must stay clickable
   background: 'rgba(247,248,250,0.98)',
   overflowY: 'auto',
   fontFamily: 'system-ui, sans-serif',

@@ -857,11 +857,13 @@ export default function MapView() {
         />
       </Map>
 
-      <ScenarioHeader scenario={meta.scenario} />
+      {/* Map chrome (header / sample note / change legend) belongs to the MAP — hidden while the
+          compare sheet covers it (the sheet carries its own per-side provenance instead). */}
+      {effectiveMode !== 'compare' && <ScenarioHeader scenario={meta.scenario} />}
 
       {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
           fewer dots than the simulated population must never read as the population itself. */}
-      {meta.render_sample && (
+      {effectiveMode !== 'compare' && meta.render_sample && (
         <div style={renderSampleNote} data-testid="render-sample-note">
           rendering {meta.render_sample.rendered_vehicles.toLocaleString()} of{' '}
           {meta.render_sample.total_vehicles.toLocaleString()} vehicles ·{' '}
@@ -874,7 +876,7 @@ export default function MapView() {
 
       {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
           v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
-      {changeGeom?.runId === meta.run_id && (
+      {effectiveMode !== 'compare' && changeGeom?.runId === meta.run_id && (
         overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
             <span style={{ ...legendSwatch, background: overlayItems[0].type === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
