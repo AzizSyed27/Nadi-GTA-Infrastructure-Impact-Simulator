@@ -178,6 +178,55 @@ APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; the producer s
 wrapped as `changes:[change]`); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
 + standing cleanup live in `BACKLOG.md`.
 
+**V2.1 (a–d) — COMPLETE (calibrated demand, assignment modes, seed robustness, the compare view; the contract is
+now v0.8.0).**
+- **a — count inventory:** Toronto Open Data TMC sweep → `data/counts/`; 126 AM-peak-supported interior
+  intersections (bearing-checked midblock matching; boundary-clipped intersections never match).
+- **b — calibrated AM-peak demand + contract v0.6.0:** routeSampler-calibrated 07:00–09:00 demand (~67k cars +
+  bikes/peds; `python/scenario/calibrated/`; provenance + diagnosis in `data/demand/`). GEH<5 accepted at **51.8%
+  of 421 links** — the 85% textbook target is structurally unreachable on this boundary-clipped corridor;
+  scenario-vs-baseline stays like-for-like (the comparison-validity chip says so in the UI). v0.6.0:
+  `meta.demand_profile` REQUIRED (forbidden pre-0.6.0) + optional `meta.render_sample` — calibrated artifacts cap
+  RENDER to an outcome-stratified sample (vehicles 800 / persons 800 / conflicts severity-stratified 5,000;
+  ~70 MB artifact) while outcomes/conflict-deltas/scorecard stay full-population. Calibrated-scale recording =
+  `SpillRecorder` (TraCI-subscription batched, flush-on-departure spill, streaming ped-PET, INVALID-teleport
+  sentinel guards — index positions, never unpack). Registry: `python/src/demand_profiles.py`
+  (`synthetic_demo` | `calibrated_am_peak`; synthetic stays byte-identical to pre-V2.1b).
+- **c — day-one vs settled + contract v0.7.0:** `--assignment settled` runs duaIterate MESO iterations (CARS
+  ONLY — meso can't see bikes/peds) per leg, then the normal micro pair on the settled routes
+  (`python/src/settle.py`; runtime changes get a netconvert-patched net via `network_edit.patch_runtime_net` PLUS
+  the TraCI apply, VERIFIED by a runtime readback assert; new_road stays single-expression). v0.7.0:
+  `meta.assignment` REQUIRED — `{mode, scope, iterations, relative_deviation, converged, engine}`; settled ⇒
+  `scope:"cars_only"` ON THE WIRE (ped/bike rows are UNadapted even in a settled run — scope limitations ride the
+  artifact, never a docstring). Deliverable pair (Kingston Rd 40 km/h, calibrated bounded peak hour): day-one car
+  mean **+5.05 s** vs settled **+2.31 s** — adaptation absorbs ~half the shock; both settles converged 4/12
+  iterations (~7 min/leg). duaIterate gotchas: it already passes `--time-to-teleport`/`--no-step-log` (re-passing
+  = hard "already set" error); pass `--no-gzip` or the per-iteration routes come back gzipped; one bounded
+  calibrated meso iteration ≈ 27 s.
+- **d part i — seeds as a run option + contract v0.8.0:** `--n-seeds 3` runs cheap probe pairs at seeds 43/44
+  after the canonical pair. **Seed 42 IS the artifact** (trajectories/outcomes/cell values); probes contribute
+  ONLY the per-cell `range {min, max, n_seeds, sign_stable}` (the V1 robustness convention made native — no
+  cross-seed central aggregate). sign_stable = strict straddle (min<0<max); access never ranged (deterministic
+  heuristic); the safety note is EARNED per-run (flips/consistent across the actual seeds); settled probes REUSE
+  the canonical settled routes — that basis is disclosed on the artifact (sidecar `seeds.basis` + ranged-cell
+  notes + report methodology). HONESTY GENERALIZED: ANY sign-unstable cell renders ±magnitude — no signed form
+  anywhere (map `ScoreCell`, report `render_cell`/`cell_valence`, and the chat corpus all flow through the same
+  helpers); SIGN? badge + range sub-lines. `web/tests/fixtures/seeds-run.json` is a REAL 0.8.0 artifact generated
+  by the actual aggregator — `test_seeds_fixture.py` fails on drift.
+- **d part ii — the COMPARISON VIEW (pure frontend):** a 4th map mode (⇄ Compare; `?run=A&compare=B` deep link).
+  Two SLIM sides ({meta, scorecard} only — 74 MB artifacts never retained twice; `web/lib/compare.ts` +
+  `web/components/CompareView.tsx`). Per-side provenance strips (demand / assignment / seeds — "seeds unknown
+  (pre-0.8.0 run)" for old artifacts) are INDEPENDENT of the **PROVENANCE-MISMATCH GUARD** (assignment.mode/scope,
+  demand_profile, MECHANICAL change set — descriptions excluded — and seed evidence; prominent amber lines that
+  inform, never block). Per-cell Δ (B−A) renders ONLY where direction is claimable on BOTH sides; **SAFETY NEVER
+  gets delta arithmetic** and sign-unstable cells refuse too — the refused **"—†"** (amber + legend) is glanceably
+  distinct from plain-— absence. No aggregates / winner / recommendation, ever (referendum guard extended;
+  `web/tests/compare.spec.ts`).
+- **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
+  3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
+  car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
+  (V1 reproduced natively in `…20260719T042917Z`); travel medians are seed-robust ([0,0] ranges).
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -189,6 +238,22 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then, on enrich,
   `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend loads
   `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
+- **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
+  {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
+  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). Compare two finished
+  runs at `http://localhost:3000/?run=<A>&compare=<B>` (or the ⇄ Compare toggle) — pure frontend, only needs
+  `/api/runs` for the pickers.
+- **Bounded-calibrated convention (V2.1):** calibrated runs are bounded to the peak hour by launching the SERVER
+  with `NADI_MAX_T_OVERRIDE=3600` in its environment (the harness subprocess inherits it). **HARD-GATE every
+  bounded launch**: check the live `sumo.exe` command line carries `--end 3600` (WMI `Win32_Process`) — server-env-
+  set and subprocess-inherited are different facts, and unbounded calibrated is the multi-hour-per-leg wedge
+  regime. **The default server state is NO override** — a bounded server silently truncates synthetic runs; after
+  calibrated work, ALWAYS relaunch without it (the `[demand-profiles] NADI_MAX_T_OVERRIDE` print must be absent),
+  unconditionally on the run's outcome. Long-run guards: keep-awake scripts at
+  `%LOCALAPPDATA%\nadi-demand\keepawake{,-8h}.ps1` (user-approved; auto-sleep mid-leg once cost a day); detach the
+  server via PowerShell `Start-Process` (bash-detached children die with the shell's job object). Scratch:
+  `%LOCALAPPDATA%\nadi-demand\` holds the calibrated spill jsonls (`runs/`), settle workdirs (`settle/`) and server
+  logs — OneDrive-safe like the other scratch roots.
 - **Baseline run + artifact:** `python python/src/run_sim.py`  (see the `run-sim` skill)
 - **Network export (V2.0b — the base road layer):** `python python/src/network_export.py` → `web/public/network.json`
   (every normal edge: `{id, geometry, lanes, speed_mps, oneway, allows{car,bike,ped}}`; prints the oneway fraction
@@ -219,9 +284,15 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `report_agent.newest_index()` likewise picks the **newest-timestamp** index (not the report's run); with several
   runs' indexes under `%LOCALAPPDATA%\nadi-report-agent\`, the server may serve a different run's chat than the
   report view (it warns "index run != report run") — rebuild/keep only the pinned run's index to align the chat.
+  V2.1 practice: non-pinned indexes are ARCHIVED (reversibly) at `%LOCALAPPDATA%\nadi-report-agent\archive\`, and
+  after any verification report-regen, restore the singleton via `git checkout -- web/public/latest-report.*`.
 - **OASIS social spike** (Phase 4.0; the `oasis` conda env — python 3.11, camel-oasis 0.2.5, NOT base):
   ```bash
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (golden spine + agent/report honesty invariants)
+- **Tests:** `python -m pytest python/tests` (golden spine + contract 0.6.0–0.8.0 sections + seed-range/report
+  honesty invariants) and `cd web && npx playwright test` (17 specs incl. seeds + compare). **Dev-only Playwright
+  hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
+  maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
+  (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
