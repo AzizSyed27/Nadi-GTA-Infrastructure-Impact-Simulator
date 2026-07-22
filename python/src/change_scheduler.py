@@ -144,6 +144,19 @@ def assert_restored(conn, captured: list[LaneState]) -> None:
         )
 
 
+def closed_lane_indices(conn, edge_id: str) -> list[int]:
+    """Lanes that are FULLY closed (permissions 0): getAllowed() == () AND 'passenger' in
+    getDisallowed (a sidewalk still allows pedestrians; a fully-open SVCAll lane reads () / ()).
+    Needed for the settled double-expression: on a runtime-PATCHED net the target lanes are
+    already closed, so the idempotent TraCI re-apply must count them as valid targets."""
+    out = []
+    for i in range(conn.edge.getLaneNumber(edge_id)):
+        lane = f"{edge_id}_{i}"
+        if not conn.lane.getAllowed(lane) and "passenger" in conn.lane.getDisallowed(lane):
+            out.append(i)
+    return out
+
+
 def assert_closed(conn, edge_id: str, lane_indices: list[int]) -> None:
     """Closure readback: 'passenger' must be in getDisallowed for every closed lane.
     (NOT getAllowed()==() — in 1.27 that shape is ambiguous between fully-open and closed.)"""

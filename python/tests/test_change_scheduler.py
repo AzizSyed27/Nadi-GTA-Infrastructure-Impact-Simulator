@@ -417,6 +417,21 @@ def test_apply_change_road_closure_closes_every_lane(monkeypatch) -> None:
         assert "passenger" in conn.lane.getDisallowed(f"E_{i}")
 
 
+def test_apply_change_lane_closure_idempotent_on_patched_net(monkeypatch) -> None:
+    # The SETTLED double-expression: the micro leg runs on the runtime-PATCHED net (target lanes
+    # already closed, permissions 0) AND re-applies the TraCI change. The live validation must
+    # accept an already-closed target lane (it is no longer a "car lane" on the patched net) —
+    # while still refusing a sidewalk. Found by the settled acceptance probe.
+    conn = make_conn()
+    rs = _patched_run_sim(monkeypatch, conn)
+    conn.lane.setDisallowed("E_1", ["all"])  # the patched-net state
+    conn.calls.clear()
+    rs.apply_change(lane_closure("E", [1]))  # idempotent re-apply — must NOT raise
+    assert "passenger" in conn.lane.getDisallowed("E_1")
+    with pytest.raises(ValueError, match="not car lanes"):
+        rs.apply_change(lane_closure("E", [0]))  # the sidewalk still refuses
+
+
 def test_apply_change_closure_unknown_edge_refuses(monkeypatch) -> None:
     conn = make_conn()
     rs = _patched_run_sim(monkeypatch, conn)

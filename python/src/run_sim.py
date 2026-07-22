@@ -160,8 +160,13 @@ def apply_change(change: Change, target_lane: int | None = None) -> None:
                 f"target_edge {change.target_edge!r} is not in the network — refusing to no-op silently"
             )
         if change.type == "lane_closure":
+            # Valid targets = car lanes OR already-fully-closed lanes: on a SETTLED leg the micro
+            # run uses the runtime-PATCHED net (targets already closed), and this TraCI re-apply
+            # must stay idempotent — while a sidewalk still refuses.
             car_lanes = _car_lane_indices(change.target_edge)
-            reason = change_scheduler.validate_target_lanes(change.target_lanes, car_lanes, change.target_edge)
+            closed = change_scheduler.closed_lane_indices(conn, change.target_edge)
+            valid = sorted(set(car_lanes) | set(closed))
+            reason = change_scheduler.validate_target_lanes(change.target_lanes, valid, change.target_edge)
             if reason is not None:
                 raise ValueError(reason)
             lanes = list(change.target_lanes)
