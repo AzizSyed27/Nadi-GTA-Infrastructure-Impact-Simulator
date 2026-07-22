@@ -83,3 +83,24 @@ def get_profile(name: str) -> DemandProfile:
         p = replace(p, max_t=float(override))
         print(f"[demand-profiles] NADI_MAX_T_OVERRIDE={override} -> max_t={p.max_t:.0f}s (bounded run)")
     return p
+
+
+# V2.2a — sim-time rendering for user-facing prose (reactions / report / run descriptions).
+# The 07:00 anchor is a property of the DEMAND PROFILE (calibrated_am_peak: t=0 == 07:00, see the
+# module docstring), so the helpers live here — synthetic time has no clock meaning and renders
+# as plain sim-seconds.
+_CLOCK_ANCHOR_MIN = {"calibrated_am_peak": 7 * 60}  # profile -> minutes-since-midnight at t=0
+
+
+def fmt_sim_time(t_s: float, profile_name: str) -> str:
+    """"07:10" for profiles with a clock anchor (calibrated: t=0 == 07:00); "t=600 s" otherwise."""
+    anchor = _CLOCK_ANCHOR_MIN.get(profile_name)
+    if anchor is None:
+        return f"t={t_s:g} s"
+    total_min = anchor + int(t_s // 60)
+    return f"{(total_min // 60) % 24:02d}:{total_min % 60:02d}"
+
+
+def fmt_window(window, profile_name: str) -> str:
+    """"from 07:10 to 07:40" (calibrated) / "from t=600 s to t=2400 s" (synthetic)."""
+    return f"from {fmt_sim_time(window.start_s, profile_name)} to {fmt_sim_time(window.end_s, profile_name)}"

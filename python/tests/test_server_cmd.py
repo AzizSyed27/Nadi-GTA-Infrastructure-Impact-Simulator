@@ -73,6 +73,102 @@ def test_assignment_flag() -> None:
     assert "--demand-profile" in both and "--assignment" in both
 
 
+# ---------------------------------------------------------------- V2.2a: closures + windows
+
+
+def test_lane_closure_cmd_with_window() -> None:
+    ch = server.SimChange(type="lane_closure", target_edge="-9#0", target_lanes=[0, 1],
+                          window=server.WindowReq(start_s=600.0, end_s=2400.0))
+    c = server._build_harness_cmd(ch, "TS", "d")
+    assert "--target-edge=-9#0" in c
+    assert c[c.index("--change-type") + 1] == "lane_closure"
+    assert c[c.index("--target-lanes") + 1] == "0,1"
+    assert c[c.index("--window-start") + 1] == "600.0"
+    assert c[c.index("--window-end") + 1] == "2400.0"
+
+
+def test_road_closure_cmd_unwindowed_has_no_lane_or_window_flags() -> None:
+    ch = server.SimChange(type="road_closure", target_edge="-9#0")
+    c = server._build_harness_cmd(ch, "TS", "d")
+    assert c[c.index("--change-type") + 1] == "road_closure"
+    assert "--target-edge=-9#0" in c
+    assert "--target-lanes" not in c and "--window-start" not in c and "--window-end" not in c
+
+
+def test_speed_limit_window_flags_appended_only_when_windowed() -> None:
+    ch = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)
+    assert "--window-start" not in server._build_harness_cmd(ch, "TS", "d")  # byte-stable default
+    chw = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0,
+                           window=server.WindowReq(start_s=0.0, end_s=1800.0))
+    c = server._build_harness_cmd(chw, "TS", "d")
+    assert c[c.index("--window-start") + 1] == "0.0" and c[c.index("--window-end") + 1] == "1800.0"
+
+
+def _post_simulate(change_kw: dict, **req_kw):
+    """Drive the async simulate() handler directly; rejections raise HTTPException BEFORE any
+    job/lock side effect, so this is a pure validation probe."""
+    import asyncio
+
+    from fastapi import BackgroundTasks, HTTPException  # noqa: F401
+
+    req = server.SimulateReq(change=server.SimChange(**change_kw), **req_kw)
+    return asyncio.run(server.simulate(req, BackgroundTasks()))
+
+
+def _real_edge_with_2_car_lanes() -> tuple[str, list[int]]:
+    for e in server._edges_by_id().values():
+        if len(e["car_lane_indices"]) >= 2:
+            return e["id"], e["car_lane_indices"]
+    raise AssertionError("no >=2-car-lane edge in the network?")
+
+
+def test_post_windowed_settled_rejected_with_exact_reason() -> None:
+    from fastapi import HTTPException
+
+    import change_scheduler as cs
+    edge, lanes = _real_edge_with_2_car_lanes()
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "lane_closure", "target_edge": edge, "target_lanes": lanes[:1],
+                        "window": {"start_s": 600.0, "end_s": 2400.0}}, assignment="settled")
+    assert ei.value.status_code == 400 and ei.value.detail == cs.REASON_WINDOWED_SETTLED
+
+
+def test_post_settled_road_closure_rejected_with_exact_reason() -> None:
+    from fastapi import HTTPException
+
+    import change_scheduler as cs
+    edge, _ = _real_edge_with_2_car_lanes()
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "road_closure", "target_edge": edge}, assignment="settled")
+    assert ei.value.status_code == 400 and ei.value.detail == cs.REASON_SETTLED_SEVERED
+    # lane_closure closing ALL car lanes is the same severing case
+    edge2, lanes2 = _real_edge_with_2_car_lanes()
+    with pytest.raises(HTTPException) as ei2:
+        _post_simulate({"type": "lane_closure", "target_edge": edge2, "target_lanes": lanes2},
+                       assignment="settled")
+    assert ei2.value.status_code == 400 and ei2.value.detail == cs.REASON_SETTLED_SEVERED
+
+
+def test_post_lane_closure_bad_lanes_rejected() -> None:
+    from fastapi import HTTPException
+
+    edge, lanes = _real_edge_with_2_car_lanes()
+    bogus = max(lanes) + 7
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "lane_closure", "target_edge": edge, "target_lanes": [bogus]})
+    assert ei.value.status_code == 400 and "not car lanes" in ei.value.detail
+
+
+def test_post_window_end_le_start_rejected() -> None:
+    from fastapi import HTTPException
+
+    edge, lanes = _real_edge_with_2_car_lanes()
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "lane_closure", "target_edge": edge, "target_lanes": lanes[:1],
+                        "window": {"start_s": 2400.0, "end_s": 600.0}})
+    assert ei.value.status_code == 400 and "end_s" in ei.value.detail
+
+
 def test_n_seeds_flag() -> None:
     """V2.1d: --n-seeds appended ONLY when != 1 — the default cmd stays byte-stable."""
     ch = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)

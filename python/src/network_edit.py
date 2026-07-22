@@ -224,8 +224,8 @@ def patch_runtime_net(change: Change, run_id: str) -> Path:
     edges — that invariant stays for new_road). This patch's light gauntlet: edge count UNCHANGED,
     geo-ref identical, and the patched attribute VERIFIED via sumolib readback (never assumed).
     Returns the patched net path."""
-    if change.type not in ("speed_limit", "bike_lane"):
-        raise ValueError(f"patch_runtime_net handles speed_limit/bike_lane, not {change.type!r}")
+    if change.type not in ("speed_limit", "bike_lane", "lane_closure"):
+        raise ValueError(f"patch_runtime_net handles speed_limit/bike_lane/lane_closure, not {change.type!r}")
     if not NETCONVERT.is_file():
         raise FileNotFoundError(f"netconvert not found: {NETCONVERT} (set SUMO_HOME)")
 
@@ -244,6 +244,14 @@ def patch_runtime_net(change: Change, run_id: str) -> Path:
         assert change.value_mps, "speed_limit needs value_mps"
         body = f'  <edge id={_q(change.target_edge)} speed="{change.value_mps}"/>'
         expected = ("speed", float(change.value_mps))
+    elif change.type == "lane_closure":
+        # V2.2a: settled UNWINDOWED partial lane_closure only — the upstream rejection matrix
+        # (change_scheduler.assignment_rejection_reason) already refused windowed and all-car-lane
+        # combos; the gauntlet below re-asserts the not-severed invariant (belt and suspenders).
+        assert change.target_lanes, "lane_closure needs target_lanes"
+        lane_lines = "\n".join(f'    <lane index="{i}" disallow="all"/>' for i in change.target_lanes)
+        body = f"  <edge id={_q(change.target_edge)}>\n{lane_lines}\n  </edge>"
+        expected = ("lane_closure", list(change.target_lanes))
     else:  # bike_lane — the curbside car lane becomes bicycle-only (same lane apply_change targets)
         from scenario_harness import curbside_car_lane  # local: avoids a module-level import cycle
         lane_idx = change.target_lane if change.target_lane is not None else curbside_car_lane(
@@ -276,6 +284,15 @@ def patch_runtime_net(change: Change, run_id: str) -> Path:
         got = p_edge.getSpeed()
         if abs(got - expected[1]) > 1e-6:
             raise AssertionError(f"readback: patched speed {got} != intended {expected[1]}")
+    elif expected[0] == "lane_closure":
+        for i in expected[1]:
+            if p_edge.getLanes()[i].allows("passenger"):
+                raise AssertionError(f"readback: lane {i} of {change.target_edge} still allows cars")
+        remaining = [i for i, ln in enumerate(p_edge.getLanes())
+                     if ln.allows("passenger") and i not in expected[1]]
+        if not remaining:
+            raise AssertionError(  # the not-severed invariant behind the upstream rejection matrix
+                f"lane_closure on {change.target_edge} left NO car lane — severing is rejected for settled runs")
     else:
         lane = p_edge.getLanes()[expected[1]]
         if not (lane.allows("bicycle") and not lane.allows("passenger")):
@@ -344,10 +361,14 @@ def list_edges(bbox: list[float] | None = None) -> list[dict]:
             continue
         eid = edge.getID()
         eligible, reason = edge_bike_eligibility(net, eid)
+        car_lanes = _car_lane_indices_static(net, eid)
         out.append({"id": eid,
                     "geometry": [[round(lon, 6), round(lat, 6)] for lon, lat in pts],
                     "speed_mps": round(edge.getSpeed(), 3),
-                    "car_lane_count": len(_car_lane_indices_static(net, eid)),
+                    "car_lane_count": len(car_lanes),
+                    # V2.2a: server-side cache only (ELIGIBILITY_KEYS unchanged -> /api/edges payload
+                    # byte-identical) — POST /api/simulate validates lane_closure target_lanes vs this.
+                    "car_lane_indices": car_lanes,
                     "eligible_bike_lane": eligible, "eligibility_reason": reason})
     return out
 

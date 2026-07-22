@@ -41,6 +41,7 @@ from pathlib import Path
 
 # Importing run_sim wires SUMO's tools onto sys.path and binds `conn` (libsumo/TraCI). We reuse its
 # extractor, change dispatch, artifact builder, and resolved paths rather than re-implementing them.
+import change_scheduler
 import run_sim  # also puts SUMO_HOME/tools on sys.path, so `sumolib` imports below
 import sumolib
 import trajectory_io
@@ -55,6 +56,7 @@ from contract_models import (
     Scenario,
     TrajectoryArtifact,
     Vehicle,
+    Window,
 )
 
 ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.rou.xml"
@@ -412,7 +414,9 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                         ssm_thresholds: str | None = None, net_override: Path | None = None,
                         cfg_path: Path | None = None, max_t: float | None = None,
                         recorder: SpillRecorder | None = None,
-                        route_override: list[Path] | None = None):
+                        route_override: list[Path] | None = None,
+                        ignore_route_errors: bool = False,
+                        window_events: list[dict] | None = None):
     """Run the multimodal sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
     once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
@@ -443,6 +447,12 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
         "--device.ssm.measures", SSM_MEASURES,
         "--device.ssm.thresholds", ssm_th,
         *REROUTING_ARGS,
+        # V2.2a closures only (both legs of a closure pair, symmetric; no-op in baseline): a HARD
+        # closure makes routes over the closed edge invalid — without this, a vehicle inserted
+        # during the window errors the whole run; with it, SUMO discards it with a warning and it
+        # lands in the existing non-completion counts. (Rerouting mode 8 deliberately NOT used —
+        # it would make equipped vehicles ignore the closure when routing.)
+        *(["--ignore-route-errors"] if ignore_route_errors else []),
         "--seed", str(seed),
     ]
     # Capture SUMO's own warnings+errors (a rejected patched net closes the connection with no other diagnostic).
@@ -452,7 +462,8 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
         conn.start(args)
     except Exception as e:  # noqa: BLE001 — surface SUMO's real reason, not just "Connection closed by SUMO"
         raise RuntimeError(f"SUMO failed to start: {e} — SUMO error-log: {run_sim._read_tail(err_log)}") from e
-    if change is not None:
+    windowed = change is not None and change.window is not None
+    if change is not None and not windowed:
         run_sim.apply_change(change, target_lane=target_lane)  # after start, before stepping -> in force from t=0
         # READBACK (verify, never assume): in a SETTLED runtime leg the change is expressed twice —
         # the netconvert runtime patch (the net the settle legs used, also this leg's net) plus the
@@ -467,6 +478,18 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
             allowed = set(conn.lane.getAllowed(f"{change.target_edge}_{target_lane}"))
             assert allowed == {"bicycle"}, \
                 f"readback: lane {target_lane} of {change.target_edge} allows {allowed}, not bicycle-only"
+        elif change.type in ("lane_closure", "road_closure"):
+            # closure readback (same invariant; idempotent under the settled double-expression):
+            closed = change.target_lanes if change.type == "lane_closure" else \
+                list(range(conn.edge.getLaneNumber(change.target_edge)))
+            change_scheduler.assert_closed(conn, change.target_edge, closed)
+    scheduler = None
+    if windowed:
+        # V2.2a: windowed changes apply at window.start_s and REVERT at end_s inside the step
+        # loop (capture-before-apply; restored == captured asserted at revert). The unwindowed
+        # path above stays byte-identical.
+        scheduler = change_scheduler.ChangeScheduler(conn, [change], max_t=ceiling)
+        scheduler.start()
     step = conn.simulation.getDeltaT()
 
     records: dict[str, dict] = {}
@@ -479,6 +502,8 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
             if t <= prev_t or t >= ceiling:  # anti-hang
                 break
             prev_t = t
+            if scheduler is not None:
+                scheduler.tick(t)  # windowed apply/revert — before recording, both branches below
             if recorder is not None:
                 # Calibrated scale: TraCI SUBSCRIPTIONS — one batch retrieval per step instead of
                 # 3 round-trips per entity per step (~194M socket calls over a calibrated run).
@@ -518,6 +543,10 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                 _record(records, pid, "pedestrian", conn.person.getPosition(pid), conn.person.getSpeed(pid), t, xy_tracks)
         sim_end = conn.simulation.getTime()
         remaining = conn.simulation.getMinExpectedNumber()
+        if scheduler is not None:
+            proof = scheduler.finalize(sim_end)  # logs never-fired reverts even without a sink
+            if window_events is not None:
+                window_events.extend(proof)
     except Exception as e:  # noqa: BLE001 — a mid-run SUMO crash: attach its error-log so the reason isn't lost
         raise RuntimeError(f"SUMO run failed mid-sim: {e} — SUMO error-log: {run_sim._read_tail(err_log)}") from e
     finally:
@@ -968,6 +997,11 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     rec_b = SpillRecorder(spill_root / f"{base_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
     rec_s = SpillRecorder(spill_root / f"{scen_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
     profile_kw = {"cfg_path": prof.cfg, "max_t": prof.max_t}
+    # V2.2a closures: --ignore-route-errors on BOTH legs (and probe legs) of a closure pair —
+    # symmetric like SSM/rerouting, a no-op in baseline; other change types stay byte-identical.
+    is_closure = change is not None and change.type in ("lane_closure", "road_closure")
+    profile_kw["ignore_route_errors"] = is_closure
+    window_events: list[dict] = []  # scheduler proof log (canonical scenario leg only)
 
     # ---- V2.1c SETTLED assignment: iterate CAR routes per leg (meso duaIterate) before the micro pair.
     # Scope honesty: bikes/peds keep their fixed day-one routes (contract assignment.scope="cars_only").
@@ -1047,7 +1081,7 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
             ssm_path=paths["scen_ssm"], net_override=micro_scenario_net, seed=seed, recorder=rec_s,
-            route_override=route_ov_s, **profile_kw)
+            route_override=route_ov_s, window_events=window_events, **profile_kw)
     wall_s = _time.perf_counter() - t0
     if rec_s is not None:
         conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": rec_s.conflicts(scen_net, bbox)}
@@ -1118,7 +1152,7 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
         "recs_s": None if rec_s is not None else recs_s, "recorder_s": rec_s,
         "profile": profile, "wall_clock_s": {"baseline": round(wall_b, 1), "scenario": round(wall_s, 1)},
         "assignment": assignment, "settle_stats": settle_stats,
-        "seed": seed, "seed_probes": seed_probes,
+        "seed": seed, "seed_probes": seed_probes, "window_events": window_events,
         "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
         "conf_b": conf_b, "conf_s": conf_s,
     }
@@ -1277,8 +1311,18 @@ def _run_speed_limit(args) -> None:
         target_edge, n, length_m = pick_busy_edge(ROUTES, run_sim.NET)
         print(f"[edge] auto-picked highest vehicle-distance edge {target_edge!r} ({n} routes, {length_m:.0f} m)")
     kmh = args.speed_mps * 3.6
+    # V2.2a: an optional window (apply at start_s, revert at end_s). Unwindowed stays byte-identical.
+    window = _parse_window(args)
+    reason = change_scheduler.assignment_rejection_reason(
+        getattr(args, "assignment", "day_one"), "speed_limit", window is not None, False)
+    if reason is not None:
+        raise SystemExit(reason)
+    base_desc = f"Reduced max speed on edge {target_edge} to {kmh:.0f} km/h"
+    if window is not None:
+        from demand_profiles import fmt_window
+        base_desc += f" {fmt_window(window, getattr(args, 'demand_profile', 'synthetic_demo'))}"
     change = Change(type="speed_limit", target_edge=target_edge, value_mps=args.speed_mps,
-                    description=args.description or f"Reduced max speed on edge {target_edge} to {kmh:.0f} km/h")
+                    window=window, description=args.description or base_desc)
     ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"
     try:
@@ -1328,6 +1372,67 @@ def _run_bike_lane(args) -> None:
         print(f"\n[bike_lane] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
               f"car median delta {res['car_median_delta_s']}s; severed={res['severed']}")
     except Exception as e:  # noqa: BLE001
+        run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
+        raise
+
+
+def _parse_window(args) -> Window | None:
+    """--window-start/--window-end are both-or-neither (sim-seconds). Window validates end>start."""
+    ws, we = getattr(args, "window_start", None), getattr(args, "window_end", None)
+    if (ws is None) != (we is None):
+        raise SystemExit("--window-start and --window-end must be given together (sim-seconds)")
+    return Window(start_s=ws, end_s=we) if ws is not None else None
+
+
+def _run_closure(args, change_type: str) -> None:
+    """V2.2a: lane_closure / road_closure via ``run_quant_runtime`` (canonical net both legs, TraCI
+    apply — windowed changes go through the ChangeScheduler inside simulate_multimodal). Closures
+    are user-directed: --target-edge is REQUIRED (no auto-pick). The D1 + severing matrix
+    (change_scheduler.assignment_rejection_reason) rejects settled combos with the same reason
+    strings POST /api/simulate uses."""
+    import network_edit
+    import run_state
+    from demand_profiles import fmt_window
+
+    if not args.target_edge:
+        raise SystemExit(f"{change_type} needs --target-edge (closures are user-directed; no auto-pick)")
+    edge = args.target_edge
+    net = sumolib.net.readNet(str(run_sim.NET))
+    car_lanes = network_edit._car_lane_indices_static(net, edge)
+    window = _parse_window(args)
+
+    if change_type == "lane_closure":
+        lanes = [int(s) for s in (args.target_lanes or "").split(",") if s.strip() != ""]
+        reason = change_scheduler.validate_target_lanes(lanes, car_lanes, edge)
+        if reason is not None:
+            raise SystemExit(reason)
+        closes_all = set(car_lanes) <= set(lanes)
+        base_desc = f"Closed {len(lanes)} of {len(car_lanes)} car lanes on edge {edge}"
+    else:
+        lanes = None
+        closes_all = True
+        base_desc = f"Closed edge {edge} (all lanes)"
+
+    reason = change_scheduler.assignment_rejection_reason(
+        getattr(args, "assignment", "day_one"), change_type, window is not None, closes_all)
+    if reason is not None:
+        raise SystemExit(reason)
+
+    profile = getattr(args, "demand_profile", "synthetic_demo")
+    desc = args.description or (base_desc + (f" {fmt_window(window, profile)}" if window else ""))
+    change = Change(type=change_type, target_edge=edge, target_lanes=lanes, window=window,
+                    description=desc)
+    ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    try:
+        run_state.set_stage(run_id, "baseline", change.description,
+                            description=change.description, change=change.model_dump(exclude_none=True))
+        res = run_quant_runtime(change, ts, None, profile=profile,
+                                assignment=getattr(args, "assignment", "day_one"),
+                                n_seeds=getattr(args, "n_seeds", 1))
+        print(f"\n[{change_type}] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
+              f"car median delta {res['car_median_delta_s']}s")
+    except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
         run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
         raise
 
@@ -1528,12 +1633,25 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
                                      if len(conflicts_render) < len(conflicts_s) else None)
     seeds_obj, seed_cells = _attach_seed_ranges(sc, ids, change, profile, demand, assignment)
 
+    # V2.2a closures: the first-class numbers are diverted count (reroute), NON-COMPLETIONS
+    # (baseline_only = completed in baseline but not under the closure — the existing 2.2
+    # accounting surfaced by name), and delay on the alternates (the matched travel-time cells).
+    # window_events is the scheduler's window-revert PROOF log. Both keys appear ONLY for
+    # closure/windowed runs — every other run's sidecar stays byte-identical.
+    is_closure = change.type in ("lane_closure", "road_closure")
+    closure_extras = {}
+    if is_closure:
+        closure_extras["non_completions"] = {m: buckets[m]["counts"]["baseline_only"] for m in buckets}
+    if ids.get("window_events"):
+        closure_extras["window_events"] = ids["window_events"]
+
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
         "demand_profile": profile, "wall_clock_s": ids["wall_clock_s"],
         "assignment": ids["assignment"], "settle_stats": ids["settle_stats"],
         "change": change.model_dump(exclude_none=True), "connectivity_severed_edges": sorted(severed or []),
         "reroute": {"cars_rerouted": rerouted, "cars_matched": reroute_matched}, "modes": buckets,
+        **closure_extras,
         **({"seeds": seeds_obj, "seed_cells": seed_cells} if seeds_obj else {})}, indent=2),
         encoding="utf-8")
 
@@ -1554,6 +1672,7 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
                         car_median_delta_s=car_median, car_affected_share=car_share,
                         demand_profile=profile, wall_clock_s=ids["wall_clock_s"],
                         assignment=assignment, settle_stats=ids["settle_stats"] or None,
+                        **closure_extras,
                         **({"n_seeds": n_seeds} if n_seeds > 1 else {}))
     print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
           f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json updated")
@@ -1592,10 +1711,19 @@ def _run_new_road(args) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Baseline-vs-scenario SUMO harness (multi-modal bike_lane / speed_limit).")
-    ap.add_argument("--change-type", choices=["bike_lane", "speed_limit", "new_road"], default="bike_lane",
-                    help="bike_lane = Phase-2 multi-modal (default); speed_limit = Phase-1 cars-only; new_road = 5.1")
+    ap.add_argument("--change-type", choices=["bike_lane", "speed_limit", "new_road", "lane_closure", "road_closure"],
+                    default="bike_lane",
+                    help="bike_lane = Phase-2 multi-modal (default); speed_limit = Phase-1 cars-only; "
+                         "new_road = 5.1; lane_closure / road_closure = V2.2a (windowable)")
     ap.add_argument("--target-edge", default=None, help="SUMO edge id to change (default: auto-pick busiest)")
     ap.add_argument("--target-lane", type=int, default=None, help="lane index to convert (bike_lane; default: curbside car lane)")
+    # V2.2a closures + windows
+    ap.add_argument("--target-lanes", default=None,
+                    help="lane_closure: csv of CAR-lane indices to close (e.g. '0,1'); must leave the sidewalk alone")
+    ap.add_argument("--window-start", type=float, default=None, dest="window_start",
+                    help="windowed change: apply at this sim-second (with --window-end; revert at end)")
+    ap.add_argument("--window-end", type=float, default=None, dest="window_end",
+                    help="windowed change: revert at this sim-second (past sim end = never reverts, disclosed)")
     ap.add_argument("--speed-mps", type=float, default=DEFAULT_SPEED_MPS, help="new max speed in m/s (speed_limit)")
     # new_road geometry (5.1)
     ap.add_argument("--from-junction", default=None, help="new_road: existing junction id the road departs")
@@ -1618,6 +1746,8 @@ def main() -> None:
         _run_speed_limit(args)
     elif args.change_type == "new_road":
         _run_new_road(args)
+    elif args.change_type in ("lane_closure", "road_closure"):
+        _run_closure(args, args.change_type)
     else:
         _run_bike_lane(args)
 

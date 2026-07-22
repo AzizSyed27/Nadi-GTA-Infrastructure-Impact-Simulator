@@ -213,18 +213,27 @@ _JUNCTIONS: dict = {"all": None}  # cache the (slow) 23MB net read across /api/j
 _EDGES: dict = {"all": None}  # same, for /api/edges (the edit-an-edge palette)
 
 
+class WindowReq(BaseModel):
+    """V2.2a: an active window in sim-seconds (apply at start_s, revert at end_s). end>start is
+    validated in simulate() -> a plain 400 (not a pydantic 422 the palette can't render)."""
+    start_s: float
+    end_s: float
+
+
 class SimChange(BaseModel):
-    type: str = "new_road"  # new_road | speed_limit | bike_lane
+    type: str = "new_road"  # new_road | speed_limit | bike_lane | lane_closure | road_closure
     # new_road geometry
     from_junction: str | None = None
     to_junction: str | None = None
     lanes: int = 1
     speed_mps: float = 13.9
     bidirectional: bool = False
-    # runtime-change fields (speed_limit / bike_lane)
+    # runtime-change fields (speed_limit / bike_lane / closures)
     target_edge: str | None = None
     value_mps: float | None = None  # speed_limit new max (m/s)
     target_lane: int | None = None  # bike_lane lane index (default: curbside car lane)
+    target_lanes: list[int] | None = None  # lane_closure: CAR-lane indices to close (V2.2a)
+    window: WindowReq | None = None  # V2.2a: windowed change (speed_limit / closures)
     description: str | None = None
 
 
@@ -320,8 +329,14 @@ def _build_harness_cmd(ch: SimChange, ts: str, desc: str, demand_profile: str = 
         cmd = base + [f"--target-edge={ch.target_edge}", "--description", desc]
         if ch.target_lane is not None:
             cmd += ["--target-lane", str(ch.target_lane)]
+    elif ch.type in ("lane_closure", "road_closure"):
+        cmd = base + [f"--target-edge={ch.target_edge}", "--description", desc]
+        if ch.type == "lane_closure":
+            cmd += ["--target-lanes", ",".join(str(i) for i in ch.target_lanes)]
     else:
         raise ValueError(f"unsupported change type {ch.type!r}")
+    if ch.window is not None and ch.type in ("speed_limit", "lane_closure", "road_closure"):
+        cmd += ["--window-start", str(ch.window.start_s), "--window-end", str(ch.window.end_s)]
     return cmd
 
 
@@ -352,8 +367,48 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
         if not edge["eligible_bike_lane"]:
             raise HTTPException(400, edge["eligibility_reason"])  # the backend's own words, verbatim
         desc = ch.description or f"Bike lane on {ch.target_edge}"
+    elif ch.type in ("lane_closure", "road_closure"):
+        # V2.2a — closures (windowable). Same validators + reason strings as the harness (single source).
+        import change_scheduler
+        from demand_profiles import fmt_window
+
+        if not ch.target_edge:
+            raise HTTPException(400, f"{ch.type} requires target_edge")
+        edge = _edges_by_id().get(ch.target_edge)
+        if edge is None:
+            raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
+        if ch.type == "lane_closure":
+            reason = change_scheduler.validate_target_lanes(ch.target_lanes, edge["car_lane_indices"],
+                                                            ch.target_edge)
+            if reason is not None:
+                raise HTTPException(400, reason)
+            closes_all = set(edge["car_lane_indices"]) <= set(ch.target_lanes)
+            base_desc = f"Closed {len(ch.target_lanes)} of {len(edge['car_lane_indices'])} car lanes on edge {ch.target_edge}"
+        else:
+            closes_all = True
+            base_desc = f"Closed edge {ch.target_edge} (all lanes)"
+        window_txt = f" {fmt_window(ch.window, req.demand_profile)}" if ch.window is not None else ""
+        desc = ch.description or (base_desc + window_txt)
     else:
-        raise HTTPException(400, f"unsupported change type {ch.type!r} (new_road | speed_limit | bike_lane)")
+        raise HTTPException(400, f"unsupported change type {ch.type!r} (new_road | speed_limit | bike_lane | "
+                                 "lane_closure | road_closure)")
+
+    # V2.2a — window sanity + the D1/severing rejection matrix (assignment lives on the request, so
+    # this runs AFTER the per-type block; the reason strings are shared verbatim with the harness).
+    if ch.window is not None:
+        if ch.type not in ("speed_limit", "lane_closure", "road_closure"):
+            raise HTTPException(400, f"a window is not supported on change type {ch.type!r}")
+        if ch.window.end_s <= ch.window.start_s:
+            raise HTTPException(400, f"window.end_s ({ch.window.end_s:g}) must be > window.start_s ({ch.window.start_s:g})")
+    if ch.type in ("lane_closure", "road_closure"):
+        import change_scheduler
+        reason = change_scheduler.assignment_rejection_reason(
+            req.assignment, ch.type, ch.window is not None, closes_all)
+        if reason is not None:
+            raise HTTPException(400, reason)
+    elif ch.window is not None and req.assignment == "settled":
+        import change_scheduler
+        raise HTTPException(400, change_scheduler.REASON_WINDOWED_SETTLED)
 
     if req.demand_profile != "synthetic_demo":  # V2.1b: calibrated demand must be BUILT before it can run
         import demand_profiles
