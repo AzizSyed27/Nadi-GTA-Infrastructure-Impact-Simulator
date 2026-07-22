@@ -261,10 +261,12 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         "assignment": getattr(meta, "assignment", None),  # v0.7.0; None for older artifacts = day-one
         "render_sample": getattr(meta, "render_sample", None),
         "calibration": _load_calibration_provenance() if getattr(meta, "demand_profile", None) == "calibrated_am_peak" else None,
-        # V2.2a (closure runs only; None/absent otherwise): the first-class closure numbers —
-        # non-completions per mode (completed baseline, not scenario) + the scheduler's revert proof.
+        # V2.2a/b (capacity runs only; None/absent otherwise): the first-class capacity numbers —
+        # non-completions per mode (route-invalidating changes only), the scheduler's revert proof,
+        # and the emergency-response detour fact (free-flow routing estimate).
         "non_completions": outcomes.get("non_completions"),
         "window_events": outcomes.get("window_events"),
+        "response_detour": outcomes.get("response_detour"),
     }
 
 
@@ -304,6 +306,19 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
     for ev in facts.get("window_events") or []:
         if ev.get("reverted_t") is not None and ev.get("restored_ok") is not True:
             problems.append(f"window event {ev.get('change_idx')}: revert without restored_ok proof")
+    # V2.2b: the response-detour block may never render with doctored arithmetic or without BOTH
+    # honesty sentences (free-flow framing + the lower-bound disclosure) verbatim.
+    rd = facts.get("response_detour")
+    if rd is not None:
+        import response_probe
+        if rd.get("framing") != response_probe.FRAMING or \
+                rd.get("lower_bound_note") != response_probe.LOWER_BOUND_NOTE:
+            problems.append("response_detour framing/lower-bound sentences altered or missing")
+        for pr in rd.get("probes", []):
+            if pr.get("added_s") is not None and pr.get("scenario_s") is not None \
+                    and pr.get("baseline_s") is not None:
+                if abs(pr["added_s"] - round(pr["scenario_s"] - pr["baseline_s"], 1)) > 0.05:
+                    problems.append(f"response probe {pr.get('label')!r}: added_s mismatch")
 
     car_cell = artifact.scorecard.groups and {g.group: g for g in artifact.scorecard.groups}["car_commuter"].travel_time_delta
     if round((car_cell.affected_share or 0.0) * 100, 1) != facts["tail_share_pct"]:
@@ -575,6 +590,9 @@ def _change_phrase(change, profile: str = "synthetic_demo") -> str:
                 f"the road stays open in the remaining lane(s)")
     if change.type == "road_closure":
         return f"the corridor road is fully closed{window_txt}; traffic must use other streets"
+    if change.type == "incident":  # V2.2b — a capacity event, never a crash simulation
+        return (f"lanes blocked / capacity reduced on the corridor road{window_txt} "
+                f"(a temporary incident; capacity is restored afterwards)")
     return change.description
 
 
@@ -744,13 +762,14 @@ def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
     # V2.2a — closure-specific honesty. Windowed: a temporary event has no settled equilibrium, so only
     # the day-one response is previewed. road_closure: stranded trips are a first-class outcome.
     chs = facts.get("changes") or []
-    if any(getattr(c, "window", None) is not None and c.type in ("lane_closure", "road_closure") for c in chs):
+    if any(getattr(c, "window", None) is not None
+           and c.type in ("lane_closure", "road_closure", "incident") for c in chs):
         caveats.append(
             {"title": "A temporary event, previewed as the day-one response only",
-             "body": "The closure applies and is lifted within the simulated period. Temporary events have no "
-                     "settled equilibrium, so no iterated-assignment claim is made — what you see is how "
-                     "travelers respond within the run (diverting, queueing, or not completing), not how the "
-                     "corridor would adapt to a permanent change."})
+             "body": "The closure or incident applies and is lifted within the simulated period. Temporary "
+                     "events have no settled equilibrium, so no iterated-assignment claim is made — what you "
+                     "see is how travelers respond within the run (diverting, queueing, or not completing), "
+                     "not how the corridor would adapt to a permanent change."})
     if any(c.type == "road_closure" for c in chs):
         caveats.append(
             {"title": "A closure can strand trips",
@@ -979,7 +998,7 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
             L.append(f"- **Change:** A new {_lanes}-lane {_way} road connecting junction `{ch.from_junction}` and "
                      f"junction `{ch.to_junction}` — a new travel option, no sidewalk at this stage "
                      f"(new edge `{ch.target_edge}`).")
-        elif ch.type in ("lane_closure", "road_closure"):
+        elif ch.type in ("lane_closure", "road_closure", "incident"):
             lanes_txt = f", lanes {ch.target_lanes}" if ch.target_lanes else ""
             window_txt = f" — active {fmt_window(ch.window, profile)}" if getattr(ch, "window", None) else ""
             L.append(f"- **Change:** {ch.description} (edge `{ch.target_edge}`{lanes_txt}){window_txt}")
@@ -1004,12 +1023,29 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
             L.append(f"- **Closure window:** {ev.get('note') or 'never active within the simulated period'} "
                      f"(window {w.get('start_s')}–{w.get('end_s')} s).")
     if facts.get("non_completions") is not None:
+        # noun parameterized for incident runs; closure output stays byte-identical (test-pinned)
+        noun = "incident" if any(c.type == "incident" for c in changes) else "closure"
         nc = facts["non_completions"]
-        L.append(f"- **Non-completions under the closure:** {nc.get('car', 0)} cars, {nc.get('bicycle', 0)} "
-                 f"bicycles, {nc.get('pedestrian', 0)} pedestrians completed in baseline but not in the closure "
+        L.append(f"- **Non-completions under the {noun}:** {nc.get('car', 0)} cars, {nc.get('bicycle', 0)} "
+                 f"bicycles, {nc.get('pedestrian', 0)} pedestrians completed in baseline but not in the {noun} "
                  f"run — counted here as non-completions, never averaged into travel-time deltas.")
         L.append(f"- **Diverted:** {facts['cars_rerouted']} cars ended on a different route than baseline; "
                  f"the travel-time cells in section 2 are the delay on the alternates (matched travelers only).")
+    # V2.2b — the emergency-response detour fact, all code-rendered; BOTH honesty sentences ship
+    # with the numbers (verify_facts enforces them verbatim).
+    rd = facts.get("response_detour")
+    if rd is not None:
+        for pr in rd.get("probes", []):
+            if pr.get("added_s") is not None:
+                L.append(f"- **Response access (free-flow estimate):** from {pr['label']}: baseline "
+                         f"{pr['baseline_s']:g} s → during the window {pr['scenario_s']:g} s "
+                         f"({pr['added_s']:+g} s).")
+            else:
+                L.append(f"- **Response access (free-flow estimate):** from {pr['label']}: "
+                         f"{pr.get('note') or 'not computable'}.")
+            if pr.get("note") and pr.get("added_s") is not None:
+                L.append(f"  - *{pr['note']}.*")
+        L.append(f"- *{rd.get('framing')}; {rd.get('lower_bound_note')}.*")
     L.append("")
 
     L.append("## 2. Who is affected, and how")

@@ -145,6 +145,22 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
         ? 'synthetic demo demand'
         : null;
 
+  // V2.2b — the emergency-response detour fact (capacity runs). Worst added_s leads; BOTH honesty
+  // sentences render with the number (never tooltip-only). Unreachable probes surface as words.
+  const rd = status?.response_detour;
+  const rdComputable = rd?.probes.filter((p) => p.added_s != null) ?? [];
+  const rdUnreachable = rd?.probes.filter((p) => p.added_s == null) ?? [];
+  const rdWorst = rdComputable.length ? Math.max(...rdComputable.map((p) => p.added_s as number)) : null;
+  const responseLine = rd
+    ? rdWorst != null
+      ? `+${rdWorst.toFixed(0)} s response-route estimate (${rd.probes.length} probes${
+          rdUnreachable.length ? `, ${rdUnreachable.length} unreachable during the window` : ''
+        })`
+      : rdUnreachable.length
+        ? `response destination unreachable during the window (${rd.probes.length} probes)`
+        : null
+    : null;
+
   return (
     <div style={card} data-testid="run-card">
       <div style={title}>{done ? 'Run complete' : failed ? 'Run failed' : 'Running…'}</div>
@@ -194,6 +210,14 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
         <>
           <div style={theNumber} data-testid="reroute-number">{rerouteLabel}</div>
           {carDelay && <div style={carDelayLine} data-testid="car-delay">{carDelay}</div>}
+          {responseLine && rd && (
+            <div style={{ ...sub, opacity: 0.85 }} data-testid="response-access-chip">
+              response access: {responseLine}
+              <div style={{ opacity: 0.75, fontSize: '0.85em' }}>
+                {rd.framing}; {rd.lower_bound_note}
+              </div>
+            </div>
+          )}
           <div style={enrichLabel}>Enrich this run</div>
           <div style={enrichRow} data-testid="enrich-buttons">
             {ENRICH.map((e) => (

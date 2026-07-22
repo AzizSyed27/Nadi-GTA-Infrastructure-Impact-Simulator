@@ -71,6 +71,9 @@ _ACCESS_HEURISTIC = {
 _NULL_WITH_NOTE = {
     "new_road": "no access heuristic for this change type yet",
     "road_closure": "road severed/closed — access heuristic not meaningful",
+    # V2.2b (user-ratified): access estimates STRUCTURAL reallocation; a minutes-long capacity
+    # event isn't one — travel-time + the response-detour fact carry the incident's story.
+    "incident": "temporary incident — access heuristic not meaningful",
 }
 
 

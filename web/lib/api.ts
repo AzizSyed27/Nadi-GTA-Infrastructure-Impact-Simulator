@@ -76,12 +76,24 @@ export interface RoadClosureChange {
   window?: ChangeWindow;
   description?: string;
 }
+/** V2.2b: a windowed CAPACITY event (blocked lanes and/or edge speed × factor) — never a crash
+ * simulation. window is REQUIRED; position_m is accepted + stored but unused this rung. */
+export interface IncidentChange {
+  type: 'incident';
+  target_edge: string;
+  window: ChangeWindow;
+  effect: { blocked?: boolean; speed_factor?: number };
+  target_lanes?: number[]; // required when effect.blocked
+  position_m?: number;
+  description?: string;
+}
 export type SimChange =
   | NewRoadChange
   | (SpeedLimitChange & { window?: ChangeWindow })
   | BikeLaneChange
   | LaneClosureChange
-  | RoadClosureChange;
+  | RoadClosureChange
+  | IncidentChange;
 
 export type EnrichStage = 'voices' | 'report' | 'discourse';
 
@@ -117,6 +129,22 @@ export interface RunStatus {
   // first-class non-completion fact; and the scheduler's window-revert proof log.
   non_completions?: Record<string, number>;
   window_events?: unknown[];
+  // V2.2b (capacity runs: closures + incidents): the emergency-response detour fact — free-flow
+  // routing estimate; both honesty sentences ride the payload and must render with the numbers.
+  response_detour?: {
+    framing: string;
+    lower_bound_note: string;
+    destination_edge: string | null;
+    destination_note?: string;
+    probes: {
+      label: string;
+      origin_edge: string | null;
+      baseline_s: number | null;
+      scenario_s: number | null;
+      added_s: number | null;
+      note?: string;
+    }[];
+  };
 }
 
 /** Uniform result: ok with a value, or a friendly error (status set for HTTP failures like 409). */

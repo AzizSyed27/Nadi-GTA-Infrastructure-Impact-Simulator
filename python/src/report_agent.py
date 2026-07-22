@@ -198,6 +198,20 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                      f"In-run adaptation: {facts['cars_rerouted']} cars rerouted within the run."
                      + closure_txt))
 
+    # V2.2b — the response-detour fact as its own retrievable doc (corpus docs may carry digits;
+    # generated prose stays digit-free-audited). BOTH honesty sentences ride with the numbers.
+    rd = facts.get("response_detour")
+    if rd:
+        lines = []
+        for pr in rd.get("probes", []):
+            if pr.get("added_s") is not None:
+                lines.append(f"From {pr['label']}: baseline {pr['baseline_s']} s, during the window "
+                             f"{pr['scenario_s']} s, added {pr['added_s']} s.")
+            else:
+                lines.append(f"From {pr['label']}: {pr.get('note') or 'not computable'}.")
+        docs.append(_doc("response_access", "Emergency response access (free-flow estimate)",
+                         " ".join(lines) + f" {rd.get('framing')}. {rd.get('lower_bound_note')}."))
+
     # --- robustness / cross-seed verdict ---
     if verdict:
         per = "; ".join(f"seed {r['seed']}: {r['share_gt30'] * 100:.1f}% of cars over 30s slower"

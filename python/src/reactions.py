@@ -115,6 +115,16 @@ _INFERRED_CONTEXT_CLOSURE_WINDOWED = {
     "the corridor change temporarily — consider the standpoint of people with mobility, vision, or hearing "
     "disabilities.",
 }
+# V2.2b — an incident is a capacity EVENT (blocked lanes / slowed traffic for a window), never a crash
+# simulation and not a permanent change; its own framing so closure wording stays byte-identical.
+_INFERRED_CONTEXT_INCIDENT = {
+    "business_owner": "What it may mean for you: some of the corridor road's capacity is temporarily blocked or "
+    "slowed by an incident — not a permanent change. Traffic shifts to other streets while it lasts, then "
+    "returns to normal.",
+    "accessibility": "What it may mean for you: while the incident lasts, crossings and routes on the corridor "
+    "shift temporarily — not a permanent change; consider the standpoint of people with mobility, vision, or "
+    "hearing disabilities.",
+}
 
 
 def _inferred_context(stakeholder: str | None, changes: list[dict]) -> str:
@@ -123,6 +133,8 @@ def _inferred_context(stakeholder: str | None, changes: list[dict]) -> str:
     applies if ANY change in the scenario matches."""
     if any(c.get("type") == "new_road" for c in changes) and stakeholder in _INFERRED_CONTEXT_NEW_ROAD:
         return _INFERRED_CONTEXT_NEW_ROAD[stakeholder]
+    if any(c.get("type") == "incident" for c in changes) and stakeholder in _INFERRED_CONTEXT_INCIDENT:
+        return _INFERRED_CONTEXT_INCIDENT[stakeholder]
     closures = [c for c in changes if c.get("type") in ("lane_closure", "road_closure")]
     if closures and stakeholder in _INFERRED_CONTEXT_CLOSURE:
         windowed = any(c.get("window") for c in closures)
@@ -157,6 +169,24 @@ def _change_line(change: dict, profile: str = "synthetic_demo") -> str:
     if change.get("type") == "road_closure":
         return (f"The corridor road ({change.get('target_edge')}) is fully closed{window_txt}; "
                 f"traffic must use other streets.")
+    if change.get("type") == "incident":
+        # a CAPACITY event, never a crash simulation — mechanical, no crash words
+        eff = change.get("effect") or {}
+        edge = change.get("target_edge")
+        parts = []
+        lanes = change.get("target_lanes") or []
+        if eff.get("blocked") and lanes:
+            n = len(lanes)
+            parts.append(f"{n} car lane{'s' if n != 1 else ''} on the corridor road ({edge}) "
+                         f"{'are' if n != 1 else 'is'} blocked")
+        if eff.get("speed_factor") is not None:
+            pct = f"{eff['speed_factor'] * 100:.0f}%"
+            if parts:
+                parts.append(f"and traffic is slowed to {pct} of its normal speed")
+            else:
+                parts.append(f"Traffic on the corridor road ({edge}) is slowed to {pct} of its normal speed")
+        body = " ".join(parts) or f"Capacity on the corridor road ({edge}) is reduced"
+        return f"{body}{window_txt} — a temporary incident; capacity is reduced while it is active, then restored."
     desc = change.get("description") or change.get("type", "a road change")
     if change.get("value_mps") is not None:
         desc += f" (new speed limit {change['value_mps'] * 3.6:.0f} km/h)"
