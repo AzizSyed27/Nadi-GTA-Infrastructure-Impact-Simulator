@@ -1381,7 +1381,12 @@ def _parse_window(args) -> Window | None:
     ws, we = getattr(args, "window_start", None), getattr(args, "window_end", None)
     if (ws is None) != (we is None):
         raise SystemExit("--window-start and --window-end must be given together (sim-seconds)")
-    return Window(start_s=ws, end_s=we) if ws is not None else None
+    if ws is None:
+        return None
+    try:
+        return Window(start_s=ws, end_s=we)
+    except ValueError as e:  # a clean CLI message, not a pydantic stack trace
+        raise SystemExit(f"invalid window: --window-end ({we:g}) must be > --window-start ({ws:g})") from e
 
 
 def _run_closure(args, change_type: str) -> None:

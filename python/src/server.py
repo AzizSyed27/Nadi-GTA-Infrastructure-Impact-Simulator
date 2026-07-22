@@ -400,15 +400,13 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
             raise HTTPException(400, f"a window is not supported on change type {ch.type!r}")
         if ch.window.end_s <= ch.window.start_s:
             raise HTTPException(400, f"window.end_s ({ch.window.end_s:g}) must be > window.start_s ({ch.window.start_s:g})")
-    if ch.type in ("lane_closure", "road_closure"):
-        import change_scheduler
-        reason = change_scheduler.assignment_rejection_reason(
-            req.assignment, ch.type, ch.window is not None, closes_all)
-        if reason is not None:
-            raise HTTPException(400, reason)
-    elif ch.window is not None and req.assignment == "settled":
-        import change_scheduler
-        raise HTTPException(400, change_scheduler.REASON_WINDOWED_SETTLED)
+    import change_scheduler
+    reason = change_scheduler.assignment_rejection_reason(
+        req.assignment, ch.type,
+        ch.window is not None,
+        closes_all if ch.type in ("lane_closure", "road_closure") else False)
+    if reason is not None:
+        raise HTTPException(400, reason)
 
     if req.demand_profile != "synthetic_demo":  # V2.1b: calibrated demand must be BUILT before it can run
         import demand_profiles

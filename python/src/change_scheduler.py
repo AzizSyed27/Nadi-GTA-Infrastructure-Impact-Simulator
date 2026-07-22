@@ -218,6 +218,15 @@ class ChangeScheduler:
                 )
                 self.log(f"[scheduler] change {i} ({c.type} on {c.target_edge}): {self._proof[i]['note']}")
                 continue
+            if w.end_s <= start:
+                # end>start holds on the RAW window (pydantic), but clipping start to 0 can empty it
+                # (e.g. a window entirely before t=0). Skip — a queued revert without its apply
+                # would be an unmatched pop at start().
+                self._proof[i]["note"] = (
+                    f"window [{w.start_s:g}, {w.end_s:g}]s is empty after clipping to the sim bounds — never applied"
+                )
+                self.log(f"[scheduler] change {i} ({c.type} on {c.target_edge}): {self._proof[i]['note']}")
+                continue
             events.append((start, _PHASE_APPLY, i, i))
             if w.end_s < max_t:
                 events.append((w.end_s, _PHASE_REVERT, -i, i))

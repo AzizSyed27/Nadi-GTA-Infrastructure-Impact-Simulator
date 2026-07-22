@@ -324,6 +324,30 @@ def test_window_start_beyond_ceiling_never_applies() -> None:
     assert events[0]["applied_t"] is None and "never applied" in events[0]["note"]
 
 
+def test_window_entirely_before_zero_never_applies() -> None:
+    # start_s=-100, end_s=-50 passes Window's end>start validator but clips to an EMPTY window —
+    # it must be skipped with a proof note, never queued (a queued revert-without-apply was a
+    # KeyError in start(); found by review).
+    conn = make_conn()
+    before = conn.state_of("E")
+    sched = cs.ChangeScheduler(conn, [lane_closure("E", [1], -100.0, -50.0)], max_t=3600.0)
+    sched.start()  # must not raise
+    run_to(sched, 100.0)
+    assert conn.state_of("E") == before
+    (e,) = sched.finalize(3600.0)
+    assert e["applied_t"] is None and "never applied" in e["note"]
+
+
+def test_negative_start_positive_end_applies_at_zero() -> None:
+    conn = make_conn()
+    sched = cs.ChangeScheduler(conn, [lane_closure("E", [1], -100.0, 500.0)], max_t=3600.0)
+    sched.start()  # clipped to t=0 — in force from the first step
+    assert "passenger" in conn.lane.getDisallowed("E_1")
+    run_to(sched, 600.0)
+    (e,) = sched.finalize(600.0)
+    assert e["applied_t"] == 0.0 and e["reverted_t"] == 500.0 and e["restored_ok"] is True
+
+
 def test_start_at_or_below_zero_applies_in_start() -> None:
     conn = make_conn()
     sched = cs.ChangeScheduler(conn, [lane_closure("E", [1], 0.0, 500.0)], max_t=3600.0)
