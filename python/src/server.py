@@ -220,20 +220,29 @@ class WindowReq(BaseModel):
     end_s: float
 
 
+class EffectReq(BaseModel):
+    """V2.2b incident effect: a CAPACITY event (never a crash simulation) — blocked lanes and/or
+    edge speed x factor, both for the window."""
+    blocked: bool | None = None
+    speed_factor: float | None = None
+
+
 class SimChange(BaseModel):
-    type: str = "new_road"  # new_road | speed_limit | bike_lane | lane_closure | road_closure
+    type: str = "new_road"  # new_road | speed_limit | bike_lane | lane_closure | road_closure | incident
     # new_road geometry
     from_junction: str | None = None
     to_junction: str | None = None
     lanes: int = 1
     speed_mps: float = 13.9
     bidirectional: bool = False
-    # runtime-change fields (speed_limit / bike_lane / closures)
+    # runtime-change fields (speed_limit / bike_lane / closures / incident)
     target_edge: str | None = None
     value_mps: float | None = None  # speed_limit new max (m/s)
     target_lane: int | None = None  # bike_lane lane index (default: curbside car lane)
-    target_lanes: list[int] | None = None  # lane_closure: CAR-lane indices to close (V2.2a)
-    window: WindowReq | None = None  # V2.2a: windowed change (speed_limit / closures)
+    target_lanes: list[int] | None = None  # lane_closure / incident-blocked: CAR-lane indices (V2.2a/b)
+    window: WindowReq | None = None  # V2.2a/b: windowed change (speed_limit / closures / incident)
+    effect: EffectReq | None = None  # V2.2b incident only
+    position_m: float | None = None  # V2.2b incident: accepted + stored; UNUSED this rung
     description: str | None = None
 
 
@@ -333,9 +342,21 @@ def _build_harness_cmd(ch: SimChange, ts: str, desc: str, demand_profile: str = 
         cmd = base + [f"--target-edge={ch.target_edge}", "--description", desc]
         if ch.type == "lane_closure":
             cmd += ["--target-lanes", ",".join(str(i) for i in ch.target_lanes)]
+    elif ch.type == "incident":
+        cmd = base + [f"--target-edge={ch.target_edge}", "--description", desc]
+        if ch.target_lanes:
+            cmd += ["--target-lanes", ",".join(str(i) for i in ch.target_lanes)]
+        if ch.effect is not None and ch.effect.blocked:
+            cmd.append("--blocked")
+        if ch.effect is not None and ch.effect.speed_factor is not None:
+            cmd += ["--speed-factor", str(ch.effect.speed_factor)]
+        if ch.position_m is not None:
+            cmd += ["--position-m", str(ch.position_m)]
     else:
         raise ValueError(f"unsupported change type {ch.type!r}")
-    if ch.window is not None and ch.type in ("speed_limit", "lane_closure", "road_closure"):
+    # single source with the window-sanity gate — an incident window must never be silently dropped
+    import change_scheduler
+    if ch.window is not None and ch.type in change_scheduler.WINDOWABLE_TYPES:
         cmd += ["--window-start", str(ch.window.start_s), "--window-end", str(ch.window.end_s)]
     return cmd
 
@@ -389,22 +410,45 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
             base_desc = f"Closed edge {ch.target_edge} (all lanes)"
         window_txt = f" {fmt_window(ch.window, req.demand_profile)}" if ch.window is not None else ""
         desc = ch.description or (base_desc + window_txt)
+    elif ch.type == "incident":
+        # V2.2b — a windowed CAPACITY event. Same validators + reason strings as the harness.
+        import change_scheduler
+        from demand_profiles import fmt_window
+
+        if not ch.target_edge:
+            raise HTTPException(400, "incident requires target_edge")
+        edge = _edges_by_id().get(ch.target_edge)
+        if edge is None:
+            raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
+        if ch.window is None:
+            raise HTTPException(400, "incident requires a window (a temporary event; start_s/end_s in sim-seconds)")
+        blocked = ch.effect.blocked if ch.effect else None
+        speed_factor = ch.effect.speed_factor if ch.effect else None
+        reason = change_scheduler.incident_rejection_reason(
+            blocked, speed_factor, ch.target_lanes, edge["car_lane_indices"], ch.target_edge)
+        if reason is not None:
+            raise HTTPException(400, reason)
+        closes_all = bool(blocked) and set(edge["car_lane_indices"]) <= set(ch.target_lanes or [])
+        desc = ch.description or (
+            change_scheduler.incident_base_desc(ch.target_lanes if blocked else None,
+                                                speed_factor, ch.target_edge)
+            + f" {fmt_window(ch.window, req.demand_profile)}")
     else:
         raise HTTPException(400, f"unsupported change type {ch.type!r} (new_road | speed_limit | bike_lane | "
-                                 "lane_closure | road_closure)")
+                                 "lane_closure | road_closure | incident)")
 
-    # V2.2a — window sanity + the D1/severing rejection matrix (assignment lives on the request, so
-    # this runs AFTER the per-type block; the reason strings are shared verbatim with the harness).
+    # V2.2a/b — window sanity + the D1/severing rejection matrix (assignment lives on the request,
+    # so this runs AFTER the per-type block; the reason strings are shared verbatim with the harness).
+    import change_scheduler
     if ch.window is not None:
-        if ch.type not in ("speed_limit", "lane_closure", "road_closure"):
+        if ch.type not in change_scheduler.WINDOWABLE_TYPES:
             raise HTTPException(400, f"a window is not supported on change type {ch.type!r}")
         if ch.window.end_s <= ch.window.start_s:
             raise HTTPException(400, f"window.end_s ({ch.window.end_s:g}) must be > window.start_s ({ch.window.start_s:g})")
-    import change_scheduler
     reason = change_scheduler.assignment_rejection_reason(
         req.assignment, ch.type,
         ch.window is not None,
-        closes_all if ch.type in ("lane_closure", "road_closure") else False)
+        closes_all if ch.type in ("lane_closure", "road_closure", "incident") else False)
     if reason is not None:
         raise HTTPException(400, reason)
 

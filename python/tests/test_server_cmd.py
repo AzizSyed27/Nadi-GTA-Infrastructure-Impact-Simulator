@@ -169,6 +169,80 @@ def test_post_window_end_le_start_rejected() -> None:
     assert ei.value.status_code == 400 and "end_s" in ei.value.detail
 
 
+# ---------------------------------------------------------------- V2.2b: incidents
+
+
+def test_incident_cmd_full_flag_set() -> None:
+    ch = server.SimChange(type="incident", target_edge="-9#0", target_lanes=[1, 2],
+                          effect=server.EffectReq(blocked=True, speed_factor=0.5),
+                          position_m=120.0,
+                          window=server.WindowReq(start_s=600.0, end_s=1800.0))
+    c = server._build_harness_cmd(ch, "TS", "d")
+    assert c[c.index("--change-type") + 1] == "incident"
+    assert "--target-edge=-9#0" in c
+    assert c[c.index("--target-lanes") + 1] == "1,2"
+    assert "--blocked" in c
+    assert c[c.index("--speed-factor") + 1] == "0.5"
+    assert c[c.index("--position-m") + 1] == "120.0"
+    assert c[c.index("--window-start") + 1] == "600.0" and c[c.index("--window-end") + 1] == "1800.0"
+
+
+def test_incident_cmd_speed_only_omits_absent_flags() -> None:
+    ch = server.SimChange(type="incident", target_edge="e1",
+                          effect=server.EffectReq(speed_factor=0.5),
+                          window=server.WindowReq(start_s=0.0, end_s=1200.0))
+    c = server._build_harness_cmd(ch, "TS", "d")
+    assert "--blocked" not in c and "--target-lanes" not in c and "--position-m" not in c
+    assert c[c.index("--speed-factor") + 1] == "0.5"
+    assert "--window-start" in c  # incident windows must never be silently dropped
+
+
+def test_post_incident_without_window_rejected() -> None:
+    from fastapi import HTTPException
+
+    edge, lanes = _real_edge_with_2_car_lanes()
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "incident", "target_edge": edge, "target_lanes": lanes[:1],
+                        "effect": {"blocked": True}})
+    assert ei.value.status_code == 400 and "incident requires a window" in ei.value.detail
+
+
+def test_post_incident_effect_matrix() -> None:
+    from fastapi import HTTPException
+
+    edge, lanes = _real_edge_with_2_car_lanes()
+    w = {"start_s": 600.0, "end_s": 1800.0}
+    cases = [
+        ({"type": "incident", "target_edge": edge, "window": w},
+         "incident requires an effect: blocked and/or speed_factor"),
+        ({"type": "incident", "target_edge": edge, "window": w, "effect": {"blocked": True}},
+         "requires non-empty target_lanes"),
+        ({"type": "incident", "target_edge": edge, "window": w, "target_lanes": lanes[:1],
+          "effect": {"speed_factor": 0.5}},
+         "without effect.blocked"),
+        ({"type": "incident", "target_edge": edge, "window": w, "effect": {"speed_factor": 1.5}},
+         "cannot raise the speed"),
+        ({"type": "incident", "target_edge": edge, "window": w, "effect": {"speed_factor": 0.0}},
+         "must be > 0"),
+    ]
+    for change_kw, needle in cases:
+        with pytest.raises(HTTPException) as ei:
+            _post_simulate(change_kw)
+        assert ei.value.status_code == 400 and needle in ei.value.detail, (change_kw, ei.value.detail)
+
+
+def test_post_settled_incident_rejected_as_windowed() -> None:
+    from fastapi import HTTPException
+
+    import change_scheduler as cs
+    edge, lanes = _real_edge_with_2_car_lanes()
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "incident", "target_edge": edge, "target_lanes": lanes[:1],
+                        "effect": {"blocked": True}, "window": {"start_s": 600.0, "end_s": 1800.0}},
+                       assignment="settled")
+    assert ei.value.status_code == 400 and ei.value.detail == cs.REASON_WINDOWED_SETTLED
+
+
 def test_n_seeds_flag() -> None:
     """V2.1d: --n-seeds appended ONLY when != 1 — the default cmd stays byte-stable."""
     ch = server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)
