@@ -57,7 +57,31 @@ export interface BikeLaneChange {
   target_lane?: number;
   description?: string;
 }
-export type SimChange = NewRoadChange | SpeedLimitChange | BikeLaneChange;
+/** V2.2a: an active window in sim-seconds — apply at start_s, revert at end_s (windowed + settled
+ * is rejected 400: temporary events have no equilibrium). */
+export interface ChangeWindow {
+  start_s: number;
+  end_s: number;
+}
+export interface LaneClosureChange {
+  type: 'lane_closure';
+  target_edge: string;
+  target_lanes: number[]; // CAR-lane indices; validated against the edge server-side
+  window?: ChangeWindow;
+  description?: string;
+}
+export interface RoadClosureChange {
+  type: 'road_closure';
+  target_edge: string;
+  window?: ChangeWindow;
+  description?: string;
+}
+export type SimChange =
+  | NewRoadChange
+  | (SpeedLimitChange & { window?: ChangeWindow })
+  | BikeLaneChange
+  | LaneClosureChange
+  | RoadClosureChange;
 
 export type EnrichStage = 'voices' | 'report' | 'discourse';
 
@@ -89,6 +113,10 @@ export interface RunStatus {
   assignment?: string; // V2.1c: day_one | settled (drives the settling stages on the rail)
   settle_stats?: unknown; // V2.1c: per-leg convergence stats on the terminal state
   n_seeds?: number; // V2.1d: 1 (default) or 3 — the robustness-probe ladder (drives the seeds chip)
+  // V2.2a (closure runs only): completed in baseline but not under the closure, per mode — the
+  // first-class non-completion fact; and the scheduler's window-revert proof log.
+  non_completions?: Record<string, number>;
+  window_events?: unknown[];
 }
 
 /** Uniform result: ok with a value, or a friendly error (status set for HTTP failures like 409). */
