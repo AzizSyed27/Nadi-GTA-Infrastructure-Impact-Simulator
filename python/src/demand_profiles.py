@@ -102,5 +102,10 @@ def fmt_sim_time(t_s: float, profile_name: str) -> str:
 
 
 def fmt_window(window, profile_name: str) -> str:
-    """"from 07:10 to 07:40" (calibrated) / "from t=600 s to t=2400 s" (synthetic)."""
-    return f"from {fmt_sim_time(window.start_s, profile_name)} to {fmt_sim_time(window.end_s, profile_name)}"
+    """"from 07:10 to 07:40" (calibrated) / "from t=600 s to t=2400 s" (synthetic).
+    Accepts the pydantic Window OR its dict form (artifact consumers hold dicts)."""
+    if isinstance(window, dict):
+        start, end = window["start_s"], window["end_s"]
+    else:
+        start, end = window.start_s, window.end_s
+    return f"from {fmt_sim_time(start, profile_name)} to {fmt_sim_time(end, profile_name)}"

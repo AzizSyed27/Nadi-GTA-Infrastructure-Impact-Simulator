@@ -98,13 +98,35 @@ _INFERRED_CONTEXT_NEW_ROAD = {
     "accessibility": "What it may mean for you: a NEW road is added that — at this stage — carries NO sidewalk. "
     "Consider the standpoint of people with mobility, vision, or hearing disabilities.",
 }
+# V2.2a — closures REMOVE capacity (temporarily when windowed). Neither the reallocation default nor the
+# new_road framing fits; and a WINDOWED closure must not be voiced as a permanent change (time-scoped honesty).
+_INFERRED_CONTEXT_CLOSURE = {
+    "business_owner": "What it may mean for you: the corridor road (or some of its lanes) is CLOSED for the whole "
+    "period simulated — traffic that passed your door is pushed onto other streets, and curb access near the "
+    "closure may be blocked.",
+    "accessibility": "What it may mean for you: a road/lane closure changes crossings and detour routes on the "
+    "corridor — consider the standpoint of people with mobility, vision, or hearing disabilities.",
+}
+_INFERRED_CONTEXT_CLOSURE_WINDOWED = {
+    "business_owner": "What it may mean for you: the corridor road (or some of its lanes) is closed during a "
+    "time window (a temporary disruption, like construction) — not a permanent reallocation. Traffic is pushed "
+    "onto other streets while the closure is active.",
+    "accessibility": "What it may mean for you: during the closure's time window, crossings and detour routes on "
+    "the corridor change temporarily — consider the standpoint of people with mobility, vision, or hearing "
+    "disabilities.",
+}
 
 
 def _inferred_context(stakeholder: str | None, changes: list[dict]) -> str:
-    """Labeled stakeholder context, CONDITIONAL on change type (new_road adds an option; the others
-    reallocate). Composite (v0.5.0): the new_road framing applies if ANY change in the scenario is a new_road."""
+    """Labeled stakeholder context, CONDITIONAL on change type (new_road adds an option; closures remove
+    capacity — temporarily when windowed; the others reallocate). Composite (v0.5.0): the special framing
+    applies if ANY change in the scenario matches."""
     if any(c.get("type") == "new_road" for c in changes) and stakeholder in _INFERRED_CONTEXT_NEW_ROAD:
         return _INFERRED_CONTEXT_NEW_ROAD[stakeholder]
+    closures = [c for c in changes if c.get("type") in ("lane_closure", "road_closure")]
+    if closures and stakeholder in _INFERRED_CONTEXT_CLOSURE:
+        windowed = any(c.get("window") for c in closures)
+        return (_INFERRED_CONTEXT_CLOSURE_WINDOWED if windowed else _INFERRED_CONTEXT_CLOSURE)[stakeholder]
     return _INFERRED_CONTEXT.get(stakeholder, "React from your standpoint.")
 
 
@@ -112,8 +134,13 @@ def _fmt_minutes(seconds: float) -> str:
     return f"{seconds / 60.0:.1f} min"
 
 
-def _change_line(change: dict) -> str:
-    """A MECHANICAL description of the change — no asserted benefit (no 'calmer'/'safer'). Cacheable prefix."""
+def _change_line(change: dict, profile: str = "synthetic_demo") -> str:
+    """A MECHANICAL description of the change — no asserted benefit (no 'calmer'/'safer'). Cacheable prefix.
+    V2.2a: windowed changes render their window — clock times on the calibrated profile (t=0 == 07:00),
+    sim-seconds on synthetic (fmt_window)."""
+    from demand_profiles import fmt_window
+
+    window_txt = f" {fmt_window(change['window'], profile)}" if change.get("window") else ""
     if change.get("type") == "new_road":
         lanes = change.get("lanes") or 1
         return (f"A new {lanes}-lane road now connects junction {change.get('from_junction')} to junction "
@@ -121,26 +148,35 @@ def _change_line(change: dict) -> str:
                 f"it carries no sidewalk at this stage.")
     if change.get("type") == "bike_lane":
         return "One general-traffic (car) lane on the corridor is being converted into a bicycle-only lane."
+    if change.get("type") == "lane_closure":
+        n = len(change.get("target_lanes") or [])
+        lanes_word = "car lanes" if n != 1 else "car lane"
+        verb = "are" if n != 1 else "is"
+        return (f"{n} {lanes_word} on the corridor road ({change.get('target_edge')}) {verb} "
+                f"closed{window_txt}; the road stays open in the remaining lane(s).")
+    if change.get("type") == "road_closure":
+        return (f"The corridor road ({change.get('target_edge')}) is fully closed{window_txt}; "
+                f"traffic must use other streets.")
     desc = change.get("description") or change.get("type", "a road change")
     if change.get("value_mps") is not None:
         desc += f" (new speed limit {change['value_mps'] * 3.6:.0f} km/h)"
     return desc
 
 
-def _changes_line(changes: list[dict]) -> str:
+def _changes_line(changes: list[dict], profile: str = "synthetic_demo") -> str:
     """Mechanical description of the scenario's change(s). A single change renders exactly as before; a
     composite (v0.5.0) is a numbered, mechanical enumeration — no asserted benefit."""
     if len(changes) == 1:
-        return _change_line(changes[0])
-    parts = "; ".join(f"({i}) {_change_line(c)}" for i, c in enumerate(changes, 1))
+        return _change_line(changes[0], profile)
+    parts = "; ".join(f"({i}) {_change_line(c, profile)}" for i, c in enumerate(changes, 1))
     return f"This scenario composes {len(changes)} changes: {parts}"
 
 
-def shared_prefix(changes: list[dict], grounding: str) -> str:
+def shared_prefix(changes: list[dict], grounding: str, profile: str = "synthetic_demo") -> str:
     """The INVARIANT prompt prefix (identical across a family in a run) — placed FIRST so DeepSeek's prefix
     cache hits. Framing + mechanical change(s) + JSON instructions; the per-persona block is appended after."""
     framing = _INFERRED_FRAMING if grounding == "inferred" else _SIM_FRAMING
-    return f"{framing}THE PROPOSED CHANGE: {_changes_line(changes)}\n\n{_JSON_INSTRUCTIONS}Your character:\n"
+    return f"{framing}THE PROPOSED CHANGE: {_changes_line(changes, profile)}\n\n{_JSON_INSTRUCTIONS}Your character:\n"
 
 
 def _sim_suffix(outcome: dict) -> str:
@@ -166,12 +202,12 @@ def _sim_suffix(outcome: dict) -> str:
     )
 
 
-def build_prompt(record: dict, changes: list[dict]) -> tuple[str, str]:
+def build_prompt(record: dict, changes: list[dict], profile: str = "synthetic_demo") -> tuple[str, str]:
     """Return (system, user). system = shared_prefix + persona (prefix-ordered for caching); user = the
     per-agent suffix (sim: personal outcome; inferred: labeled stakeholder context)."""
     persona = record["persona"]
     grounding = record["grounding"]
-    system = shared_prefix(changes, grounding) + f"- {persona['label']}: {persona['description']}"
+    system = shared_prefix(changes, grounding, profile) + f"- {persona['label']}: {persona['description']}"
     if grounding == "sim":
         user = _sim_suffix(record["outcome"])
     else:
@@ -198,11 +234,12 @@ def _record_id(record: dict) -> str:
     return record.get("vehicle_id") or record.get("person_id") or f"inferred:{record['persona']['id']}"
 
 
-async def react_one(client: LLMClient, record: dict, changes: list[dict]) -> tuple[Reaction, bool]:
+async def react_one(client: LLMClient, record: dict, changes: list[dict],
+                    profile: str = "synthetic_demo") -> tuple[Reaction, bool]:
     """Generate one agent's reaction (sim or inferred — build_prompt dispatches on grounding). Returns
     (reaction, is_fallback). Backs off/retries on transient API errors; retries once on a malformed/invalid
     (or empty) response; otherwise falls back to a neutral reaction."""
-    system, user = build_prompt(record, changes)
+    system, user = build_prompt(record, changes, profile)
     parse_retried = False
     for attempt in range(5):  # bounded; most exits are well before this
         try:
@@ -226,12 +263,13 @@ async def react_one(client: LLMClient, record: dict, changes: list[dict]) -> tup
 MAX_CONCURRENCY = int(os.environ.get("MAX_CONCURRENCY", "8"))
 
 
-async def generate_reactions(client: LLMClient, records: list[dict], changes: list[dict]) -> list[tuple[Reaction, bool]]:
+async def generate_reactions(client: LLMClient, records: list[dict], changes: list[dict],
+                             profile: str = "synthetic_demo") -> list[tuple[Reaction, bool]]:
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
 
     async def _guarded(rec: dict) -> tuple[Reaction, bool]:
         async with sem:
-            return await react_one(client, rec, changes)
+            return await react_one(client, rec, changes, profile)
 
     # Order so each persona's calls are ADJACENT — prefix locality for DeepSeek's prompt cache (the
     # shared framing+change prefix hits after call #1 regardless; adjacency also warms the persona slice).
@@ -269,13 +307,13 @@ def newest_instrumented() -> Path:
     return files[-1]
 
 
-async def smoke_test(client: LLMClient, changes: list[dict]) -> None:
+async def smoke_test(client: LLMClient, changes: list[dict], profile: str = "synthetic_demo") -> None:
     """One cheap call so a bad/absent key (or model id) surfaces ONCE, not as N concurrent failures.
 
     Uses the REAL shared prefix (so it WARMS DeepSeek's prompt cache — the batch then hits it instead of
     all cold-missing). Tolerates transient overload (backoff); a real auth/config error raises immediately.
     """
-    system = shared_prefix(changes, "sim") + "- Test persona: a neutral test character."
+    system = shared_prefix(changes, "sim", profile) + "- Test persona: a neutral test character."
     for attempt in range(4):
         try:
             await client.generate_json(
@@ -302,15 +340,17 @@ async def run(instrumented_path: Path) -> Path:
     if scenario_art.meta.run_id != scenario_run_id:
         raise SystemExit(f"run-id mismatch: instrumented {scenario_run_id!r} != artifact {scenario_art.meta.run_id!r}")
     changes = [c.model_dump() for c in changes_of(scenario_art)]
+    # V2.2a: the demand profile drives window rendering (calibrated -> clock times, t=0 == 07:00)
+    profile = getattr(scenario_art.meta, "demand_profile", None) or "synthetic_demo"
 
     client, provider, model = get_client()
     n_sim = sum(1 for r in records if r["grounding"] == "sim")
     print(f"[llm] provider={provider} model={model}  agents={len(records)} ({n_sim} sim + {len(records) - n_sim} inferred)")
 
     print("[llm] smoke test (warms the shared-prefix cache) ...")
-    await smoke_test(client, changes)  # raises here (clear error) if the key/model is bad
+    await smoke_test(client, changes, profile)  # raises here (clear error) if the key/model is bad
 
-    results = await generate_reactions(client, records, changes)
+    results = await generate_reactions(client, records, changes, profile)
     reactions = [r for r, _ in results]
     fallbacks = sum(1 for _, fb in results if fb)
 

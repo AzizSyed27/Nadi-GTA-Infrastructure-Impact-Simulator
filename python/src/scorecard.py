@@ -61,9 +61,17 @@ _ACCESS_HEURISTIC = {
     "new_road": {
         "car_commuter": -0.5,   # a new through-route improves driver connectivity
     },
+    # V2.2a: a lane_closure narrows the road for cars (positive = worse). Other groups: no heuristic.
+    "lane_closure": {
+        "car_commuter": 0.5,    # coarse ordinal — capacity removed on the target edge
+    },
 }
-# change types whose non-heuristic'd groups should still render a NULL cell WITH a note (vs an absent cell).
-_NULL_WITH_NOTE = {"new_road"}
+# change types whose non-heuristic'd groups render a NULL cell WITH the given note (vs an absent cell).
+# road_closure: severed/closed — an "access" ordinal for a road that is closed is not meaningful.
+_NULL_WITH_NOTE = {
+    "new_road": "no access heuristic for this change type yet",
+    "road_closure": "road severed/closed — access heuristic not meaningful",
+}
 
 
 def _group_of_entity(eid: str) -> str:
@@ -135,15 +143,21 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
     def access_cell(group: str) -> ScorecardCell | None:
         # v0.5.0 composite: collect this group's access heuristic across every change in the scenario.
         # confidence LOW: the entire access column is a rule-based heuristic, not measured.
-        contribs = [_ACCESS_HEURISTIC.get(c.get("type"), {})[group]
-                    for c in changes if group in _ACCESS_HEURISTIC.get(c.get("type"), {})]
-        if len(contribs) == 1:
-            return ScorecardCell(value=contribs[0], confidence="low", note="rule-based estimate")
-        if len(contribs) > 1:  # honest: don't silently sum overlapping heuristics across composed changes
+        contrib_changes = [c for c in changes if group in _ACCESS_HEURISTIC.get(c.get("type"), {})]
+        if len(contrib_changes) == 1:
+            c = contrib_changes[0]
+            note = "rule-based estimate"
+            # V2.2a time-scoped honesty: a WINDOWED closure's access claim must not render identically
+            # to a permanent one — the estimate applies only while the closure is active.
+            if c.get("type") in ("lane_closure", "road_closure") and c.get("window"):
+                note += "; applies during the closure window"
+            return ScorecardCell(value=_ACCESS_HEURISTIC[c["type"]][group], confidence="low", note=note)
+        if len(contrib_changes) > 1:  # honest: don't silently sum overlapping heuristics across composed changes
             return ScorecardCell(value=None, confidence="low",
                                  note=f"composite scenario ({len(changes)} changes) — per-group access not separable yet")
-        if any(c.get("type") in _NULL_WITH_NOTE for c in changes):  # null magnitude WITH a note, not silently-absent
-            return ScorecardCell(value=None, confidence="low", note="no access heuristic for this change type yet")
+        for c in changes:  # null magnitude WITH a per-type note, not silently-absent
+            if c.get("type") in _NULL_WITH_NOTE:
+                return ScorecardCell(value=None, confidence="low", note=_NULL_WITH_NOTE[c["type"]])
         return None
 
     groups = [
