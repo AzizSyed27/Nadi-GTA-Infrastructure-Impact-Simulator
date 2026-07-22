@@ -1035,6 +1035,10 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     # with the numbers (verify_facts enforces them verbatim).
     rd = facts.get("response_detour")
     if rd is not None:
+        if not rd.get("probes"):
+            # labeled degradation, never silence: say WHY there are no probe numbers
+            L.append(f"- **Response access (free-flow estimate):** "
+                     f"{rd.get('destination_note') or 'not computable for this change'}.")
         for pr in rd.get("probes", []):
             if pr.get("added_s") is not None:
                 L.append(f"- **Response access (free-flow estimate):** from {pr['label']}: baseline "

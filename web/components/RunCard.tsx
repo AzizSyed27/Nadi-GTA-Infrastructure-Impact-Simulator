@@ -149,16 +149,19 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
   // sentences render with the number (never tooltip-only). Unreachable probes surface as words.
   const rd = status?.response_detour;
   const rdComputable = rd?.probes.filter((p) => p.added_s != null) ?? [];
-  const rdUnreachable = rd?.probes.filter((p) => p.added_s == null) ?? [];
+  // "not computable" is deliberately cause-neutral — a null added_s can mean origin unmatched,
+  // unreachable in baseline, or unreachable during the window; the report carries the per-probe
+  // reason. Empty probes (no routable destination) still render the labeled destination_note.
+  const rdNoNumber = rd?.probes.filter((p) => p.added_s == null) ?? [];
   const rdWorst = rdComputable.length ? Math.max(...rdComputable.map((p) => p.added_s as number)) : null;
   const responseLine = rd
     ? rdWorst != null
       ? `+${rdWorst.toFixed(0)} s response-route estimate (${rd.probes.length} probes${
-          rdUnreachable.length ? `, ${rdUnreachable.length} unreachable during the window` : ''
+          rdNoNumber.length ? `, ${rdNoNumber.length} not computable — see the report` : ''
         })`
-      : rdUnreachable.length
-        ? `response destination unreachable during the window (${rd.probes.length} probes)`
-        : null
+      : rdNoNumber.length
+        ? `response route not computable for any probe — see the report (${rd.probes.length} probes)`
+        : rd.destination_note ?? 'response detour not computable — see the report'
     : null;
 
   return (

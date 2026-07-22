@@ -203,6 +203,9 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
     rd = facts.get("response_detour")
     if rd:
         lines = []
+        if not rd.get("probes"):  # labeled degradation: say why there are no probe numbers
+            lines.append(f"Response detour not computable: "
+                         f"{rd.get('destination_note') or 'no routable destination for this change'}.")
         for pr in rd.get("probes", []):
             if pr.get("added_s") is not None:
                 lines.append(f"From {pr['label']}: baseline {pr['baseline_s']} s, during the window "

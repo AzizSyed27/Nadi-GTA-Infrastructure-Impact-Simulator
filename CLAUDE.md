@@ -174,8 +174,8 @@ styled yet (functional-plain; V2.5). No contract change.
 
 **V2.0 is COMPLETE** (Step a contract 0.5.0 + Step b network renderer + report-regeneration housekeeping, all
 committed). The open threads it deliberately deferred: **V2.2** — the runtime CHANGE-SCHEDULER that actually
-APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; **Step a LANDED below** — windows + closures;
-the incident Effect applier is V2.2b); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
+APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; **Steps a+b LANDED below** — windows, closures,
+incidents + the response-detour fact); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
 + standing cleanup live in `BACKLOG.md`.
 
 **V2.1 (a–d) — COMPLETE (calibrated demand, assignment modes, seed robustness, the compare view; the contract is
@@ -262,6 +262,37 @@ now v0.8.0).**
   `Start-Process` — a subagent-shell's job object killed the first acceptance attempt after the baseline leg
   (same class as the server-detach rule; the harness dies silently with run-state stuck "running").
 
+**V2.2 Step b — INCIDENTS + the response-detour fact — COMPLETE (no contract change; incident shapes went live).**
+- **Incident applier:** `incident` joined `WINDOWABLE_TYPES` — a CAPACITY event, never a crash simulation:
+  `effect.blocked` closes `target_lanes` for the window; `effect.speed_factor` scales EVERY lane's speed from the
+  captured values (readback per lane); both combinable — one capture, one LIFO slot, the shared revert restores
+  permissions + per-lane speeds. `position_m` accepted + stored, UNUSED this rung (rung-2 along-edge refinement).
+  Pure `incident_rejection_reason` (8-row matrix, exact strings shared POST/CLI); settled+incident auto-rejects
+  via the windowed rule. TWO predicates split honesty: `invalidates_routes` (closures + blocked incidents →
+  `--ignore-route-errors` + `non_completions`; a speed-only incident never claims stranding) vs `capacity_event`
+  (closures + ALL incidents → the detour fact + temporary-event surfaces). Access cell = honest null + note
+  "temporary incident — access heuristic not meaningful" (user-ratified: access is STRUCTURAL; travel-time + the
+  detour fact carry the incident's story). No surface uses crash/collision/accident wording (test-pinned).
+- **Emergency-response detour (`python/src/response_probe.py` + `response_probes.json`):** for capacity runs,
+  free-flow fastest-path seconds (`getOptimalPath(fastest=True)` — cost IS free-flow time; NEVER
+  `getShortestPath`, distance-only) from the 2 inventory-flagged corridor-entry probes (boundary_clipped TMC
+  records; DATA-not-code JSON) to a deterministic destination at the **first downstream junction with an
+  ALTERNATE approach** (walking past pass-through shape-split nodes — anchoring near-side or at a 1-in/1-out
+  node makes the fact identically-zero/unreachable), baseline vs an in-memory during-window net
+  (`Lane.setPermissions(())` for closures/blocked; the **SUMO-1.27-pinned `edge._speed` poke** for speed_factor —
+  guarded IN the production path: a vanished attr raises naming the pin, never a quietly-unmodified speed).
+  Unreachable = `path is None or cost > 1e39` (threshold, never float equality). BOTH honesty sentences ride the
+  payload and render wherever the numbers do (report block, RunCard chip, chat corpus; `verify_facts` enforces
+  them + re-derives added_s): the FRAMING ("free-flow routing, not a dispatch model") and the LOWER-BOUND note
+  ("does not include congestion the incident induces — a lower bound"). Partial blocks honestly render +0 s with
+  the stays-passable note; full closures produce real numbers (Kingston Rd road_closure: +48.6 s from the Markham
+  entry, test-pinned). Computed ONCE per run (seed-independent static routing), sidecar + run-state
+  `response_detour` + `RunStatus`.
+- **Accepted live:** calibrated bounded day-one Kingston Rd incident (2 of 3 car lanes blocked 07:10–07:30):
+  revert proof verified; **957 car non-completions, 917/20,137 diverted, 17.8% materially affected**; detour
+  honest-zero (partial block) with notes; 61/212 voices react to the blockage with temporary framing, 0 crash
+  words; report audit passed (2 retry-corrected, 0 unresolved). Suites: pytest + 18 Playwright specs green.
+
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
@@ -280,10 +311,11 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
 - **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
   {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
-  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a closures
-  (API-only; no palette UI yet):** `--change-type {lane_closure,road_closure}` + `--target-lanes 1,2` (csv,
-  car-lane indices; lane_closure only) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable:
-  speed_limit + closures). Windowed/severing settled combos are rejected with the shared reason strings. Compare two finished
+  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a/b closures + incidents
+  (API-only; no palette UI yet):** `--change-type {lane_closure,road_closure,incident}` + `--target-lanes 1,2`
+  (csv, car-lane indices) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable: speed_limit
+  + closures + incident) + incident effects `--blocked` / `--speed-factor 0.5` / `--position-m` (stored, unused).
+  Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings. Compare two finished
   runs at `http://localhost:3000/?run=<A>&compare=<B>` (or the ⇄ Compare toggle) — pure frontend, only needs
   `/api/runs` for the pickers.
 - **Bounded-calibrated convention (V2.1):** calibrated runs are bounded to the peak hour by launching the SERVER

@@ -161,6 +161,27 @@ def test_report_response_access_block_renders_with_both_sentences() -> None:
     assert rp.FRAMING in md and rp.LOWER_BOUND_NOTE in md
 
 
+def test_report_response_access_uncomputable_is_labeled_not_silent() -> None:
+    # destination_edge None -> probes [] must render the destination_note as a labeled absence
+    # (the labeled-degradation rule), never a floating disclaimer with no explanation.
+    import report
+    import response_probe as rp
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    out["response_detour"] = {
+        "framing": rp.FRAMING, "lower_bound_note": rp.LOWER_BOUND_NOTE,
+        "destination_edge": None,
+        "destination_note": "dead-end downstream of the changed road — detour not computable",
+        "probes": []}
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "detour not computable" in md  # the labeled reason renders
+    assert "Response access" in md
+
+
 def test_report_verify_catches_doctored_detour_and_missing_framing() -> None:
     import pytest as _pytest
 

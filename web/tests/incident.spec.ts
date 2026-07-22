@@ -59,7 +59,7 @@ test('an incident run surfaces the response-access chip with both honesty senten
 
   const chip = page.getByTestId('response-access-chip');
   await expect(chip).toBeVisible();
-  await expect(chip).toContainText('+49 s response-route estimate (2 probes, 1 unreachable during the window)');
+  await expect(chip).toContainText('+49 s response-route estimate (2 probes, 1 not computable — see the report)');
   // BOTH honesty sentences render with the number — never tooltip-only.
   await expect(chip).toContainText(FRAMING);
   await expect(chip).toContainText(LOWER_BOUND);
