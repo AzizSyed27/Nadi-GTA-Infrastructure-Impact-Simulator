@@ -176,11 +176,27 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
     joined = " ".join(change_lines)
     prefix = "The proposed change being previewed" if len(change_lines) == 1 else \
         f"The proposed scenario composes {len(change_lines)} changes"
+    # V2.2a — closure runs: non-completions are a first-class fact the chat must be able to retrieve
+    # (never averaged into travel-time deltas), alongside the window-revert proof.
+    closure_txt = ""
+    if facts.get("non_completions") is not None:
+        nc = facts["non_completions"]
+        closure_txt = (f" Non-completions under the closure: {nc.get('car', 0)} cars, "
+                       f"{nc.get('bicycle', 0)} bicycles, {nc.get('pedestrian', 0)} pedestrians completed "
+                       f"in baseline but not in the closure run; they are counted as non-completions, "
+                       f"never averaged into travel-time deltas.")
+    for ev in facts.get("window_events") or []:
+        if ev.get("reverted_t") is not None and ev.get("restored_ok"):
+            closure_txt += (" The closure window was applied and reverted within the run; the restored "
+                            "road state was verified to match the pre-closure capture exactly.")
+        elif ev.get("note"):
+            closure_txt += f" Closure window note: {ev['note']}."
     docs.append(_doc("change", "The proposed change being previewed",
                      f"{prefix}: {joined} "
                      f"Demand simulated on the corridor: {facts['demand']['car']} cars, "
                      f"{facts['demand']['bicycle']} bicycles, {facts['demand']['pedestrian']} pedestrians. "
-                     f"In-run adaptation: {facts['cars_rerouted']} cars rerouted within the run."))
+                     f"In-run adaptation: {facts['cars_rerouted']} cars rerouted within the run."
+                     + closure_txt))
 
     # --- robustness / cross-seed verdict ---
     if verdict:

@@ -66,6 +66,131 @@ def test_reactions_road_closure_windowed_synthetic_sim_seconds() -> None:
     assert "other streets" in line
 
 
+# ---------------------------------------------------------------- report closure surfaces
+
+
+def _closure_change(windowed: bool = True, kind: str = "lane_closure"):
+    from contract_models import Change
+
+    return Change(
+        type=kind, target_edge="E1",
+        target_lanes=[0, 1] if kind == "lane_closure" else None,
+        window=Window(start_s=600.0, end_s=2400.0) if windowed else None,
+        description="Closed 2 of 4 car lanes on edge E1" if kind == "lane_closure" else "Closed edge E1 (all lanes)")
+
+
+def _closure_artifact(windowed: bool = True, kind: str = "lane_closure"):
+    from contract_models import Meta, Scenario, Scorecard, ScorecardCell, ScorecardGroup, TrajectoryArtifact, Vehicle
+
+    meta = Meta(run_id="scen-TEST", network="corridor.net.xml", bbox=[-79.3, 43.7, -79.1, 43.8],
+                sim_start=0.0, sim_end=3600.0, step_length=1.0, created_at="2026-07-21T00:00:00+00:00",
+                demand_profile="calibrated_am_peak",
+                scenario=Scenario(baseline_run_id="base-TEST", changes=[_closure_change(windowed, kind)]))
+    groups = [
+        ScorecardGroup(group="car_commuter", grounding="sim",
+                       travel_time_delta=ScorecardCell(value=4.2, affected_share=0.05, confidence="measured", note="tt"),
+                       safety_delta=ScorecardCell(value=6.5, confidence="low", note="safety unstable"),
+                       access_delta=ScorecardCell(value=0.5, confidence="low", note="rule-based estimate")),
+        ScorecardGroup(group="cyclist", grounding="sim",
+                       travel_time_delta=ScorecardCell(value=0.0, affected_share=0.0, confidence="measured", note="tt"),
+                       safety_delta=ScorecardCell(value=6.8, confidence="low", note="safety unstable"),
+                       access_delta=None),
+    ]
+    return TrajectoryArtifact(schema_version="0.5.0", meta=meta,
+                              vehicles=[Vehicle(id="c1", type="car", path=[[-79.2, 43.75], [-79.2, 43.76]],
+                                                timestamps=[0.0, 1.0], speeds=[1.0, 1.0])],
+                              scorecard=Scorecard(groups=groups, bca=None))
+
+
+def _closure_outcomes() -> dict:
+    return {
+        "scenario_run_id": "scen-TEST", "baseline_run_id": "base-TEST",
+        "connectivity_severed_edges": [], "reroute": {"cars_rerouted": 41, "cars_matched": 300},
+        "modes": {"car": {"counts": {"total_demand": 300, "baseline_only": 37}},
+                  "bicycle": {"counts": {"total_demand": 82, "baseline_only": 2}},
+                  "pedestrian": {"counts": {"total_demand": 129, "baseline_only": 0}}},
+        "non_completions": {"car": 37, "bicycle": 2, "pedestrian": 0},
+        "window_events": [{"change_idx": 0, "type": "lane_closure", "target_edge": "E1",
+                           "window": {"start_s": 600.0, "end_s": 2400.0},
+                           "applied_t": 600.0, "reverted_t": 2400.0, "restored_ok": True, "note": None}],
+    }
+
+
+def test_report_facts_carry_closure_numbers_and_verify() -> None:
+    import report
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    assert facts["non_completions"] == {"car": 37, "bicycle": 2, "pedestrian": 0}
+    assert facts["window_events"][0]["restored_ok"] is True
+    report.verify_facts(facts, art, out)  # must not raise
+
+
+def test_report_fact_check_catches_failed_revert() -> None:
+    import pytest as _pytest
+
+    import report
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["window_events"][0]["restored_ok"] = False
+    out["window_events"][0]["restored_ok"] = False  # both views tampered — the guard must still refuse
+    with _pytest.raises(AssertionError, match="restored_ok"):
+        report.verify_facts(facts, art, out)
+
+
+def test_report_fact_check_catches_non_completion_mismatch() -> None:
+    import pytest as _pytest
+
+    import report
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["non_completions"] = {"car": 999, "bicycle": 2, "pedestrian": 0}
+    with _pytest.raises(AssertionError, match="non_completion"):
+        report.verify_facts(facts, art, out)
+
+
+def test_report_markdown_closure_block_renders_clock_times() -> None:
+    import report
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    report_meta = {"generated_at": "2026-07-21T00:00:00Z", "provider": "test", "model": "test",
+                   "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), report_meta)
+    assert "07:10" in md and "07:40" in md  # calibrated -> clock times, never bare sim-seconds
+    assert "restored" in md  # the window-revert proof line
+    assert "completed in baseline but not" in md  # non-completions, first-class
+    assert "37 cars" in md
+    assert "41" in md  # diverted count
+
+
+def test_report_caveats_windowed_and_road_closure() -> None:
+    import report
+
+    art, out = _closure_artifact(windowed=True), _closure_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    titles = [c["title"] for c in report.build_caveats(facts)]
+    assert any("temporary event" in t.lower() for t in titles)
+
+    art_rc = _closure_artifact(windowed=False, kind="road_closure")
+    facts_rc = report.gather_facts(art_rc, out, verdict=None)
+    titles_rc = [c["title"] for c in report.build_caveats(facts_rc)]
+    assert any("strand" in t.lower() for t in titles_rc)
+    assert not any("temporary event" in t.lower() for t in titles_rc)  # unwindowed: no window caveat
+
+
+def test_report_change_phrase_closure_is_mechanical() -> None:
+    import report
+
+    ph = report._change_phrase(_closure_change(windowed=True), "calibrated_am_peak")
+    assert "closed" in ph.lower() and "from 07:10 to 07:40" in ph
+    for banned in ("calmer", "safer"):
+        assert banned not in ph.lower()
+
+
 # ---------------------------------------------------------------- scorecard access heuristic
 
 

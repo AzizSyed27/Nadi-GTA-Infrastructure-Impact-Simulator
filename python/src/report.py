@@ -261,6 +261,10 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         "assignment": getattr(meta, "assignment", None),  # v0.7.0; None for older artifacts = day-one
         "render_sample": getattr(meta, "render_sample", None),
         "calibration": _load_calibration_provenance() if getattr(meta, "demand_profile", None) == "calibrated_am_peak" else None,
+        # V2.2a (closure runs only; None/absent otherwise): the first-class closure numbers —
+        # non-completions per mode (completed baseline, not scenario) + the scheduler's revert proof.
+        "non_completions": outcomes.get("non_completions"),
+        "window_events": outcomes.get("window_events"),
     }
 
 
@@ -289,6 +293,17 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
         problems.append(f"demand {facts['demand']} != source {src_demand}")
     if facts["cars_rerouted"] != outcomes["reroute"]["cars_rerouted"]:
         problems.append("cars_rerouted mismatch")
+
+    # V2.2a closure guards: non_completions must re-derive from the mode counts, and every window
+    # revert we would present as proof must actually carry the restored_ok verification.
+    if facts.get("non_completions") is not None:
+        src_nc = {m: outcomes["modes"][m]["counts"].get("baseline_only")
+                  for m in facts["non_completions"]}
+        if facts["non_completions"] != src_nc:
+            problems.append(f"non_completions {facts['non_completions']} != source {src_nc}")
+    for ev in facts.get("window_events") or []:
+        if ev.get("reverted_t") is not None and ev.get("restored_ok") is not True:
+            problems.append(f"window event {ev.get('change_idx')}: revert without restored_ok proof")
 
     car_cell = artifact.scorecard.groups and {g.group: g for g in artifact.scorecard.groups}["car_commuter"].travel_time_delta
     if round((car_cell.affected_share or 0.0) * 100, 1) != facts["tail_share_pct"]:
@@ -543,7 +558,10 @@ async def _slot(client, system, user, wire, field, name, audit_log) -> dict:
 # Narrative slots
 # ===================================================================================================
 
-def _change_phrase(change) -> str:
+def _change_phrase(change, profile: str = "synthetic_demo") -> str:
+    from demand_profiles import fmt_window
+
+    window_txt = f" {fmt_window(change.window, profile)}" if getattr(change, "window", None) else ""
     if change.type == "new_road":
         lanes = change.lanes or 1
         way = "two-way" if change.bidirectional else "one-way"
@@ -551,12 +569,18 @@ def _change_phrase(change) -> str:
                 f"{change.to_junction} (no sidewalk at this stage)")
     if change.type == "bike_lane":
         return "one general-traffic (car) lane on the corridor is being converted into a bicycle-only lane"
+    if change.type == "lane_closure":  # V2.2a — mechanical; clock times on calibrated (t=0 == 07:00)
+        n = len(change.target_lanes or [])
+        return (f"{n} car lane{'s are' if n != 1 else ' is'} closed on the corridor road{window_txt}; "
+                f"the road stays open in the remaining lane(s)")
+    if change.type == "road_closure":
+        return f"the corridor road is fully closed{window_txt}; traffic must use other streets"
     return change.description
 
 
-def _changes_phrase(changes) -> str:
+def _changes_phrase(changes, profile: str = "synthetic_demo") -> str:
     """A single change renders exactly as before; a composite (v0.5.0) joins each change's phrase."""
-    phrases = [_change_phrase(c) for c in changes]
+    phrases = [_change_phrase(c, profile) for c in changes]
     if len(phrases) == 1:
         return phrases[0]
     return "; and ".join(phrases)
@@ -566,7 +590,8 @@ async def slot_framing(client, facts, audit_log) -> str:
     changes = facts["changes"]
     system = _FRAMING + _json_instr('{"text": "<2-3 plain sentences, NO numbers>"}')
     user = (f"Write 2-3 plain-language sentences framing what is being tested, for a reader who is not a "
-            f"traffic engineer. Mechanically: {_changes_phrase(changes)}. Do NOT assert any benefit (not "
+            f"traffic engineer. Mechanically: {_changes_phrase(changes, facts['demand_profile'])}. Do NOT "
+            f"assert any benefit (not "
             f"'calmer', 'safer'), do NOT include any numbers. Just explain, neutrally, what the change is and "
             f"that this report previews who it would affect.")
     return (await _slot(client, system, user, _TextWire, "text", "framing", audit_log))["text"].strip()
@@ -716,6 +741,22 @@ def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
          "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), "
                  "labelled low-confidence — an estimate to reason about, not a measurement."},
     ]
+    # V2.2a — closure-specific honesty. Windowed: a temporary event has no settled equilibrium, so only
+    # the day-one response is previewed. road_closure: stranded trips are a first-class outcome.
+    chs = facts.get("changes") or []
+    if any(getattr(c, "window", None) is not None and c.type in ("lane_closure", "road_closure") for c in chs):
+        caveats.append(
+            {"title": "A temporary event, previewed as the day-one response only",
+             "body": "The closure applies and is lifted within the simulated period. Temporary events have no "
+                     "settled equilibrium, so no iterated-assignment claim is made — what you see is how "
+                     "travelers respond within the run (diverting, queueing, or not completing), not how the "
+                     "corridor would adapt to a permanent change."})
+    if any(c.type == "road_closure" for c in chs):
+        caveats.append(
+            {"title": "A closure can strand trips",
+             "body": "Trips that start or end on the closed road may be unable to complete. Those travelers "
+                     "are counted as non-completions in section 1 — they are deliberately never averaged into "
+                     "the travel-time deltas, which cover only travelers who completed in both runs."})
     if has_discourse:
         caveats += [
             {"title": "Cascades are illustrative unfoldings",
@@ -929,6 +970,8 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     L.append(framing)
     L.append("")
     # v0.5.0: render every change in the scenario (a single-change scenario is one bullet, as before).
+    from demand_profiles import fmt_sim_time, fmt_window
+    profile = facts.get("demand_profile") or "synthetic_demo"
     for ch in changes:
         lane = f", lane {ch.target_lane}" if ch.target_lane is not None else ""
         if ch.type == "new_road":
@@ -936,12 +979,37 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
             L.append(f"- **Change:** A new {_lanes}-lane {_way} road connecting junction `{ch.from_junction}` and "
                      f"junction `{ch.to_junction}` — a new travel option, no sidewalk at this stage "
                      f"(new edge `{ch.target_edge}`).")
+        elif ch.type in ("lane_closure", "road_closure"):
+            lanes_txt = f", lanes {ch.target_lanes}" if ch.target_lanes else ""
+            window_txt = f" — active {fmt_window(ch.window, profile)}" if getattr(ch, "window", None) else ""
+            L.append(f"- **Change:** {ch.description} (edge `{ch.target_edge}`{lanes_txt}){window_txt}")
         else:
             L.append(f"- **Change:** {ch.description} (edge `{ch.target_edge}`{lane})")
     L.append(f"- **Corridor / network:** `{facts['network']}` — one Toronto corridor")
     L.append(f"- **Demand simulated:** {facts['demand']['car']} cars, {facts['demand']['bicycle']} bicycles, "
              f"{facts['demand']['pedestrian']} pedestrians")
     L.append(f"- **Runs compared:** scenario `{facts['scenario_run_id']}` vs baseline `{facts['baseline_run_id']}`")
+    # V2.2a — the closure block: the window-revert PROOF, diversion, and non-completions are THE
+    # first-class numbers for a closure run. All code-rendered; clock times on calibrated demand.
+    for ev in facts.get("window_events") or []:
+        w = ev.get("window") or {}
+        applied = fmt_sim_time(ev["applied_t"], profile) if ev.get("applied_t") is not None else None
+        if ev.get("reverted_t") is not None:
+            reverted = fmt_sim_time(ev["reverted_t"], profile)
+            L.append(f"- **Closure window (verified):** applied at {applied}, reverted at {reverted} — the "
+                     f"restored road state was checked against the exact pre-closure capture (restored == captured).")
+        elif applied is not None:
+            L.append(f"- **Closure window:** applied at {applied}; {ev.get('note') or 'not reverted within the simulated period'}.")
+        else:
+            L.append(f"- **Closure window:** {ev.get('note') or 'never active within the simulated period'} "
+                     f"(window {w.get('start_s')}–{w.get('end_s')} s).")
+    if facts.get("non_completions") is not None:
+        nc = facts["non_completions"]
+        L.append(f"- **Non-completions under the closure:** {nc.get('car', 0)} cars, {nc.get('bicycle', 0)} "
+                 f"bicycles, {nc.get('pedestrian', 0)} pedestrians completed in baseline but not in the closure "
+                 f"run — counted here as non-completions, never averaged into travel-time deltas.")
+        L.append(f"- **Diverted:** {facts['cars_rerouted']} cars ended on a different route than baseline; "
+                 f"the travel-time cells in section 2 are the delay on the alternates (matched travelers only).")
     L.append("")
 
     L.append("## 2. Who is affected, and how")
