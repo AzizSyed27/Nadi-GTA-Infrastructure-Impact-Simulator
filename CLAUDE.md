@@ -174,8 +174,8 @@ styled yet (functional-plain; V2.5). No contract change.
 
 **V2.0 is COMPLETE** (Step a contract 0.5.0 + Step b network renderer + report-regeneration housekeeping, all
 committed). The open threads it deliberately deferred: **V2.2** — the runtime CHANGE-SCHEDULER that actually
-APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; the producer still emits one permanent change
-wrapped as `changes:[change]`); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
+APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; **Step a LANDED below** — windows + closures;
+the incident Effect applier is V2.2b); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
 + standing cleanup live in `BACKLOG.md`.
 
 **V2.1 (a–d) — COMPLETE (calibrated demand, assignment modes, seed robustness, the compare view; the contract is
@@ -222,6 +222,46 @@ now v0.8.0).**
   gets delta arithmetic** and sign-unstable cells refuse too — the refused **"—†"** (amber + legend) is glanceably
   distinct from plain-— absence. No aggregates / winner / recommendation, ever (referendum guard extended;
   `web/tests/compare.spec.ts`).
+**V2.2 Step a — the runtime CHANGE-SCHEDULER + closures — COMPLETE (no contract change; the 0.5.0 shapes went live).**
+- **Scheduler (`python/src/change_scheduler.py`):** windowed changes APPLY at `window.start_s` and REVERT at
+  `end_s` inside the `simulate_multimodal` step loop. Capture-before-apply per lane; restore via `setDisallowed`
+  ONLY and assert restored == captured at revert. **SUMO 1.27 permission facts (probed live, encoded in the
+  FakeConn):** `setAllowed(lane, [])` CLOSES a lane (the old run_sim comment was wrong — fixed) and `getAllowed()`
+  reads `()` for BOTH fully-open and fully-closed, so closure checks/restores go through `getDisallowed`/
+  `setDisallowed` (exact bitmask round-trip); `setDisallowed(lane, ["all"])` is the closure idiom (getDisallowed
+  then returns the EXPANDED 33-class list, never the literal "all"). Same-edge windows must be LIFO-well-formed
+  (disjoint — boundary-touching legal, revert fires before apply at an equal tick — or nested container-first;
+  crossing rejected at build). Unwindowed paths stay byte-identical; seed probes rerun the scheduler for free;
+  window past sim end never reverts (disclosed in the proof log). Windowed speed_limit supported; incident's
+  Effect applier is **V2.2b**.
+- **Closures:** `lane_closure` (`target_lanes` ⊆ car-lane indices, validated at POST vs `car_lane_indices` on the
+  server edge cache AND live at apply — where already-fully-closed lanes count as valid targets: the SETTLED
+  double-expression runs the micro leg on the runtime-patched net and the TraCI re-apply must stay idempotent) +
+  `road_closure` (all lanes). Closure pairs run `--ignore-route-errors` on BOTH legs (symmetric; no-op baseline);
+  rerouting device (already on) diverts proactively. **D1 + severing matrix** — single source
+  `change_scheduler.assignment_rejection_reason`, IDENTICAL strings at POST (400) and harness (SystemExit):
+  settled+windowed(any) and settled+road_closure / settled+lane_closure-closing-all-car-lanes rejected
+  (duaIterate on a severed net, from source: default HALTS the iteration loop on the first unroutable trip;
+  `--continue-on-unbuild` silently drops those trips every iteration). Settled + partial unwindowed lane_closure
+  settles via the extended `patch_runtime_net` (per-lane `disallow="all"`, not-severed gauntlet) — verified live.
+- **Honesty surfaces:** windows render CLOCK TIMES on calibrated (t=0 == 07:00; `demand_profiles.fmt_sim_time`/
+  `fmt_window`) and sim-seconds on synthetic — in reactions (`_change_line` mechanical closure branches +
+  time-scoped `_inferred_context` closure framing), report ("What was tested" bullets + the **closure block**:
+  window-revert proof line, diverted count, per-mode non-completions), run-state descriptions, and the chat
+  corpus. Closure runs surface `window_events` (the scheduler's REVERT PROOF: applied_t/reverted_t/restored_ok)
+  + `non_completions` (per-mode `baseline_only` — the existing 2.2 accounting surfaced by name) in the outcomes
+  sidecar + run-state done extras + `RunStatus`; `verify_facts` guards both. Scorecard access: lane_closure →
+  car_commuter +0.5 low ("rule-based estimate; applies during the closure window" when windowed — a 30-min
+  closure never renders identically to a permanent one); road_closure → honest null "road severed/closed —
+  access heuristic not meaningful". Report caveats add temporary-event (windowed) + stranding (road_closure).
+- **Accepted live:** calibrated bounded day-one Kingston Rd lane_closure (`V22AACC2`, 2 of 3 car lanes,
+  07:10–07:40): revert proof verified on the live net; **935/19,804 cars diverted; non-completions 759 car /
+  2 bike / 5 ped**; artifact validates at 0.8.0; audit passed (1 corrected on retry, 0 unresolved). Plus
+  synthetic windowed lane_closure + road_closure smokes, API e2e (rejections exact + closure extras on
+  status), settled partial closure end-to-end. **Gotcha:** launch LONG harness runs detached via PowerShell
+  `Start-Process` — a subagent-shell's job object killed the first acceptance attempt after the baseline leg
+  (same class as the server-detach rule; the harness dies silently with run-state stuck "running").
+
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
@@ -240,7 +280,10 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
 - **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
   {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
-  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). Compare two finished
+  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a closures
+  (API-only; no palette UI yet):** `--change-type {lane_closure,road_closure}` + `--target-lanes 1,2` (csv,
+  car-lane indices; lane_closure only) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable:
+  speed_limit + closures). Windowed/severing settled combos are rejected with the shared reason strings. Compare two finished
   runs at `http://localhost:3000/?run=<A>&compare=<B>` (or the ⇄ Compare toggle) — pure frontend, only needs
   `/api/runs` for the pickers.
 - **Bounded-calibrated convention (V2.1):** calibrated runs are bounded to the peak hour by launching the SERVER
