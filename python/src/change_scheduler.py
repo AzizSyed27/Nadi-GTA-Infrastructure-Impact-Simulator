@@ -41,29 +41,84 @@ REASON_SETTLED_SEVERED = (
     "cannot honestly settle a severed network — use day-one response"
 )
 
-# Types the scheduler can apply AND revert. incident joins later (Effect applier, V2.2b);
-# bike_lane stays unwindowed-only (a temporary lane conversion has no ratified semantics).
-WINDOWABLE_TYPES = ("speed_limit", "lane_closure", "road_closure")
+# Types the scheduler can apply AND revert. bike_lane stays unwindowed-only (a temporary lane
+# conversion has no ratified semantics). incident (V2.2b) = a CAPACITY event, never a crash
+# simulation: effect.blocked closes target_lanes for the window; effect.speed_factor scales
+# every lane's speed; both combinable. position_m is accepted + stored on the artifact but
+# UNUSED this rung (rung-2 refinement: along-edge placement).
+WINDOWABLE_TYPES = ("speed_limit", "lane_closure", "road_closure", "incident")
 
 
 def validate_target_lanes(target_lanes: list[int] | None, car_lane_indices: list[int],
-                          edge_id: str) -> str | None:
+                          edge_id: str, kind: str = "lane_closure") -> str | None:
     """None if valid, else the human reason (the ``bike_lane_reason`` single-source pattern).
 
     Rules: non-empty, no duplicates, and a SUBSET of the edge's CAR-lane indices — closing a
-    sidewalk or bike-only lane via lane_closure is nonsense (road_closure closes ALL lanes).
+    sidewalk or bike-only lane is nonsense (road_closure closes ALL lanes). ``kind`` only names
+    the change in the wording (default keeps the V2.2a lane_closure strings byte-identical).
     """
     if not target_lanes:
-        return f"lane_closure requires non-empty target_lanes on edge {edge_id!r}"
+        return f"{kind} requires non-empty target_lanes on edge {edge_id!r}"
     if len(set(target_lanes)) != len(target_lanes):
         return f"target_lanes has duplicate lane indices {target_lanes} on edge {edge_id!r}"
     bad = [i for i in target_lanes if i not in car_lane_indices]
     if bad:
         return (
             f"target_lanes {bad} are not car lanes on edge {edge_id!r} (car lanes: "
-            f"{car_lane_indices}) — lane_closure only closes car lanes; use road_closure to close the road"
+            f"{car_lane_indices}) — {kind} only closes car lanes; use road_closure to close the road"
         )
     return None
+
+
+def incident_rejection_reason(effect_blocked: bool | None, speed_factor: float | None,
+                              target_lanes: list[int] | None, car_lane_indices: list[int],
+                              edge_id: str) -> str | None:
+    """None if valid, else the human reason — shared verbatim by POST (400) and the harness
+    (SystemExit). Plain args so server.py can call it on request DTOs without contract imports."""
+    if not effect_blocked and speed_factor is None:
+        return "incident requires an effect: blocked and/or speed_factor"
+    if speed_factor is not None and speed_factor <= 0:
+        return "incident speed_factor must be > 0 (a full stop is effect.blocked, not a factor)"
+    if speed_factor is not None and speed_factor > 1:
+        return "incident speed_factor must be <= 1 (an incident cannot raise the speed)"
+    if effect_blocked:
+        if not target_lanes:
+            return f"incident with effect.blocked requires non-empty target_lanes on edge {edge_id!r}"
+        return validate_target_lanes(target_lanes, car_lane_indices, edge_id,
+                                     kind="incident (effect.blocked)")
+    if target_lanes:
+        return "incident target_lanes given without effect.blocked — set blocked: true or drop target_lanes"
+    return None
+
+
+def invalidates_routes(change_type: str, effect_blocked: bool | None = None) -> bool:
+    """Changes that make existing routes INVALID (hard permission removal) — drives
+    --ignore-route-errors + the non_completions surfacing. A speed-only incident can never strand
+    a traveler, so claiming non-completions for it would overreach."""
+    if change_type in ("lane_closure", "road_closure"):
+        return True
+    return change_type == "incident" and bool(effect_blocked)
+
+
+def capacity_event(change_type: str) -> bool:
+    """Changes that reduce corridor capacity (closures + ALL incidents) — drives the
+    emergency-response detour fact + the temporary-event surfaces. A slowed edge genuinely
+    diverts a free-flow response route even without blocking it."""
+    return change_type in ("lane_closure", "road_closure", "incident")
+
+
+def incident_base_desc(target_lanes: list[int] | None, speed_factor: float | None,
+                       edge_id: str) -> str:
+    """The MECHANICAL incident description (no crash words, no asserted benefit) — shared
+    verbatim by the server and harness defaults; callers append fmt_window."""
+    parts = []
+    if target_lanes:
+        n = len(target_lanes)
+        parts.append(f"Blocked {n} car lane{'s' if n != 1 else ''}")
+    if speed_factor is not None:
+        verb = "reduced" if parts else "Reduced"
+        parts.append(f"{verb} speed to {speed_factor * 100:.0f}%")
+    return f"{' and '.join(parts)} on edge {edge_id} (incident)"
 
 
 def assignment_rejection_reason(assignment: str, change_type: str, windowed: bool,
@@ -123,6 +178,13 @@ def apply_closure(conn, edge_id: str, lane_indices: list[int]) -> None:
 
 def apply_speed(conn, edge_id: str, value_mps: float) -> None:
     conn.edge.setMaxSpeed(edge_id, value_mps)  # sets ALL lanes of the edge
+
+
+def apply_speed_factor(conn, captured: list[LaneState], factor: float) -> None:
+    """Scale every lane's speed FROM the captured value (exact + idempotent under re-apply;
+    preserves heterogeneous per-lane speeds — revert_lanes restores them per lane)."""
+    for s in captured:
+        conn.lane.setMaxSpeed(s.lane_id, s.max_speed * factor)
 
 
 def revert_lanes(conn, captured: list[LaneState]) -> None:
@@ -295,6 +357,23 @@ class ChangeScheduler:
             assert abs(got - change.value_mps) < 1e-6, (
                 f"apply readback: speed {got} != intended {change.value_mps} on {edge}"
             )
+        elif change.type == "incident":
+            # A CAPACITY event: blocked -> close target_lanes; speed_factor -> scale every lane
+            # from the captured speeds. One capture (all lanes), one LIFO slot; the shared revert
+            # path restores permissions AND per-lane speeds. position_m: stored, UNUSED this rung.
+            eff = change.effect
+            if eff.blocked:
+                blocked = list(change.target_lanes)
+                apply_closure(self.conn, edge, blocked)
+                assert_closed(self.conn, edge, blocked)
+            if eff.speed_factor is not None:
+                apply_speed_factor(self.conn, self.captured[idx], eff.speed_factor)
+                for s in self.captured[idx]:  # readback EVERY lane (blocked lanes keep speeds too)
+                    got = self.conn.lane.getMaxSpeed(s.lane_id)
+                    want = s.max_speed * eff.speed_factor
+                    assert abs(got - want) < 1e-6, (
+                        f"apply readback: lane {s.lane_id} speed {got} != captured*factor {want}"
+                    )
         else:
             apply_closure(self.conn, edge, lanes)
             assert_closed(self.conn, edge, lanes)

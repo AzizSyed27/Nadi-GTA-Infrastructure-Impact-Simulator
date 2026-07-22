@@ -408,6 +408,143 @@ def test_tampered_restore_trips_the_assert() -> None:
         run_to(sched, 600.0)
 
 
+def incident(edge: str, start: float, end: float, *, blocked: bool = False,
+             speed_factor: float | None = None, lanes: list[int] | None = None,
+             position_m: float | None = None) -> Change:
+    from contract_models import Effect
+
+    return Change(type="incident", target_edge=edge, target_lanes=lanes,
+                  window=Window(start_s=start, end_s=end),
+                  effect=Effect(blocked=blocked or None, speed_factor=speed_factor),
+                  position_m=position_m, description="test incident")
+
+
+# ---------------------------------------------------------------- incident applier (V2.2b)
+
+def test_incident_blocked_only_closes_target_lanes_and_reverts() -> None:
+    conn = make_conn()
+    before = conn.state_of("E")
+    sched = cs.ChangeScheduler(conn, [incident("E", 100.0, 500.0, blocked=True, lanes=[1, 2])],
+                               max_t=3600.0)
+    sched.start()
+    run_to(sched, 200.0)
+    assert "passenger" in conn.lane.getDisallowed("E_1")
+    assert "bus" in conn.lane.getDisallowed("E_2")
+    assert conn.state_of("E")[0] == before[0]  # sidewalk untouched
+    run_to(sched, 600.0)
+    assert conn.state_of("E") == before
+    (e,) = sched.finalize(600.0)
+    assert e["restored_ok"] is True and e["type"] == "incident"
+
+
+def test_incident_speed_only_scales_every_lane_and_restores_heterogeneous() -> None:
+    conn = make_conn()  # E speeds: 5.0 / 13.89 / 11.0 (heterogeneous)
+    before = conn.state_of("E")
+    sched = cs.ChangeScheduler(conn, [incident("E", 100.0, 500.0, speed_factor=0.5)], max_t=3600.0)
+    sched.start()
+    run_to(sched, 200.0)
+    assert [s for _, _, s in conn.state_of("E")] == [2.5, 6.945, 5.5]  # captured x factor, per lane
+    assert "passenger" not in conn.lane.getDisallowed("E_1")  # permissions untouched
+    run_to(sched, 600.0)
+    assert conn.state_of("E") == before
+
+
+def test_incident_combined_blocked_and_speed_one_capture_one_revert() -> None:
+    conn = make_conn()
+    before = conn.state_of("E")
+    ch = incident("E", 100.0, 500.0, blocked=True, speed_factor=0.5, lanes=[1])
+    sched = cs.ChangeScheduler(conn, [ch], max_t=3600.0)
+    sched.start()
+    run_to(sched, 200.0)
+    assert "passenger" in conn.lane.getDisallowed("E_1")           # blocked lane closed
+    assert conn.lane.getMaxSpeed("E_2") == 5.5                     # AND all lanes slowed
+    run_to(sched, 600.0)
+    assert conn.state_of("E") == before                            # single revert restores both
+    (e,) = sched.finalize(600.0)
+    assert e["restored_ok"] is True
+
+
+def test_incident_position_m_is_accepted_but_inert() -> None:
+    # position_m is stored on the artifact but UNUSED this rung — behavior byte-identical.
+    c1, c2 = make_conn(), make_conn()
+    for conn, pos in ((c1, None), (c2, 120.0)):
+        sched = cs.ChangeScheduler(conn, [incident("E", 100.0, 500.0, blocked=True, lanes=[1],
+                                                   position_m=pos)], max_t=3600.0)
+        sched.start()
+        run_to(sched, 600.0)
+    assert c1.calls == c2.calls
+
+
+def test_incident_composes_lifo_with_a_speed_limit_window() -> None:
+    conn = make_conn()
+    original = conn.state_of("E")
+    changes = [speed_limit("E", 8.33, 100.0, 900.0),
+               incident("E", 300.0, 600.0, blocked=True, lanes=[1])]
+    sched = cs.ChangeScheduler(conn, changes, max_t=3600.0)
+    sched.start()
+    run_to(sched, 200.0)
+    outer = conn.state_of("E")
+    run_to(sched, 400.0)
+    assert "passenger" in conn.lane.getDisallowed("E_1")
+    run_to(sched, 700.0)  # incident reverts -> back to the speed_limit intermediate
+    assert conn.state_of("E") == outer
+    run_to(sched, 1000.0)
+    assert conn.state_of("E") == original
+
+
+def test_windowed_incident_accepted_windowed_bike_lane_still_rejected() -> None:
+    cs.ChangeScheduler(make_conn(), [incident("E", 10.0, 20.0, speed_factor=0.5)], max_t=3600.0)
+    ch = Change(type="bike_lane", target_edge="E", window=Window(start_s=10.0, end_s=20.0),
+                description="windowed bike lane")
+    with pytest.raises(ValueError, match="windowed 'bike_lane'"):
+        cs.ChangeScheduler(make_conn(), [ch], max_t=3600.0)
+
+
+def test_incident_rejection_reason_matrix() -> None:
+    f = cs.incident_rejection_reason
+    car = [1, 2]
+    assert f(True, None, [1], car, "E") is None
+    assert f(None, 0.5, None, car, "E") is None
+    assert f(True, 0.5, [1, 2], car, "E") is None
+    assert f(None, None, None, car, "E") == "incident requires an effect: blocked and/or speed_factor"
+    assert f(True, None, None, car, "E") == "incident with effect.blocked requires non-empty target_lanes on edge 'E'"
+    assert f(True, None, [], car, "E") == "incident with effect.blocked requires non-empty target_lanes on edge 'E'"
+    assert "not car lanes" in f(True, None, [0], car, "E") and "incident (effect.blocked)" in f(True, None, [0], car, "E")
+    assert f(None, 0.5, [1], car, "E") == \
+        "incident target_lanes given without effect.blocked — set blocked: true or drop target_lanes"
+    assert f(None, 0.0, None, car, "E") == \
+        "incident speed_factor must be > 0 (a full stop is effect.blocked, not a factor)"
+    assert f(None, 1.5, None, car, "E") == \
+        "incident speed_factor must be <= 1 (an incident cannot raise the speed)"
+
+
+def test_capacity_predicates() -> None:
+    assert cs.invalidates_routes("lane_closure") and cs.invalidates_routes("road_closure")
+    assert cs.invalidates_routes("incident", True)
+    assert not cs.invalidates_routes("incident", None)   # speed-only can't strand anyone
+    assert not cs.invalidates_routes("speed_limit") and not cs.invalidates_routes("bike_lane")
+    assert cs.capacity_event("lane_closure") and cs.capacity_event("road_closure")
+    assert cs.capacity_event("incident")                  # ALL incidents get the detour fact
+    assert not cs.capacity_event("speed_limit") and not cs.capacity_event("new_road")
+
+
+def test_incident_base_desc_mechanical() -> None:
+    assert cs.incident_base_desc([1, 2], None, "E") == "Blocked 2 car lanes on edge E (incident)"
+    assert cs.incident_base_desc(None, 0.5, "E") == "Reduced speed to 50% on edge E (incident)"
+    both = cs.incident_base_desc([1], 0.25, "E")
+    assert both == "Blocked 1 car lane and reduced speed to 25% on edge E (incident)"
+    for banned in ("crash", "collision", "accident"):
+        assert banned not in both.lower()
+
+
+def test_validate_target_lanes_default_kind_byte_identical() -> None:
+    # V2.2a regression pin: the default-kind strings must not change with the new `kind` param.
+    assert cs.validate_target_lanes(None, [1, 2], "E") == \
+        "lane_closure requires non-empty target_lanes on edge 'E'"
+    r = cs.validate_target_lanes([0], [1, 2], "E")
+    assert "lane_closure only closes car lanes" in r
+
+
 # ---------------------------------------------------------------- run_sim.apply_change (unwindowed once-path)
 
 def _patched_run_sim(monkeypatch, conn):
