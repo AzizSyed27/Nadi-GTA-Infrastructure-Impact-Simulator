@@ -384,6 +384,46 @@ def test_tampered_restore_trips_the_assert() -> None:
         run_to(sched, 600.0)
 
 
+# ---------------------------------------------------------------- run_sim.apply_change (unwindowed once-path)
+
+def _patched_run_sim(monkeypatch, conn):
+    import run_sim
+    monkeypatch.setattr(run_sim, "conn", conn)
+    return run_sim
+
+
+def test_apply_change_lane_closure_closes_only_target_lanes(monkeypatch) -> None:
+    conn = make_conn()
+    rs = _patched_run_sim(monkeypatch, conn)
+    before = conn.state_of("E")
+    rs.apply_change(lane_closure("E", [1]))
+    assert "passenger" in conn.lane.getDisallowed("E_1")
+    assert conn.state_of("E")[0] == before[0]  # sidewalk untouched
+    assert conn.state_of("E")[2] == before[2]  # bus/bike lane untouched
+
+
+def test_apply_change_lane_closure_rejects_non_car_lane(monkeypatch) -> None:
+    conn = make_conn()
+    rs = _patched_run_sim(monkeypatch, conn)
+    with pytest.raises(ValueError, match="not car lanes"):
+        rs.apply_change(lane_closure("E", [0]))  # 0 is the sidewalk
+
+
+def test_apply_change_road_closure_closes_every_lane(monkeypatch) -> None:
+    conn = make_conn()
+    rs = _patched_run_sim(monkeypatch, conn)
+    rs.apply_change(road_closure("E"))
+    for i in range(3):
+        assert "passenger" in conn.lane.getDisallowed(f"E_{i}")
+
+
+def test_apply_change_closure_unknown_edge_refuses(monkeypatch) -> None:
+    conn = make_conn()
+    rs = _patched_run_sim(monkeypatch, conn)
+    with pytest.raises(ValueError, match="not in the network"):
+        rs.apply_change(road_closure("NOPE"))
+
+
 # ---------------------------------------------------------------- pure validators
 
 def test_validate_target_lanes_matrix() -> None:

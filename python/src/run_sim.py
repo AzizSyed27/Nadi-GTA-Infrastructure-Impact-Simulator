@@ -139,13 +139,41 @@ def apply_change(change: Change, target_lane: int | None = None) -> None:
             raise ValueError(f"converting lane {idx} would leave 0 car lanes on {change.target_edge!r}")
         lane = f"{change.target_edge}_{idx}"
         before_a, before_d = conn.lane.getAllowed(lane), conn.lane.getDisallowed(lane)
-        conn.lane.setAllowed(lane, ["bicycle"])  # bicycle-only; empty list would mean "all", so be explicit
+        # bicycle-only, explicitly: setAllowed(lane, []) would CLOSE the lane (an empty class list
+        # parses to permissions 0 in SUMO 1.27 — probed 2026-07-21), it does NOT mean "all".
+        conn.lane.setAllowed(lane, ["bicycle"])
         after_a = conn.lane.getAllowed(lane)
         remaining = [i for i in car_lanes if i != idx]
         print(
             f"[change] bike_lane on edge {change.target_edge!r} lane {idx} (id {lane!r}): "
             f"allowed {tuple(before_a) or '(all)'} / disallowed {tuple(before_d) or '()'} "
             f"-> allowed {tuple(after_a)}; car lanes {car_lanes} -> remaining for cars {remaining}"
+        )
+    elif change.type in ("lane_closure", "road_closure"):
+        # V2.2a: UNWINDOWED closures — apply once, in force for the whole run. Windowed closures
+        # go through change_scheduler.ChangeScheduler instead (apply at start_s, revert at end_s);
+        # both paths share the same primitives so the closure semantics can never diverge.
+        import change_scheduler
+
+        if change.target_edge not in conn.edge.getIDList():
+            raise ValueError(
+                f"target_edge {change.target_edge!r} is not in the network — refusing to no-op silently"
+            )
+        if change.type == "lane_closure":
+            car_lanes = _car_lane_indices(change.target_edge)
+            reason = change_scheduler.validate_target_lanes(change.target_lanes, car_lanes, change.target_edge)
+            if reason is not None:
+                raise ValueError(reason)
+            lanes = list(change.target_lanes)
+        else:
+            lanes = list(range(conn.edge.getLaneNumber(change.target_edge)))
+        before = change_scheduler.capture_lanes(conn, change.target_edge, lanes)
+        change_scheduler.apply_closure(conn, change.target_edge, lanes)
+        change_scheduler.assert_closed(conn, change.target_edge, lanes)
+        closed = [s.lane_id for s in before]
+        print(
+            f"[change] {change.type} on edge {change.target_edge!r}: closed lanes {closed} "
+            f"(setDisallowed 'all'; permanent for this run)"
         )
     else:
         raise NotImplementedError(f"change type {change.type!r} is not implemented yet")
