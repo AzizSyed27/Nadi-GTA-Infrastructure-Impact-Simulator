@@ -1,0 +1,20 @@
+{
+  "_schema_note": "DATA, not code — the fixed emergency-response probe ORIGINS for the detour fact (response_probe.py). Edit/extend freely; labels are user-facing.",
+  "_provenance": "corridor-edge entry points: the 2 records flagged match.boundary_clipped=true in data/counts/counts-inventory-20260714T043040Z.json (TMC intersections at the bbox edge where a cross street enters the corridor)",
+  "probes": [
+    {
+      "label": "Markham Rd / Kingston Rd (corridor entry)",
+      "lon": -79.217036,
+      "lat": 43.738777,
+      "inventory_id": "tmc_113586",
+      "junction_hint": "9349929996"
+    },
+    {
+      "label": "Ellesmere Rd / Midland Ave (corridor entry)",
+      "lon": -79.27111,
+      "lat": 43.767925,
+      "inventory_id": "tmc_112956",
+      "junction_hint": "469705485"
+    }
+  ]
+}

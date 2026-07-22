@@ -997,10 +997,12 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     rec_b = SpillRecorder(spill_root / f"{base_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
     rec_s = SpillRecorder(spill_root / f"{scen_id}.jsonl", convert=net.convertXY2LonLat) if prof.spill else None
     profile_kw = {"cfg_path": prof.cfg, "max_t": prof.max_t}
-    # V2.2a closures: --ignore-route-errors on BOTH legs (and probe legs) of a closure pair —
-    # symmetric like SSM/rerouting, a no-op in baseline; other change types stay byte-identical.
-    is_closure = change is not None and change.type in ("lane_closure", "road_closure")
-    profile_kw["ignore_route_errors"] = is_closure
+    # V2.2a/b: --ignore-route-errors on BOTH legs (and probe legs) ONLY for route-INVALIDATING
+    # changes (closures + incident-with-blocked) — symmetric like SSM/rerouting, a no-op in
+    # baseline. Speed-only incidents keep route errors FATAL (they can't invalidate a route; a
+    # route error there is a real bug). Other change types stay byte-identical.
+    profile_kw["ignore_route_errors"] = change is not None and change_scheduler.invalidates_routes(
+        change.type, change.effect.blocked if change.effect else None)
     window_events: list[dict] = []  # scheduler proof log (canonical scenario leg only)
 
     # ---- V2.1c SETTLED assignment: iterate CAR routes per leg (meso duaIterate) before the micro pair.
@@ -1442,6 +1444,57 @@ def _run_closure(args, change_type: str) -> None:
         raise
 
 
+def _run_incident(args) -> None:
+    """V2.2b: a windowed CAPACITY incident (blocked lanes and/or speed x factor; never a crash
+    simulation) via ``run_quant_runtime`` — same shape as ``_run_closure``. position_m is accepted
+    and stored on the artifact but UNUSED this rung (rung-2 along-edge refinement)."""
+    import network_edit
+    import run_state
+    from contract_models import Effect
+    from demand_profiles import fmt_window
+
+    if not args.target_edge:
+        raise SystemExit("incident needs --target-edge (incidents are user-directed; no auto-pick)")
+    edge = args.target_edge
+    net = sumolib.net.readNet(str(run_sim.NET))
+    car_lanes = network_edit._car_lane_indices_static(net, edge)
+    window = _parse_window(args)
+    if window is None:
+        raise SystemExit("incident requires a window (a temporary event; --window-start/--window-end in sim-seconds)")
+    lanes = [int(s) for s in (args.target_lanes or "").split(",") if s.strip() != ""] or None
+    blocked = bool(getattr(args, "blocked", False))
+    speed_factor = getattr(args, "speed_factor", None)
+    reason = change_scheduler.incident_rejection_reason(blocked or None, speed_factor, lanes, car_lanes, edge)
+    if reason is not None:
+        raise SystemExit(reason)
+    closes_all = blocked and set(car_lanes) <= set(lanes or [])
+    reason = change_scheduler.assignment_rejection_reason(
+        getattr(args, "assignment", "day_one"), "incident", True, closes_all)
+    if reason is not None:
+        raise SystemExit(reason)
+
+    profile = getattr(args, "demand_profile", "synthetic_demo")
+    desc = args.description or (
+        change_scheduler.incident_base_desc(lanes if blocked else None, speed_factor, edge)
+        + f" {fmt_window(window, profile)}")
+    change = Change(type="incident", target_edge=edge, target_lanes=lanes, window=window,
+                    effect=Effect(blocked=blocked or None, speed_factor=speed_factor),
+                    position_m=getattr(args, "position_m", None), description=desc)
+    ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    try:
+        run_state.set_stage(run_id, "baseline", change.description,
+                            description=change.description, change=change.model_dump(exclude_none=True))
+        res = run_quant_runtime(change, ts, None, profile=profile,
+                                assignment=getattr(args, "assignment", "day_one"),
+                                n_seeds=getattr(args, "n_seeds", 1))
+        print(f"\n[incident] DONE — {res['scen_id']}; cars rerouted {res['cars_rerouted']}, "
+              f"car median delta {res['car_median_delta_s']}s")
+    except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
+        run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
+        raise
+
+
 def _resolve_records_for_artifact(ids: dict, buckets: dict, profile: str) -> tuple[dict, dict | None]:
     """(records, render_meta) for the artifact build. Synthetic path: the full in-memory records,
     no cap (behavior unchanged). Spill path: the outcome-stratified render sample read back from the
@@ -1638,17 +1691,20 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
                                      if len(conflicts_render) < len(conflicts_s) else None)
     seeds_obj, seed_cells = _attach_seed_ranges(sc, ids, change, profile, demand, assignment)
 
-    # V2.2a closures: the first-class numbers are diverted count (reroute), NON-COMPLETIONS
-    # (baseline_only = completed in baseline but not under the closure — the existing 2.2
-    # accounting surfaced by name), and delay on the alternates (the matched travel-time cells).
-    # window_events is the scheduler's window-revert PROOF log. Both keys appear ONLY for
-    # closure/windowed runs — every other run's sidecar stays byte-identical.
-    is_closure = change.type in ("lane_closure", "road_closure")
+    # V2.2a/b capacity events: the first-class numbers are diverted count (reroute),
+    # NON-COMPLETIONS (baseline_only — ONLY for route-invalidating changes; a speed-only incident
+    # can't strand anyone), the scheduler's window-revert PROOF (window_events), and the
+    # emergency-response DETOUR fact (free-flow routing estimate, all closures + incidents,
+    # computed ONCE — it is seed-independent static routing). Keys appear ONLY for these runs —
+    # every other run's sidecar stays byte-identical.
     closure_extras = {}
-    if is_closure:
+    if change_scheduler.invalidates_routes(change.type, change.effect.blocked if change.effect else None):
         closure_extras["non_completions"] = {m: buckets[m]["counts"]["baseline_only"] for m in buckets}
     if ids.get("window_events"):
         closure_extras["window_events"] = ids["window_events"]
+    if change_scheduler.capacity_event(change.type):
+        import response_probe
+        closure_extras["response_detour"] = response_probe.compute_response_detour([change])
 
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
@@ -1716,10 +1772,12 @@ def _run_new_road(args) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Baseline-vs-scenario SUMO harness (multi-modal bike_lane / speed_limit).")
-    ap.add_argument("--change-type", choices=["bike_lane", "speed_limit", "new_road", "lane_closure", "road_closure"],
+    ap.add_argument("--change-type",
+                    choices=["bike_lane", "speed_limit", "new_road", "lane_closure", "road_closure", "incident"],
                     default="bike_lane",
                     help="bike_lane = Phase-2 multi-modal (default); speed_limit = Phase-1 cars-only; "
-                         "new_road = 5.1; lane_closure / road_closure = V2.2a (windowable)")
+                         "new_road = 5.1; lane_closure / road_closure = V2.2a; incident = V2.2b "
+                         "(a windowed capacity event: --blocked and/or --speed-factor)")
     ap.add_argument("--target-edge", default=None, help="SUMO edge id to change (default: auto-pick busiest)")
     ap.add_argument("--target-lane", type=int, default=None, help="lane index to convert (bike_lane; default: curbside car lane)")
     # V2.2a closures + windows
@@ -1729,6 +1787,13 @@ def main() -> None:
                     help="windowed change: apply at this sim-second (with --window-end; revert at end)")
     ap.add_argument("--window-end", type=float, default=None, dest="window_end",
                     help="windowed change: revert at this sim-second (past sim end = never reverts, disclosed)")
+    # V2.2b incident effect flags
+    ap.add_argument("--blocked", action="store_true",
+                    help="incident: block --target-lanes for the window (a capacity event, not a crash)")
+    ap.add_argument("--speed-factor", type=float, default=None, dest="speed_factor",
+                    help="incident: multiply the edge's lane speeds by this factor for the window (0 < f <= 1)")
+    ap.add_argument("--position-m", type=float, default=None, dest="position_m",
+                    help="incident: along-edge position (accepted + stored on the artifact; UNUSED this rung)")
     ap.add_argument("--speed-mps", type=float, default=DEFAULT_SPEED_MPS, help="new max speed in m/s (speed_limit)")
     # new_road geometry (5.1)
     ap.add_argument("--from-junction", default=None, help="new_road: existing junction id the road departs")
@@ -1753,6 +1818,8 @@ def main() -> None:
         _run_new_road(args)
     elif args.change_type in ("lane_closure", "road_closure"):
         _run_closure(args, args.change_type)
+    elif args.change_type == "incident":
+        _run_incident(args)
     else:
         _run_bike_lane(args)
 
