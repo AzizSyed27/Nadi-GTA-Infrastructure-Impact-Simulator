@@ -293,6 +293,42 @@ now v0.8.0).**
   honest-zero (partial block) with notes; 61/212 voices react to the blockage with temporary framing, 0 crash
   words; report audit passed (2 retry-corrected, 0 unresolved). Suites: pytest + 18 Playwright specs green.
 
+**V2.2 Step c — closures + incidents in the EDITOR — COMPLETE (no contract change).**
+- **Palette (`EdgePalette.tsx`):** Close lanes (a picker over the edge's REAL `car_lane_indices` — now shipped
+  through `/api/edges`; sidewalk never offered), Close road, Incident (blocked lanes and/or slowdown %; window
+  REQUIRED). Window inputs = start + duration MINUTES → sim-seconds on the wire; the resolved range renders as
+  clock times on calibrated ("07:10–07:30") and an input-unit echo on synthetic ("10–30 min"). Any windowed
+  draft LOCKS the assignment toggle to day-one with the exact D1 sentence shown (`assignment-locked-reason`;
+  client copy of `REASON_WINDOWED_SETTLED` — the server 400 stays the backstop; submit forces day_one
+  belt-and-braces). NO client descriptions — the server composes the canonical clock-time description.
+- **Per-type overlays (`MapView.tsx`; first `@deck.gl/extensions` use):** capacity changes leave the amber
+  legacy overlay — lane_closure = amber hazard stripes over dark casing (PathStyleExtension dash [4,3]),
+  road_closure = dense red barring [1.5,1.5], incident = amber-red dashes + a dot-'!' marker (TextLayer glyph,
+  zero binary assets) + a window BADGE ("07:24–07:42"; TextLayer with a STATIC characterSet — the en-dash is
+  outside deck's default ASCII set, and a data-derived charset goes empty when the item is inactive and breaks
+  the font atlas). **PLAYBACK TIME-TRUTH:** windowed overlays render ONLY within their window during playback
+  (the conflict-pulses CPU-filter-on-t pattern); other modes always show them. Legend gains `legend-item-*`
+  rows ("N lane(s) closed · range" — the denominator is never derived from network.json's TOTAL lanes). Test
+  seam `window.__nadiChangeOverlay` (per-item active flags); specs SEEK by scrubbing the Timeline slider (the
+  app's own pause-and-seek path — a raw setState seek loses races against the Timeline's rAF loop).
+- **RunCard:** `window-chip` ("2 lane(s) closed 07:15–09:00", clock per profile via `web/lib/simTime.ts` — the
+  client mirror of `demand_profiles.fmt_sim_time`, keep in lockstep) + a `non-completions` line for capacity runs.
+- **Non-completions SPLIT (Prelim B):** scenario+baseline departed-ids (zero extra TraCI calls in the recorder
+  branch; guarded adds in legacy) partition `baseline_only` into `entered_not_finished` vs the causally-NEUTRAL
+  **`not_inserted`** — plus `insertion_backlog` {baseline, scenario} per mode. **INVARIANT (user-confirmed): the
+  split never renders without the attribution parenthetical** ("insertion backlog affects baseline runs too:
+  {B} vs {S}") — the backlog is STRUCTURAL (the V2.1b shortfall), not closure-caused; a three-way route-invalid
+  bucket was checked and rejected with evidence (0 discard warnings in both real calibrated closure logs — the
+  rerouting device fixes routes PRE-insertion, so --ignore-route-errors discards ~never fire). Sidecar +
+  run-state + RunStatus + report (verify_facts: split sums + backlog recompute) + chat corpus.
+- **Prelim A CLOSED — the nonzero detour rendered live end-to-end:** a palette-driven windowed road_closure on
+  Kingston Rd (`multimodal-scenario-20260725T030121Z`, synthetic — the detour is free-flow static routing,
+  demand-independent): Markham entry **57.0 → 105.7 s = +48.6 s** (matches the test pin), Ellesmere honest 0,
+  report block renders nonzero with BOTH honesty sentences. Live smoke: a palette-driven windowed lane_closure
+  ran to done through the real API; chips + playback appear/disappear verified in the real UI.
+- Suites: 247 pytest + 26 Playwright green (3 new spec files; the maplibre StrictMode warm-reload convention
+  applies to any spec deep-linking a tiny fixture).
+
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
@@ -311,8 +347,9 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
 - **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
   {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
-  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a/b closures + incidents
-  (API-only; no palette UI yet):** `--change-type {lane_closure,road_closure,incident}` + `--target-lanes 1,2`
+  for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a/b/c closures + incidents
+  (since V2.2c the ✏️ Edit palette drives all of this — lane picker / close road / incident + window inputs):**
+  `--change-type {lane_closure,road_closure,incident}` + `--target-lanes 1,2`
   (csv, car-lane indices) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable: speed_limit
   + closures + incident) + incident effects `--blocked` / `--speed-factor 0.5` / `--position-m` (stored, unused).
   Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings. Compare two finished
