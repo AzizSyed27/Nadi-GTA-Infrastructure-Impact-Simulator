@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Junction, Edge, RunOptions } from '@/lib/api';
+import type { ChangeWindow, Junction, Edge, RunOptions } from '@/lib/api';
 import type { Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { RunSwitcher } from '@/components/RunSwitcher';
@@ -40,6 +40,12 @@ interface EditPanelProps {
   onEdgeSpeed: (valueMps: number) => void;
   onEdgeBike: () => void;
   onEdgeCancel: () => void;
+  // V2.2c — temporary events (closures + incident) + the windowed → day_one lock
+  onEdgeLaneClosure: (lanes: number[], window: ChangeWindow | null) => void;
+  onEdgeRoadClosure: (window: ChangeWindow | null) => void;
+  onEdgeIncident: (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => void;
+  onWindowedDraft: (active: boolean) => void;
+  windowLocked: boolean; // a windowed draft is pending → assignment locks to day_one
 }
 
 // RATIFIED phase-5 road defaults — a two-way, two-lane, ~50 km/h street (what a planner usually draws, and
@@ -124,8 +130,11 @@ function DrawForm({
   );
 }
 
-/** V2.1b/c/d — run options for the NEXT run. The assignment + seeds copy is the ratified honest framing. */
-function RunOptionsBlock({ options, onChange }: { options: RunOptions; onChange: (o: RunOptions) => void }) {
+/** V2.1b/c/d — run options for the NEXT run. The assignment + seeds copy is the ratified honest framing.
+ * V2.2c: a pending WINDOWED draft locks assignment to day-one with the D1 reason shown. */
+function RunOptionsBlock({ options, onChange, windowLocked }: {
+  options: RunOptions; onChange: (o: RunOptions) => void; windowLocked: boolean;
+}) {
   const assignment = options.assignment ?? 'day_one';
   const seeds = options.n_seeds ?? 1;
   return (
@@ -142,15 +151,23 @@ function RunOptionsBlock({ options, onChange }: { options: RunOptions; onChange:
           <option value="calibrated_am_peak">Calibrated AM peak (count-anchored; slower)</option>
         </select>
       </label>
-      <label style={checkRow}>
+      <label style={{ ...checkRow, ...(windowLocked ? { opacity: 0.55 } : null) }}>
         <input
           type="checkbox"
-          checked={assignment === 'settled'}
+          checked={!windowLocked && assignment === 'settled'}
+          disabled={windowLocked}
           onChange={(e) => onChange({ ...options, assignment: e.target.checked ? 'settled' : 'day_one' })}
           data-testid="option-assignment"
         />
         Settled response
       </label>
+      {windowLocked && (
+        // the EXACT D1 sentence — client copy of change_scheduler.REASON_WINDOWED_SETTLED
+        // (python/src/change_scheduler.py); the server 400 with the same words is the backstop.
+        <div style={hintText} data-testid="assignment-locked-reason">
+          temporary events have no equilibrium; use day-one response
+        </div>
+      )}
       <div style={hintText}>
         Day-one response: travelers react with today&apos;s habits (minutes). Settled response: travelers
         have adjusted to the change (iterated assignment; takes substantially longer).
@@ -183,7 +200,9 @@ export function EditPanel(props: EditPanelProps) {
   return (
     <div style={rail} data-testid="edit-panel">
       <RunSwitcher activeRunId={activeRunId} onLoad={props.onLoadRun} />
-      {!activeRunId && <RunOptionsBlock options={props.runOptions} onChange={props.onRunOptions} />}
+      {!activeRunId && (
+        <RunOptionsBlock options={props.runOptions} onChange={props.onRunOptions} windowLocked={props.windowLocked} />
+      )}
 
       {activeRunId ? (
         <>
@@ -221,10 +240,15 @@ export function EditPanel(props: EditPanelProps) {
         <EdgePalette
           key={props.selectedEdge.id}
           edge={props.selectedEdge}
+          demandProfile={props.runOptions.demand_profile ?? 'synthetic_demo'}
           submitting={submitting}
           submitError={submitError}
           onSpeedLimit={props.onEdgeSpeed}
           onBikeLane={props.onEdgeBike}
+          onLaneClosure={props.onEdgeLaneClosure}
+          onRoadClosure={props.onEdgeRoadClosure}
+          onIncident={props.onEdgeIncident}
+          onWindowedDraft={props.onWindowedDraft}
           onCancel={props.onEdgeCancel}
         />
       ) : (

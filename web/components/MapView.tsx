@@ -13,7 +13,7 @@ import { changesOf } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
-import { getJunctions, getEdges, postSimulate, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, type ChangeWindow, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -511,7 +511,11 @@ export default function MapView() {
   const submitChange = useCallback(async (change: SimChange) => {
     setSubmitting(true);
     setSubmitError(null);
-    const res = await postSimulate(change, runOptionsRef.current);
+    // V2.2c belt-and-braces under the UI lock: a windowed change (incident is always windowed)
+    // ships with day_one — the server 400 with the shared D1 reason stays the visible backstop.
+    const windowed = 'window' in change && change.window != null;
+    const opts = windowed ? { ...runOptionsRef.current, assignment: 'day_one' as const } : runOptionsRef.current;
+    const res = await postSimulate(change, opts);
     setSubmitting(false);
     if (!res.ok) {
       setSubmitError(res.error); // includes the 409 lock message + the bike-lane ineligibility reason
@@ -554,6 +558,44 @@ export default function MapView() {
     if (!selectedEdge) return;
     submitChange({ type: 'bike_lane', target_edge: selectedEdge.id, description: `Bike lane on ${selectedEdge.id}` });
   }, [selectedEdge, submitChange]);
+
+  // V2.2c — temporary events. NO client description: the server composes the canonical
+  // clock-time description (fmt_window; single source with the report/chips).
+  const [draftWindowed, setDraftWindowed] = useState(false);
+  const onEdgeLaneClosure = useCallback(
+    (lanes: number[], window: ChangeWindow | null) => {
+      if (!selectedEdge) return;
+      submitChange({ type: 'lane_closure', target_edge: selectedEdge.id, target_lanes: lanes,
+        ...(window ? { window } : {}) });
+    },
+    [selectedEdge, submitChange],
+  );
+  const onEdgeRoadClosure = useCallback(
+    (window: ChangeWindow | null) => {
+      if (!selectedEdge) return;
+      submitChange({ type: 'road_closure', target_edge: selectedEdge.id, ...(window ? { window } : {}) });
+    },
+    [selectedEdge, submitChange],
+  );
+  const onEdgeIncident = useCallback(
+    (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => {
+      if (!selectedEdge) return;
+      submitChange({
+        type: 'incident', target_edge: selectedEdge.id, window: p.window,
+        effect: { ...(p.lanes.length ? { blocked: true } : {}),
+                  ...(p.speedFactor != null ? { speed_factor: p.speedFactor } : {}) },
+        ...(p.lanes.length ? { target_lanes: p.lanes } : {}),
+      });
+    },
+    [selectedEdge, submitChange],
+  );
+  // While a windowed draft is pending, force the NEXT run's assignment to day_one (the toggle is
+  // disabled with the D1 reason in the options block).
+  useEffect(() => {
+    if (draftWindowed && runOptionsRef.current.assignment === 'settled') {
+      setRunOptions((o) => ({ ...o, assignment: 'day_one' }));
+    }
+  }, [draftWindowed]);
 
   const resetDraw = useCallback(() => {
     setPtA(null);
@@ -954,6 +996,11 @@ export default function MapView() {
           onEdgeSpeed={onEdgeSpeed}
           onEdgeBike={onEdgeBike}
           onEdgeCancel={() => setSelectedEdge(null)}
+          onEdgeLaneClosure={onEdgeLaneClosure}
+          onEdgeRoadClosure={onEdgeRoadClosure}
+          onEdgeIncident={onEdgeIncident}
+          onWindowedDraft={setDraftWindowed}
+          windowLocked={draftWindowed}
         />
       ) : effectiveMode === 'playback' ? (
         <>
