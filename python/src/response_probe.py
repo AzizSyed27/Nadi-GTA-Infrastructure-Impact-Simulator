@@ -169,12 +169,15 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
             continue
         base_s = _route_seconds(base_net, o_base, base_net.getEdge(dest_id))
         scen_s = _route_seconds(scen_net, scen_net.getEdge(o_base.getID()), scen_net.getEdge(dest_id))
+        # Round FIRST, then derive added_s from the ROUNDED pair: the stored triple must be
+        # arithmetically self-consistent (verify_facts recomputes from the rounded values, and so
+        # would any reader — raw-minus-raw can straddle a rounding boundary; caught live).
         row: dict = {"label": p["label"], "origin_edge": o_base.getID(),
                      "baseline_s": round(base_s, 1) if base_s is not None else None,
                      "scenario_s": round(scen_s, 1) if scen_s is not None else None,
                      "added_s": None, "note": None}
         if base_s is not None and scen_s is not None:
-            row["added_s"] = round(scen_s - base_s, 1)
+            row["added_s"] = round(row["scenario_s"] - row["baseline_s"], 1)
             if row["added_s"] == 0.0 and blocked_only:
                 row["note"] = ("the changed road stays passable at unchanged free-flow speed on "
                                "this route — no added time under free-flow routing")

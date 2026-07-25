@@ -128,6 +128,10 @@ def test_road_closure_detour_and_undo_round_trip(nets) -> None:
                 assert pr["note"]  # unreachable is a labeled fact, never silence
             else:
                 assert 0 <= pr["added_s"] < 36000  # never a 1e400-scale silent-wrong
+                # the stored TRIPLE must be arithmetically self-consistent (a reader recomputes
+                # from the rounded values; verify_facts enforces the same — caught live on the
+                # Kingston road_closure where raw-vs-rounded straddled a rounding boundary)
+                assert pr["added_s"] == round(pr["scenario_s"] - pr["baseline_s"], 1)
     finally:
         undo()
     after = {e.getID(): (tuple(ln.getPermissions() for ln in e.getLanes()), e.getSpeed())
