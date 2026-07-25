@@ -416,7 +416,8 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                         recorder: SpillRecorder | None = None,
                         route_override: list[Path] | None = None,
                         ignore_route_errors: bool = False,
-                        window_events: list[dict] | None = None):
+                        window_events: list[dict] | None = None,
+                        departed_out: set[str] | None = None):
     """Run the multimodal sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). If ``change`` is given it is applied
     once at sim start. SSM (observer) + rerouting are IDENTICAL in both runs — only the lane perm differs.
@@ -511,9 +512,14 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                 # simply vanish from getAllSubscriptionResults. Mode from the id prefix — the same
                 # convention join_per_mode splits on (bike*); routeSampler builds enforce it.
                 import traci.constants as tc
-                for vid in conn.simulation.getDepartedIDList():
+                step_departed_v = conn.simulation.getDepartedIDList()
+                step_departed_p = conn.simulation.getDepartedPersonIDList()
+                if departed_out is not None:  # V2.2c: zero extra TraCI calls — results already in hand
+                    departed_out.update(step_departed_v)
+                    departed_out.update(step_departed_p)
+                for vid in step_departed_v:
                     conn.vehicle.subscribe(vid, (tc.VAR_POSITION, tc.VAR_SPEED))
-                for pid in conn.simulation.getDepartedPersonIDList():
+                for pid in step_departed_p:
                     conn.person.subscribe(pid, (tc.VAR_POSITION, tc.VAR_SPEED))
                 veh = conn.vehicle.getAllSubscriptionResults()
                 ped = conn.person.getAllSubscriptionResults()
@@ -536,6 +542,9 @@ def simulate_multimodal(change: Change | None, target_lane: int | None, *, tripi
                     recorder.record(pid, "pedestrian", pos[0], pos[1], d[tc.VAR_SPEED], t)
                 recorder.step_end(t, veh.keys() | ped.keys())
                 continue
+            if departed_out is not None:  # V2.2c: guarded — untouched runs make ZERO extra TraCI calls
+                departed_out.update(conn.simulation.getDepartedIDList())
+                departed_out.update(conn.simulation.getDepartedPersonIDList())
             for vid in conn.vehicle.getIDList():
                 mode = "bicycle" if conn.vehicle.getVehicleClass(vid) == "bicycle" else "car"
                 _record(records, vid, mode, conn.vehicle.getPosition(vid), conn.vehicle.getSpeed(vid), t, xy_tracks)
@@ -627,6 +636,45 @@ def join_per_mode(base_tripinfo: Path, scen_tripinfo: Path, demand: dict[str, in
         "bicycle": _join_mode(base_bike, scen_bike, demand["bicycle"]),
         "pedestrian": _join_mode(base_ped, scen_ped, demand["pedestrian"]),
     }
+
+
+def _mode_of_id(eid: str) -> str:
+    """The id-prefix mode convention (same one join_per_mode/the recorder split on):
+    bike* = bicycle, ped* = pedestrian, else car."""
+    if eid.startswith("bike"):
+        return "bicycle"
+    if eid.startswith("ped"):
+        return "pedestrian"
+    return "car"
+
+
+def departed_mode_counts(departed: set[str]) -> dict[str, int]:
+    """How many of the departed ids belong to each mode (backlog arithmetic; no id parsing beyond
+    the established prefix convention)."""
+    counts = {"car": 0, "bicycle": 0, "pedestrian": 0}
+    for eid in departed:
+        counts[_mode_of_id(eid)] += 1
+    return counts
+
+
+def non_completions_split(base_tripinfo: Path, scen_tripinfo: Path, scen_departed: set[str]) -> dict:
+    """V2.2c: partition each mode's baseline_only ids (completed baseline, not scenario) by whether
+    they DEPARTED in the scenario leg: ``entered_not_finished`` (genuinely en route / stranded when
+    the sim ended) vs ``not_inserted`` (never entered the network). ``not_inserted`` is deliberately
+    CAUSALLY NEUTRAL — it blends route-invalid-at-departure (a closure consequence) with the
+    structural insertion backlog (present in baseline runs too; the V2.1b shortfall) — the report's
+    sentence carries that attribution context, never the bucket name alone."""
+    base_v, scen_v = parse_tripinfo(base_tripinfo), parse_tripinfo(scen_tripinfo)
+    base_p, scen_p = parse_personinfo(base_tripinfo), parse_personinfo(scen_tripinfo)
+    out: dict[str, dict[str, int]] = {}
+    for mode in ("car", "bicycle", "pedestrian"):
+        if mode == "pedestrian":
+            b_ids = set(base_p) - set(scen_p)
+        else:
+            b_ids = {i for i in set(base_v) - set(scen_v) if _mode_of_id(i) == mode}
+        entered = len(b_ids & scen_departed)
+        out[mode] = {"entered_not_finished": entered, "not_inserted": len(b_ids) - entered}
+    return out
 
 
 def parse_final_routes(vehroute_path: Path) -> dict[str, str]:
@@ -1004,6 +1052,12 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     profile_kw["ignore_route_errors"] = change is not None and change_scheduler.invalidates_routes(
         change.type, change.effect.blocked if change.effect else None)
     window_events: list[dict] = []  # scheduler proof log (canonical scenario leg only)
+    # V2.2c: departed-id collection for the non-completions split + backlog context — canonical
+    # legs only, and ONLY for route-invalidating runs (same gate as non_completions); other runs
+    # pass None and make zero extra TraCI calls.
+    _collect = profile_kw["ignore_route_errors"]
+    base_departed: set[str] | None = set() if _collect else None
+    scen_departed: set[str] | None = set() if _collect else None
 
     # ---- V2.1c SETTLED assignment: iterate CAR routes per leg (meso duaIterate) before the micro pair.
     # Scope honesty: bikes/peds keep their fixed day-one routes (contract assignment.scope="cars_only").
@@ -1051,7 +1105,7 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
     t0 = _time.perf_counter()
     recs_b, end_b, step_b, rem_b, xy_b = simulate_multimodal(
         None, None, tripinfo_path=paths["base_ti"], vehroute_path=paths["base_vr"], ssm_path=paths["base_ssm"],
-        seed=seed, recorder=rec_b, route_override=route_ov_b, **profile_kw)
+        seed=seed, recorder=rec_b, route_override=route_ov_b, departed_out=base_departed, **profile_kw)
     wall_b = _time.perf_counter() - t0
     if rec_b is not None:  # spill: counts-only provisional (dumping ~60k entities would be huge); PET streamed
         (RUNS_DIR / f"{base_id}.json").write_text(json.dumps({
@@ -1083,7 +1137,8 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
         recs_s, end_s, step_s, rem_s, xy_s = simulate_multimodal(
             change, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
             ssm_path=paths["scen_ssm"], net_override=micro_scenario_net, seed=seed, recorder=rec_s,
-            route_override=route_ov_s, window_events=window_events, **profile_kw)
+            route_override=route_ov_s, window_events=window_events, departed_out=scen_departed,
+            **profile_kw)
     wall_s = _time.perf_counter() - t0
     if rec_s is not None:
         conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": rec_s.conflicts(scen_net, bbox)}
@@ -1155,6 +1210,7 @@ def run_pair_multimodal(change: Change, target_lane: int, net, *, ts: str | None
         "profile": profile, "wall_clock_s": {"baseline": round(wall_b, 1), "scenario": round(wall_s, 1)},
         "assignment": assignment, "settle_stats": settle_stats,
         "seed": seed, "seed_probes": seed_probes, "window_events": window_events,
+        "base_departed": base_departed, "scen_departed": scen_departed,
         "bbox": bbox, "sim_end_s": end_s, "step_s": step_s,
         "conf_b": conf_b, "conf_s": conf_s,
     }
@@ -1700,6 +1756,18 @@ def run_quant_runtime(change: Change, ts: str, target_lane: int | None, severed:
     closure_extras = {}
     if change_scheduler.invalidates_routes(change.type, change.effect.blocked if change.effect else None):
         closure_extras["non_completions"] = {m: buckets[m]["counts"]["baseline_only"] for m in buckets}
+        # V2.2c: partition by scenario departure (entered_not_finished vs the causally-NEUTRAL
+        # not_inserted) + the backlog context that keeps not_inserted from reading as
+        # closure-caused (insertion backlog is structural — present in the baseline leg too).
+        if ids.get("scen_departed") is not None:
+            closure_extras["non_completions_split"] = non_completions_split(
+                ids["base_ti"], ids["scen_ti"], ids["scen_departed"])
+            dep_b = departed_mode_counts(ids["base_departed"] or set())
+            dep_s = departed_mode_counts(ids["scen_departed"])
+            closure_extras["insertion_backlog"] = {
+                m: {"baseline": max(0, buckets[m]["counts"]["total_demand"] - dep_b[m]),
+                    "scenario": max(0, buckets[m]["counts"]["total_demand"] - dep_s[m])}
+                for m in buckets}
     if ids.get("window_events"):
         closure_extras["window_events"] = ids["window_events"]
     if change_scheduler.capacity_event(change.type):

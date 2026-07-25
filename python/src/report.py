@@ -265,6 +265,8 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         # non-completions per mode (route-invalidating changes only), the scheduler's revert proof,
         # and the emergency-response detour fact (free-flow routing estimate).
         "non_completions": outcomes.get("non_completions"),
+        "non_completions_split": outcomes.get("non_completions_split"),
+        "insertion_backlog": outcomes.get("insertion_backlog"),
         "window_events": outcomes.get("window_events"),
         "response_detour": outcomes.get("response_detour"),
     }
@@ -303,6 +305,18 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                   for m in facts["non_completions"]}
         if facts["non_completions"] != src_nc:
             problems.append(f"non_completions {facts['non_completions']} != source {src_nc}")
+    # V2.2c: the split must equal its sidecar source AND sum per mode to the total; the backlog
+    # context (what keeps not_inserted causally honest) must equal the sidecar too.
+    if facts.get("non_completions_split") is not None:
+        if facts["non_completions_split"] != outcomes.get("non_completions_split"):
+            problems.append("non_completions_split != sidecar source")
+        for m, buckets_ in facts["non_completions_split"].items():
+            total = (facts.get("non_completions") or {}).get(m)
+            if total is not None and buckets_["entered_not_finished"] + buckets_["not_inserted"] != total:
+                problems.append(f"non_completions_split[{m}] does not sum to non_completions ({total})")
+    if facts.get("insertion_backlog") is not None and \
+            facts["insertion_backlog"] != outcomes.get("insertion_backlog"):
+        problems.append("insertion_backlog != sidecar source")
     for ev in facts.get("window_events") or []:
         if ev.get("reverted_t") is not None and ev.get("restored_ok") is not True:
             problems.append(f"window event {ev.get('change_idx')}: revert without restored_ok proof")
@@ -1029,6 +1043,25 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         L.append(f"- **Non-completions under the {noun}:** {nc.get('car', 0)} cars, {nc.get('bicycle', 0)} "
                  f"bicycles, {nc.get('pedestrian', 0)} pedestrians completed in baseline but not in the {noun} "
                  f"run — counted here as non-completions, never averaged into travel-time deltas.")
+        # V2.2c split — USER-CONFIRMED INVARIANT: not_inserted must NEVER read as closure-caused;
+        # the backlog parenthetical (with the baseline-vs-scenario numbers) is a REQUIRED part of
+        # the sentence, not styling — insertion backlog is structural and hits the baseline leg too.
+        split = facts.get("non_completions_split")
+        backlog = facts.get("insertion_backlog") or {}
+        if split is not None:
+            mode_noun = {"car": "cars", "bicycle": "bicycles", "pedestrian": "pedestrians"}
+            for m, b in split.items():
+                total = b["entered_not_finished"] + b["not_inserted"]
+                if total == 0:
+                    continue
+                bl = backlog.get(m) or {}
+                L.append(
+                    f"  - Of the {total} {mode_noun[m]}: {b['entered_not_finished']} entered the network "
+                    f"and could not finish; {b['not_inserted']} did not enter the network — under a "
+                    f"{noun} this includes trips whose route was invalid at departure, and also trips "
+                    f"still queued to enter when the simulated period ended (insertion backlog affects "
+                    f"baseline runs too: {bl.get('baseline', 0)} vehicles had not entered by the "
+                    f"baseline run's end vs {bl.get('scenario', 0)} in this run).")
         L.append(f"- **Diverted:** {facts['cars_rerouted']} cars ended on a different route than baseline; "
                  f"the travel-time cells in section 2 are the delay on the alternates (matched travelers only).")
     # V2.2b — the emergency-response detour fact, all code-rendered; BOTH honesty sentences ship

@@ -128,6 +128,12 @@ export interface RunStatus {
   // V2.2a (closure runs only): completed in baseline but not under the closure, per mode — the
   // first-class non-completion fact; and the scheduler's window-revert proof log.
   non_completions?: Record<string, number>;
+  // V2.2c: the split partitions non_completions by scenario departure. `not_inserted` is
+  // deliberately causally-NEUTRAL — it blends route-invalid-at-departure with the STRUCTURAL
+  // insertion backlog (present in baseline runs too; see insertion_backlog for the comparison
+  // that bounds attribution).
+  non_completions_split?: Record<string, { entered_not_finished: number; not_inserted: number }>;
+  insertion_backlog?: Record<string, { baseline: number; scenario: number }>;
   window_events?: unknown[];
   // V2.2b (capacity runs: closures + incidents): the emergency-response detour fact — free-flow
   // routing estimate; both honesty sentences ride the payload and must render with the numbers.

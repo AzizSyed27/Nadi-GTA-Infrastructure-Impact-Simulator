@@ -185,6 +185,23 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                        f"{nc.get('bicycle', 0)} bicycles, {nc.get('pedestrian', 0)} pedestrians completed "
                        f"in baseline but not in the closure run; they are counted as non-completions, "
                        f"never averaged into travel-time deltas.")
+        # V2.2c split — the attribution parenthetical is REQUIRED wherever the split renders
+        # (not_inserted must never read as closure-caused; the backlog is structural).
+        split = facts.get("non_completions_split")
+        backlog = facts.get("insertion_backlog") or {}
+        if split is not None:
+            for m, b in split.items():
+                total = b["entered_not_finished"] + b["not_inserted"]
+                if total == 0:
+                    continue
+                bl = backlog.get(m) or {}
+                closure_txt += (
+                    f" Of the {total} {m} non-completions: {b['entered_not_finished']} entered the "
+                    f"network and could not finish; {b['not_inserted']} did not enter the network — "
+                    f"this includes trips whose route was invalid at departure, and also trips still "
+                    f"queued to enter when the simulated period ended (insertion backlog affects "
+                    f"baseline runs too: {bl.get('baseline', 0)} had not entered by the baseline "
+                    f"run's end vs {bl.get('scenario', 0)} in this run).")
     for ev in facts.get("window_events") or []:
         if ev.get("reverted_t") is not None and ev.get("restored_ok"):
             closure_txt += (" The closure window was applied and reverted within the run; the restored "

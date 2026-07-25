@@ -229,6 +229,107 @@ def test_report_caveat_covers_incident_and_speed_only_gets_no_noncompletion_clai
     assert facts["non_completions"] is None  # never invented for speed-only incidents
 
 
+# ---------------------------------------------------------------- non-completions split (V2.2c prelim B)
+
+
+def _write_tripinfo(path, veh_ids: list[str], ped_ids: list[str]) -> None:
+    rows = [f'  <tripinfo id="{v}" depart="0" arrival="100" duration="100" timeLoss="10"/>' for v in veh_ids]
+    rows += [f'  <personinfo id="{p}" depart="0">\n'
+             f'    <walk depart="0" arrival="60" duration="60" timeLoss="5"/>\n'
+             f'  </personinfo>' for p in ped_ids]
+    path.write_text("<tripinfos>\n" + "\n".join(rows) + "\n</tripinfos>\n", encoding="utf-8")
+
+
+def test_non_completions_split_partitions_by_departure(tmp_path) -> None:
+    import scenario_harness as sh
+
+    base = tmp_path / "base.xml"
+    scen = tmp_path / "scen.xml"
+    _write_tripinfo(base, ["veh1", "veh2", "veh3", "bike1"], ["ped1"])
+    _write_tripinfo(scen, ["veh1"], [])
+    # baseline_only: cars {veh2, veh3}, bikes {bike1}, peds {ped1}
+    departed = {"veh2", "bike1"}  # entered the scenario network but never finished
+    split = sh.non_completions_split(base, scen, departed)
+    assert split["car"] == {"entered_not_finished": 1, "not_inserted": 1}
+    assert split["bicycle"] == {"entered_not_finished": 1, "not_inserted": 0}
+    assert split["pedestrian"] == {"entered_not_finished": 0, "not_inserted": 1}
+
+
+def test_departed_mode_counts_by_prefix() -> None:
+    import scenario_harness as sh
+
+    counts = sh.departed_mode_counts({"veh1", "veh2", "bike7", "ped3", "ped4", "ped5"})
+    assert counts == {"car": 2, "bicycle": 1, "pedestrian": 3}
+
+
+def _split_outcomes() -> dict:
+    out = _closure_outcomes()
+    out["non_completions_split"] = {
+        "car": {"entered_not_finished": 30, "not_inserted": 7},
+        "bicycle": {"entered_not_finished": 2, "not_inserted": 0},
+        "pedestrian": {"entered_not_finished": 0, "not_inserted": 0},
+    }
+    out["insertion_backlog"] = {
+        "car": {"baseline": 4100, "scenario": 4180},
+        "bicycle": {"baseline": 3, "scenario": 3},
+        "pedestrian": {"baseline": 12, "scenario": 12},
+    }
+    return out
+
+
+def test_report_split_sentence_is_causally_neutral_with_backlog_parenthetical() -> None:
+    # USER-CONFIRMED INVARIANT: the split may NEVER render without the attribution parenthetical —
+    # not_inserted includes structural insertion backlog the closure did not cause.
+    import report
+
+    art, out = _closure_artifact(), _split_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "Of the 37 cars: 30 entered the network and could not finish; 7 did not enter the network" in md
+    assert "insertion backlog affects baseline runs too" in md
+    assert "4100 vehicles had not entered by the baseline run's end vs 4180 in this run" in md
+    # bicycle sub-bullet renders too (nonzero); pedestrian (all-zero) does not
+    assert "Of the 2 bicycles" in md
+
+
+def test_report_split_back_compat_no_split_renders_as_today() -> None:
+    import report
+
+    art, out = _closure_artifact(), _closure_outcomes()  # no split keys (a pre-c sidecar)
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "Non-completions under the closure" in md
+    assert "entered the network and could not finish" not in md  # no invented split
+
+
+def test_report_verify_rejects_non_summing_split_and_doctored_backlog() -> None:
+    import pytest as _pytest
+
+    import report
+
+    art = _closure_artifact()
+    out = _split_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["non_completions_split"]["car"]["not_inserted"] = 99  # 30+99 != 37
+    with _pytest.raises(AssertionError, match="split"):
+        report.verify_facts(facts, art, out)
+
+    out2 = _split_outcomes()
+    facts2 = report.gather_facts(art, out2, verdict=None)
+    # replace (not mutate) — facts share the sidecar dict by reference (the gather_facts
+    # convention); the threat modeled is a rendering-layer copy diverging from its source.
+    facts2["insertion_backlog"] = {**facts2["insertion_backlog"],
+                                   "car": {"baseline": 1, "scenario": 4180}}
+    with _pytest.raises(AssertionError, match="backlog"):
+        report.verify_facts(facts2, art, out2)
+
+
 # ---------------------------------------------------------------- report closure surfaces
 
 
