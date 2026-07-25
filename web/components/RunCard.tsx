@@ -164,14 +164,27 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
 
   // V2.2c — non-completions as a first-class number for capacity runs; the split's labels are
   // causally NEUTRAL ("not inserted" — the report carries the backlog attribution context).
+  // Per-MODE and skip-zero (mirrors report.py): never hardcode cars — a closure whose whole
+  // impact lands on pedestrians must not read "0 cars did not complete".
   const ncTotal = status?.non_completions
     ? Object.values(status.non_completions).reduce((a, b) => a + b, 0)
     : null;
-  const ncSplitCar = status?.non_completions_split?.car;
+  const ncSplit = status?.non_completions_split;
+  const splitParts = ncSplit
+    ? Object.entries(ncSplit)
+        .filter(([, b]) => b.entered_not_finished + b.not_inserted > 0)
+        .map(([m, b]) => {
+          const bits = [
+            b.entered_not_finished > 0 ? `${b.entered_not_finished} stranded en route` : null,
+            b.not_inserted > 0 ? `${b.not_inserted} not inserted` : null,
+          ].filter(Boolean);
+          return `${m}: ${bits.join(', ')}`;
+        })
+    : [];
   const nonCompletionsLine =
     ncTotal != null && ncTotal > 0
-      ? ncSplitCar
-        ? `${status!.non_completions!.car} cars did not complete (${ncSplitCar.entered_not_finished} stranded en route, ${ncSplitCar.not_inserted} not inserted)`
+      ? splitParts.length
+        ? `${ncTotal} travelers did not complete — ${splitParts.join('; ')}`
         : `${ncTotal} travelers did not complete under the change`
       : null;
 

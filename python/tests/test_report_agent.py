@@ -71,6 +71,32 @@ def _corpus():
     return report_agent.build_corpus(_artifact(), _outcomes(), verdict=None)
 
 
+def test_corpus_split_sentence_carries_attribution_parenthetical():
+    """V2.2c USER-CONFIRMED INVARIANT, pinned on the CHAT surface too: the non-completions split
+    must never render without the backlog attribution parenthetical (not_inserted is causally
+    neutral — the insertion backlog is structural, present in baseline runs too)."""
+    out = _outcomes()
+    out["non_completions"] = {"car": 37, "bicycle": 2, "pedestrian": 0}
+    out["non_completions_split"] = {
+        "car": {"entered_not_finished": 30, "not_inserted": 7},
+        "bicycle": {"entered_not_finished": 2, "not_inserted": 0},
+        "pedestrian": {"entered_not_finished": 0, "not_inserted": 0},
+    }
+    out["insertion_backlog"] = {
+        "car": {"baseline": 4100, "scenario": 4180},
+        "bicycle": {"baseline": 3, "scenario": 3},
+        "pedestrian": {"baseline": 12, "scenario": 12},
+    }
+    docs = {d["source"]: d["text"] for d in report_agent.build_corpus(_artifact(), out, verdict=None)}
+    change_doc = docs["change"]
+    assert "30 entered the network and could not finish" in change_doc
+    assert "7 did not enter the network" in change_doc
+    assert "insertion backlog affects baseline runs too" in change_doc
+    assert "4100 had not entered by the baseline run's end vs 4180 in this run" in change_doc
+    # zero modes never render a split sentence
+    assert "0 pedestrian non-completions" not in change_doc
+
+
 def test_corpus_shape_and_kinds():
     docs = _corpus()
     kinds = Counter(d["source"].split("__")[0] for d in docs)

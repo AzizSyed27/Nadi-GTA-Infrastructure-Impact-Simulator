@@ -285,7 +285,7 @@ now v0.8.0).**
   payload and render wherever the numbers do (report block, RunCard chip, chat corpus; `verify_facts` enforces
   them + re-derives added_s): the FRAMING ("free-flow routing, not a dispatch model") and the LOWER-BOUND note
   ("does not include congestion the incident induces — a lower bound"). Partial blocks honestly render +0 s with
-  the stays-passable note; full closures produce real numbers (Kingston Rd road_closure: +48.6 s from the Markham
+  the stays-passable note; full closures produce real numbers (Kingston Rd road_closure: +48.7 s from the Markham
   entry, test-pinned). Computed ONCE per run (seed-independent static routing), sidecar + run-state
   `response_detour` + `RunStatus`.
 - **Accepted live:** calibrated bounded day-one Kingston Rd incident (2 of 3 car lanes blocked 07:10–07:30):
@@ -323,7 +323,7 @@ now v0.8.0).**
   run-state + RunStatus + report (verify_facts: split sums + backlog recompute) + chat corpus.
 - **Prelim A CLOSED — the nonzero detour rendered live end-to-end:** a palette-driven windowed road_closure on
   Kingston Rd (`multimodal-scenario-20260725T030121Z`, synthetic — the detour is free-flow static routing,
-  demand-independent): Markham entry **57.0 → 105.7 s = +48.6 s** (matches the test pin), Ellesmere honest 0,
+  demand-independent): Markham entry **57.0 → 105.7 s = +48.7 s** (matches the test pin), Ellesmere honest 0,
   report block renders nonzero with BOTH honesty sentences. Live smoke: a palette-driven windowed lane_closure
   ran to done through the real API; chips + playback appear/disappear verified in the real UI.
 - Suites: 247 pytest + 26 Playwright green (3 new spec files; the maplibre StrictMode warm-reload convention

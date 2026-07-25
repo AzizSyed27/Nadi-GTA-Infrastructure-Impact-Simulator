@@ -73,7 +73,7 @@ const midOf = (path: LonLat[]): LonLat => path[Math.floor(path.length / 2)];
 // The window badge's glyphs — STATIC superset (digits, clock/sim forms, the en-dash — which is
 // outside deck.gl's default ASCII characterSet). Never derived from data: an empty computed set
 // (windowed item currently inactive) would break TextLayer's font atlas.
-const BADGE_CHARSET = Array.from('0123456789:–t=s min');
+const BADGE_CHARSET = Array.from('0123456789:–t=s min-'); // ascii '-' too: negative start_s is CLI-reachable
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 

@@ -7,6 +7,8 @@ const CLOCK_ANCHOR_MIN: Record<string, number> = { calibrated_am_peak: 7 * 60 };
 
 export function fmtSimTime(tS: number, profile: string | undefined): string {
   const anchor = profile ? CLOCK_ANCHOR_MIN[profile] : undefined;
+  // known divergence from python's f"t={t_s:g} s": fractional seconds round here. Unreachable
+  // today (all window inputs are minute-granularity) — revisit if sub-second windows ever land.
   if (anchor === undefined) return `t=${Math.round(tS)} s`;
   const totalMin = anchor + Math.floor(tS / 60);
   const hh = String(Math.floor(totalMin / 60) % 24).padStart(2, '0');
