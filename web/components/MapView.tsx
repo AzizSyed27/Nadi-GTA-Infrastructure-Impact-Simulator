@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
+import { PathStyleExtension } from '@deck.gl/extensions';
+import { fmtWindowRange } from '@/lib/simTime';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer, LineLayer, PathLayer, IconLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, LineLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -47,6 +49,27 @@ const ARTIFACT_URL = '/latest.json';
 
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
 const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-seconds, then rests as a dot
+
+// V2.2c — one change-overlay entry per change; capacity types carry their window/lanes/effect so
+// the overlay styles per type and tells the truth in TIME during playback.
+type OverlayItem = {
+  path: LonLat[];
+  type: ChangeType;
+  window?: { start_s: number; end_s: number } | null;
+  target_lanes?: number[] | null;
+  effect?: { blocked?: boolean | null; speed_factor?: number | null } | null;
+};
+const CAPACITY_TYPES: ReadonlySet<string> = new Set(['lane_closure', 'road_closure', 'incident']);
+const CAP_CASING: Record<string, [number, number, number, number]> = {
+  lane_closure: [42, 42, 48, 235], road_closure: [110, 22, 22, 240], incident: [125, 62, 12, 240],
+};
+const CAP_DASH_COLOR: Record<string, [number, number, number, number]> = {
+  lane_closure: [250, 190, 40, 240], road_closure: [225, 62, 50, 245], incident: [246, 122, 40, 245],
+};
+const CAP_DASH: Record<string, [number, number]> = {
+  lane_closure: [4, 3], road_closure: [1.5, 1.5], incident: [3, 2],
+};
+const midOf = (path: LonLat[]): LonLat => path[Math.floor(path.length / 2)];
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
@@ -126,9 +149,8 @@ export default function MapView() {
   // 5.3 change-visibility overlay: the loaded run's change LOCATION, fetched once per run (survives switching +
   // ?run=). Tagged with runId so a stale fetch from a prior run is ignored; error=true → labeled degradation.
   // v0.5.0: a scenario may compose several changes — resolve + render each. `items` is one entry per change.
-  const [changeGeom, setChangeGeom] = useState<
-    { runId: string; items: Array<{ path: LonLat[]; type: ChangeType }>; error: boolean } | null
-  >(null);
+  // V2.2c: items carry window/lanes/effect so capacity changes style per type + gate on sim time.
+  const [changeGeom, setChangeGeom] = useState<{ runId: string; items: OverlayItem[]; error: boolean } | null>(null);
   // V2.0b: the canonical network (base road layer, ALL modes). Loaded once; static.
   const [networkEdges, setNetworkEdges] = useState<NetworkEdge[]>([]);
   // id -> edge, the single source of road geometry (change-overlay + edit tints both resolve against it).
@@ -241,7 +263,7 @@ export default function MapView() {
         if (res.ok) for (const j of res.value.junctions) junctionById[j.id] = [j.lon, j.lat];
         else error = true; // labeled degradation applies to the backend fetch (new_road)
       }
-      const items: Array<{ path: LonLat[]; type: ChangeType }> = [];
+      const items: OverlayItem[] = [];
       for (const change of changes) {
         let geom: LonLat[] | null = null;
         if (change.type === 'new_road' && change.from_junction && change.to_junction) {
@@ -251,7 +273,14 @@ export default function MapView() {
         } else if (change.target_edge) {
           geom = networkLookup[change.target_edge]?.geometry ?? null; // canonical edge → network map
         }
-        if (geom) items.push({ path: geom, type: change.type });
+        // V2.2c: carry the window/lanes/effect so the overlay can style per type AND tell the
+        // truth in TIME (windowed items appear/disappear at their window during playback).
+        if (geom) items.push({
+          path: geom, type: change.type,
+          window: change.window ?? null,
+          target_lanes: change.target_lanes ?? null,
+          effect: change.effect ?? null,
+        });
       }
       if (!cancelled) setChangeGeom({ runId, items, error });
     })();
@@ -653,6 +682,31 @@ export default function MapView() {
     return null;
   }, []);
 
+  // V2.2c test seams (must precede the early return — hooks stay unconditional):
+  // __nadiChangeOverlay mirrors the overlay's per-item ACTIVE state under the playback clock;
+  // __nadiSeek jumps the clock deterministically (playback only; the Timeline keeps advancing
+  // from the seeked value — assert promptly or poll the seam).
+  useEffect(() => {
+    const playbackNow = mode === 'playback' || (mode === 'discourse' && socialIds.length === 0);
+    const items = changeGeom && artifact && changeGeom.runId === artifact.meta.run_id ? changeGeom.items : [];
+    (window as unknown as { __nadiChangeOverlay?: unknown }).__nadiChangeOverlay = {
+      count: items.length,
+      items: items.map((d) => ({
+        type: d.type,
+        windowed: !!d.window,
+        active: !d.window || !playbackNow || (currentTime >= d.window.start_s && currentTime <= d.window.end_s),
+      })),
+    };
+  }, [changeGeom, artifact, currentTime, mode, socialIds]);
+  useEffect(() => {
+    if (mode !== 'playback') return;
+    const w = window as unknown as { __nadiSeek?: (t: number) => void };
+    w.__nadiSeek = (tt: number) => setCurrentTime(tt);
+    return () => {
+      delete w.__nadiSeek;
+    };
+  }, [mode]);
+
   if (!artifact) {
     return <div style={loading}>Loading scenario…</div>;
   }
@@ -830,37 +884,112 @@ export default function MapView() {
     widthUnits: 'pixels',
   });
 
+  // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
+  const effectiveMode = mode === 'discourse' && socialIds.length === 0 ? 'playback' : mode;
+
   // 5.3 CHANGE-VISIBILITY overlay (persistent, ALL modes) — the loaded run's change LOCATION so rerouting cars
   // don't appear to drive through empty space. Derived from the artifact (via the geometry fetch), NOT draw-state.
   // v0.5.0: render EVERY change the scenario composes (per-change color by type). A single-change run is one path.
+  // V2.2c: capacity changes (closures/incident) get per-type styling in their own layers; during PLAYBACK a
+  // windowed change renders ONLY within its window (the map tells the truth in time — the conflict-pulses
+  // pattern: CPU filter on t, arrays rebuilt per frame). Legacy types keep change-overlay pixel-identical.
   const overlayItems = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.items : [];
-  const changeOverlay = new PathLayer<{ path: LonLat[]; type: ChangeType }>({
+  const isOverlayActive = (d: OverlayItem): boolean =>
+    !d.window || effectiveMode !== 'playback' || (t >= d.window.start_s && t <= d.window.end_s);
+  const legacyItems = overlayItems.filter((d) => !CAPACITY_TYPES.has(d.type));
+  const capItems = overlayItems.filter((d) => CAPACITY_TYPES.has(d.type) && isOverlayActive(d));
+  const changeOverlay = new PathLayer<OverlayItem>({
     id: 'change-overlay',
-    data: overlayItems,
+    data: legacyItems,
     getPath: (d) => d.path,
     getColor: (d) => (d.type === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230]), // teal proposed road / amber edit
     getWidth: 6,
     widthUnits: 'pixels',
     capRounded: true,
     jointRounded: true,
-    updateTriggers: { getColor: overlayItems.map((d) => d.type).join(',') },
+    updateTriggers: { getColor: legacyItems.map((d) => d.type).join(',') },
+  });
+  const closureCasing = new PathLayer<OverlayItem>({
+    id: 'closure-casing',
+    data: capItems,
+    getPath: (d) => d.path,
+    getColor: (d) => CAP_CASING[d.type],
+    getWidth: 8,
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+  });
+  const closureDash = new PathLayer<OverlayItem>({
+    id: 'closure-dash',
+    data: capItems,
+    getPath: (d) => d.path,
+    getColor: (d) => CAP_DASH_COLOR[d.type],
+    getWidth: 5,
+    widthUnits: 'pixels',
+    capRounded: false,
+    jointRounded: true,
+    extensions: [new PathStyleExtension({ dash: true })],
+    getDashArray: (d: OverlayItem) => CAP_DASH[d.type], // relative to path width (deck.gl 9.3)
+  } as ConstructorParameters<typeof PathLayer<OverlayItem>>[0]);
+  const incidentItems = capItems.filter((d) => d.type === 'incident');
+  const incidentMarkerDot = new ScatterplotLayer<OverlayItem>({
+    id: 'incident-marker-dot',
+    data: incidentItems,
+    getPosition: (d) => midOf(d.path),
+    getFillColor: [255, 250, 240, 245],
+    getLineColor: [125, 62, 12, 255],
+    stroked: true,
+    lineWidthMinPixels: 2,
+    radiusUnits: 'pixels',
+    getRadius: 9,
+  });
+  const incidentMarkerGlyph = new TextLayer<OverlayItem>({
+    id: 'incident-marker-glyph',
+    data: incidentItems,
+    getPosition: (d) => midOf(d.path),
+    getText: () => '!',
+    getSize: 13,
+    getColor: [125, 62, 12, 255],
+    fontWeight: 800,
+    billboard: true,
+  });
+  // The window badge ("08:15–08:55" calibrated / "t=600–2400 s" synthetic) — rendered whenever the
+  // windowed item renders. The en-dash is OUTSIDE deck.gl's default ASCII characterSet: compute it.
+  const badgeItems = capItems.filter((d) => d.window);
+  const badgeText = (d: OverlayItem) =>
+    fmtWindowRange(d.window!, (meta as { demand_profile?: string }).demand_profile);
+  const windowBadge = new TextLayer<OverlayItem>({
+    id: 'window-badge',
+    data: badgeItems,
+    getPosition: (d) => midOf(d.path),
+    getText: badgeText,
+    getSize: 12,
+    getColor: [55, 55, 60, 255],
+    getPixelOffset: [0, -20],
+    background: true,
+    getBackgroundColor: [255, 252, 240, 235],
+    backgroundPadding: [5, 3, 5, 3],
+    characterSet: Array.from(new Set(badgeItems.flatMap((d) => Array.from(badgeText(d))))),
+    billboard: true,
   });
 
   const layers: Layer[] = [
     ...baseNetworkLayers, // V2.0b: the drawn network — z=0, below everything, all modes
     trails,
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
+    closureCasing,
+    closureDash,
     backgroundVehicleDots,
     backgroundPersonDots,
     conflictDots,
     conflictPulses,
     instrumentedDots,
     flashRing,
+    incidentMarkerDot,
+    incidentMarkerGlyph,
+    windowBadge,
     ...(mode === 'edit' ? [editEdges, snapTargets, drawPreview] : []),
   ];
-
-  // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
-  const effectiveMode = mode === 'discourse' && socialIds.length === 0 ? 'playback' : mode;
   const editing = effectiveMode === 'edit';
   // Draw interactions are live only while actually drawing — NOT while a run card is shown (else background
   // map clicks would silently mutate ptA/ptB and the snap highlight). "Draw another" clears activeRunId.
@@ -922,10 +1051,28 @@ export default function MapView() {
       {effectiveMode !== 'compare' && changeGeom?.runId === meta.run_id && (
         overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
-            <span style={{ ...legendSwatch, background: overlayItems[0].type === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
-            {overlayItems.length === 1
-              ? (overlayItems[0].type === 'new_road' ? 'proposed road' : 'edited street')
-              : `${overlayItems.length} changes`}
+            {overlayItems.length === 1 && CAPACITY_TYPES.has(overlayItems[0].type) ? (
+              // V2.2c per-type row — mechanical wording; lane counts never derived from
+              // network.json's TOTAL lanes (only the change's own target_lanes length).
+              <span data-testid={`legend-item-${overlayItems[0].type}`}>
+                <span style={{ ...legendSwatch, background: `rgb(${CAP_DASH_COLOR[overlayItems[0].type].slice(0, 3).join(',')})` }} />
+                {overlayItems[0].type === 'lane_closure' &&
+                  `${overlayItems[0].target_lanes?.length ?? 0} lane(s) closed`}
+                {overlayItems[0].type === 'road_closure' && 'road closed'}
+                {overlayItems[0].type === 'incident' &&
+                  `incident${overlayItems[0].effect?.speed_factor != null ? ' (slowdown)' : ''}${overlayItems[0].effect?.blocked ? ' (lanes blocked)' : ''}`}
+                {overlayItems[0].window
+                  ? ` · ${fmtWindowRange(overlayItems[0].window, (meta as { demand_profile?: string }).demand_profile)}`
+                  : ''}
+              </span>
+            ) : (
+              <>
+                <span style={{ ...legendSwatch, background: overlayItems[0].type === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
+                {overlayItems.length === 1
+                  ? (overlayItems[0].type === 'new_road' ? 'proposed road' : 'edited street')
+                  : `${overlayItems.length} changes`}
+              </>
+            )}
           </div>
         ) : changeGeom.error ? (
           <div style={changeOfflineNote} data-testid="change-offline">
