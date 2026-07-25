@@ -70,6 +70,10 @@ const CAP_DASH: Record<string, [number, number]> = {
   lane_closure: [4, 3], road_closure: [1.5, 1.5], incident: [3, 2],
 };
 const midOf = (path: LonLat[]): LonLat => path[Math.floor(path.length / 2)];
+// The window badge's glyphs — STATIC superset (digits, clock/sim forms, the en-dash — which is
+// outside deck.gl's default ASCII characterSet). Never derived from data: an empty computed set
+// (windowed item currently inactive) would break TextLayer's font atlas.
+const BADGE_CHARSET = Array.from('0123456789:–t=s min');
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
@@ -698,14 +702,8 @@ export default function MapView() {
       })),
     };
   }, [changeGeom, artifact, currentTime, mode, socialIds]);
-  useEffect(() => {
-    if (mode !== 'playback') return;
-    const w = window as unknown as { __nadiSeek?: (t: number) => void };
-    w.__nadiSeek = (tt: number) => setCurrentTime(tt);
-    return () => {
-      delete w.__nadiSeek;
-    };
-  }, [mode]);
+  // (No __nadiSeek seam: a raw setState seek loses races against the Timeline's rAF loop —
+  // specs scrub the Timeline slider instead, the app's own pause-and-seek path.)
 
   if (!artifact) {
     return <div style={loading}>Loading scenario…</div>;
@@ -969,7 +967,7 @@ export default function MapView() {
     background: true,
     getBackgroundColor: [255, 252, 240, 235],
     backgroundPadding: [5, 3, 5, 3],
-    characterSet: Array.from(new Set(badgeItems.flatMap((d) => Array.from(badgeText(d))))),
+    characterSet: BADGE_CHARSET,
     billboard: true,
   });
 
