@@ -366,15 +366,16 @@ def list_edges(bbox: list[float] | None = None) -> list[dict]:
                     "geometry": [[round(lon, 6), round(lat, 6)] for lon, lat in pts],
                     "speed_mps": round(edge.getSpeed(), 3),
                     "car_lane_count": len(car_lanes),
-                    # V2.2a: server-side cache only (ELIGIBILITY_KEYS unchanged -> /api/edges payload
-                    # byte-identical) — POST /api/simulate validates lane_closure target_lanes vs this.
+                    # V2.2a served POST validation from the cache only; V2.2c ships this through
+                    # /api/edges too — the palette's lane picker needs the real indices.
                     "car_lane_indices": car_lanes,
                     "eligible_bike_lane": eligible, "eligibility_reason": reason})
     return out
 
 
 # V2.0b: the slim projection served by /api/edges (metadata only; geometry lives in web/public/network.json).
-ELIGIBILITY_KEYS = ("id", "car_lane_count", "eligible_bike_lane", "eligibility_reason")
+# V2.2c adds car_lane_indices — the palette's lane picker shows the edge's REAL car-lane indices.
+ELIGIBILITY_KEYS = ("id", "car_lane_count", "car_lane_indices", "eligible_bike_lane", "eligibility_reason")
 
 
 # ==================================================================================================

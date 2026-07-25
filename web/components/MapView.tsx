@@ -402,6 +402,7 @@ export default function MapView() {
       return {
         id, geometry: ne.geometry, speed_mps: ne.speed_mps,
         car_lane_count: el?.car_lane_count ?? 0,
+        car_lane_indices: el?.car_lane_indices ?? [],
         eligible_bike_lane: el?.eligible_bike_lane ?? false,
         eligibility_reason: el?.eligibility_reason ?? 'loading eligibility…',
       };

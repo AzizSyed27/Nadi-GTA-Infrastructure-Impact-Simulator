@@ -22,6 +22,7 @@ export interface Junction {
 export interface EdgeEligibility {
   id: string;
   car_lane_count: number;
+  car_lane_indices: number[]; // V2.2c: the REAL car-lane indices (the palette's lane picker)
   eligible_bike_lane: boolean;
   eligibility_reason: string; // the backend's words (shown as the greyed tooltip when ineligible)
 }
