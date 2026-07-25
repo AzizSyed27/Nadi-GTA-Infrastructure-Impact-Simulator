@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRunStatus, postEnrich, type EnrichStage, type RunStatus } from '@/lib/api';
 import { signedMinutes } from '@/lib/viz';
+import { fmtWindowRange } from '@/lib/simTime';
 
 // The staged progression (matches scenario_harness run-state writes). A new_road run patches the network first
 // (regen); runtime changes (speed_limit / bike_lane) apply live, so they have NO regen stage — the card renders
@@ -145,6 +146,35 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
         ? 'synthetic demo demand'
         : null;
 
+  // V2.2c — the windowed-change chip ("2 lane(s) closed 07:15–09:00"), mechanical from the change
+  // dict + the run's demand profile (clock times on calibrated, t=0 == 07:00).
+  const chWindow = status?.change?.window as { start_s: number; end_s: number } | undefined;
+  const chType = status?.change?.type;
+  const chLanes = (status?.change?.target_lanes as number[] | undefined)?.length ?? 0;
+  const chEffect = status?.change?.effect as { blocked?: boolean; speed_factor?: number } | undefined;
+  const windowChip = chWindow
+    ? chType === 'lane_closure'
+      ? `${chLanes} lane(s) closed ${fmtWindowRange(chWindow, status?.demand_profile)}`
+      : chType === 'road_closure'
+        ? `road closed ${fmtWindowRange(chWindow, status?.demand_profile)}`
+        : chType === 'incident'
+          ? `incident ${fmtWindowRange(chWindow, status?.demand_profile)}${chEffect?.blocked ? ` · ${chLanes} lane(s) blocked` : ''}${chEffect?.speed_factor != null ? ` · slowed to ${Math.round(chEffect.speed_factor * 100)}%` : ''}`
+          : `active ${fmtWindowRange(chWindow, status?.demand_profile)}`
+    : null;
+
+  // V2.2c — non-completions as a first-class number for capacity runs; the split's labels are
+  // causally NEUTRAL ("not inserted" — the report carries the backlog attribution context).
+  const ncTotal = status?.non_completions
+    ? Object.values(status.non_completions).reduce((a, b) => a + b, 0)
+    : null;
+  const ncSplitCar = status?.non_completions_split?.car;
+  const nonCompletionsLine =
+    ncTotal != null && ncTotal > 0
+      ? ncSplitCar
+        ? `${status!.non_completions!.car} cars did not complete (${ncSplitCar.entered_not_finished} stranded en route, ${ncSplitCar.not_inserted} not inserted)`
+        : `${ncTotal} travelers did not complete under the change`
+      : null;
+
   // V2.2b — the emergency-response detour fact (capacity runs). Worst added_s leads; BOTH honesty
   // sentences render with the number (never tooltip-only). Unreachable probes surface as words.
   const rd = status?.response_detour;
@@ -184,6 +214,11 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
           {stage.startsWith('settle') && status?.detail ? ` — ${status.detail}` : ''}
         </div>
       )}
+      {windowChip && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="window-chip">
+          {windowChip}
+        </div>
+      )}
       {(status?.n_seeds ?? 1) > 1 && (
         <div style={{ ...sub, opacity: 0.8 }} data-testid="seeds-chip">
           robustness probe: {status?.n_seeds} seeds (42, 43, 44)
@@ -213,6 +248,9 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
         <>
           <div style={theNumber} data-testid="reroute-number">{rerouteLabel}</div>
           {carDelay && <div style={carDelayLine} data-testid="car-delay">{carDelay}</div>}
+          {nonCompletionsLine && (
+            <div style={carDelayLine} data-testid="non-completions">{nonCompletionsLine}</div>
+          )}
           {responseLine && rd && (
             <div style={{ ...sub, opacity: 0.85 }} data-testid="response-access-chip">
               response access: {responseLine}
