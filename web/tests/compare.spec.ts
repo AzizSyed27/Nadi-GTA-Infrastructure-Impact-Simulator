@@ -137,7 +137,7 @@ async function openCompare(page: Page, runA = 'cmp-settled') {
   await page.goto(`/?run=${runA}`);
   await page.getByTestId('mode-compare').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-compare')).toBeVisible();
+  await expect(page.getByTestId('mode-compare')).toBeVisible({ timeout: 20_000 }); // same budget as the deep-link path (:245)
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   await expect(async () => {
     await page.getByTestId('mode-compare').click({ timeout: 2000 });

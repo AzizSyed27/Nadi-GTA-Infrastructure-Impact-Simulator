@@ -74,7 +74,10 @@ async function mockBackend(page: Page) {
 
 async function enterEditAndLoadJunctions(page: Page) {
   await page.goto('/');
-  await expect(page.getByTestId('mode-edit')).toBeVisible(); // artifact loaded → map mounted → getBounds works
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 }); // artifact loaded → map mounted → getBounds works
+  // Hydration guard (the sibling tests' own convention, :176): the button can be VISIBLE before
+  // React attaches handlers on a cold dev compile — a pre-hydration click fires no junctions fetch.
+  await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   // Arm the response wait BEFORE the click so a fast junctions fetch can't slip past it.
   const jResp = page.waitForResponse((r) => r.url().includes('/api/junctions'));
   await page.getByTestId('mode-edit').click();

@@ -96,7 +96,9 @@ test('the pinned specs are independent of latest.json (overwrite it and they sti
     await expect(page.getByTestId('discourse-feed')).toBeVisible();
     // the default view (latest.json) now shows the new_road run → discourse is locked (no social)
     await page.goto('/');
-    await expect(page.getByTestId('mode-discourse')).toBeDisabled();
+    // 20s: a real ~20MB artifact fetch+ajv on '/' can exceed the 5s default in dev mode (the same
+    // budget the other mount-path waits use)
+    await expect(page.getByTestId('mode-discourse')).toBeDisabled({ timeout: 20_000 });
   } finally {
     fs.writeFileSync(latest, backup); // restore (idempotent; harmless either way once latest.json is gitignored)
   }
