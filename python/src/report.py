@@ -269,6 +269,9 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         "insertion_backlog": outcomes.get("insertion_backlog"),
         "window_events": outcomes.get("window_events"),
         "response_detour": outcomes.get("response_detour"),
+        # V2.2d — scenario tags + the school-zone lens (tag-gated sidecar block; None otherwise)
+        "tags": list(meta.scenario.tags) if getattr(meta.scenario, "tags", None) else None,
+        "zone_facts": outcomes.get("zone_facts"),
     }
 
 
@@ -333,6 +336,23 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                     and pr.get("baseline_s") is not None:
                 if abs(pr["added_s"] - round(pr["scenario_s"] - pr["baseline_s"], 1)) > 0.05:
                     problems.append(f"response probe {pr.get('label')!r}: added_s mismatch")
+
+    # V2.2d — the zone lens pair may never render doctored, or without its honesty notes. The pair
+    # bypasses the scorecard's CellRange/sign_stable machinery, so the variation caveat is a
+    # REQUIRED part of the block (fold-1 lock), verbatim — like the response-detour framing.
+    zf = facts.get("zone_facts")
+    if zf is not None:
+        import zone_lens
+        if zf != outcomes.get("zone_facts"):
+            problems.append("zone_facts != sidecar source")
+        pv = zf.get("ped_vehicle_conflicts") or {}
+        if not (isinstance(pv.get("baseline"), int) and isinstance(pv.get("scenario"), int)
+                and pv["baseline"] >= 0 and pv["scenario"] >= 0):
+            problems.append("zone_facts pair is not a pair of non-negative counts")
+        if zf.get("variation_note") != zone_lens.VARIATION_NOTE:
+            problems.append("zone_facts variation note altered or missing (the pair may not render without it)")
+        if "not modeled schoolchildren" not in (zf.get("population_note") or ""):
+            problems.append("zone_facts population note altered or missing")
 
     car_cell = artifact.scorecard.groups and {g.group: g for g in artifact.scorecard.groups}["car_commuter"].travel_time_delta
     if round((car_cell.affected_share or 0.0) * 100, 1) != facts["tail_share_pct"]:
@@ -790,6 +810,19 @@ def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
              "body": "Trips that start or end on the closed road may be unable to complete. Those travelers "
                      "are counted as non-completions in section 1 — they are deliberately never averaged into "
                      "the travel-time deltas, which cover only travelers who completed in both runs."})
+    # V2.2d — the school-zone lens: both honesty locks ride the caveats too (the block in section 1
+    # carries them next to the numbers; here they join the run's standing limitations).
+    zf = facts.get("zone_facts")
+    if zf is not None:
+        caveats += [
+            {"title": "The zone conflict pair does not establish a direction",
+             "body": f"The zone's ped-vehicle conflict figures are {zf['variation_note']}. The pair sits "
+                     "outside the scorecard, so it carries no cross-seed range — read it as two observed "
+                     "counts, not a measured improvement or worsening."},
+            {"title": "The zone counts measure the modeled population, not schoolchildren",
+             "body": f"{zf['population_note']}. The zone lens is spatial and temporal "
+                     f"({zf['method_note']}), not demographic."},
+        ]
     if has_discourse:
         caveats += [
             {"title": "Cascades are illustrative unfoldings",
@@ -987,6 +1020,29 @@ def render_discourse_md(dfacts: dict, discourse: dict) -> list[str]:
     return L
 
 
+def render_zone_block(facts) -> list[str]:
+    """V2.2d — the school-zone block: a code-rendered PAIR with NO valence (never
+    "increased"/"reduced"; the reader sees both figures), the variation sentence IMMEDIATELY after
+    the pair (a reader who subtracts must meet the caveat in the same breath — the pair has no
+    CellRange/sign_stable machinery), then the population + method notes. Empty for untagged runs."""
+    zf = facts.get("zone_facts")
+    if not zf:
+        return []
+    from demand_profiles import fmt_window
+    profile = facts.get("demand_profile") or "synthetic_demo"
+    pv = zf["ped_vehicle_conflicts"]
+    L = [f"- **School zone (tagged):** {zf['n_edges']} street(s) with a lower speed limit"
+         + (f", {fmt_window(zf['window'], profile)}" if zf.get("window") else "") + "."]
+    L.append(f"- **Ped-vehicle conflict events on zone streets during the window:** "
+             f"**{pv['scenario']}** in the scenario vs **{pv['baseline']}** in the baseline "
+             f"(surrogate near-miss measures, not crash prediction).")
+    L.append(f"  - *{zf['variation_note']}.*")  # ALWAYS adjacent to the pair (verify_facts enforces presence)
+    L.append(f"- *{zf['population_note']}.*")
+    L.append(f"- *{zf['method_note']}"
+             + (f"; {zf['window_note']}" if zf.get("window_note") else "") + ".*")
+    return L
+
+
 def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta, dfacts=None, discourse=None) -> str:
     changes = facts["changes"]
     change = changes[0]  # PRIMARY, for the title
@@ -1087,6 +1143,8 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         if rd.get("origins_note"):
             L.append(f"- *{rd['origins_note']}.*")
         L.append(f"- *{rd.get('framing')}; {rd.get('lower_bound_note')}.*")
+    # V2.2d — the school-zone lens block (tag-gated; empty list for every untagged run).
+    L.extend(render_zone_block(facts))
     L.append("")
 
     L.append("## 2. Who is affected, and how")

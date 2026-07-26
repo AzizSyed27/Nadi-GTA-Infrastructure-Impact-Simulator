@@ -197,6 +197,96 @@ def test_verdict_guard_rejects_a_mismatched_run(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------------------------------
+# V2.2d — the school-zone block: facts flow, fact-check guards, and the code-rendered pair with its
+# ALWAYS-present variation sentence (the pair bypasses the scorecard's robustness machinery).
+# --------------------------------------------------------------------------------------------------
+
+def _zone_artifact() -> TrajectoryArtifact:
+    import zone_lens
+    from contract_models import Window
+    changes = [Change(type="speed_limit", target_edge=e, value_mps=8.33,
+                      window=Window(start_s=600.0, end_s=1200.0),
+                      description=f"school-zone limit on {e}") for e in ("E1", "E2", "E3")]
+    meta = Meta(run_id="scen-ZONE", network="corridor.net.xml", bbox=[-79.3, 43.7, -79.1, 43.8],
+                sim_start=0.0, sim_end=100.0, step_length=1.0, created_at="2026-07-26T00:00:00+00:00",
+                demand_profile="synthetic_demo",
+                scenario=Scenario(baseline_run_id="base-ZONE", changes=changes, tags=["school_zone"]))
+    art = _artifact()
+    return TrajectoryArtifact(schema_version="0.8.0", meta=meta, vehicles=art.vehicles,
+                              scorecard=art.scorecard)
+
+
+def _zone_outcomes() -> dict:
+    import zone_lens
+    out = _outcomes()
+    out["scenario_run_id"], out["baseline_run_id"] = "scen-ZONE", "base-ZONE"
+    out["zone_facts"] = {
+        "tag": "school_zone", "zone_edges": ["E1", "E2", "E3"], "n_edges": 3,
+        "window": {"start_s": 600.0, "end_s": 1200.0},
+        "ped_vehicle_conflicts": {"baseline": 4, "scenario": 7},
+        "method_note": zone_lens.method_note(),
+        "variation_note": zone_lens.VARIATION_NOTE,
+        "population_note": zone_lens.population_note("synthetic_demo"),
+    }
+    return out
+
+
+def test_zone_facts_flow_and_verify_pass():
+    art, out = _zone_artifact(), _zone_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    assert facts["tags"] == ["school_zone"]
+    assert facts["zone_facts"] == out["zone_facts"]
+    report.verify_facts(facts, art, out)  # must not raise
+
+
+def test_fact_check_catches_a_mutated_zone_count():
+    art, out = _zone_artifact(), _zone_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["zone_facts"] = dict(facts["zone_facts"])
+    facts["zone_facts"]["ped_vehicle_conflicts"] = {"baseline": 4, "scenario": 8}  # doctored
+    with pytest.raises(AssertionError, match="zone_facts"):
+        report.verify_facts(facts, art, out)
+
+
+def test_fact_check_requires_the_variation_note_verbatim():
+    # the pair may NEVER render without its run-to-run-variation caveat (fold-1 lock)
+    art, out = _zone_artifact(), _zone_outcomes()
+    out["zone_facts"] = dict(out["zone_facts"])
+    out["zone_facts"]["variation_note"] = "counts vary a bit"  # weakened wording
+    facts = report.gather_facts(art, out, verdict=None)
+    with pytest.raises(AssertionError, match="variation"):
+        report.verify_facts(facts, art, out)
+
+
+def test_zone_block_renders_pair_with_adjacent_variation_sentence():
+    import zone_lens
+    art, out = _zone_artifact(), _zone_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    lines = report.render_zone_block(facts)
+    joined = "\n".join(lines)
+    # the code-rendered pair, no valence anywhere in the block
+    assert "**7**" in joined and "**4**" in joined
+    assert "not crash prediction" in joined
+    for banned in ("increase", "reduce", "safer", "improve", "worsen"):
+        assert banned not in joined.lower()
+    # the variation sentence is IMMEDIATELY adjacent to the pair line (same-breath rule)
+    pair_i = next(i for i, ln in enumerate(lines) if "**7**" in ln)
+    assert zone_lens.VARIATION_NOTE in lines[pair_i + 1]
+    # the population lock renders verbatim
+    assert "not modeled schoolchildren" in joined
+    assert report.render_zone_block({"zone_facts": None}) == []
+
+
+def test_zone_caveats_carry_population_and_variation():
+    art, out = _zone_artifact(), _zone_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    caveats = report.build_caveats(facts)
+    text = " ".join(c["body"] for c in caveats)
+    assert "not modeled schoolchildren" in text
+    assert "run-to-run variation" in text
+
+
+# --------------------------------------------------------------------------------------------------
 # Section-3 bucketing + bounded sentiment-spread sample.
 # --------------------------------------------------------------------------------------------------
 

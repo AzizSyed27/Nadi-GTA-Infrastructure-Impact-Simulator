@@ -110,6 +110,29 @@ def test_corpus_split_sentence_carries_attribution_parenthetical():
     assert "0 pedestrian non-completions" not in change_doc
 
 
+def test_corpus_zone_doc_carries_pair_and_all_notes():
+    """V2.2d — the school-zone lens doc: the pair rides with the variation caveat (ALWAYS — it
+    bypasses the scorecard's range machinery) and the population lock (never schoolchildren)."""
+    import zone_lens
+
+    out = _outcomes()
+    out["zone_facts"] = {
+        "tag": "school_zone", "zone_edges": ["E1", "E2"], "n_edges": 2,
+        "window": {"start_s": 600.0, "end_s": 1200.0},
+        "ped_vehicle_conflicts": {"baseline": 4, "scenario": 7},
+        "method_note": zone_lens.method_note(),
+        "variation_note": zone_lens.VARIATION_NOTE,
+        "population_note": zone_lens.population_note("synthetic_demo"),
+    }
+    docs = {d["source"]: d["text"] for d in report_agent.build_corpus(_artifact(), out, verdict=None)}
+    zone = docs["zone__school_zone__facts"]
+    assert "7 in the scenario vs 4 in the baseline" in zone
+    assert zone_lens.VARIATION_NOTE in zone
+    assert "not modeled schoolchildren" in zone
+    assert "does not establish a direction" in zone
+    assert report_agent.friendly_source("zone__school_zone__facts") == "School-zone conflict lens"
+
+
 def test_corpus_shape_and_kinds():
     docs = _corpus()
     kinds = Counter(d["source"].split("__")[0] for d in docs)

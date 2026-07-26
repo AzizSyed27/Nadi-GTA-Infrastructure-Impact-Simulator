@@ -1786,6 +1786,15 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
     if change_scheduler.any_capacity_event(changes):
         import response_probe
         closure_extras["response_detour"] = response_probe.compute_response_detour(changes)
+    # V2.2d — the school-zone lens: the ped-vehicle crossing pair on zone streets during the
+    # window, counted on both FULL conflict lists (never the render sample). Tag-gated: every
+    # untagged run's sidecar/run-state stays byte-identical.
+    if tags and "school_zone" in tags:
+        import zone_lens
+        closure_extras["zone_facts"] = zone_lens.compute_zone_facts(
+            ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s, changes, tags,
+            dist_to_zone=zone_lens.net_dist_fn(net, [c.target_edge for c in changes]),
+            demand_profile=profile)
 
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],

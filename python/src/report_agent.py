@@ -234,6 +234,25 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                          " ".join(lines) + origins
                          + f" {rd.get('framing')}. {rd.get('lower_bound_note')}."))
 
+    # V2.2d — the school-zone lens pair as its own retrievable doc, with ALL its honesty notes
+    # riding the numbers (variation ALWAYS — the pair has no cross-seed range machinery; population
+    # names what is measured, never schoolchildren).
+    zf = facts.get("zone_facts")
+    if zf:
+        pv = zf["ped_vehicle_conflicts"]
+        zone_lines = [
+            f"School zone (tagged scenario): {zf['n_edges']} street(s) with a lower speed limit "
+            f"(edges {', '.join(zf['zone_edges'])}).",
+            f"Ped-vehicle conflict events on zone streets during the window: {pv['scenario']} in the "
+            f"scenario vs {pv['baseline']} in the baseline. These are surrogate near-miss measures, "
+            f"not crash predictions, and the pair does not establish a direction.",
+            f"{zf['variation_note']}.",
+            f"{zf['population_note']}.",
+            f"{zf['method_note']}" + (f"; {zf['window_note']}" if zf.get("window_note") else "") + ".",
+        ]
+        docs.append(_doc("zone__school_zone__facts", "School-zone conflict lens (tagged scenario)",
+                         "\n".join(zone_lines)))
+
     # --- robustness / cross-seed verdict ---
     if verdict:
         per = "; ".join(f"seed {r['seed']}: {r['share_gt30'] * 100:.1f}% of cars over 30s slower"
@@ -292,6 +311,8 @@ def friendly_source(handle: str) -> str:
         return f"Argument engagement (cascade {parts[1]})"
     if kind == "movement" and len(parts) >= 2:
         return f"Opinion movement (cascade {parts[1]})"
+    if kind == "zone":
+        return "School-zone conflict lens"
     return {"change": "The proposed change", "robustness": "Cross-seed robustness",
             "conflicts": "Near-miss event summary", "divergence": "Cascade divergence",
             "exclusions": "Posts withheld by the guard"}.get(kind, handle)
