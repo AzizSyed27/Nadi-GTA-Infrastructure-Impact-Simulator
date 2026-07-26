@@ -7,6 +7,7 @@ import { RunCard } from '@/components/RunCard';
 import { RunSwitcher } from '@/components/RunSwitcher';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { EdgePalette } from '@/components/EdgePalette';
+import { ZonePalette } from '@/components/ZonePalette';
 
 export interface DrawParams {
   lanes: number;
@@ -46,6 +47,13 @@ interface EditPanelProps {
   onEdgeIncident: (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => void;
   onWindowedDraft: (active: boolean) => void;
   windowLocked: boolean; // a windowed draft is pending → assignment locks to day_one
+  // V2.2d — the school-zone flow (zone-select mode accumulates map-clicked edges)
+  zoneMode: boolean;
+  zoneEdges: string[];
+  onZoneToggle: () => void;
+  onZoneRemove: (id: string) => void;
+  onZoneSubmit: (valueMps: number, window: ChangeWindow) => void;
+  onZoneCancel: () => void;
 }
 
 // RATIFIED phase-5 road defaults — a two-way, two-lane, ~50 km/h street (what a planner usually draws, and
@@ -236,6 +244,17 @@ export function EditPanel(props: EditPanelProps) {
             </button>
           </div>
         </>
+      ) : props.zoneMode ? (
+        <ZonePalette
+          edges={props.zoneEdges}
+          demandProfile={props.runOptions.demand_profile ?? 'synthetic_demo'}
+          submitting={submitting}
+          submitError={submitError}
+          onRemoveEdge={props.onZoneRemove}
+          onSubmit={props.onZoneSubmit}
+          onWindowedDraft={props.onWindowedDraft}
+          onCancel={props.onZoneCancel}
+        />
       ) : props.selectedEdge ? (
         <EdgePalette
           key={props.selectedEdge.id}
@@ -268,6 +287,12 @@ export function EditPanel(props: EditPanelProps) {
                 ? 'Or click an existing road to change its speed limit / add a bike lane.'
                 : 'Zoom in to click an existing road (speed limit / bike lane).'}
             </div>
+          )}
+          {!ptA && !props.junctionsDown && (
+            <button style={{ ...secondaryBtn, marginTop: 8 }} onClick={props.onZoneToggle}
+                    data-testid="zone-mode-toggle">
+              🏫 Draw a school zone
+            </button>
           )}
           {ptA && !ptB && (
             <div style={step}>

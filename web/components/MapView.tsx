@@ -15,7 +15,7 @@ import { changesOf } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
-import { getJunctions, getEdges, postSimulate, type ChangeWindow, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -138,6 +138,10 @@ export default function MapView() {
   const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
   const [ptA, setPtA] = useState<Junction | null>(null); // first clicked junction
   const [ptB, setPtB] = useState<Junction | null>(null); // second clicked junction → opens the params form
+  // V2.2d — the school-zone flow: zone-select mode accumulates clicked edges (toggle to remove);
+  // submit posts N windowed speed_limit primitives + tags=["school_zone"] as ONE composite run.
+  const [zoneMode, setZoneMode] = useState(false);
+  const [zoneEdges, setZoneEdges] = useState<string[]>([]);
   const [hoverCoord, setHoverCoord] = useState<LonLat | null>(null); // rubber-band endpoint while drawing
   const [drawHint, setDrawHint] = useState<string | null>(null); // transient "click nearer a junction"
   const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
@@ -491,6 +495,15 @@ export default function MapView() {
     (info: PickingInfo) => {
       const lid = info.layer?.id;
       const coord = info.coordinate as LonLat | undefined;
+      // V2.2d zone-select mode: edge clicks ACCUMULATE into the zone (click again to remove) —
+      // no palette open, no draw. Empty-space clicks are inert while selecting a zone.
+      if (zoneMode) {
+        if (lid === 'edit-edges' && info.object) {
+          const id = (info.object as NetworkEdge).id;
+          setZoneEdges((cur) => (cur.includes(id) ? cur.filter((e) => e !== id) : [...cur, id]));
+        }
+        return;
+      }
       // Click an existing edge (when NOT mid-draw) → open the edit-an-edge palette. The tint layer's data is the
       // network edge; merge it with eligibility to build the Edge the palette reads.
       if (lid === 'edit-edges' && info.object && !ptA) {
@@ -521,7 +534,7 @@ export default function MapView() {
         setDrawHint('Pick a different junction for the end point.');
       }
     },
-    [ptA, junctions, mergeEdge],
+    [ptA, junctions, mergeEdge, zoneMode],
   );
 
   // Overlay-level hover: drive the rubber-band only while placing the second point (bounds re-renders).
@@ -630,6 +643,47 @@ export default function MapView() {
     }
   }, [draftWindowed]);
 
+  // V2.2d — submit the school zone as ONE composite: N windowed speed_limit primitives + the
+  // school_zone tag. Windowed by design → day_one on the wire (the server 400 stays the backstop).
+  const onZoneSubmit = useCallback(
+    async (valueMps: number, window: ChangeWindow) => {
+      if (zoneEdges.length === 0) return;
+      setSubmitting(true);
+      setSubmitError(null);
+      const members: SimChange[] = zoneEdges.map((id) => ({
+        type: 'speed_limit', target_edge: id, value_mps: valueMps, window,
+      }));
+      const res = await postSimulateComposite(members, ['school_zone'],
+        { ...runOptionsRef.current, assignment: 'day_one' as const });
+      setSubmitting(false);
+      if (!res.ok) {
+        setSubmitError(res.error);
+        return;
+      }
+      setActiveRunId(res.value.run_id);
+      setZoneMode(false);
+      setZoneEdges([]);
+    },
+    [zoneEdges],
+  );
+  const onZoneToggle = useCallback(() => {
+    setZoneMode(true);
+    setSelectedEdge(null);
+    setPtA(null);
+    setPtB(null);
+    setHoverCoord(null);
+    setDrawHint(null);
+    setSubmitError(null);
+  }, []);
+  const onZoneCancel = useCallback(() => {
+    setZoneMode(false);
+    setZoneEdges([]);
+    setSubmitError(null);
+  }, []);
+  const onZoneRemove = useCallback((id: string) => {
+    setZoneEdges((cur) => cur.filter((e) => e !== id));
+  }, []);
+
   const resetDraw = useCallback(() => {
     setPtA(null);
     setPtB(null);
@@ -695,6 +749,9 @@ export default function MapView() {
     const items = changeGeom && artifact && changeGeom.runId === artifact.meta.run_id ? changeGeom.items : [];
     (window as unknown as { __nadiChangeOverlay?: unknown }).__nadiChangeOverlay = {
       count: items.length,
+      // V2.2d: the zone designation flag (the tint is ALWAYS shown for tagged runs; items' active
+      // flags carry the time-truth for the speed members themselves).
+      zoneTagged: !!artifact?.meta.scenario?.tags?.includes('school_zone'),
       items: items.map((d) => ({
         type: d.type,
         windowed: !!d.window,
@@ -841,19 +898,24 @@ export default function MapView() {
     data: networkEdges,
     getPath: (e) => e.geometry,
     getColor: (e) =>
-      e.id === selectedEdge?.id
-        ? [240, 130, 30, 235]
-        : eligById[e.id]?.eligible_bike_lane
-          ? [80, 140, 255, 170]
-          : [150, 156, 165, 150],
-    getWidth: (e) => (e.id === selectedEdge?.id ? 6 : 3),
+      zoneMode && zoneEdges.includes(e.id)
+        ? [255, 200, 40, 235] // V2.2d: zone-selected — school-bus yellow
+        : e.id === selectedEdge?.id
+          ? [240, 130, 30, 235]
+          : eligById[e.id]?.eligible_bike_lane
+            ? [80, 140, 255, 170]
+            : [150, 156, 165, 150],
+    getWidth: (e) => (e.id === selectedEdge?.id || (zoneMode && zoneEdges.includes(e.id)) ? 6 : 3),
     widthUnits: 'pixels',
     capRounded: true,
     jointRounded: true,
     pickable: true,
     autoHighlight: true,
     highlightColor: [255, 255, 255, 80],
-    updateTriggers: { getColor: [selectedEdge?.id, eligById], getWidth: selectedEdge?.id },
+    updateTriggers: {
+      getColor: [selectedEdge?.id, eligById, zoneMode, zoneEdges],
+      getWidth: [selectedEdge?.id, zoneMode, zoneEdges],
+    },
   });
 
   // Junction snap targets + the rubber-band preview line. Only added when drawing.
@@ -894,8 +956,25 @@ export default function MapView() {
   const overlayItems = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.items : [];
   const isOverlayActive = (d: OverlayItem): boolean =>
     !d.window || effectiveMode !== 'playback' || (t >= d.window.start_s && t <= d.window.end_s);
-  const legacyItems = overlayItems.filter((d) => !CAPACITY_TYPES.has(d.type));
+  // V2.2d: time-gating now covers ANY windowed item — a windowed speed_limit (the school zone's
+  // members) appears/disappears at its window during playback exactly like the capacity types.
+  // Unwindowed legacy items pass isOverlayActive unconditionally (pixel-identical to before).
+  const legacyItems = overlayItems.filter((d) => !CAPACITY_TYPES.has(d.type) && isOverlayActive(d));
   const capItems = overlayItems.filter((d) => CAPACITY_TYPES.has(d.type) && isOverlayActive(d));
+  // V2.2d — the zone TINT: a school zone is a DESIGNATION (like signage, it exists all day), so
+  // the tint is ALWAYS visible; the speed-limit overlay items above carry the time-truth. The
+  // legend row says exactly this so "yellow at t=0, no overlay" never reads as a bug.
+  const zoneTagged = !!meta.scenario?.tags?.includes('school_zone');
+  const zoneTint = new PathLayer<OverlayItem>({
+    id: 'zone-tint',
+    data: zoneTagged ? overlayItems : [],
+    getPath: (d) => d.path,
+    getColor: [255, 200, 40, 90], // translucent school-bus yellow
+    getWidth: 14,
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+  });
   const changeOverlay = new PathLayer<OverlayItem>({
     id: 'change-overlay',
     data: legacyItems,
@@ -952,8 +1031,9 @@ export default function MapView() {
     billboard: true,
   });
   // The window badge ("08:15–08:55" calibrated / "t=600–2400 s" synthetic) — rendered whenever the
-  // windowed item renders. The en-dash is OUTSIDE deck.gl's default ASCII characterSet: compute it.
-  const badgeItems = capItems.filter((d) => d.window);
+  // windowed item renders (V2.2d: capacity AND windowed-legacy items alike — both time-gate now).
+  // The en-dash is OUTSIDE deck.gl's default ASCII characterSet: compute it.
+  const badgeItems = [...legacyItems, ...capItems].filter((d) => d.window);
   const badgeText = (d: OverlayItem) =>
     fmtWindowRange(d.window!, (meta as { demand_profile?: string }).demand_profile);
   const windowBadge = new TextLayer<OverlayItem>({
@@ -974,6 +1054,7 @@ export default function MapView() {
   const layers: Layer[] = [
     ...baseNetworkLayers, // V2.0b: the drawn network — z=0, below everything, all modes
     trails,
+    zoneTint, // V2.2d: the always-visible zone designation, under the time-gated change overlay
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
     closureCasing,
     closureDash,
@@ -1071,6 +1152,15 @@ export default function MapView() {
                   : `${overlayItems.length} changes`}
               </>
             )}
+            {/* V2.2d — the zone row must SAY what always-visible means: at t=0 a viewer sees
+                yellow tint and no change overlay, which would read as "zone active, nothing
+                applied" without this sentence. */}
+            {zoneTagged && (
+              <span style={zoneLegendRow} data-testid="legend-zone">
+                <span style={{ ...legendSwatch, background: 'rgb(255,200,40)' }} />
+                school zone (designation, always shown) — reduced limits apply during the window
+              </span>
+            )}
           </div>
         ) : changeGeom.error ? (
           <div style={changeOfflineNote} data-testid="change-offline">
@@ -1146,6 +1236,12 @@ export default function MapView() {
           onEdgeIncident={onEdgeIncident}
           onWindowedDraft={setDraftWindowed}
           windowLocked={draftWindowed}
+          zoneMode={zoneMode}
+          zoneEdges={zoneEdges}
+          onZoneToggle={onZoneToggle}
+          onZoneRemove={onZoneRemove}
+          onZoneSubmit={onZoneSubmit}
+          onZoneCancel={onZoneCancel}
         />
       ) : effectiveMode === 'playback' ? (
         <>
@@ -1226,6 +1322,8 @@ const changeLegend: React.CSSProperties = {
   zIndex: 25,
   display: 'flex',
   alignItems: 'center',
+  flexWrap: 'wrap', // V2.2d: the zone designation row wraps to its own line
+  maxWidth: 460,
   gap: 7,
   background: 'rgba(255,255,255,0.96)',
   border: '1px solid #d7dbe0',
@@ -1236,6 +1334,14 @@ const changeLegend: React.CSSProperties = {
   fontWeight: 600,
   color: '#374151',
   fontFamily: 'system-ui, sans-serif',
+};
+const zoneLegendRow: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 7,
+  flexBasis: '100%',
+  fontWeight: 500,
+  color: '#57534e',
 };
 const legendSwatch: React.CSSProperties = { width: 16, height: 4, borderRadius: 2, display: 'inline-block' };
 

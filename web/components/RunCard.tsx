@@ -146,6 +146,26 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
         ? 'synthetic demo demand'
         : null;
 
+  // V2.2d — the school-zone chip (composite runs tagged school_zone): street count + the shared
+  // window range. Mechanical, no asserted benefit. Falls back silently for untagged runs.
+  const zoneChanges = (status?.tags?.includes('school_zone') && status?.changes) || [];
+  const zoneWindows = zoneChanges
+    .map((c) => c.window)
+    .filter((w): w is { start_s: number; end_s: number } => w != null);
+  const zoneChip = zoneChanges.length
+    ? `School zone · ${zoneChanges.length} street${zoneChanges.length === 1 ? '' : 's'}${
+        zoneWindows.length
+          ? ` · ${fmtWindowRange(
+              {
+                start_s: Math.min(...zoneWindows.map((w) => w.start_s)),
+                end_s: Math.max(...zoneWindows.map((w) => w.end_s)),
+              },
+              status?.demand_profile,
+            )}`
+          : ''
+      }`
+    : null;
+
   // V2.2c — the windowed-change chip ("2 lane(s) closed 07:15–09:00"), mechanical from the change
   // dict + the run's demand profile (clock times on calibrated, t=0 == 07:00).
   const chWindow = status?.change?.window as { start_s: number; end_s: number } | undefined;
@@ -231,7 +251,14 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
           {stage.startsWith('settle') && status?.detail ? ` — ${status.detail}` : ''}
         </div>
       )}
-      {windowChip && (
+      {zoneChip && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="zone-chip">
+          {zoneChip}
+        </div>
+      )}
+      {/* the zone chip already carries the composite's window range — the single-change window
+          chip (built from change=changes[0]) would duplicate it */}
+      {windowChip && !zoneChip && (
         <div style={{ ...sub, opacity: 0.8 }} data-testid="window-chip">
           {windowChip}
         </div>

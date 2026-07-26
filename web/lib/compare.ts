@@ -67,7 +67,15 @@ export function seedLabel(p: SeedProvenance): string {
 }
 
 /** The change-set identity for the mismatch guard: mechanical fields only — a description-only
- *  difference is NOT a mismatch (same physical change, different label). */
+ *  difference is NOT a mismatch (same physical change, different label).
+ *
+ *  V2.2d: `window` IS mechanical — the same edges at the same speeds at DIFFERENT HOURS is a real
+ *  provenance difference (an 08:00–09:00 zone vs an all-day limit simulate different physics).
+ *  Unwindowed changes serialize the field as undefined (JSON.stringify drops it), so every
+ *  pre-existing unwindowed key is byte-identical. TAGS are deliberately EXCLUDED: a tag is
+ *  presentation over the primitives (the same N speed_limits with and without the school_zone
+ *  label are the SAME physics) — the mismatch guard compares what was simulated, never what it
+ *  was called. */
 export function changeSetKey(changes: Change[]): string {
   const projected = changes
     .map((c) => ({
@@ -76,6 +84,7 @@ export function changeSetKey(changes: Change[]): string {
       value_mps: c.value_mps ?? null,
       target_lane: c.target_lane ?? null,
       target_lanes: c.target_lanes ?? null,
+      window: c.window ? { start_s: c.window.start_s, end_s: c.window.end_s } : undefined,
     }))
     .sort((x, y) => `${x.type}|${x.target_edge}`.localeCompare(`${y.type}|${y.target_edge}`));
   return JSON.stringify(projected);

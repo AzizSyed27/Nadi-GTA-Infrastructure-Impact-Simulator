@@ -117,6 +117,24 @@ export interface RunStatus {
   updated_at?: number;
   description?: string;
   change?: { type?: string; target_edge?: string; [k: string]: unknown };
+  // V2.2d (composite runs only): the full member list + scenario tags (e.g. ["school_zone"]) —
+  // `change` stays = changes[0] for back-compat readers.
+  changes?: { type?: string; target_edge?: string; window?: ChangeWindow; [k: string]: unknown }[];
+  tags?: string[];
+  // V2.2d (school_zone-tagged runs only): the zone lens — a code-rendered count PAIR with its
+  // honesty notes. variation_note is ALWAYS present (the pair bypasses the scorecard's
+  // range/sign_stable machinery); population_note names what was measured (never schoolchildren).
+  zone_facts?: {
+    tag: string;
+    zone_edges: string[];
+    n_edges: number;
+    window: ChangeWindow | null;
+    window_note?: string;
+    ped_vehicle_conflicts: { baseline: number; scenario: number };
+    method_note: string;
+    variation_note: string;
+    population_note: string;
+  };
   cars_on_new_road?: number;
   cars_rerouted?: number;
   car_median_delta_s?: number | null; // runtime changes: median car delay (s); 0-reroute reads as "absorbed as delay"
@@ -206,6 +224,21 @@ export function postSimulate(change: SimChange, options?: RunOptions): Promise<A
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ change, ...options }),
+  });
+}
+
+/** V2.2d — POST /api/simulate with a COMPOSITE scenario (the school-zone flow: N windowed
+ * speed_limit primitives + tags=["school_zone"]). Members are speed_limit-only this step; the
+ * server rejects settled composites (day-one preview only). */
+export function postSimulateComposite(
+  changes: SimChange[],
+  tags: string[] | undefined,
+  options?: RunOptions,
+): Promise<ApiResult<{ run_id: string }>> {
+  return req(`/api/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ changes, ...(tags?.length ? { tags } : {}), ...options }),
   });
 }
 
