@@ -202,11 +202,32 @@ def _changes_line(changes: list[dict], profile: str = "synthetic_demo") -> str:
     return f"This scenario composes {len(changes)} changes: {parts}"
 
 
-def shared_prefix(changes: list[dict], grounding: str, profile: str = "synthetic_demo") -> str:
+def _zone_preface(changes: list[dict], tags: list[str] | None, profile: str) -> str:
+    """V2.2d: ONE mechanical sentence naming the composite AS a school zone (the agents should react
+    to a zone, not to disconnected speed edits) — no asserted benefit, no children. Empty (prompt
+    byte-identical) unless the scenario is tagged school_zone. Differing member windows use the
+    spanning window — the zone_lens soft rule."""
+    if not tags or "school_zone" not in tags:
+        return ""
+    from demand_profiles import fmt_window
+
+    windows = [c["window"] for c in changes if c.get("window")]
+    wtxt = ""
+    if windows:
+        span = {"start_s": min(w["start_s"] for w in windows), "end_s": max(w["end_s"] for w in windows)}
+        wtxt = f" {fmt_window(span, profile)}"
+    n = len(changes)
+    return (f"These changes together form a proposed school zone: lower speed limits on "
+            f"{n} street{'s' if n != 1 else ''}{wtxt}. ")
+
+
+def shared_prefix(changes: list[dict], grounding: str, profile: str = "synthetic_demo",
+                  tags: list[str] | None = None) -> str:
     """The INVARIANT prompt prefix (identical across a family in a run) — placed FIRST so DeepSeek's prefix
     cache hits. Framing + mechanical change(s) + JSON instructions; the per-persona block is appended after."""
     framing = _INFERRED_FRAMING if grounding == "inferred" else _SIM_FRAMING
-    return f"{framing}THE PROPOSED CHANGE: {_changes_line(changes, profile)}\n\n{_JSON_INSTRUCTIONS}Your character:\n"
+    return (f"{framing}THE PROPOSED CHANGE: {_zone_preface(changes, tags, profile)}"
+            f"{_changes_line(changes, profile)}\n\n{_JSON_INSTRUCTIONS}Your character:\n")
 
 
 def _sim_suffix(outcome: dict) -> str:
@@ -232,12 +253,13 @@ def _sim_suffix(outcome: dict) -> str:
     )
 
 
-def build_prompt(record: dict, changes: list[dict], profile: str = "synthetic_demo") -> tuple[str, str]:
+def build_prompt(record: dict, changes: list[dict], profile: str = "synthetic_demo",
+                 tags: list[str] | None = None) -> tuple[str, str]:
     """Return (system, user). system = shared_prefix + persona (prefix-ordered for caching); user = the
     per-agent suffix (sim: personal outcome; inferred: labeled stakeholder context)."""
     persona = record["persona"]
     grounding = record["grounding"]
-    system = shared_prefix(changes, grounding, profile) + f"- {persona['label']}: {persona['description']}"
+    system = shared_prefix(changes, grounding, profile, tags) + f"- {persona['label']}: {persona['description']}"
     if grounding == "sim":
         user = _sim_suffix(record["outcome"])
     else:
@@ -265,11 +287,12 @@ def _record_id(record: dict) -> str:
 
 
 async def react_one(client: LLMClient, record: dict, changes: list[dict],
-                    profile: str = "synthetic_demo") -> tuple[Reaction, bool]:
+                    profile: str = "synthetic_demo",
+                    tags: list[str] | None = None) -> tuple[Reaction, bool]:
     """Generate one agent's reaction (sim or inferred — build_prompt dispatches on grounding). Returns
     (reaction, is_fallback). Backs off/retries on transient API errors; retries once on a malformed/invalid
     (or empty) response; otherwise falls back to a neutral reaction."""
-    system, user = build_prompt(record, changes, profile)
+    system, user = build_prompt(record, changes, profile, tags)
     parse_retried = False
     for attempt in range(5):  # bounded; most exits are well before this
         try:
@@ -294,12 +317,13 @@ MAX_CONCURRENCY = int(os.environ.get("MAX_CONCURRENCY", "8"))
 
 
 async def generate_reactions(client: LLMClient, records: list[dict], changes: list[dict],
-                             profile: str = "synthetic_demo") -> list[tuple[Reaction, bool]]:
+                             profile: str = "synthetic_demo",
+                             tags: list[str] | None = None) -> list[tuple[Reaction, bool]]:
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
 
     async def _guarded(rec: dict) -> tuple[Reaction, bool]:
         async with sem:
-            return await react_one(client, rec, changes, profile)
+            return await react_one(client, rec, changes, profile, tags)
 
     # Order so each persona's calls are ADJACENT — prefix locality for DeepSeek's prompt cache (the
     # shared framing+change prefix hits after call #1 regardless; adjacency also warms the persona slice).
@@ -337,13 +361,15 @@ def newest_instrumented() -> Path:
     return files[-1]
 
 
-async def smoke_test(client: LLMClient, changes: list[dict], profile: str = "synthetic_demo") -> None:
+async def smoke_test(client: LLMClient, changes: list[dict], profile: str = "synthetic_demo",
+                     tags: list[str] | None = None) -> None:
     """One cheap call so a bad/absent key (or model id) surfaces ONCE, not as N concurrent failures.
 
-    Uses the REAL shared prefix (so it WARMS DeepSeek's prompt cache — the batch then hits it instead of
-    all cold-missing). Tolerates transient overload (backoff); a real auth/config error raises immediately.
+    Uses the REAL shared prefix incl. any zone preface (so it WARMS DeepSeek's prompt cache — the batch
+    then hits it instead of all cold-missing). Tolerates transient overload (backoff); a real auth/config
+    error raises immediately.
     """
-    system = shared_prefix(changes, "sim", profile) + "- Test persona: a neutral test character."
+    system = shared_prefix(changes, "sim", profile, tags) + "- Test persona: a neutral test character."
     for attempt in range(4):
         try:
             await client.generate_json(
@@ -372,15 +398,17 @@ async def run(instrumented_path: Path) -> Path:
     changes = [c.model_dump() for c in changes_of(scenario_art)]
     # V2.2a: the demand profile drives window rendering (calibrated -> clock times, t=0 == 07:00)
     profile = getattr(scenario_art.meta, "demand_profile", None) or "synthetic_demo"
+    # V2.2d: scenario tags gate the mechanical zone preface (untagged prompts stay byte-identical)
+    tags = list(scenario_art.meta.scenario.tags) if getattr(scenario_art.meta.scenario, "tags", None) else None
 
     client, provider, model = get_client()
     n_sim = sum(1 for r in records if r["grounding"] == "sim")
     print(f"[llm] provider={provider} model={model}  agents={len(records)} ({n_sim} sim + {len(records) - n_sim} inferred)")
 
     print("[llm] smoke test (warms the shared-prefix cache) ...")
-    await smoke_test(client, changes, profile)  # raises here (clear error) if the key/model is bad
+    await smoke_test(client, changes, profile, tags)  # raises here (clear error) if the key/model is bad
 
-    results = await generate_reactions(client, records, changes, profile)
+    results = await generate_reactions(client, records, changes, profile, tags)
     reactions = [r for r, _ in results]
     fallbacks = sum(1 for _, fb in results if fb)
 
