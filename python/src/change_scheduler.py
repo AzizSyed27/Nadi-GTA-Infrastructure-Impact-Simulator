@@ -40,6 +40,12 @@ REASON_SETTLED_SEVERED = (
     "closures can strand trips that start or end on the closed road; equilibrium assignment "
     "cannot honestly settle a severed network — use day-one response"
 )
+# V2.2d composites — same single-source convention. Members are speed_limit-only this step
+# (bike_lane is structurally non-composable: no per-member target_lane on the wire), and the
+# settled runtime path expresses a change TWICE (netconvert patch + TraCI) for exactly one change.
+REASON_COMPOSITE_MEMBER = "composite scenarios support speed_limit members only in this step"
+REASON_COMPOSITE_SETTLED = ("composite scenarios preview the day-one response only in this step; "
+                            "settled assignment supports a single change")
 
 # Types the scheduler can apply AND revert. bike_lane stays unwindowed-only (a temporary lane
 # conversion has no ratified semantics). incident (V2.2b) = a CAPACITY event, never a crash

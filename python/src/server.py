@@ -247,7 +247,11 @@ class SimChange(BaseModel):
 
 
 class SimulateReq(BaseModel):
-    change: SimChange
+    # exactly ONE of change / changes (V2.2d: `changes` is a composite scenario — the school-zone
+    # flow posts N windowed speed_limit primitives + tags=["school_zone"]).
+    change: SimChange | None = None
+    changes: list[SimChange] | None = None
+    tags: list[str] | None = None  # composite only (e.g. ["school_zone"])
     # V2.1b: which demand to simulate. Synthetic stays the default (fast edit-mode iterations) until the
     # calibrated run times are reviewed (the V2.1c gate). Calibrated needs demand_calibration.py full first.
     demand_profile: Literal["synthetic_demo", "calibrated_am_peak"] = "synthetic_demo"
@@ -361,10 +365,102 @@ def _build_harness_cmd(ch: SimChange, ts: str, desc: str, demand_profile: str = 
     return cmd
 
 
+def _build_composite_cmd(spec_path: Path, ts: str, demand_profile: str = "synthetic_demo",
+                         assignment: str = "day_one", n_seeds: int = 1) -> list[str]:
+    """V2.2d composite handoff: the member list rides a SPEC FILE under contract/runs/state/ (runtime
+    run-state emission, the established convention) — the single-change CLI stays byte-untouched.
+    Non-default flags appended only when non-default, like _build_harness_cmd."""
+    cmd = [sys.executable, str(HARNESS), "--composite", str(spec_path), "--run-ts", ts]
+    if demand_profile != "synthetic_demo":
+        cmd += ["--demand-profile", demand_profile]
+    if assignment != "day_one":
+        cmd += ["--assignment", assignment]
+    if n_seeds != 1:
+        cmd += ["--n-seeds", str(n_seeds)]
+    return cmd
+
+
+async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
+    """V2.2d — the composite POST path: per-member validation (speed_limit-only this step; shared
+    reason strings), server-filled member descriptions (Change.description is contract-required),
+    a spec-file handoff, and run-state that carries changes + tags for the RunCard."""
+    import change_scheduler
+    from demand_profiles import fmt_window
+
+    if not req.changes:
+        raise HTTPException(400, "changes must be a non-empty list")
+    if req.assignment == "settled":
+        raise HTTPException(400, change_scheduler.REASON_COMPOSITE_SETTLED)
+    edges = _edges_by_id()
+    members: list[dict] = []
+    for i, ch in enumerate(req.changes):
+        if ch.type != "speed_limit":
+            raise HTTPException(400, f"change {i}: {change_scheduler.REASON_COMPOSITE_MEMBER}")
+        if not (ch.target_edge and ch.value_mps):
+            raise HTTPException(400, f"change {i}: speed_limit requires target_edge and value_mps")
+        if ch.target_edge not in edges:
+            raise HTTPException(400, f"change {i}: edge {ch.target_edge!r} is not in the network")
+        if ch.window is not None and ch.window.end_s <= ch.window.start_s:
+            raise HTTPException(400, f"change {i}: window.end_s ({ch.window.end_s:g}) must be > "
+                                     f"window.start_s ({ch.window.start_s:g})")
+        desc = ch.description or (
+            f"Reduced max speed on edge {ch.target_edge} to {ch.value_mps * 3.6:.0f} km/h"
+            + (f" {fmt_window(ch.window, req.demand_profile)}" if ch.window is not None else ""))
+        members.append({"type": "speed_limit", "target_edge": ch.target_edge, "value_mps": ch.value_mps,
+                        **({"window": {"start_s": ch.window.start_s, "end_s": ch.window.end_s}}
+                           if ch.window is not None else {}),
+                        "description": desc})
+
+    if req.demand_profile != "synthetic_demo":
+        import demand_profiles
+        try:
+            demand_profiles.get_profile(req.demand_profile)
+        except (KeyError, FileNotFoundError) as e:
+            raise HTTPException(400, str(e)) from e
+
+    # the run description: the school-zone flow gets its own mechanical label; other composites a count
+    n = len(members)
+    speeds = {m["value_mps"] for m in members}
+    windows = [m["window"] for m in members if m.get("window")]
+    span_txt = ""
+    if windows:
+        span = {"start_s": min(w["start_s"] for w in windows), "end_s": max(w["end_s"] for w in windows)}
+        span_txt = f", {fmt_window(span, req.demand_profile)}"
+    if req.tags and "school_zone" in req.tags and len(speeds) == 1:
+        desc = f"School zone: {next(iter(speeds)) * 3.6:.0f} km/h on {n} street{'s' if n != 1 else ''}{span_txt}"
+    else:
+        desc = f"{n} speed-limit changes on the corridor{span_txt}"
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    spec_path = run_state.STATE_DIR / f"{run_id}.composite.json"
+    cmd = _build_composite_cmd(spec_path, ts, demand_profile=req.demand_profile,
+                               assignment=req.assignment, n_seeds=req.n_seeds)
+    if not run_state.try_acquire(run_id):
+        raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
+    run_state.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(json.dumps(
+        {"changes": members, **({"tags": req.tags} if req.tags else {})}, indent=2), encoding="utf-8")
+    run_state.set_stage(run_id, "queued", "queued", description=desc,
+                        change=members[0], changes=members,
+                        **({"tags": req.tags} if req.tags else {}),
+                        demand_profile=req.demand_profile, assignment=req.assignment,
+                        n_seeds=req.n_seeds)
+    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate")
+    return {"run_id": run_id}
+
+
 @app.post("/api/simulate")
 async def simulate(req: SimulateReq, bg: BackgroundTasks):
-    """Validate an edit (new_road | speed_limit | bike_lane), mint a run id, and launch the quant pipeline as a
-    background subprocess. bike_lane is rejected 400 with the SINGLE-SOURCE eligibility reason if ineligible."""
+    """Validate an edit (new_road | speed_limit | bike_lane | closures | incident | a V2.2d composite),
+    mint a run id, and launch the quant pipeline as a background subprocess. bike_lane is rejected 400
+    with the SINGLE-SOURCE eligibility reason if ineligible."""
+    if req.change is not None and req.changes is not None:
+        raise HTTPException(400, "provide change or changes, not both")
+    if req.changes is not None:
+        return await _simulate_composite(req, bg)
+    if req.change is None:
+        raise HTTPException(400, "provide change or changes")
     ch = req.change
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"

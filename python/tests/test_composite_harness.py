@@ -135,3 +135,70 @@ def test_build_artifact_single_change_wraps_and_omits_tags(tmp_path) -> None:
     assert len(scen["changes"]) == 1
     assert scen["changes"][0]["target_lane"] == 1
     assert "tags" not in scen
+
+
+# ------------------------------------------------------------------ the composite spec handoff
+
+
+def test_load_composite_spec_round_trip(tmp_path) -> None:
+    import scenario_harness as sh
+
+    spec = {"changes": [
+        {"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33,
+         "window": {"start_s": 600.0, "end_s": 1200.0}, "description": "zone limit on E1"},
+        {"type": "speed_limit", "target_edge": "E2", "value_mps": 8.33,
+         "window": {"start_s": 600.0, "end_s": 1200.0}, "description": "zone limit on E2"},
+    ], "tags": ["school_zone"]}
+    p = tmp_path / "spec.json"
+    p.write_text(json.dumps(spec), encoding="utf-8")
+    changes, tags = sh.load_composite_spec(p)
+    assert [c.target_edge for c in changes] == ["E1", "E2"]
+    assert all(c.window is not None for c in changes)
+    assert tags == ["school_zone"]
+
+
+def test_load_composite_spec_rejects_non_speed_limit_with_shared_reason(tmp_path) -> None:
+    import pytest
+    import scenario_harness as sh
+
+    spec = {"changes": [
+        {"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33, "description": "ok"},
+        {"type": "lane_closure", "target_edge": "E2", "target_lanes": [1], "description": "nope"},
+    ]}
+    p = tmp_path / "spec.json"
+    p.write_text(json.dumps(spec), encoding="utf-8")
+    with pytest.raises(SystemExit) as ei:
+        sh.load_composite_spec(p)
+    assert "composite change 1" in str(ei.value)
+    assert cs.REASON_COMPOSITE_MEMBER in str(ei.value)
+
+
+def test_load_composite_spec_rejects_empty_and_invalid(tmp_path) -> None:
+    import pytest
+    import scenario_harness as sh
+
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"changes": []}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="no changes"):
+        sh.load_composite_spec(empty)
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({"changes": [{"type": "speed_limit"}]}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="change 0 invalid"):
+        sh.load_composite_spec(bad)  # pydantic-invalid (missing target_edge/description)
+
+
+def test_run_composite_settled_rejected_with_shared_reason(tmp_path) -> None:
+    import argparse
+
+    import pytest
+    import scenario_harness as sh
+
+    spec = tmp_path / "spec.json"
+    spec.write_text(json.dumps({"changes": [
+        {"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33, "description": "ok"}]}),
+        encoding="utf-8")
+    args = argparse.Namespace(composite=str(spec), assignment="settled", run_ts=None,
+                              demand_profile="synthetic_demo", n_seeds=1)
+    with pytest.raises(SystemExit) as ei:
+        sh._run_composite(args)
+    assert str(ei.value) == cs.REASON_COMPOSITE_SETTLED

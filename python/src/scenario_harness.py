@@ -1839,6 +1839,55 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
             "car_affected_share": car_share, "buckets": buckets, "severed": sorted(severed or [])}
 
 
+def load_composite_spec(path: Path) -> tuple[list[Change], list[str] | None]:
+    """V2.2d: read + validate the server's composite spec file. Every rejection is a SystemExit with
+    the SAME single-source reason strings POST /api/simulate uses (change_scheduler) — the harness
+    re-validates rather than trusting the handoff."""
+    try:
+        spec = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise SystemExit(f"composite spec unreadable: {e}") from e
+    raw = spec.get("changes") or []
+    if not raw:
+        raise SystemExit("composite spec has no changes")
+    changes: list[Change] = []
+    for i, cd in enumerate(raw):
+        try:
+            c = Change.model_validate(cd)
+        except Exception as e:  # noqa: BLE001 — a clean CLI message, not a pydantic stack trace
+            raise SystemExit(f"composite change {i} invalid: {e}") from e
+        if c.type != "speed_limit":
+            raise SystemExit(f"composite change {i}: {change_scheduler.REASON_COMPOSITE_MEMBER}")
+        changes.append(c)
+    return changes, spec.get("tags")
+
+
+def _run_composite(args) -> None:
+    """V2.2d: the composite entry — spec file in, per-member re-validation, then the same
+    ``run_quant_runtime`` every runtime change uses (the scheduler is list-native)."""
+    import run_state
+
+    changes, tags = load_composite_spec(Path(args.composite))
+    if getattr(args, "assignment", "day_one") == "settled":
+        raise SystemExit(change_scheduler.REASON_COMPOSITE_SETTLED)
+    ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = f"multimodal-scenario-{ts}"
+    desc = "; ".join(c.description for c in changes)
+    try:
+        run_state.set_stage(run_id, "baseline", desc, description=desc,
+                            change=changes[0].model_dump(exclude_none=True),
+                            changes=[c.model_dump(exclude_none=True) for c in changes],
+                            **({"tags": tags} if tags else {}))
+        res = run_quant_runtime(changes, ts, None, profile=getattr(args, "demand_profile", "synthetic_demo"),
+                                assignment=getattr(args, "assignment", "day_one"),
+                                n_seeds=getattr(args, "n_seeds", 1), tags=tags)
+        print(f"\n[composite] DONE — {res['scen_id']} ({len(changes)} changes); cars rerouted "
+              f"{res['cars_rerouted']}, car median delta {res['car_median_delta_s']}s")
+    except Exception as e:  # noqa: BLE001 — surface a failed state (the job runner reads it) then re-raise
+        run_state.set_stage(run_id, "failed", str(e)[:800])
+        raise
+
+
 def _run_new_road(args) -> None:
     """5.1 CLI: patch a new_road between two existing junctions, then run the quant pipeline headless. Emits
     run-state (regen/baseline/scenario/analysis/done/failed) so the job runner can track a KNOWN --run-ts."""
@@ -1899,6 +1948,9 @@ def main() -> None:
     ap.add_argument("--lanes", type=int, default=1, help="new_road: lanes per direction")
     ap.add_argument("--bidirectional", action="store_true", help="new_road: build both directions")
     ap.add_argument("--description", default=None)
+    ap.add_argument("--composite", default=None,
+                    help="V2.2d: path to a composite spec file ({changes:[...], tags:[...]}) — the server's "
+                         "multi-change handoff; overrides --change-type (speed_limit members only this step)")
     ap.add_argument("--run-ts", default=None, help="use this timestamp as the run id (the job runner passes it)")
     ap.add_argument("--demand-profile", choices=["synthetic_demo", "calibrated_am_peak"],
                     default="synthetic_demo",
@@ -1910,6 +1962,9 @@ def main() -> None:
                     help="V2.1d: run N baseline+scenario pairs (seeds 42,43,44). Seed 42 is canonical "
                          "(its run IS the artifact); extra seeds contribute per-cell ranges only")
     args = ap.parse_args()
+    if args.composite:
+        _run_composite(args)
+        return
     if args.change_type == "speed_limit":
         _run_speed_limit(args)
     elif args.change_type == "new_road":

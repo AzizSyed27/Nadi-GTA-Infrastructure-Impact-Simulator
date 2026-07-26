@@ -253,3 +253,119 @@ def test_n_seeds_flag() -> None:
     all_three = server._build_harness_cmd(ch, "TS", "d", demand_profile="calibrated_am_peak",
                                           assignment="settled", n_seeds=3)
     assert "--demand-profile" in all_three and "--assignment" in all_three and "--n-seeds" in all_three
+
+
+# ---------------------------------------------------------------- V2.2d: the composite POST
+
+def _post_composite(changes_kw: list[dict], tags=None, **req_kw):
+    import asyncio
+
+    from fastapi import BackgroundTasks
+
+    req = server.SimulateReq(changes=[server.SimChange(**c) for c in changes_kw], tags=tags, **req_kw)
+    bg = BackgroundTasks()
+    return asyncio.run(server.simulate(req, bg)), bg
+
+
+def _three_zone_members(window=True) -> list[dict]:
+    edges = [e["id"] for e in server._edges_by_id().values() if e["car_lane_indices"]][:3]
+    assert len(edges) == 3
+    w = {"window": {"start_s": 600.0, "end_s": 1200.0}} if window else {}
+    return [{"type": "speed_limit", "target_edge": e, "value_mps": 8.33, **w} for e in edges]
+
+
+def test_post_change_xor_changes() -> None:
+    import asyncio
+
+    from fastapi import BackgroundTasks, HTTPException
+
+    both = server.SimulateReq(change=server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0),
+                              changes=[server.SimChange(type="speed_limit", target_edge="e1", value_mps=8.0)])
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(server.simulate(both, BackgroundTasks()))
+    assert ei.value.status_code == 400 and "not both" in ei.value.detail
+    neither = server.SimulateReq()
+    with pytest.raises(HTTPException) as ei2:
+        asyncio.run(server.simulate(neither, BackgroundTasks()))
+    assert ei2.value.status_code == 400
+
+
+def test_post_composite_member_must_be_speed_limit_names_index() -> None:
+    from fastapi import HTTPException
+
+    import change_scheduler as cs
+    members = _three_zone_members()
+    members[1] = {"type": "lane_closure", "target_edge": members[1]["target_edge"], "target_lanes": [0]}
+    with pytest.raises(HTTPException) as ei:
+        _post_composite(members)
+    assert ei.value.status_code == 400
+    assert "change 1" in ei.value.detail and cs.REASON_COMPOSITE_MEMBER in ei.value.detail
+
+
+def test_post_composite_settled_rejected_with_exact_reason() -> None:
+    from fastapi import HTTPException
+
+    import change_scheduler as cs
+    with pytest.raises(HTTPException) as ei:
+        _post_composite(_three_zone_members(), assignment="settled")
+    assert ei.value.status_code == 400 and ei.value.detail == cs.REASON_COMPOSITE_SETTLED
+
+
+def test_post_composite_bad_member_edge_names_index() -> None:
+    from fastapi import HTTPException
+
+    members = _three_zone_members()
+    members[2]["target_edge"] = "no_such_edge_xyz"
+    with pytest.raises(HTTPException) as ei:
+        _post_composite(members)
+    assert ei.value.status_code == 400 and "change 2" in ei.value.detail
+
+
+def test_post_composite_member_window_sanity() -> None:
+    from fastapi import HTTPException
+
+    members = _three_zone_members()
+    members[0]["window"] = {"start_s": 1200.0, "end_s": 600.0}
+    with pytest.raises(HTTPException) as ei:
+        _post_composite(members)
+    assert ei.value.status_code == 400 and "change 0" in ei.value.detail and "end_s" in ei.value.detail
+
+
+def test_post_composite_success_writes_spec_and_composite_cmd() -> None:
+    import json as _json
+
+    import run_state
+    members = _three_zone_members()
+    try:
+        out, bg = _post_composite(members, tags=["school_zone"])
+        run_id = out["run_id"]
+        spec_path = run_state.STATE_DIR / f"{run_id}.composite.json"
+        assert spec_path.is_file()
+        spec = _json.loads(spec_path.read_text(encoding="utf-8"))
+        assert len(spec["changes"]) == 3 and spec["tags"] == ["school_zone"]
+        # the server fills every member description (Change.description is contract-required)
+        assert all(c.get("description") for c in spec["changes"])
+        # exactly one queued background job whose cmd hands off via --composite
+        (task,) = bg.tasks
+        _, cmds, _ = task.args
+        (cmd,) = cmds
+        assert "--composite" in cmd and str(spec_path) in cmd
+        assert "--change-type" not in cmd  # the composite path never uses the single-change flag
+        # run-state carries the school-zone description + the member list + tags
+        st = run_state.read(run_id)
+        assert st["stage"] == "queued" and st["tags"] == ["school_zone"]
+        assert len(st["changes"]) == 3 and "School zone" in st["description"]
+        # cleanup
+        for p in (spec_path, run_state.STATE_DIR / f"{run_id}.json"):
+            p.unlink(missing_ok=True)
+    finally:
+        run_state.release()
+
+
+def test_build_composite_cmd_flags_byte_stable_defaults() -> None:
+    from pathlib import Path as _P
+    cmd = server._build_composite_cmd(_P("spec.json"), "TS")
+    assert cmd[2:] == ["--composite", "spec.json", "--run-ts", "TS"]
+    full = server._build_composite_cmd(_P("spec.json"), "TS", demand_profile="calibrated_am_peak",
+                                       assignment="day_one", n_seeds=3)
+    assert "--demand-profile" in full and "--n-seeds" in full and "--assignment" not in full
