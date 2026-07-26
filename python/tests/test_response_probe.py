@@ -178,7 +178,7 @@ def test_partial_lane_closure_is_honest_zero_with_note(nets) -> None:
         out = rp.detour_from_nets(base, scen, [_lane_closure([1])], rp.load_probes())
         for pr in out["probes"]:
             if pr["added_s"] == 0.0:
-                assert "passable" in (pr.get("note") or "")
+                assert "stays passable at unchanged free-flow speed" in (pr.get("note") or "")
     finally:
         undo()
 

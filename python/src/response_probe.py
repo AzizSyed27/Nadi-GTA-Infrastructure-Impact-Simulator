@@ -1,7 +1,8 @@
 """V2.2b — the emergency-response DETOUR fact: free-flow shortest-path travel time from fixed
 probe origins to the changed edge's vicinity, baseline net vs the DURING-WINDOW scenario state.
-Since the V2.2d prelim the origins are the 5 REAL Toronto Fire Services stations inside the
-corridor bbox (Toronto Open Data; provenance in response_probes.json). Routes are computed from
+Since the V2.2d prelim the origins are 4 REAL Toronto Fire Services stations inside the
+corridor bbox (Toronto Open Data; provenance in response_probes.json — the 5th in-bbox station,
+221, is documented-dropped: 381 m from the nearest modeled car edge). Routes are computed from
 EVERY station — the fact never claims which station would respond (origins_note carries that
 guard wherever the numbers render). A routing computation, not a simulation — cheap, deterministic, and honest about
 what it is (both framing sentences below ship with every payload and render wherever the numbers
