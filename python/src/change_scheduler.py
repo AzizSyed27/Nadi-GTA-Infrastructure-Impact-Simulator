@@ -107,6 +107,17 @@ def capacity_event(change_type: str) -> bool:
     return change_type in ("lane_closure", "road_closure", "incident")
 
 
+def any_invalidates_routes(changes: list[Change]) -> bool:
+    """V2.2d composites: the route-invalidation gate folds over the member list — ONE stranding
+    member makes the whole pair run --ignore-route-errors (symmetric, a no-op in baseline)."""
+    return any(invalidates_routes(c.type, c.effect.blocked if c.effect else None) for c in changes)
+
+
+def any_capacity_event(changes: list[Change]) -> bool:
+    """V2.2d composites: the response-detour gate folds over the member list."""
+    return any(capacity_event(c.type) for c in changes)
+
+
 def incident_base_desc(target_lanes: list[int] | None, speed_factor: float | None,
                        edge_id: str) -> str:
     """The MECHANICAL incident description (no crash words, no asserted benefit) — shared
