@@ -49,6 +49,27 @@ the contract since 0.5.0) — along-edge probing is the same rung.
 **Do NOT design this before V2.2d**: d's composite is the first multi-member modified-edge exclusion
 set and will stress the CURRENT rule — change one variable at a time.
 
+**V2.2d outcome — the multi-member exclusion is production-UNEXERCISED (a coverage gap, not a
+defect).** The response detour only fires on capacity events; the school zone is a speed_limit
+composite, so d shipped the multi-member `modified` union UNIT-verified only (the detour fact
+correctly does not compute on a zone run). The real exercise needs a **multi-change CLOSURE
+scenario, which NO palette flow currently produces** (composites are speed_limit-only in d).
+Written down here rather than assumed-closed by the unit test — when composite members widen to
+closures, the first such run exercises this path for real (and rung 2 above becomes urgent: with
+several closed segments the "reachable another way" bias compounds).
+
+## V2.2d — student demand segment: DEFERRED (data fights back)
+The school-zone lens counts what the demand actually contains, and says so (`zone_facts.
+population_note` names the population; the report caveat repeats it). A REAL student segment needs:
+- **TTS (Transportation Tomorrow Survey) zone-level records** — requires DMG registration/approval
+  (not an open download); the open ward-level profile CSV is far too coarse for one corridor.
+- **Bell-time schedules**: no dataset — the 08:00–09:00 modeled window is a TDSB POLICY-BAND
+  assumption (elementary starts cluster 8:15–9:15), not measured arrival curves.
+Until a segment lands, zone facts must keep NAMING their population ("pedestrian entities from the
+… demand — not modeled schoolchildren"). School LOCATIONS are open (School Locations - All Types,
+Toronto Open Data) and are used as siting context only — walk-Y-signs / crossing-guard posts would
+be adjacent context, never measured children.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).

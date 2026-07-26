@@ -339,6 +339,65 @@ now v0.8.0).**
 - Suites: 247 pytest + 26 Playwright green (3 new spec files; the maplibre StrictMode warm-reload convention
   applies to any spec deep-linking a tiny fixture).
 
+**V2.2 Step d — the SCHOOL ZONE: the first REAL multi-change scenario — COMPLETE (no contract change).**
+- **Composite mechanics (producer):** `simulate_multimodal`/`run_pair_multimodal`/`run_quant_runtime` are
+  list-native (`changes: list[Change]`, `tags`); unwindowed members loop apply+readback, windowed members ride
+  ONE ChangeScheduler; every gate folds with `change_scheduler.any_invalidates_routes`/`any_capacity_event`;
+  `build_multimodal_artifact(changes, tags)` emits `changes[]` (+`tags` when set) — single-change runs wrap
+  `[change]` and stay shape-identical (target_lane stamped only on a lone change). `window_events` was ALREADY
+  outside the invalidates_routes gate (the planned hoist was a no-op) — windowed speed_limits carry revert
+  proofs. Sidecar/run-state gain `changes`+`tags` (`change`=changes[0] kept for back-compat readers).
+- **Server flow:** `POST /api/simulate {changes:[...], tags:[...]}` (xor `change`); members are
+  **speed_limit-only this step** (`REASON_COMPOSITE_MEMBER`; bike_lane is structurally non-composable — no
+  per-member target_lane) and **settled+composite is rejected** (`REASON_COMPOSITE_SETTLED` — the settle
+  runtime path double-expresses exactly one change); handoff = a spec file
+  `contract/runs/state/<run_id>.composite.json` + `--composite=<path>` (runtime run-state emission — the
+  single-change CLI stays byte-untouched); the harness RE-validates via `load_composite_spec` (same reason
+  strings, SystemExit). Server fills member descriptions (contract-required) + the run description
+  ("School zone: 30 km/h on 3 streets, …").
+- **The ZONE LENS (`python/src/zone_lens.py`, tag-gated `school_zone`):** ped-vehicle crossing conflicts within
+  **25 m of ANY zone edge** (never nearest-edge∈zone) during the window (inclusive), counted IDENTICALLY on
+  both FULL conflict lists → `zone_facts` {pair, window(+span-fallback note — soft, never a mid-run assert),
+  method/population/variation notes}. **TWO HONESTY LOCKS (user-locked):** `population_note` NAMES the measured
+  population per profile ("pedestrian entities from the … demand — not modeled schoolchildren; student demand
+  deferred", see BACKLOG) and **`variation_note` is ALWAYS present** ("single-seed counts; at these small event
+  counts the difference … does not establish a direction") — the pair bypasses the scorecard's
+  CellRange/sign_stable machinery entirely, so the caveat rides the numbers unconditionally. Report: a
+  no-valence code-rendered pair with the variation sentence IMMEDIATELY after (verify_facts pins sidecar
+  equality + both notes verbatim); caveats + chat corpus doc `zone__school_zone__facts` carry all notes.
+- **Voices:** ONE mechanical preface when tagged ("These changes together form a proposed school zone: lower
+  speed limits on {n} streets {range}") — untagged prompts byte-identical; parents (existing personas) react
+  from their OWN outcomes; never a child voice (measured + advocated, never ventriloquized).
+- **Frontend:** 🏫 zone-select mode (edge clicks ACCUMULATE, click-again removes; `ZonePalette` — 30 km/h
+  default, window REQUIRED, the D1 lock engages on entry); the **zone TINT is ALWAYS visible** (a designation,
+  like signage) while **playback time-gating now covers ANY windowed item** (windowed speed_limits
+  appear/disappear at their window; unwindowed legacy pixel-identical); the legend zone row SAYS the rule:
+  *"school zone (designation, always shown) — reduced limits apply during the window"* (else yellow-at-t=0
+  reads as a bug); RunCard `zone-chip` ("School zone · 3 streets · {range}", suppresses the duplicate
+  window-chip). **`changeSetKey` gains `window`** (same edges/speeds at different HOURS is a real provenance
+  difference; unwindowed serializes undefined → old keys unchanged) and **excludes tags** (presentation, not
+  physics — documented in compare.ts).
+- **Access truth:** speed_limit has NO access heuristic, so a zone composite renders access ABSENT exactly like
+  a single speed_limit run (the composite-null note fires only when >1 change contributes a heuristic to one
+  group — pinned at unit level with a 2×bike_lane composite; the plan's "composite-null fires" acceptance item
+  was based on a wrong recon assumption and is corrected here). The zone's story lives in the zone lens.
+- **Response detour on composites:** UNIT-verified only (multi-member `modified` union + changes[0] anchor) — a
+  speed-limit composite is correctly NOT a capacity event, so the fact doesn't compute on a zone run; the
+  coverage gap (needs a multi-change CLOSURE flow, which no palette produces) is recorded in BACKLOG, not
+  assumed closed.
+- **Fixture:** `web/tests/fixtures/school-zone-run.json` — REAL producer output (build_multimodal_artifact +
+  compute_scorecard, real canonical edge ids so the network join resolves), pinned by
+  `test_school_zone_fixture.py` (regen: `python python/tests/test_school_zone_fixture.py`); `school-zone.spec.ts`
+  (6 tests: palette POST, tint+legend verbatim, windowed-legacy scrub gating both ways, zone-chip, compare
+  mismatch/twin-silent/window-shifted).
+- **Queued (does NOT gate the step): the calibrated school-hours exemplar** — detached server with
+  `NADI_MAX_T_OVERRIDE=9000` (07:00–09:30; WMI `--end 9000` hard-gate), composite on the Markham/Lawrence school
+  cluster (ST BARBARA / TECUMSEH / CORNELL / GOLF ROAD — School Locations - All Types, package `1a714b5c…`,
+  resource `02ef7447…`, license "License not specified", last_refreshed 2026-05-27), 30 km/h, window 3600–7200
+  = 08:00–09:00, **"the portion of the documented TDSB drop-off band that falls within the calibrated demand
+  period"** (the 7200–9000 tail drains, never measured); morning-after: revert proofs, zone_facts pair,
+  report regen → singleton restore, relaunch WITHOUT the override unconditionally.
+
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs

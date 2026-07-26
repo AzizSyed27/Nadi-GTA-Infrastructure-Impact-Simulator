@@ -202,3 +202,27 @@ def test_run_composite_settled_rejected_with_shared_reason(tmp_path) -> None:
     with pytest.raises(SystemExit) as ei:
         sh._run_composite(args)
     assert str(ei.value) == cs.REASON_COMPOSITE_SETTLED
+
+
+# ------------------------------------------------------------------ scorecard access on composites
+
+
+def test_composite_access_semantics() -> None:
+    """Two facts pinned: (1) the composite-null note FIRES when >1 change contributes a heuristic
+    to the same group (never silently summed); (2) a SPEED-LIMIT composite (the school zone) has
+    no access heuristic at all — access renders absent exactly like a single speed_limit run
+    (the zone lens, not the access column, carries the zone's story)."""
+    import scorecard
+
+    buckets = {m: {"counts": {"total_demand": 10}, "outcomes": [{"delta_seconds": 1.0}]}
+               for m in ("car", "bicycle", "pedestrian")}
+    two_bike = [{"type": "bike_lane", "target_edge": "E1"}, {"type": "bike_lane", "target_edge": "E2"}]
+    sc = scorecard.compute_scorecard(buckets, [], [], two_bike)
+    car = next(g for g in sc.groups if g.group == "car_commuter")
+    assert car.access_delta is not None and car.access_delta.value is None
+    assert car.access_delta.note == "composite scenario (2 changes) — per-group access not separable yet"
+
+    zone = [{"type": "speed_limit", "target_edge": e, "value_mps": 8.33,
+             "window": {"start_s": 600.0, "end_s": 1200.0}} for e in ("E1", "E2", "E3")]
+    sc2 = scorecard.compute_scorecard(buckets, [], [], zone)
+    assert all(g.access_delta is None for g in sc2.groups)  # same as a single speed_limit run
