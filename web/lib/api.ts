@@ -141,10 +141,14 @@ export interface RunStatus {
   response_detour?: {
     framing: string;
     lower_bound_note: string;
+    // what the origins ARE + the dispatch-misreading guard ("routes are computed from every
+    // station and do not indicate which station would respond")
+    origins_note?: string;
     destination_edge: string | null;
     destination_note?: string;
     probes: {
       label: string;
+      represents?: string; // 'fire_station' since the V2.2d prelim
       origin_edge: string | null;
       baseline_s: number | null;
       scenario_s: number | null;

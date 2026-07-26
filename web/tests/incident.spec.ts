@@ -33,8 +33,8 @@ const STATUS = {
     destination_edge: '-35798648#1',
     destination_note: 'first outgoing passenger edge at the first downstream junction with an alternate approach',
     probes: [
-      { label: 'Markham Rd / Kingston Rd (corridor entry)', origin_edge: '48715757#0', baseline_s: 57.0, scenario_s: 105.7, added_s: 48.7 },
-      { label: 'Ellesmere Rd / Midland Ave (corridor entry)', origin_edge: '39210630#0', baseline_s: 415.4, scenario_s: null, added_s: null, note: 'destination unreachable from this origin during the window' },
+      { label: 'Fire Station 231 (740 Markham Rd)', represents: 'fire_station', origin_edge: '48715757#0', baseline_s: 57.0, scenario_s: 105.7, added_s: 48.7 },
+      { label: 'Fire Station 232 (1550 Midland Ave)', represents: 'fire_station', origin_edge: '39210630#0', baseline_s: 415.4, scenario_s: null, added_s: null, note: 'destination unreachable from this origin during the window' },
     ],
   },
 };
@@ -53,13 +53,19 @@ async function mockBackend(page: Page) {
 test('an incident run surfaces the response-access chip with both honesty sentences', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny fixture can land inside StrictMode's
+  // double-mount window on a cold dev compile — reload once, then interact.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('mode-edit').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
 
   const chip = page.getByTestId('response-access-chip');
   await expect(chip).toBeVisible();
-  await expect(chip).toContainText('+49 s response-route estimate (2 probes, 1 not computable — see the report)');
+  // the chip labels its statistic: the MAX, never an unlabeled number or an implied average
+  await expect(chip).toContainText('worst of 2 stations: +49 s (1 not computable — see the report)');
   // BOTH honesty sentences render with the number — never tooltip-only.
   await expect(chip).toContainText(FRAMING);
   await expect(chip).toContainText(LOWER_BOUND);

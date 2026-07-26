@@ -1,20 +1,80 @@
 {
-  "_schema_note": "DATA, not code — the fixed emergency-response probe ORIGINS for the detour fact (response_probe.py). Edit/extend freely; labels are user-facing.",
-  "_provenance": "corridor-edge entry points: the 2 records flagged match.boundary_clipped=true in data/counts/counts-inventory-20260714T043040Z.json (TMC intersections at the bbox edge where a cross street enters the corridor)",
+  "_schema_note": "DATA, not code — the fixed emergency-response probe ORIGINS for the detour fact (response_probe.py). Underscore-prefixed TOP-LEVEL keys are documentation: the loader reads ONLY the 'probes' array and must never fold metadata in.",
+  "_provenance": {
+    "attribution": "Contains information licensed under the Open Government Licence – Toronto.",
+    "dataset": "Fire Facility Locations (Toronto Fire Services)",
+    "package": "fire-station-locations",
+    "url": "https://open.toronto.ca/dataset/fire-station-locations/",
+    "resource": "9d1b7352-32ce-4af2-8681-595ce9e47b6e",
+    "retrieved_at": "2026-07-25",
+    "last_refreshed": "2026-02-20",
+    "license_note": "portal badge shows Open Government Licence – Toronto; the package's own license_id is 'notspecified' at the API level — both facts recorded, not silently resolved",
+    "selection": "4 of the 5 stations inside the corridor bbox [-79.2758, 43.7332, -79.1724, 43.7918] — spread center/west/east/north; Station 221 dropped (see _dropped); coordinates verified against the raw datastore dump"
+  },
   "probes": [
     {
-      "label": "Markham Rd / Kingston Rd (corridor entry)",
-      "lon": -79.217036,
-      "lat": 43.738777,
-      "inventory_id": "tmc_113586",
-      "junction_hint": "9349929996"
+      "label": "Fire Station 231 (740 Markham Rd)",
+      "represents": "fire_station",
+      "station": 231,
+      "address": "740 Markham Rd",
+      "lon": -79.227788,
+      "lat": 43.764644
     },
     {
-      "label": "Ellesmere Rd / Midland Ave (corridor entry)",
-      "lon": -79.27111,
-      "lat": 43.767925,
-      "inventory_id": "tmc_112956",
-      "junction_hint": "469705485"
+      "label": "Fire Station 232 (1550 Midland Ave)",
+      "represents": "fire_station",
+      "station": 232,
+      "address": "1550 Midland Ave",
+      "lon": -79.266851,
+      "lat": 43.754967
+    },
+    {
+      "label": "Fire Station 234 (40 Coronation Dr)",
+      "represents": "fire_station",
+      "station": 234,
+      "address": "40 Coronation Dr",
+      "lon": -79.191522,
+      "lat": 43.761068
+    },
+    {
+      "label": "Fire Station 243 (4560 Sheppard Ave E)",
+      "represents": "fire_station",
+      "station": 243,
+      "address": "4560 Sheppard Ave E",
+      "lon": -79.26296,
+      "lat": 43.789137
     }
-  ]
+  ],
+  "_retired": {
+    "note": "the original V2.2b probe origins (boundary-clipped corridor-entry intersections from the counts inventory) — retired 2026-07-26 when real fire-station origins landed; kept for the record, NEVER loaded",
+    "probes": [
+      {
+        "label": "Markham Rd / Kingston Rd (corridor entry)",
+        "lon": -79.217036,
+        "lat": 43.738777,
+        "inventory_id": "tmc_113586",
+        "junction_hint": "9349929996"
+      },
+      {
+        "label": "Ellesmere Rd / Midland Ave (corridor entry)",
+        "lon": -79.27111,
+        "lat": 43.767925,
+        "inventory_id": "tmc_112956",
+        "junction_hint": "469705485"
+      }
+    ]
+  },
+  "_dropped": {
+    "note": "Station 221 (2575 Eglinton Ave E) is inside the bbox but 381 m from the nearest modeled car edge (the net is boundary-clipped ~180 m north of it) — beyond the 150 m origin-match radius. Dropped per the test-driven selection rule (no radius inflation without evidence); measured 2026-07-26.",
+    "probes": [
+      {
+        "label": "Fire Station 221 (2575 Eglinton Ave E)",
+        "represents": "fire_station",
+        "station": 221,
+        "address": "2575 Eglinton Ave E",
+        "lon": -79.255063,
+        "lat": 43.73479
+      }
+    ]
+  }
 }

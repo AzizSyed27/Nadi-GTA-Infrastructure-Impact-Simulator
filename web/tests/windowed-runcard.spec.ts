@@ -40,11 +40,12 @@ const STATUS = {
   response_detour: {
     framing: FRAMING,
     lower_bound_note: LOWER_BOUND,
+    origins_note: 'probe origins are Toronto Fire Services station locations (Toronto Open Data, retrieved 2026-07-25); routes are computed from every station and do not indicate which station would respond',
     destination_edge: '-35798648#1',
     probes: [
-      { label: 'Markham Rd / Kingston Rd (corridor entry)', origin_edge: 'O1', baseline_s: 57.0, scenario_s: 57.0, added_s: 0.0,
+      { label: 'Fire Station 231 (740 Markham Rd)', represents: 'fire_station', origin_edge: 'O1', baseline_s: 57.0, scenario_s: 57.0, added_s: 0.0,
         note: 'the changed road stays passable at unchanged free-flow speed on this route — no added time under free-flow routing' },
-      { label: 'Ellesmere Rd / Midland Ave (corridor entry)', origin_edge: 'O2', baseline_s: 415.4, scenario_s: 415.4, added_s: 0.0 },
+      { label: 'Fire Station 232 (1550 Midland Ave)', represents: 'fire_station', origin_edge: 'O2', baseline_s: 415.4, scenario_s: 415.4, added_s: 0.0 },
     ],
   },
 };
@@ -63,6 +64,11 @@ async function mockBackend(page: Page) {
 test('the windowed lane_closure run card shows the chip + THE numbers with neutral split labels', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny fixture can land inside StrictMode's
+  // double-mount window on a cold dev compile — reload once, then interact.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('mode-edit').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
@@ -78,6 +84,7 @@ test('the windowed lane_closure run card shows the chip + THE numbers with neutr
     '962 travelers did not complete — car: 812 stranded en route, 145 not inserted; bicycle: 1 stranded en route; pedestrian: 4 stranded en route');
   const chip = page.getByTestId('response-access-chip');
   await expect(chip).toBeVisible();
+  await expect(chip).toContainText('worst of 2 stations: +0 s'); // the labeled MAX
   await expect(chip).toContainText(FRAMING);
   await expect(chip).toContainText(LOWER_BOUND);
 

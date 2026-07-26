@@ -229,8 +229,10 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                              f"{pr['scenario_s']} s, added {pr['added_s']} s.")
             else:
                 lines.append(f"From {pr['label']}: {pr.get('note') or 'not computable'}.")
+        origins = f" {rd['origins_note']}." if rd.get("origins_note") else ""
         docs.append(_doc("response_access", "Emergency response access (free-flow estimate)",
-                         " ".join(lines) + f" {rd.get('framing')}. {rd.get('lower_bound_note')}."))
+                         " ".join(lines) + origins
+                         + f" {rd.get('framing')}. {rd.get('lower_bound_note')}."))
 
     # --- robustness / cross-seed verdict ---
     if verdict:

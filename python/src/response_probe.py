@@ -1,6 +1,9 @@
 """V2.2b — the emergency-response DETOUR fact: free-flow shortest-path travel time from fixed
-corridor-entry probe origins to the changed edge's vicinity, baseline net vs the DURING-WINDOW
-scenario state. A routing computation, not a simulation — cheap, deterministic, and honest about
+probe origins to the changed edge's vicinity, baseline net vs the DURING-WINDOW scenario state.
+Since the V2.2d prelim the origins are the 5 REAL Toronto Fire Services stations inside the
+corridor bbox (Toronto Open Data; provenance in response_probes.json). Routes are computed from
+EVERY station — the fact never claims which station would respond (origins_note carries that
+guard wherever the numbers render). A routing computation, not a simulation — cheap, deterministic, and honest about
 what it is (both framing sentences below ship with every payload and render wherever the numbers
 do).
 
@@ -38,7 +41,22 @@ _UNREACHABLE_COST = 1e39  # threshold, NOT equality — sumolib's sentinel is (N
 
 
 def load_probes(path: Path = PROBES_PATH) -> list[dict]:
+    """Reads ONLY the "probes" array — underscore-prefixed TOP-LEVEL keys (_provenance, _retired,
+    any future _notes) are documentation and must never be folded in (a name-special-cased loader
+    would silently resurrect the retired origins)."""
     return json.loads(path.read_text(encoding="utf-8"))["probes"]
+
+
+def origins_note(path: Path = PROBES_PATH) -> str | None:
+    """The reader-facing sentence for WHAT the origins are + the dispatch-misreading guard: real
+    station names invite "this is the response time" / "the nearest station responds" — neither is
+    computed. Built from the file's _provenance so the retrieval date can't drift from the data."""
+    prov = json.loads(path.read_text(encoding="utf-8")).get("_provenance")
+    if not isinstance(prov, dict):
+        return None
+    return (f"probe origins are Toronto Fire Services station locations (Toronto Open Data, "
+            f"retrieved {prov.get('retrieved_at', 'date unknown')}); routes are computed from every "
+            f"station and do not indicate which station would respond")
 
 
 def origin_edge(net, lon: float, lat: float):
@@ -154,6 +172,9 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
     dest_id, dest_note = destination_edge(base_net, changes[0].target_edge, modified)
     out: dict = {"framing": FRAMING, "lower_bound_note": LOWER_BOUND_NOTE,
                  "destination_edge": dest_id, "destination_note": dest_note, "probes": []}
+    note = origins_note()
+    if note:
+        out["origins_note"] = note
     if dest_id is None:
         return out
     blocked_only = any(
@@ -162,9 +183,11 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
         for c in changes)
     for p in probes:
         o_base = origin_edge(base_net, p["lon"], p["lat"])
+        represents = p.get("represents")
         if o_base is None:
             out["probes"].append({"label": p["label"], "origin_edge": None, "baseline_s": None,
                                   "scenario_s": None, "added_s": None,
+                                  **({"represents": represents} if represents else {}),
                                   "note": "no car-permitted road within the match radius of this probe point"})
             continue
         base_s = _route_seconds(base_net, o_base, base_net.getEdge(dest_id))
@@ -173,14 +196,20 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
         # arithmetically self-consistent (verify_facts recomputes from the rounded values, and so
         # would any reader — raw-minus-raw can straddle a rounding boundary; caught live).
         row: dict = {"label": p["label"], "origin_edge": o_base.getID(),
+                     **({"represents": represents} if represents else {}),
                      "baseline_s": round(base_s, 1) if base_s is not None else None,
                      "scenario_s": round(scen_s, 1) if scen_s is not None else None,
                      "added_s": None, "note": None}
         if base_s is not None and scen_s is not None:
             row["added_s"] = round(row["scenario_s"] - row["baseline_s"], 1)
-            if row["added_s"] == 0.0 and blocked_only:
-                row["note"] = ("the changed road stays passable at unchanged free-flow speed on "
-                               "this route — no added time under free-flow routing")
+            if row["added_s"] == 0.0:
+                # an honest zero always carries its explanation (station origins commonly route
+                # around the changed stretch entirely — a bare 0 would read as "no impact found")
+                row["note"] = (
+                    "the changed road stays passable at unchanged free-flow speed on this route — "
+                    "no added time under free-flow routing" if blocked_only else
+                    "the fastest route from this origin does not use the changed road under "
+                    "free-flow conditions")
         elif scen_s is None and base_s is not None:
             row["note"] = "destination unreachable from this origin during the window"
         elif base_s is None:

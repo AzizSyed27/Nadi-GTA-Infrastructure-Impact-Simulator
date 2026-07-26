@@ -1082,6 +1082,10 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
                          f"{pr.get('note') or 'not computable'}.")
             if pr.get("note") and pr.get("added_s") is not None:
                 L.append(f"  - *{pr['note']}.*")
+        # what the origins ARE + the dispatch-misreading guard (real station names must never
+        # read as "the response time" / "the nearest station responds")
+        if rd.get("origins_note"):
+            L.append(f"- *{rd['origins_note']}.*")
         L.append(f"- *{rd.get('framing')}; {rd.get('lower_bound_note')}.*")
     L.append("")
 

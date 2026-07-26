@@ -134,6 +134,9 @@ def _detour_payload() -> dict:
     import response_probe as rp
 
     return {"framing": rp.FRAMING, "lower_bound_note": rp.LOWER_BOUND_NOTE,
+            "origins_note": "probe origins are Toronto Fire Services station locations (Toronto "
+                            "Open Data, retrieved 2026-07-25); routes are computed from every "
+                            "station and do not indicate which station would respond",
             "destination_edge": "D1", "destination_note": "first outgoing ... junction",
             "probes": [
                 {"label": "Markham entry", "origin_edge": "O1", "baseline_s": 57.0,
@@ -159,6 +162,8 @@ def test_report_response_access_block_renders_with_both_sentences() -> None:
     assert "+48.7" in md and "Markham entry" in md
     assert "unreachable" in md  # the note renders, never silence
     assert rp.FRAMING in md and rp.LOWER_BOUND_NOTE in md
+    # the dispatch-misreading guard renders wherever station names do
+    assert "do not indicate which station would respond" in md
 
 
 def test_report_response_access_uncomputable_is_labeled_not_silent() -> None:

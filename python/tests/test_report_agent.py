@@ -87,7 +87,20 @@ def test_corpus_split_sentence_carries_attribution_parenthetical():
         "bicycle": {"baseline": 3, "scenario": 3},
         "pedestrian": {"baseline": 12, "scenario": 12},
     }
+    out["response_detour"] = {
+        "framing": "estimated added response-route time; free-flow routing, not a dispatch model",
+        "lower_bound_note": "free-flow estimate; does not include congestion the incident induces — a lower bound on added response time",
+        "origins_note": "probe origins are Toronto Fire Services station locations (Toronto Open Data, "
+                        "retrieved 2026-07-25); routes are computed from every station and do not "
+                        "indicate which station would respond",
+        "destination_edge": "D1",
+        "probes": [{"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "O1",
+                    "baseline_s": 57.0, "scenario_s": 105.7, "added_s": 48.7}],
+    }
     docs = {d["source"]: d["text"] for d in report_agent.build_corpus(_artifact(), out, verdict=None)}
+    # the chat corpus carries the dispatch-misreading guard beside the station numbers
+    assert "do not indicate which station would respond" in docs["response_access"]
+    assert "Fire Station 231" in docs["response_access"]
     change_doc = docs["change"]
     assert "30 entered the network and could not finish" in change_doc
     assert "7 did not enter the network" in change_doc

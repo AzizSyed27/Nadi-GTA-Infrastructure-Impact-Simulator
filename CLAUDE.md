@@ -321,6 +321,16 @@ now v0.8.0).**
   bucket was checked and rejected with evidence (0 discard warnings in both real calibrated closure logs — the
   rerouting device fixes routes PRE-insertion, so --ignore-route-errors discards ~never fire). Sidecar +
   run-state + RunStatus + report (verify_facts: split sums + backlog recompute) + chat corpus.
+- **Probe set (V2.2d prelim):** the origins are now **4 REAL Toronto Fire Services stations** (231 Markham Rd /
+  232 Midland / 234 Coronation / 243 Sheppard — Toronto Open Data `fire-station-locations`, structured
+  `_provenance` incl. retrieval date + the both-license-facts note; Station 221 dropped: 381 m from the nearest
+  modeled car edge on the boundary-clipped net, documented in `_dropped`; the corridor-entry origins retired to
+  `_retired`, which `load_probes` structurally never reads). `origins_note` ships in the payload and renders in
+  report + chat: "…routes are computed from every station and **do not indicate which station would respond**"
+  (real station names must never read as dispatch estimates). The RunCard chip labels its statistic: "worst of
+  {N} stations: +{max} s". Every honest zero carries its explanation ("the fastest route from this origin does
+  not use the changed road"). Sanity: closing Markham Rd at station 231's doorstep fires +10.2/+29.1/+2.7 s
+  from the other three + unreachable from 231 — the computation is alive on the station set.
 - **Prelim A CLOSED — the nonzero detour rendered live end-to-end:** a palette-driven windowed road_closure on
   Kingston Rd (`multimodal-scenario-20260725T030121Z`, synthetic — the detour is free-flow static routing,
   demand-independent): Markham entry **57.0 → 105.7 s = +48.7 s** (matches the test pin), Ellesmere honest 0,

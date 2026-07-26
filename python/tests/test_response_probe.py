@@ -48,13 +48,40 @@ def nets():
     return base, scen
 
 
-def test_load_probes_returns_the_two_entry_points() -> None:
+def test_load_probes_returns_the_four_fire_stations() -> None:
+    # 4 of the 5 in-bbox stations: 221 is 381 m from the nearest modeled car edge (boundary-clipped
+    # net) and was dropped per the test-driven selection rule — see _dropped in the JSON.
     probes = rp.load_probes()
-    assert len(probes) == 2
+    assert len(probes) == 4
     labels = " ".join(p["label"] for p in probes)
-    assert "Markham" in labels and "Ellesmere" in labels
+    for station in ("231", "232", "234", "243"):
+        assert f"Station {station}" in labels
     for p in probes:
         assert -80 < p["lon"] < -79 and 43 < p["lat"] < 44
+        assert p["represents"] == "fire_station"
+
+
+def test_load_probes_never_folds_in_underscore_metadata() -> None:
+    # _retired (the old corridor-entry origins) and any future _-prefixed top-level key are
+    # DOCUMENTATION — the loader reads only the "probes" array, structurally. If this fails, the
+    # probe set silently grew with mislabeled origins.
+    import json
+
+    raw = json.loads(rp.PROBES_PATH.read_text(encoding="utf-8"))
+    assert "_retired" in raw  # history preserved in the file...
+    labels = [p["label"] for p in rp.load_probes()]
+    assert len(labels) == 4
+    for lbl in labels:
+        assert "corridor entry" not in lbl  # ...but NEVER loaded
+
+
+def test_origins_note_carries_the_dispatch_guard() -> None:
+    # real station names invite "this is the response time" / "the nearest station responds" —
+    # the note must say routes are computed from EVERY station and indicate no dispatch choice.
+    note = rp.origins_note()
+    assert "Toronto Fire Services station locations" in note
+    assert "do not indicate which station would respond" in note
+    assert "Toronto Open Data" in note
 
 
 def test_origins_resolve_and_baseline_positive(nets) -> None:
@@ -95,6 +122,11 @@ def test_road_closure_yields_a_computable_detour_not_unreachable(nets) -> None:
         out = rp.detour_from_nets(base, scen, [_road_closure()], rp.load_probes())
         added = [p["added_s"] for p in out["probes"] if p["added_s"] is not None]
         assert added, f"no computable detour for any probe: {out['probes']}"
+        # station origins commonly yield HONEST zeros (their fastest routes never used the closed
+        # stretch) — a zero must carry its explanation, never render as a bare number
+        for p in out["probes"]:
+            if p["added_s"] == 0.0:
+                assert "does not use the changed road" in (p.get("note") or ""), p
     finally:
         undo()
 
@@ -122,7 +154,7 @@ def test_road_closure_detour_and_undo_round_trip(nets) -> None:
         out = rp.detour_from_nets(base, scen, [_road_closure()], rp.load_probes())
         assert out["framing"] == rp.FRAMING
         assert out["lower_bound_note"] == rp.LOWER_BOUND_NOTE
-        assert len(out["probes"]) == 2
+        assert len(out["probes"]) == 4
         for pr in out["probes"]:
             if pr["added_s"] is None:
                 assert pr["note"]  # unreachable is a labeled fact, never silence
@@ -180,7 +212,9 @@ def test_speed_guard_fails_production_when_attr_vanishes(nets, monkeypatch) -> N
 def test_compute_response_detour_end_to_end_payload() -> None:
     out = rp.compute_response_detour([_incident(blocked_lanes=[1, 2])])
     assert out["framing"] == rp.FRAMING and out["lower_bound_note"] == rp.LOWER_BOUND_NOTE
-    assert out["destination_edge"] and len(out["probes"]) == 2
+    assert out["destination_edge"] and len(out["probes"]) == 4
+    assert out["origins_note"] and "do not indicate which station would respond" in out["origins_note"]
+    assert all(pr.get("represents") == "fire_station" for pr in out["probes"])
     for pr in out["probes"]:
         assert pr["label"] and pr["origin_edge"]
         if pr["added_s"] is not None and pr["scenario_s"] is not None:

@@ -197,13 +197,17 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
   // reason. Empty probes (no routable destination) still render the labeled destination_note.
   const rdNoNumber = rd?.probes.filter((p) => p.added_s == null) ?? [];
   const rdWorst = rdComputable.length ? Math.max(...rdComputable.map((p) => p.added_s as number)) : null;
+  // The single number is the MAX and says so — with several stations and a mixed spread, an
+  // unlabeled number reads as "the added response time" or an average. Old sidecars without
+  // `represents` fall back to "probes".
+  const rdNoun = rd?.probes.length && rd.probes.every((p) => p.represents === 'fire_station') ? 'stations' : 'probes';
   const responseLine = rd
     ? rdWorst != null
-      ? `+${rdWorst.toFixed(0)} s response-route estimate (${rd.probes.length} probes${
-          rdNoNumber.length ? `, ${rdNoNumber.length} not computable — see the report` : ''
-        })`
+      ? `worst of ${rd.probes.length} ${rdNoun}: +${rdWorst.toFixed(0)} s${
+          rdNoNumber.length ? ` (${rdNoNumber.length} not computable — see the report)` : ''
+        }`
       : rdNoNumber.length
-        ? `response route not computable for any probe — see the report (${rd.probes.length} probes)`
+        ? `response route not computable from any of the ${rd.probes.length} ${rdNoun} — see the report`
         : rd.destination_note ?? 'response detour not computable — see the report'
     : null;
 
