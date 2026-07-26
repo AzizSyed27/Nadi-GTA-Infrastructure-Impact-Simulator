@@ -33,6 +33,22 @@ and no loading knob recovers it). Both are phase-opening rebuilds, never patches
 - **real signal-plan import** — replace netconvert-default green splits at arterial intersections with
   the city's coordinated timings. Shifts every baseline; requires recalibration end-to-end.
 
+## V2.2 response detour — rung 2: destination-rule bias (deferred design)
+The current destination rule picks the first downstream junction WITH AN ALTERNATE APPROACH, so the
+measured fact is **"how much longer to reach a point reachable another way" — systematically biased
+toward small/zero deltas**. The question a response service actually asks is "can you still reach
+addresses ON the closed segment, and from which direction."
+
+**Rung-2 fact (a design, not a tweak):** probe the closed segment's **END NODES** rather than a
+downstream junction — report per-origin reachability and cost to each end ("reachable from the east
+end +12 s; the west end is unreachable while the closure is active"). Open design questions: rendering
+when one end is reachable and the other isn't; what "honest zero" means for this fact; whether it
+replaces or accompanies the current one. Natural companion to **`position_m`** (accepted-but-unused in
+the contract since 0.5.0) — along-edge probing is the same rung.
+
+**Do NOT design this before V2.2d**: d's composite is the first multi-member modified-edge exclusion
+set and will stress the CURRENT rule — change one variable at a time.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).
