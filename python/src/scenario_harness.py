@@ -1859,6 +1859,9 @@ def load_composite_spec(path: Path) -> tuple[list[Change], list[str] | None]:
         if c.type != "speed_limit":
             raise SystemExit(f"composite change {i}: {change_scheduler.REASON_COMPOSITE_MEMBER}")
         changes.append(c)
+    reason = change_scheduler.lifo_conflict_reason(changes)  # same rule the POST + scheduler enforce
+    if reason is not None:
+        raise SystemExit(reason)
     return changes, spec.get("tags")
 
 
@@ -1872,7 +1875,10 @@ def _run_composite(args) -> None:
         raise SystemExit(change_scheduler.REASON_COMPOSITE_SETTLED)
     ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"
-    desc = "; ".join(c.description for c in changes)
+    # keep the server's run label ("School zone: 30 km/h on 3 streets, …") when it queued this run;
+    # the joined member descriptions are the CLI-only fallback.
+    existing = run_state.read(run_id) or {}
+    desc = existing.get("description") or "; ".join(c.description for c in changes)
     try:
         run_state.set_stage(run_id, "baseline", desc, description=desc,
                             change=changes[0].model_dump(exclude_none=True),

@@ -411,6 +411,13 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
                            if ch.window is not None else {}),
                         "description": desc})
 
+    # same-edge members must be LIFO-revertible (disjoint or nested windows) — reject HERE, not as
+    # a raw scheduler ValueError mid-SUMO-run (review-caught; same pure rule the scheduler enforces).
+    from contract_models import Change as _Change
+    reason = change_scheduler.lifo_conflict_reason([_Change.model_validate(m) for m in members])
+    if reason is not None:
+        raise HTTPException(400, reason)
+
     if req.demand_profile != "synthetic_demo":
         import demand_profiles
         try:

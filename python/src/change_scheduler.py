@@ -113,6 +113,33 @@ def capacity_event(change_type: str) -> bool:
     return change_type in ("lane_closure", "road_closure", "incident")
 
 
+def lifo_conflict_reason(changes: list[Change]) -> str | None:
+    """PURE per-edge LIFO well-formedness on the RAW windows (windowed members only): replay the
+    event sequence with a stack; every revert must pop its own apply. Crossing same-edge windows
+    cannot be reverted correctly (LIFO revert restores captured state); nested/disjoint are legal.
+    Shared by the ChangeScheduler (hard ValueError), POST /api/simulate composites (400) and
+    load_composite_spec (SystemExit) — V2.2d: reject at the API, not mid-SUMO-run."""
+    raw: list[tuple[float, int, int, int]] = []
+    for i, c in enumerate(changes):
+        if c.window is None:
+            continue
+        raw.append((c.window.start_s, _PHASE_APPLY, i, i))
+        raw.append((c.window.end_s, _PHASE_REVERT, -i, i))
+    raw.sort(key=lambda e: (e[0], e[1], e[2]))
+    stacks: dict[str, list[int]] = {}
+    for _t, phase, _order, idx in raw:
+        edge = changes[idx].target_edge
+        st = stacks.setdefault(edge, [])
+        if phase == _PHASE_APPLY:
+            st.append(idx)
+        elif not st or st[-1] != idx:
+            return (f"windows on the same edge ({edge!r}) must be disjoint or nested — crossing "
+                    f"windows cannot be reverted correctly (LIFO revert restores captured state)")
+        else:
+            st.pop()
+    return None
+
+
 def any_invalidates_routes(changes: list[Change]) -> bool:
     """V2.2d composites: the route-invalidation gate folds over the member list — ONE stranding
     member makes the whole pair run --ignore-route-errors (symmetric, a no-op in baseline)."""
@@ -318,28 +345,12 @@ class ChangeScheduler:
         self._queue = deque(events)
 
     def _validate_lifo(self) -> None:
-        """Per-edge LIFO well-formedness on the RAW (unclipped) windows: replay the event
-        sequence with a stack; every revert must pop its own apply from the top. Rejects
-        crossing windows AND a container applying after its contained change — clipping must
-        not change a scenario's legality."""
-        raw: list[tuple[float, int, int, int]] = []
-        for i, c in self._windowed:
-            raw.append((c.window.start_s, _PHASE_APPLY, i, i))
-            raw.append((c.window.end_s, _PHASE_REVERT, -i, i))
-        raw.sort(key=lambda e: (e[0], e[1], e[2]))
-        stacks: dict[str, list[int]] = {}
-        for _t, phase, _order, idx in raw:
-            edge = self._changes[idx].target_edge
-            st = stacks.setdefault(edge, [])
-            if phase == _PHASE_APPLY:
-                st.append(idx)
-            elif not st or st[-1] != idx:
-                raise ValueError(
-                    f"windows on the same edge ({edge!r}) must be disjoint or nested — crossing "
-                    f"windows cannot be reverted correctly (LIFO revert restores captured state)"
-                )
-            else:
-                st.pop()
+        """Per-edge LIFO well-formedness on the RAW (unclipped) windows — delegates to the PURE
+        ``lifo_conflict_reason`` (also run at POST time + spec load, V2.2d) so the API and the
+        scheduler can never disagree. Clipping must not change a scenario's legality."""
+        reason = lifo_conflict_reason(self._changes)
+        if reason is not None:
+            raise ValueError(reason)
 
     def start(self) -> None:
         """Fire applies due at t<=0 (after conn.start, before the first step) — a window

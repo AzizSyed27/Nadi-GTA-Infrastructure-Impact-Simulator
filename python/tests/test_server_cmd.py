@@ -369,3 +369,75 @@ def test_build_composite_cmd_flags_byte_stable_defaults() -> None:
     full = server._build_composite_cmd(_P("spec.json"), "TS", demand_profile="calibrated_am_peak",
                                        assignment="day_one", n_seeds=3)
     assert "--demand-profile" in full and "--n-seeds" in full and "--assignment" not in full
+
+
+# ---------------------------------------------------------------- V2.2d review fixes
+
+def test_run_state_list_all_skips_composite_specs_and_junk(tmp_path, monkeypatch) -> None:
+    """BLOCKER (review-caught, reproduced live): the composite spec file lives in STATE_DIR, so
+    list_all's *.json glob picked it up, read() re-resolved '<id>.composite' back to the SAME file
+    (valid JSON, no run_id), and GET /api/runs 500'd for EVERY run until the file was hand-deleted.
+    list_all must skip spec files structurally AND read() must refuse run_id-less JSON."""
+    import json as _json
+
+    import run_state
+    monkeypatch.setattr(run_state, "STATE_DIR", tmp_path)
+    run_state.set_stage("run-a", "done", "ok")
+    (tmp_path / "run-b.composite.json").write_text(_json.dumps({"changes": [], "tags": []}), encoding="utf-8")
+    (tmp_path / "junk.json").write_text(_json.dumps({"not": "state"}), encoding="utf-8")
+    rows = run_state.list_all()
+    assert [r["run_id"] for r in rows] == ["run-a"]  # never crashes, never lists non-state files
+    assert run_state.read("junk") is None
+    assert run_state.read("run-b.composite") is None
+
+
+def test_post_composite_then_api_runs_still_serves(tmp_path) -> None:
+    """The live-repro shape of the blocker: after a composite POST writes its spec file, the REAL
+    /api/runs handler must still serve (and list the new run)."""
+    import asyncio
+
+    import run_state
+    members = _three_zone_members()
+    try:
+        out, _bg = _post_composite(members, tags=["school_zone"])
+        run_id = out["run_id"]
+        runs = asyncio.run(server.runs())  # crashed KeyError 'run_id' before the fix
+        assert any(r["id"] == run_id for r in runs["runs"])
+    finally:
+        run_state.release()
+        for p in (run_state.STATE_DIR / f"{out['run_id']}.composite.json",
+                  run_state.STATE_DIR / f"{out['run_id']}.json"):
+            p.unlink(missing_ok=True)
+
+
+def test_post_composite_same_edge_crossing_windows_rejected_cleanly() -> None:
+    """Review nit: same-edge crossing windows used to slip POST validation and die mid-SUMO-run as
+    a raw scheduler ValueError; the LIFO rule now runs at POST time (and in the harness spec load)."""
+    from fastapi import HTTPException
+
+    edge, _ = _real_edge_with_2_car_lanes()
+    members = [
+        {"type": "speed_limit", "target_edge": edge, "value_mps": 8.33,
+         "window": {"start_s": 600.0, "end_s": 1800.0}},
+        {"type": "speed_limit", "target_edge": edge, "value_mps": 5.0,
+         "window": {"start_s": 1200.0, "end_s": 2400.0}},  # crosses the first
+    ]
+    with pytest.raises(HTTPException) as ei:
+        _post_composite(members)
+    assert ei.value.status_code == 400 and "disjoint or nested" in ei.value.detail
+    # NESTED windows on the same edge stay legal (LIFO-revertible) — must not be over-rejected
+    import run_state
+    nested = [
+        {"type": "speed_limit", "target_edge": edge, "value_mps": 8.33,
+         "window": {"start_s": 600.0, "end_s": 2400.0}},
+        {"type": "speed_limit", "target_edge": edge, "value_mps": 5.0,
+         "window": {"start_s": 900.0, "end_s": 1200.0}},
+    ]
+    try:
+        out, _bg = _post_composite(nested)
+        assert out["run_id"]
+    finally:
+        run_state.release()
+        for p in (run_state.STATE_DIR / f"{out['run_id']}.composite.json",
+                  run_state.STATE_DIR / f"{out['run_id']}.json"):
+            p.unlink(missing_ok=True)

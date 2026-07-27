@@ -58,6 +58,11 @@ def read(run_id: str) -> dict | None:
         st = json.loads(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return None
+    # a STATE file always carries run_id (set_stage stamps it). Anything else in this dir (the
+    # V2.2d composite spec files, stray JSON) is NOT run state — refusing here keeps a single
+    # foreign file from 500-ing GET /api/runs for every run (review-caught, reproduced live).
+    if "run_id" not in st:
+        return None
     if st.get("status") == "running" and (time.time() - st.get("updated_at", 0)) > STALE_S:
         st.update({"status": "failed", "stage": "failed", "detail": "stale (no update) — treated as failed"})
     return st
@@ -68,6 +73,8 @@ def list_all() -> list[dict]:
     if not STATE_DIR.is_dir():
         return out
     for p in sorted(STATE_DIR.glob("*.json"), reverse=True):
+        if p.name.endswith(".composite.json"):
+            continue  # a composite HANDOFF spec (server → harness), not run state
         s = read(p.stem)
         if s:
             out.append(s)
