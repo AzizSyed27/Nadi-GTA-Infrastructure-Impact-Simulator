@@ -403,13 +403,25 @@ now v0.8.0).**
   now the pure `change_scheduler.lifo_conflict_reason`, ALSO enforced at POST (400) + spec load (SystemExit)
   so same-edge crossing windows die at the API, never mid-SUMO-run (nested stays legal). Suites: 300 pytest +
   32 Playwright green.
-- **Queued (does NOT gate the step): the calibrated school-hours exemplar** — detached server with
-  `NADI_MAX_T_OVERRIDE=9000` (07:00–09:30; WMI `--end 9000` hard-gate), composite on the Markham/Lawrence school
-  cluster (ST BARBARA / TECUMSEH / CORNELL / GOLF ROAD — School Locations - All Types, package `1a714b5c…`,
-  resource `02ef7447…`, license "License not specified", last_refreshed 2026-05-27), 30 km/h, window 3600–7200
-  = 08:00–09:00, **"the portion of the documented TDSB drop-off band that falls within the calibrated demand
-  period"** (the 7200–9000 tail drains, never measured); morning-after: revert proofs, zone_facts pair,
-  report regen → singleton restore, relaunch WITHOUT the override unconditionally.
+- **The calibrated school-hours exemplar — ATTEMPTED 2026-07-27, ABORTED (pace collapse); rerun needs a
+  reshaped ceiling.** Selection landed and is committed (`python/src/school_zone_select.py` →
+  `data/schools/school-zone-exemplar.json`): 4 cluster schools (ST BARBARA / TECUMSEH / CORNELL JR /
+  GOLF ROAD — School Locations - All Types, package `1a714b5c-64c0-4cdf-9739-0086f80fb3ee`, resource
+  `02ef7447-54d9-4aa7-b76d-8ef8138ac546`, license "License not specified", last_refreshed 2026-05-27) bind to
+  **3 deduped edges** (`36795944#0`, `36795936#0`, `-36795988#6` — Tecumseh + Golf Road share a street; the
+  floor counts EDGES, never schools; a "CORNELL INTERNATIONAL ACADEMY" name-collision was dropped +
+  documented). Run `multimodal-scenario-20260727T032219Z` (30 km/h ×3, window 3600–7200 = 08:00–09:00 —
+  "the portion of the documented TDSB drop-off band that falls within the calibrated demand period" — the
+  7200–9000 tail was to drain, never measured; WMI `--end 9000` gate passed): the window applied at 3600 and
+  reverted at 7200 IN-SIM, but **a sim-TIME ceiling does not bound WALL-CLOCK** — baseline leg 6.2 h (4× the
+  bounded-3600 precedent), scenario leg entered a queue-spiral drain (~1 sim-s/min at sim-t 7369, decelerating,
+  ETA ~27 h) and was aborted at 13 h; state honestly `failed` with the reason; server restored unbounded
+  (launch-shell env proven clean). **Rerun shape when reattempted: `NADI_MAX_T_OVERRIDE=7200`** — measure the
+  full zone window, skip the un-drainable tail (the tail was never a measured claim; non-completions honesty
+  already covers the trips still in-network at the ceiling). Ops lessons encoded: monitors key on HARNESS
+  PROCESS liveness, never run-state age (stages are silent for a whole leg); sample sim-pace from the tripinfo
+  tail before trusting any ETA; override-restore runs STRUCTURALLY FIRST on return, before diagnosis,
+  whatever the outcome.
 
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
