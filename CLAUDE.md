@@ -418,7 +418,18 @@ now v0.8.0).**
   ETA ~27 h) and was aborted at 13 h; state honestly `failed` with the reason; server restored unbounded
   (launch-shell env proven clean). **Rerun shape when reattempted: `NADI_MAX_T_OVERRIDE=7200`** — measure the
   full zone window, skip the un-drainable tail (the tail was never a measured claim; non-completions honesty
-  already covers the trips still in-network at the ceiling). Ops lessons encoded: monitors key on HARNESS
+  already covers the trips still in-network at the ceiling). **PACE-CURVE PROBE (2026-07-27, plain headless
+  sumo, calibrated baseline, --end 7200, seed 42, rerouting on, no TraCI/SSM/recording): the plain leg completes
+  in 37 min** — the COST curve does not death-spiral inside 7200 (knee at t≈1000 as demand ramps; trough 1.5
+  sim-s/s at t 4000–5000; RECOVERS to 2.3–3.0 by 5000–7200, the default-300s teleports acting as a pressure
+  valve — 980 cumulative, accelerating). The POPULATION curve never flattens: inflow exceeds outflow the whole
+  window (insertions ~530–600/min vs arrivals ~440–500/min), on-network climbs monotonically to 11,789 at
+  t=7140 (+6,293 insertion backlog; 49,095/67,808 loaded delivered = 72% by 09:00) — GENUINE SATURATION, the
+  V2.1b compound-delivery deficit measured directly (arrivals hold; not a collapse/localized failure). 37 min
+  is a FLOOR (no TraCI/recording/SSM); the aborted run's own legs give harness overhead ≈8–9× → a trimmed
+  --end 7200 harness pair projects to ~11–12 h (baseline 0–7200 ≈5 h, scenario ≈5.75 h, + analysis) —
+  overnight-feasible and BOUNDED (the ceiling ends at the window; the drain-spiral regime is never entered).
+  Probe evidence: `%LOCALAPPDATA%\nadi-demand\pace-probe\`. Ops lessons encoded: monitors key on HARNESS
   PROCESS liveness, never run-state age (stages are silent for a whole leg); sample sim-pace from the tripinfo
   tail before trusting any ETA; override-restore runs STRUCTURALLY FIRST on return, before diagnosis,
   whatever the outcome.
