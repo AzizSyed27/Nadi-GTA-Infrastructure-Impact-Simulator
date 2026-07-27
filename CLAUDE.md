@@ -390,6 +390,19 @@ now v0.8.0).**
   `test_school_zone_fixture.py` (regen: `python python/tests/test_school_zone_fixture.py`); `school-zone.spec.ts`
   (6 tests: palette POST, tint+legend verbatim, windowed-legacy scrub gating both ways, zone-chip, compare
   mismatch/twin-silent/window-shifted).
+- **Accepted live (synthetic, `multimodal-scenario-20260726T235722Z`):** the palette-shaped composite POST
+  (Kingston Rd 42140001 + 2 adjacent edges, 30 km/h, window 600–1200) ran to done through the real server —
+  3 per-member revert proofs all `restored_ok`, zone_facts pair (0 vs 0 — exactly the small-n case) with all
+  three notes verbatim on run-state==sidecar, response_detour/non_completions correctly ABSENT; voices 212
+  (62 parent-persona, own-outcome-grounded); report enumerates 3 changes + the zone block with the variation
+  sentence ADJACENT to the pair + both zone caveats, audit 0-unresolved (4 safety-direction corrected on
+  retry — a slow-traffic scenario invites them; singleton restored after). **Code review caught a real
+  BLOCKER, fixed + regression-pinned:** the composite spec file in `contract/runs/state/` was swept up by
+  `run_state.list_all()`'s `*.json` glob and 500'd `GET /api/runs` for EVERY run (reproduced live) —
+  `list_all` now skips `*.composite.json` and `read()` refuses run_id-less JSON; the scheduler's LIFO rule is
+  now the pure `change_scheduler.lifo_conflict_reason`, ALSO enforced at POST (400) + spec load (SystemExit)
+  so same-edge crossing windows die at the API, never mid-SUMO-run (nested stays legal). Suites: 300 pytest +
+  32 Playwright green.
 - **Queued (does NOT gate the step): the calibrated school-hours exemplar** — detached server with
   `NADI_MAX_T_OVERRIDE=9000` (07:00–09:30; WMI `--end 9000` hard-gate), composite on the Markham/Lawrence school
   cluster (ST BARBARA / TECUMSEH / CORNELL / GOLF ROAD — School Locations - All Types, package `1a714b5c…`,
