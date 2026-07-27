@@ -1,0 +1,64 @@
+{
+  "_provenance": {
+    "dataset": "School Locations - All Types (Toronto Open Data)",
+    "dataset_url": "https://open.toronto.ca/dataset/school-locations-all-types/",
+    "package_id": "1a714b5c-64c0-4cdf-9739-0086f80fb3ee",
+    "resource_id": "02ef7447-54d9-4aa7-b76d-8ef8138ac546",
+    "license": "License not specified (recorded honestly \u2014 no OGL-Toronto statement on this package)",
+    "last_refreshed": "2026-05-27",
+    "retrieved_at": "2026-07-27T03:20:59.666935+00:00",
+    "selection_rule": "name-contains cluster match; nearest car-permitted edge within 150 m (response_probe.origin_edge); edges deduped",
+    "note": "school locations are SITING CONTEXT for the exemplar zone only \u2014 the run measures pedestrian entities from the calibrated demand, not schoolchildren (zone_facts population_note carries this wherever the numbers render)"
+  },
+  "schools": [
+    {
+      "name": "ST BARBARA CATHOLIC ELEMENTARY SCHOOL",
+      "school_type": "English Separate",
+      "address": "25 Janray Dr",
+      "lon": -79.2190606152536,
+      "lat": 43.7624687290814,
+      "matched_edge": "36795944#0",
+      "dist_m": 29.8
+    },
+    {
+      "name": "TECUMSEH SR PUBLIC SCHOOL",
+      "school_type": "English Public",
+      "address": "720 Scarborough Golf Club Rd",
+      "lon": -79.216727028425,
+      "lat": 43.7629070424551,
+      "matched_edge": "-36795988#6",
+      "dist_m": 60.5
+    },
+    {
+      "name": "CORNELL JR PUBLIC SCHOOL",
+      "school_type": "English Public",
+      "address": "61 Holmfirth Ter",
+      "lon": -79.2180382190118,
+      "lat": 43.7593925689664,
+      "matched_edge": "36795936#0",
+      "dist_m": 57.5
+    },
+    {
+      "name": "GOLF ROAD JR PUBLIC SCHOOL ",
+      "school_type": "English Public",
+      "address": "730 Scarborough Golf Club Rd",
+      "lon": -79.2168876729568,
+      "lat": 43.7639036098219,
+      "matched_edge": "-36795988#6",
+      "dist_m": 43.3
+    }
+  ],
+  "zone_edges": [
+    "-36795988#6",
+    "36795936#0",
+    "36795944#0"
+  ],
+  "_dropped": [
+    {
+      "name": "CORNELL INTERNATIONAL ACADEMY",
+      "lon": -79.4001883467897,
+      "lat": 43.7642856622588,
+      "reason": "no car-permitted edge within 150 m of the school point (boundary-clipped net)"
+    }
+  ]
+}
