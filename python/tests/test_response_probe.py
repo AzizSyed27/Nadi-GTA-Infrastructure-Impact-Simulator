@@ -219,3 +219,23 @@ def test_compute_response_detour_end_to_end_payload() -> None:
         assert pr["label"] and pr["origin_edge"]
         if pr["added_s"] is not None and pr["scenario_s"] is not None:
             assert pr["added_s"] == round(pr["scenario_s"] - pr["baseline_s"], 1)
+
+
+def test_multi_member_modified_exclusion_and_anchor(nets) -> None:
+    """V2.2d: the modified-edge EXCLUSION SET is the union over ALL composite members, and the
+    destination stays anchored on changes[0]. UNIT-level by design — a speed-limit composite (the
+    school zone) is correctly NOT a capacity event, so no production run exercises this yet
+    (recorded as a coverage gap in BACKLOG, not assumed closed)."""
+    base, _ = nets
+    d_single, _ = rp.destination_edge(base, KINGSTON, modified={KINGSTON})
+    # a second member claiming the single-member anchor forces a DIFFERENT pick — the union is honored
+    d_multi, note = rp.destination_edge(base, KINGSTON, modified={KINGSTON, d_single})
+    assert d_multi is not None and d_multi not in (KINGSTON, d_single)
+    assert note
+    # the full fact on a 2-member list: anchored on changes[0] (KINGSTON), both members excluded
+    changes = [_road_closure(),
+               Change(type="lane_closure", target_edge=d_single, target_lanes=[0],
+                      description="second member on the single-member anchor")]
+    out = rp.compute_response_detour(changes)
+    assert out["destination_edge"] == d_multi  # changes[0] anchor, union exclusion
+    assert len(out["probes"]) == 4
