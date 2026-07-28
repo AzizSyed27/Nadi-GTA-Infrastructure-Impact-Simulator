@@ -166,6 +166,10 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                                    ("Access", g.access_delta if g else None, "access")):
             note = f" Note: {cell.note}" if (cell and getattr(cell, "note", None)) else ""
             lines.append(f"{label}: {report.render_cell(cell, kind)} — {report.cell_valence(cell, kind)}.{note}")
+        # V2.2 closeout — windowed runs: every scorecard row the chat can retrieve carries the scope
+        # sentence, so a run-scoped number can never be served as the windowed change's undiluted cost.
+        if facts.get("scope_disclosure"):
+            lines.append(facts["scope_disclosure"])
         docs.append(_doc(f"scorecard__{gid}", f"Scorecard row — {glabel}", "\n".join(lines)))
 
     # --- the change(s) --- v0.5.0: one doc listing every change the scenario composes (single-change → one line).

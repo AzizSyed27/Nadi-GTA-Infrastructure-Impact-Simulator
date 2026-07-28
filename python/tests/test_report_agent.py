@@ -133,6 +133,32 @@ def test_corpus_zone_doc_carries_pair_and_all_notes():
     assert report_agent.friendly_source("zone__school_zone__facts") == "School-zone conflict lens"
 
 
+def test_corpus_scorecard_rows_carry_scope_disclosure_iff_windowed():
+    """V2.2 closeout — every scorecard row the CHAT can retrieve carries the windowed-scope sentence
+    (chat must never serve a run-scoped number as the windowed change's undiluted cost); an
+    unwindowed run's rows stay clean."""
+    from contract_models import Window
+
+    change = Change(type="lane_closure", target_edge="E1", target_lanes=[1],
+                    window=Window(start_s=600.0, end_s=1200.0), description="Closed 1 lane on E1")
+    base = _artifact()
+    meta = Meta(run_id="scen-TEST", network="corridor.net.xml", bbox=[-79.3, 43.7, -79.1, 43.8],
+                sim_start=0.0, sim_end=1800.0, step_length=1.0, created_at="2026-07-04T00:00:00+00:00",
+                demand_profile="synthetic_demo",
+                scenario=Scenario(baseline_run_id="base-TEST", changes=[change]))
+    win_art = TrajectoryArtifact(schema_version="0.8.0", meta=meta, vehicles=base.vehicles,
+                                 agents=base.agents, conflicts=[], scorecard=base.scorecard)
+    docs = {d["source"]: d["text"] for d in report_agent.build_corpus(win_art, _outcomes(), verdict=None)}
+    sent = ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+            "the change was active from t=600 s to t=1200 s of it. Effects during the "
+            "active window are diluted by the periods before and after it.")
+    for gid in ("car_commuter", "business_owner"):  # a measured row and an inferred row alike
+        assert sent in docs[f"scorecard__{gid}"]
+    # the unwindowed corpus carries the sentence NOWHERE
+    docs0 = {d["source"]: d["text"] for d in _corpus()}
+    assert all("Scorecard measures cover the full simulated period" not in t for t in docs0.values())
+
+
 def test_corpus_shape_and_kinds():
     docs = _corpus()
     kinds = Counter(d["source"].split("__")[0] for d in docs)

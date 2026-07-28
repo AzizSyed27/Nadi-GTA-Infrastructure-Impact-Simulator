@@ -287,6 +287,133 @@ def test_zone_caveats_carry_population_and_variation():
 
 
 # --------------------------------------------------------------------------------------------------
+# V2.2 closeout — the windowed-scope disclosure: scorecard measures are RUN-scoped; when any change
+# is windowed the report must say BOTH scopes out loud (and say nothing at all when none is —
+# byte-identity is pinned by test_report_golden.py).
+# --------------------------------------------------------------------------------------------------
+
+def _win_change(start=600.0, end=1200.0):
+    from contract_models import Window
+    return Change(type="lane_closure", target_edge="E1", target_lanes=[1],
+                  window=Window(start_s=start, end_s=end), description="Closed 1 lane on E1")
+
+
+def _win_artifact(changes, sim_end=1800.0, profile="synthetic_demo") -> TrajectoryArtifact:
+    meta = Meta(run_id="scen-WIN", network="corridor.net.xml", bbox=[-79.3, 43.7, -79.1, 43.8],
+                sim_start=0.0, sim_end=sim_end, step_length=1.0, created_at="2026-07-27T00:00:00+00:00",
+                demand_profile=profile,
+                scenario=Scenario(baseline_run_id="base-WIN", changes=changes))
+    art = _artifact()
+    return TrajectoryArtifact(schema_version="0.8.0", meta=meta, vehicles=art.vehicles,
+                              scorecard=art.scorecard)
+
+
+def _win_outcomes() -> dict:
+    out = _outcomes()
+    out["scenario_run_id"], out["baseline_run_id"] = "scen-WIN", "base-WIN"
+    return out
+
+
+def test_scope_disclosure_windowed_closure_both_profiles():
+    # synthetic: sim-seconds; interior window → both dilution flanks
+    got = report.build_scope_disclosure([_win_change()], 1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the change was active from t=600 s to t=1200 s of it. Effects during the "
+                   "active window are diluted by the periods before and after it.")
+    # calibrated: clock times (t=0 == 07:00) — the exemplar's shape, window end == sim ceiling,
+    # so the dilution names ONLY the period before it (there is no 'after')
+    got = report.build_scope_disclosure([_win_change(3600.0, 7200.0)], 7200.0, "calibrated_am_peak")
+    assert got == ("Scorecard measures cover the full simulated period (07:00–09:00); "
+                   "the change was active from 08:00 to 09:00 of it. Effects during the "
+                   "active window are diluted by the period before it.")
+    assert "after" not in got  # never claims a post-window period that doesn't exist
+
+
+def test_scope_disclosure_flank_wording_start_zero_and_full_run():
+    # window starts at t=0 → only the period AFTER dilutes
+    got = report.build_scope_disclosure([_win_change(0.0, 1200.0)], 1800.0, "synthetic_demo")
+    assert got.endswith("diluted by the period after it.")
+    assert "before" not in got
+    # window IS the full period → nothing dilutes; no dilution sentence at all
+    got = report.build_scope_disclosure([_win_change(0.0, 1800.0)], 1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the change was active from t=0 s to t=1800 s of it.")
+
+
+def test_scope_disclosure_differing_windows_use_spanning_window_and_say_so():
+    import zone_lens
+    from contract_models import Window
+    changes = [_win_change(600.0, 1200.0),
+               Change(type="speed_limit", target_edge="E2", value_mps=8.33,
+                      window=Window(start_s=900.0, end_s=1500.0),
+                      description="30 km/h on E2")]
+    got = report.build_scope_disclosure(changes, 1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the changes were active from t=600 s to t=1500 s of it "
+                   f"({zone_lens.span_note('these figures')}). Effects during the "
+                   "active window are diluted by the periods before and after it.")
+    # single source: the span phrasing is zone_lens's, applied to a different subject
+    assert "members carry differing windows; these figures use the spanning window" in got
+
+
+def test_scope_disclosure_mixed_set_never_claims_the_permanent_member_was_temporary():
+    # fixture-only today (no palette composes windowed + unwindowed members), but the future
+    # multi-change closure flow (BACKLOG) will make it reachable — THIS TEST is what keeps the
+    # sentence correct until then: only the WINDOWED member is described as time-scoped.
+    changes = [_win_change(600.0, 1200.0),
+               Change(type="speed_limit", target_edge="E2", value_mps=8.33,
+                      description="40 km/h on E2")]  # permanent member
+    got = report.build_scope_disclosure(changes, 1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the windowed change was active from t=600 s to t=1200 s of it. Effects during "
+                   "the active window are diluted by the periods before and after it.")
+    # the span covers WINDOWED members only — the permanent member never narrows or widens it
+    assert "t=600 s to t=1200 s" in got
+
+
+def test_scope_disclosure_absent_for_unwindowed_runs():
+    change = Change(type="speed_limit", target_edge="E1", value_mps=11.11, description="40 km/h")
+    assert report.build_scope_disclosure([change], 1800.0, "synthetic_demo") is None
+
+
+def test_scope_disclosure_renders_adjacent_to_scorecard_and_joins_caveats():
+    art, out = _win_artifact([_win_change()]), _win_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    assert facts["scope_disclosure"] is not None
+    report.verify_facts(facts, art, out)  # present-and-verbatim passes
+    glosses = {gid: "Stub." for gid in report.GROUP_ORDER}
+    caveats = report.build_caveats(facts)
+    md = report.render_markdown(facts, "Stub framing.", glosses, {}, "Stub intro.", caveats,
+                                {"generated_at": "x", "provider": "p", "model": "m", "audit_summary": "a"})
+    lines = md.split("\n")
+    legend_i = next(i for i, ln in enumerate(lines) if ln.startswith("*POSITIVE = worse"))
+    # the scope line sits ADJACENT to the scorecard legend (same-breath rule, like the zone pair)
+    assert lines[legend_i + 2] == f"*{facts['scope_disclosure']}*"
+    assert any(c["title"] == "A windowed change: scorecard measures cover the whole run"
+               and c["body"] == facts["scope_disclosure"] for c in caveats)
+
+
+def test_fact_check_requires_the_scope_disclosure_iff_windowed():
+    # missing on a windowed run → fail
+    art, out = _win_artifact([_win_change()]), _win_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["scope_disclosure"] = None
+    with pytest.raises(AssertionError, match="scope_disclosure"):
+        report.verify_facts(facts, art, out)
+    # doctored wording → fail
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["scope_disclosure"] = facts["scope_disclosure"].replace("diluted", "affected")
+    with pytest.raises(AssertionError, match="scope_disclosure"):
+        report.verify_facts(facts, art, out)
+    # spurious on an UNwindowed run → fail
+    art0, out0 = _artifact(), _outcomes()
+    facts0 = report.gather_facts(art0, out0, verdict=None)
+    facts0["scope_disclosure"] = "Scorecard measures cover the full simulated period."
+    with pytest.raises(AssertionError, match="scope_disclosure"):
+        report.verify_facts(facts0, art0, out0)
+
+
+# --------------------------------------------------------------------------------------------------
 # Section-3 bucketing + bounded sentiment-spread sample.
 # --------------------------------------------------------------------------------------------------
 

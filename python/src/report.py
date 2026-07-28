@@ -272,6 +272,11 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         # V2.2d — scenario tags + the school-zone lens (tag-gated sidecar block; None otherwise)
         "tags": list(meta.scenario.tags) if getattr(meta.scenario, "tags", None) else None,
         "zone_facts": outcomes.get("zone_facts"),
+        # V2.2 closeout — run-scoped scorecard vs windowed change: the scope disclosure (None when
+        # no change is windowed; verify_facts re-derives and pins it verbatim).
+        "sim_end": meta.sim_end,
+        "scope_disclosure": build_scope_disclosure(
+            changes, meta.sim_end, getattr(meta, "demand_profile", None) or "synthetic_demo"),
     }
 
 
@@ -353,6 +358,15 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
             problems.append("zone_facts variation note altered or missing (the pair may not render without it)")
         if "not modeled schoolchildren" not in (zf.get("population_note") or ""):
             problems.append("zone_facts population note altered or missing")
+
+    # V2.2 closeout — the scope disclosure is REQUIRED verbatim whenever any change is windowed and
+    # FORBIDDEN otherwise (the variation_note enforcement level: rendering without it is a failure).
+    expected_scope = build_scope_disclosure(
+        changes_of(artifact), artifact.meta.sim_end,
+        getattr(artifact.meta, "demand_profile", None) or "synthetic_demo")
+    if facts.get("scope_disclosure") != expected_scope:
+        problems.append(f"scope_disclosure altered, missing, or spurious (expected {expected_scope!r}, "
+                        f"got {facts.get('scope_disclosure')!r})")
 
     car_cell = artifact.scorecard.groups and {g.group: g for g in artifact.scorecard.groups}["car_commuter"].travel_time_delta
     if round((car_cell.affected_share or 0.0) * 100, 1) != facts["tail_share_pct"]:
@@ -752,6 +766,44 @@ async def slot_caveat_intro(client, audit_log) -> str:
 
 
 # ===================================================================================================
+# V2.2 closeout — the windowed-scope disclosure. Scorecard measures are RUN-scoped; a windowed
+# change was active for only part of the run, so its per-group numbers are DILUTED by the periods
+# in which nothing was different. This sentence is the single source for the report line, the
+# caveat, the chat corpus, and the verify_facts pin — never re-derive the phrasing elsewhere.
+# ===================================================================================================
+
+def build_scope_disclosure(changes: list, sim_end: float, profile: str) -> str | None:
+    """The scorecard-scope sentence when ANY change is windowed; None otherwise (unwindowed runs
+    render NOTHING new — golden-pinned byte-identical). Span convention = zone_lens.resolve_window
+    (windowed members only; differing windows → the spanning window, said out loud). The dilution
+    sentence names only the flanks that exist — a window ending at the sim ceiling has no 'after'."""
+    import zone_lens
+    from demand_profiles import fmt_sim_time, fmt_window
+    windowed = [c for c in changes if getattr(c, "window", None) is not None]
+    if not windowed:
+        return None
+    span, _ = zone_lens.resolve_window(changes)
+    differing = len({(c.window.start_s, c.window.end_s) for c in windowed}) > 1
+    # a MIXED set (windowed + permanent members) must never read as "the changes were temporary"
+    if len(windowed) < len(changes):
+        subject = "the windowed changes were" if len(windowed) > 1 else "the windowed change was"
+    else:
+        subject = "the changes were" if len(changes) > 1 else "the change was"
+    s = (f"Scorecard measures cover the full simulated period "
+         f"({fmt_sim_time(0.0, profile)}–{fmt_sim_time(sim_end, profile)}); "
+         f"{subject} active {fmt_window(span, profile)} of it")
+    if differing:
+        s += f" ({zone_lens.span_note('these figures')})"
+    s += "."
+    before, after = span["start_s"] > 0.0, span["end_s"] < sim_end
+    if before or after:
+        flank = ("the periods before and after it" if before and after
+                 else "the period before it" if before else "the period after it")
+        s += f" Effects during the active window are diluted by {flank}."
+    return s
+
+
+# ===================================================================================================
 # Code-rendered caveat skeleton (Section 4) — MANDATORY, non-trimmable
 # ===================================================================================================
 
@@ -793,6 +845,12 @@ def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
          "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), "
                  "labelled low-confidence — an estimate to reason about, not a measurement."},
     ]
+    # V2.2 closeout — ANY windowed change (broader than the closure/incident gate below): the
+    # scorecard's run-scoped numbers dilute the windowed change's effect; say both scopes out loud.
+    if facts.get("scope_disclosure"):
+        caveats.append(
+            {"title": "A windowed change: scorecard measures cover the whole run",
+             "body": facts["scope_disclosure"]})
     # V2.2a — closure-specific honesty. Windowed: a temporary event has no settled equilibrium, so only
     # the day-one response is previewed. road_closure: stranded trips are a first-class outcome.
     chs = facts.get("changes") or []
@@ -1160,6 +1218,11 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
     L.append("*POSITIVE = worse for the group · ± = magnitude only (safety direction not claimed) · "
              "[MEAS] measured · [LOW] low-confidence estimate.*")
     L.append("")
+    # V2.2 closeout — the windowed-scope disclosure sits ADJACENT to the table it scopes (a reader
+    # must never take a run-scoped number as the change's undiluted cost). Code-rendered, no LLM slot.
+    if facts.get("scope_disclosure"):
+        L.append(f"*{facts['scope_disclosure']}*")
+        L.append("")
     # verbatim cell notes
     notes = []
     for kind, attr in (("Travel time", "travel_time_delta"), ("Safety", "safety_delta"), ("Access", "access_delta")):

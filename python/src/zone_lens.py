@@ -25,8 +25,16 @@ RADIUS_M = 25.0  # distance to ANY zone edge (never nearest-edge∈zone — boun
 
 VARIATION_NOTE = ("single-seed counts; at these small event counts the difference between the two "
                   "figures is within run-to-run variation and does not establish a direction")
-SPAN_WINDOW_NOTE = "members carry differing windows; zone facts use the spanning window"
 FULL_RUN_WINDOW_NOTE = "no member carries a window; zone facts cover the full simulated period"
+
+
+def span_note(subject: str) -> str:
+    """The ONE spanning-window phrasing (V2.2 closeout: the scorecard scope disclosure reuses it —
+    never a second span convention). ``SPAN_WINDOW_NOTE`` below is this applied to zone facts."""
+    return f"members carry differing windows; {subject} use the spanning window"
+
+
+SPAN_WINDOW_NOTE = span_note("zone facts")
 _POPULATION_BY_PROFILE = {
     "calibrated_am_peak": "pedestrian entities from the TMC-anchored calibrated demand",
     "synthetic_demo": "pedestrian entities from the synthetic demo demand",
