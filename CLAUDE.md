@@ -90,9 +90,11 @@ windowed changes apply+revert in-sim with proof logs), demand is synthetic or ca
 assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
 "ask the report" chat → OASIS discourse; ⇄ Compare with the provenance-mismatch guard. The calibrated
 school-hours exemplar LANDED (`multimodal-scenario-20260727T180728Z`: zone pair 30-vs-28, no direction
-claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). Suites: **300
-pytest + 32 Playwright**. Open threads: V2.5 network styling + `BACKLOG.md` (bbox expansion, rung-2
-detour, student demand).
+claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). V2.2 is closed out and
+TAGGED **`v2.2`**: every windowed run renders the WINDOWED-SCOPE DISCLOSURE (run-scoped scorecard vs
+window-scoped change — report line + caveat + chat corpus + ScorecardPanel one-liner; unwindowed reports
+byte-identical, golden-pinned). Suites: **310 pytest + 34 Playwright**. Open threads: V2.5 network styling +
+`BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
 parameterized change, e.g. a speed limit, to one corridor edge), a per-vehicle outcome join, a sampler
@@ -447,6 +449,9 @@ now v0.8.0).**
   **the modeled window covers 08:00–09:00, the portion of the documented TDSB drop-off band that falls within
   the calibrated demand period.** All three `window_events`: applied at 3600; never reverted with the DISCLOSED
   note (window end == sim ceiling — the honest shape, not a failure; the report renders it verbatim).
+  **PRECISION: the exemplar proves APPLICATION, not revert** — its three window events ended at the sim
+  ceiling; the revert proofs (restored == captured) come from the synthetic V2.2d acceptance and the V2.2a/c
+  live runs. Never cite the calibrated exemplar as revert evidence.
   **zone_facts pair: 30 baseline vs 28 scenario** ped-vehicle crossing conflicts on zone streets during the
   window — real calibrated counts (vs synthetic's 0-vs-0), still small-n: the always-present variation note is
   doing exactly its job (a 2-event difference claims no direction), and the per-run judgment is NOT to say more
@@ -459,8 +464,34 @@ now v0.8.0).**
   clean, 0 override prints. Ops lessons encoded: monitors key on HARNESS
   PROCESS liveness, never run-state age (stages are silent for a whole leg); sample sim-pace from the tripinfo
   tail before trusting any ETA; override-restore runs STRUCTURALLY FIRST on return, before diagnosis,
-  whatever the outcome.
+  whatever the outcome. **Calibrated wall-clock does not extrapolate in EITHER direction** — four data points:
+  the 6 h unbounded wedge; C6's 27 s/iter meso surprise; the ~27 h pace-collapse ETA at --end 9000; 6.5 h
+  actual vs 11–12 h projected at --end 7200. The pace probe gave a trustworthy LOWER BOUND; the overhead
+  multiplier derived from a DIFFERENT-SHAPED run did not. Probe the shape you will actually run; treat
+  cross-shape multipliers as guesses.
 
+- **V2.2 CLOSEOUT — the WINDOWED-SCOPE DISCLOSURE + the `v2.2` tag.** The gap (spotted on the exemplar): zone
+  facts are window-scoped but SCORECARD measures are RUN-scoped — "car median +0.0 s" / "13.8% materially
+  affected" cover 07:00–09:00 while the zone was active only 08:00–09:00, and nothing said which period each
+  covers; a run-scoped number reads as the change's cost DILUTED by an hour in which nothing was different.
+  General fix for EVERY windowed change (V2.2a/b/c/d): **`report.build_scope_disclosure(changes, sim_end,
+  profile)` is the SINGLE SOURCE** — the Section-2 line adjacent to the scorecard table, the caveat, the
+  chat-corpus scorecard rows, and the `verify_facts` recompute-and-pin (REQUIRED iff any change is windowed;
+  the variation_note enforcement level) all read it, never re-derive it. Span = `zone_lens.resolve_window`
+  (the ONE span convention; differing member windows disclose via the shared `zone_lens.span_note(subject)`
+  refactor — `SPAN_WINDOW_NOTE` byte-identical); the dilution tail names only the flanks that EXIST (the
+  exemplar shape, window end == sim ceiling → "diluted by the period before it"); a MIXED windowed+permanent
+  set reads "the windowed change was active …" (fixture-only today — no palette composes it; TEST-pinned so
+  the future multi-change closure flow inherits it correct). UNWINDOWED runs render NOTHING new — pinned
+  byte-identical by `python/tests/golden_report_unwindowed.md` (captured PRE-feature; the regen helper
+  structurally refuses a windowed source artifact). Web: the ScorecardPanel one-line scope note ("measures
+  cover the full run; change active {range}" via `fmtWindowRange`; `scorecard-scope-note`); RunCard
+  deliberately unchanged (chip-dense). Exemplar report REGENERATED with the disclosure ("(07:00–09:00); the
+  changes were active from 08:00 to 09:00 of it … diluted by the period before it"), audit 7 clean / 2
+  corrected on retry / 0 unresolved (both safety_direction — the canary class; no drift); singleton restored.
+  Also fixed, PRE-EXISTING (stash-proven, not a regression): edit.spec's three default-5s `mode-edit` waits →
+  20 s ('/' loads the real ~90 MB `latest.json` since the exemplar landed). Suites: 310 pytest + 34 Playwright
+  green.
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
