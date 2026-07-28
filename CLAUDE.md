@@ -83,6 +83,17 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - Small commits.
 
 ## Current phase
+**CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
+Contract **v0.8.0**. Phases 0–5 and V2.0–V2.2 are COMPLETE: the ✏️ editor fronts the whole pipeline
+(draw a road / speed / bike lane / lane- & road-closures / incidents / 🏫 school-zone COMPOSITES —
+windowed changes apply+revert in-sim with proof logs), demand is synthetic or calibrated AM-peak,
+assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
+"ask the report" chat → OASIS discourse; ⇄ Compare with the provenance-mismatch guard. The calibrated
+school-hours exemplar LANDED (`multimodal-scenario-20260727T180728Z`: zone pair 30-vs-28, no direction
+claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). Suites: **300
+pytest + 32 Playwright**. Open threads: V2.5 network styling + `BACKLOG.md` (bbox expansion, rung-2
+detour, student demand).
+
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
 parameterized change, e.g. a speed limit, to one corridor edge), a per-vehicle outcome join, a sampler
 that pins ~12 persona agents to winner/loser travelers, an LLM reaction layer (provider-agnostic,
@@ -173,10 +184,10 @@ to a slimmed **`/api/edges` (eligibility metadata only)** — `network.json` is 
 styled yet (functional-plain; V2.5). No contract change.
 
 **V2.0 is COMPLETE** (Step a contract 0.5.0 + Step b network renderer + report-regeneration housekeeping, all
-committed). The open threads it deliberately deferred: **V2.2** — the runtime CHANGE-SCHEDULER that actually
-APPLIES windows/incidents/closures (0.5.0 froze only their SHAPE; **Steps a+b LANDED below** — windows, closures,
-incidents + the response-detour fact); and **V2.5** — network STYLING over Step b's functional-plain base. Tiered V2 ideas
-+ standing cleanup live in `BACKLOG.md`.
+committed). The open threads it deliberately deferred: **V2.2 — now COMPLETE, Steps a–d below** (the runtime
+change-scheduler, closures, incidents + the response-detour fact, the editor palette for all of it, and the
+school-zone composite incl. the calibrated exemplar); and **V2.5** — network STYLING over Step b's
+functional-plain base, still open. Tiered V2 ideas + standing cleanup live in `BACKLOG.md`.
 
 **V2.1 (a–d) — COMPLETE (calibrated demand, assignment modes, seed robustness, the compare view; the contract is
 now v0.8.0).**
@@ -473,7 +484,11 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `--change-type {lane_closure,road_closure,incident}` + `--target-lanes 1,2`
   (csv, car-lane indices) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable: speed_limit
   + closures + incident) + incident effects `--blocked` / `--speed-factor 0.5` / `--position-m` (stored, unused).
-  Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings. Compare two finished
+  Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings.
+  **V2.2d composites (the 🏫 school-zone palette flow):** `POST /api/simulate {changes:[...], tags:["school_zone"]}`
+  → the server writes `contract/runs/state/<run_id>.composite.json` and hands off via `--composite=<spec>`
+  (speed_limit-only members this step; settled+composite rejected; the harness re-validates). Zone-edge
+  selection for the exemplar: `python python/src/school_zone_select.py` → `data/schools/`. Compare two finished
   runs at `http://localhost:3000/?run=<A>&compare=<B>` (or the ⇄ Compare toggle) — pure frontend, only needs
   `/api/runs` for the pickers.
 - **Bounded-calibrated convention (V2.1):** calibrated runs are bounded to the peak hour by launching the SERVER
@@ -525,7 +540,8 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
 - **Tests:** `python -m pytest python/tests` (golden spine + contract 0.6.0–0.8.0 sections + seed-range/report
-  honesty invariants) and `cd web && npx playwright test` (17 specs incl. seeds + compare). **Dev-only Playwright
+  honesty invariants) and `cd web && npx playwright test` (32 tests across 8 spec files incl. seeds, compare,
+  school-zone). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
