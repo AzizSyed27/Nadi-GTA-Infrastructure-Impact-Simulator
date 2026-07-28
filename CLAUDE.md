@@ -429,7 +429,23 @@ now v0.8.0).**
   is a FLOOR (no TraCI/recording/SSM); the aborted run's own legs give harness overhead ≈8–9× → a trimmed
   --end 7200 harness pair projects to ~11–12 h (baseline 0–7200 ≈5 h, scenario ≈5.75 h, + analysis) —
   overnight-feasible and BOUNDED (the ceiling ends at the window; the drain-spiral regime is never entered).
-  Probe evidence: `%LOCALAPPDATA%\nadi-demand\pace-probe\`. Ops lessons encoded: monitors key on HARNESS
+  Probe evidence: `%LOCALAPPDATA%\nadi-demand\pace-probe\`.
+- **The trimmed exemplar LANDED — `multimodal-scenario-20260727T180728Z` (calibrated, --end 7200, day-one,
+  seed 42; ~6.5 h wall: baseline 3.8 h, scenario ~6 h — the scenario tail decayed 82→2 sim-s/min through the
+  saturated window but the ceiling bounds it).** The zone: 30 km/h on the 3 selected streets, window 3600–7200;
+  **the modeled window covers 08:00–09:00, the portion of the documented TDSB drop-off band that falls within
+  the calibrated demand period.** All three `window_events`: applied at 3600; never reverted with the DISCLOSED
+  note (window end == sim ceiling — the honest shape, not a failure; the report renders it verbatim).
+  **zone_facts pair: 30 baseline vs 28 scenario** ped-vehicle crossing conflicts on zone streets during the
+  window — real calibrated counts (vs synthetic's 0-vs-0), still small-n: the always-present variation note is
+  doing exactly its job (a 2-event difference claims no direction), and the per-run judgment is NOT to say more
+  than the caveat allows. population_note names "pedestrian entities from the TMC-anchored calibrated demand".
+  Headlines: 2,660/61,192 cars diverted, car median +0.0 s, 13.8% materially affected; artifact 90.4 MB,
+  validates at 0.8.0 (changes[3] + tags; render sample 799/61,192 vehicles + 800/5,076 persons). Voices: 212
+  (38 parent-persona, own-outcome-grounded). Report `report-20260727T180728Z`: 3 changes enumerated, the zone
+  pair with the adjacent variation sentence, audit **8 clean / 1 corrected / 0 unresolved** (no drift);
+  singleton restored after; server relaunched unbounded FIRST (restore-before-diagnose), launch shell proven
+  clean, 0 override prints. Ops lessons encoded: monitors key on HARNESS
   PROCESS liveness, never run-state age (stages are silent for a whole leg); sample sim-pace from the tripinfo
   tail before trusting any ETA; override-restore runs STRUCTURALLY FIRST on return, before diagnosis,
   whatever the outcome.
