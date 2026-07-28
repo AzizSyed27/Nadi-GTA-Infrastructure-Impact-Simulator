@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { Scorecard, ScorecardGroup } from '@/lib/types';
 import { GROUP_LABEL, OTHER_VOICES_GROUP, SCORECARD_GROUP_ORDER } from '@/lib/personaGroups';
 import { BETTER, chipInferred, chipSim, ScoreCell, WORSE } from '@/lib/scorecardStyles';
+import { fmtWindowRange } from '@/lib/simTime';
 
 /**
  * The per-STAKEHOLDER scorecard (7 groups × travel_time / safety / access). Honesty is the whole point:
@@ -21,9 +22,19 @@ interface ScorecardPanelProps {
   onSelectGroup: (group: string) => void;
   /** V2.1b: meta.demand_profile — calibrated runs surface the comparison-validity line in the header. */
   demandProfile?: string;
+  /** V2.2 closeout: the spanning window of the run's windowed change(s) — null/absent when none is
+   * windowed. Scorecard measures are RUN-scoped; this one-liner says the change was only active for
+   * part of it (the report carries the full disclosure sentence). */
+  changeWindow?: { start_s: number; end_s: number } | null;
 }
 
-export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup, demandProfile }: ScorecardPanelProps) {
+export function ScorecardPanel({
+  scorecard,
+  activeGroup,
+  onSelectGroup,
+  demandProfile,
+  changeWindow,
+}: ScorecardPanelProps) {
   const [open, setOpen] = useState(true);
   if (!scorecard || !scorecard.groups?.length) return null;
 
@@ -47,6 +58,11 @@ export function ScorecardPanel({ scorecard, activeGroup, onSelectGroup, demandPr
           {demandProfile === 'calibrated_am_peak' && (
             <div style={{ ...legend, opacity: 0.9 }} data-testid="comparison-validity-note">
               calibrated demand: absolute volumes approximate · scenario-vs-baseline is like-for-like
+            </div>
+          )}
+          {changeWindow && (
+            <div style={{ ...legend, opacity: 0.9 }} data-testid="scorecard-scope-note">
+              measures cover the full run; change active {fmtWindowRange(changeWindow, demandProfile)}
             </div>
           )}
           <div style={legend}>

@@ -77,6 +77,17 @@ const BADGE_CHARSET = Array.from('0123456789:–t=s min-'); // ascii '-' too: ne
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
+// V2.2 closeout: the spanning window of the run's windowed change(s), or null when none is windowed.
+// Windowed members only — a permanent member neither narrows nor widens the span (the Python
+// convention: zone_lens.resolve_window). Drives the ScorecardPanel scope line.
+function windowedSpan(
+  changes: { window?: { start_s: number; end_s: number } | null }[],
+): { start_s: number; end_s: number } | null {
+  const ws = changes.flatMap((c) => (c.window ? [c.window] : []));
+  if (!ws.length) return null;
+  return { start_s: Math.min(...ws.map((w) => w.start_s)), end_s: Math.max(...ws.map((w) => w.end_s)) };
+}
+
 /** A sim agent joined to its trajectory (vehicle OR person) — stable across frames; the clickable dots. */
 interface Pinned {
   agent: PinnedSimAgent;
@@ -1263,6 +1274,7 @@ export default function MapView() {
               activeGroup={feedGroup}
               onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
               demandProfile={meta.demand_profile}
+              changeWindow={windowedSpan(changesOf(artifact))}
             />
             <AgentPanel agent={selected} onClose={() => setSelected(null)} />
           </div>

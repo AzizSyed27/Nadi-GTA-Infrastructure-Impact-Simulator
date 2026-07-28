@@ -171,7 +171,9 @@ test('discourse mode is locked until a run carries a social block', async ({ pag
 // ---- 5.2b: edit an existing edge ----
 async function enterEditForEdges(page: Page) {
   await page.goto('/');
-  await expect(page.getByTestId('mode-edit')).toBeVisible();
+  // 20s like enterEditAndLoadJunctions: '/' loads the REAL latest.json (an arbitrary editor pointer —
+  // since the calibrated exemplar it is a ~90 MB artifact), so first paint can far exceed the 5s default.
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('mode-edit').click();
   await expect(page.getByTestId('edit-panel')).toBeVisible();
   await page.waitForFunction(() => typeof (window as unknown as { __nadiEditEdge?: unknown }).__nadiEditEdge === 'function');
@@ -222,7 +224,8 @@ test('a speed_limit submit walks the regen-free stages and reads 0-reroute as de
 test('the exported network renders as the base road layer (all modes)', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
-  await expect(page.getByTestId('mode-edit')).toBeVisible(); // map mounted
+  // map mounted — 20s: '/' loads the real (~90 MB since the exemplar) latest.json first
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   // The network loaded and set the deterministic seam — the drawn roads ARE the simulation's roads.
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   const count = await page.evaluate(() => (window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges);
