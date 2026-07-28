@@ -70,6 +70,16 @@ Until a segment lands, zone facts must keep NAMING their population ("pedestrian
 Toronto Open Data) and are used as siting context only — walk-Y-signs / crossing-guard posts would
 be adjacent context, never measured children.
 
+## V2.2 closeout — disjoint-window span honesty (review-flagged, API-reachable only)
+The windowed-scope disclosure uses the ratified spanning-window convention (`zone_lens.resolve_window`
++ the span note) for differing member windows. For DISJOINT windows (e.g. [0,300] and [1500,1800] on an
+1800 s run) the span covers ~the whole period, so the dilution sentence is suppressed while two-thirds
+of the run had no active change — the span note fires ("members carry differing windows; these figures
+use the spanning window") but understates the gap. No palette can compose disjoint member windows today
+(the 🏫 zone palette assigns ONE shared window); reachable only by hand-POSTing a composite. If a
+multi-window composite flow ever lands, refine the sentence for gapped spans (e.g. per-member windows
+or an "active intermittently" form) rather than widening the span convention silently.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).

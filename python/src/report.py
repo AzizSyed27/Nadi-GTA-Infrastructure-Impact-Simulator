@@ -783,6 +783,11 @@ def build_scope_disclosure(changes: list, sim_end: float, profile: str) -> str |
     if not windowed:
         return None
     span, _ = zone_lens.resolve_window(changes)
+    # DISPLAY bounds clamp to the simulated period — a window may legally end at/after the sim
+    # ceiling (the scheduler discloses "never reverted") or start before t=0 (CLI-reachable); the
+    # sentence must never claim activity outside the period it just defined. verify_facts recomputes
+    # via this same function, so an unclamped contradiction would ship silently.
+    span = {"start_s": max(span["start_s"], 0.0), "end_s": min(span["end_s"], sim_end)}
     differing = len({(c.window.start_s, c.window.end_s) for c in windowed}) > 1
     # a MIXED set (windowed + permanent members) must never read as "the changes were temporary"
     if len(windowed) < len(changes):

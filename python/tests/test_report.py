@@ -371,6 +371,17 @@ def test_scope_disclosure_mixed_set_never_claims_the_permanent_member_was_tempor
     assert "t=600 s to t=1200 s" in got
 
 
+def test_scope_disclosure_clamps_display_to_the_simulated_period():
+    # a window may legally END past the sim ceiling (the scheduler discloses "never reverted") —
+    # the sentence must never claim activity outside the period it just defined (review-caught:
+    # verify_facts recomputes via the same function, so an unclamped contradiction ships silently)
+    got = report.build_scope_disclosure([_win_change(600.0, 2000.0)], 1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the change was active from t=600 s to t=1800 s of it. Effects during the "
+                   "active window are diluted by the period before it.")
+    assert "t=2000" not in got
+
+
 def test_scope_disclosure_absent_for_unwindowed_runs():
     change = Change(type="speed_limit", target_edge="E1", value_mps=11.11, description="40 km/h")
     assert report.build_scope_disclosure([change], 1800.0, "synthetic_demo") is None

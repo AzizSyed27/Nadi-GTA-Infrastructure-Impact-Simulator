@@ -78,14 +78,20 @@ const SNAP_M = 60; // edit mode: a click within this many meters of a junction s
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
 // V2.2 closeout: the spanning window of the run's windowed change(s), or null when none is windowed.
-// Windowed members only — a permanent member neither narrows nor widens the span (the Python
-// convention: zone_lens.resolve_window). Drives the ScorecardPanel scope line.
+// Windowed members only — a permanent member neither narrows nor widens the span — and DISPLAY
+// bounds clamp to [0, sim_end] (a window may legally end past the sim ceiling; the line must never
+// claim activity outside the run). Lockstep with the Python convention: report.build_scope_disclosure
+// over zone_lens.resolve_window. Drives the ScorecardPanel scope line.
 function windowedSpan(
   changes: { window?: { start_s: number; end_s: number } | null }[],
+  simEnd: number,
 ): { start_s: number; end_s: number } | null {
   const ws = changes.flatMap((c) => (c.window ? [c.window] : []));
   if (!ws.length) return null;
-  return { start_s: Math.min(...ws.map((w) => w.start_s)), end_s: Math.max(...ws.map((w) => w.end_s)) };
+  return {
+    start_s: Math.max(Math.min(...ws.map((w) => w.start_s)), 0),
+    end_s: Math.min(Math.max(...ws.map((w) => w.end_s)), simEnd),
+  };
 }
 
 /** A sim agent joined to its trajectory (vehicle OR person) — stable across frames; the clickable dots. */
@@ -1274,7 +1280,7 @@ export default function MapView() {
               activeGroup={feedGroup}
               onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
               demandProfile={meta.demand_profile}
-              changeWindow={windowedSpan(changesOf(artifact))}
+              changeWindow={windowedSpan(changesOf(artifact), meta.sim_end)}
             />
             <AgentPanel agent={selected} onClose={() => setSelected(null)} />
           </div>

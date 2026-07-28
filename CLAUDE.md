@@ -93,7 +93,7 @@ school-hours exemplar LANDED (`multimodal-scenario-20260727T180728Z`: zone pair 
 claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). V2.2 is closed out and
 TAGGED **`v2.2`**: every windowed run renders the WINDOWED-SCOPE DISCLOSURE (run-scoped scorecard vs
 window-scoped change — report line + caveat + chat corpus + ScorecardPanel one-liner; unwindowed reports
-byte-identical, golden-pinned). Suites: **310 pytest + 34 Playwright**. Open threads: V2.5 network styling +
+byte-identical, golden-pinned). Suites: **311 pytest + 34 Playwright**. Open threads: V2.5 network styling +
 `BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
@@ -489,9 +489,12 @@ now v0.8.0).**
   deliberately unchanged (chip-dense). Exemplar report REGENERATED with the disclosure ("(07:00–09:00); the
   changes were active from 08:00 to 09:00 of it … diluted by the period before it"), audit 7 clean / 2
   corrected on retry / 0 unresolved (both safety_direction — the canary class; no drift); singleton restored.
-  Also fixed, PRE-EXISTING (stash-proven, not a regression): edit.spec's three default-5s `mode-edit` waits →
-  20 s ('/' loads the real ~90 MB `latest.json` since the exemplar landed). Suites: 310 pytest + 34 Playwright
-  green.
+  Also fixed, PRE-EXISTING (stash-proven, not a regression): edit.spec's two default-5s `mode-edit` waits →
+  20 s ('/' loads the real ~90 MB `latest.json` since the exemplar landed). Review caught the UNCLAMPED span
+  end — a window may legally end past the sim ceiling, and the sentence would have claimed activity outside
+  the period it just defined (verify_facts recomputes via the same function, so it ships silently): display
+  bounds now clamp to [0, sim_end] on BOTH sides (report + `windowedSpan`), regression-pinned. Disjoint-window
+  span honesty (API-only reachable) recorded in `BACKLOG.md`. Suites: 311 pytest + 34 Playwright green.
 - **Batch exemplar (overnight):** calibrated bounded day-one 3-seed run `multimodal-scenario-20260720T010417Z` —
   3.81 h total, 70 MB artifact. FINDING: at calibrated congestion only the CYCLIST safety sign flips across seeds;
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
