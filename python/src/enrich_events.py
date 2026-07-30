@@ -68,6 +68,11 @@ def read_from(path: Path, offset: int) -> tuple[list[tuple[int, dict]], int]:
     # A file whose last write completed ends with b"\n" → split leaves one empty tail element. Anything
     # non-empty in the tail position is a partial line mid-append: drop it, don't advance past it.
     complete = lines[:-1]
+    if offset > len(complete):
+        # The file SHRANK below our offset — a fresh job truncated it while we were tailing. Replay from
+        # line 0: job_start is line 0 of every fresh file (the POST-time ordering invariant) and resets
+        # the client's Last-Event-ID dedup, so the replayed lines flow instead of being dropped as stale.
+        offset = 0
     events: list[tuple[int, dict]] = []
     for lineno, ln in enumerate(complete[offset:], start=offset):
         try:

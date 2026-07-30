@@ -85,11 +85,25 @@ export function openEnrichStream(runId: string, h: StreamHandlers): () => void {
   es.addEventListener('job_done', terminal(true));
   es.addEventListener('job_failed', terminal(false));
 
+  let failures = 0; // consecutive errors without a successful open — see the CONNECTING-limbo note
+  es.onopen = () => {
+    failures = 0;
+  };
   es.onerror = () => {
     if (closed) return;
     // CONNECTING = the native auto-reconnect is in flight (Last-Event-ID rides it) — let it work.
     // CLOSED = the browser gave up (non-200 on reconnect, e.g. 404 after a server restart): degrade.
     if (es.readyState === EventSource.CLOSED) {
+      close();
+      h.onDegrade?.();
+      return;
+    }
+    // A NETWORK-level failure (connection refused, an SSE-hostile proxy) never reaches CLOSED — the
+    // browser retries CONNECTING forever while the UI would keep painting the last stream counts with
+    // no label. Degradation must be labeled, never silent: give the retry loop 3 consecutive failures
+    // (onopen resets the count), then close it ourselves and fall back to the poll.
+    failures += 1;
+    if (failures >= 3) {
       close();
       h.onDegrade?.();
     }

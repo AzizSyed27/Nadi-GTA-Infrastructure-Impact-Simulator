@@ -218,6 +218,31 @@ test('a re-enrich of the same run streams a fresh voice set (dedup resets, no pi
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
 });
 
+test('a network-level stream failure (never CLOSED) still degrades labeled, not silently', async ({ page }) => {
+  // route.abort() = a network error: the browser's EventSource retries CONNECTING forever and never
+  // reaches CLOSED — the wrapper must degrade after 3 consecutive failed opens (review-caught gap:
+  // without it the last stream counts keep painting with no label, the silent fallback the labeled-
+  // degradation rule forbids).
+  await mockBackend(page, { streamBody: () => null, holdPolls: 8, polledProgress: { done: 2, total: 4 } });
+  let streamCalls = 0;
+  await page.route('**/api/runs/*/enrich/stream', (route) => {
+    if (streamCalls++ === 0)
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', headers: { 'Cache-Control': 'no-cache' }, body: partialStreamBody() });
+    return route.abort(); // every reconnect dies at the network level — CONNECTING limbo
+  });
+  await openRun(page);
+
+  await page.getByTestId('enrich-voices').click();
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(2, { timeout: 5000 });
+  await expect(page.getByTestId('enrich-stream-degraded')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('enrich-stream-degraded')).toHaveText(DEGRADE_COPY);
+  // uncorrupted + polled counts carry on, exactly like the 404 degrade
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(2);
+  await expect(page.getByTestId('enrich-running')).toContainText('2/4');
+  await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 25_000 });
+  await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
+});
+
 test('a mid-stream disconnect degrades to the poll without corrupting the panel', async ({ page }) => {
   // First stream request dies after 2 voices (no terminal frame); every reconnect 404s → degrade.
   await mockBackend(page, {

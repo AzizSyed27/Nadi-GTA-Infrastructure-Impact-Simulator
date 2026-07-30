@@ -75,6 +75,24 @@ def test_truncate_resets_and_missing_file_reads_empty(tmp_path: Path) -> None:
     assert offset == 1
 
 
+def test_truncated_underneath_a_tail_replays_from_line_0(tmp_path: Path) -> None:
+    """Review-caught hardening: a tail whose offset exceeds the (freshly truncated) file's length must
+    replay from line 0 — job_start is line 0 of every fresh file and resets the client dedup — instead
+    of returning a silently non-monotonic offset that drops the new job's events as stale."""
+    p = tmp_path / "r.events.jsonl"
+    enrich_events.truncate(p)
+    for _ in range(5):
+        enrich_events.emit(p, "voice", index=0, done=1, total=5, agent={})
+    _, offset = enrich_events.read_from(p, 0)
+    assert offset == 5
+    enrich_events.truncate(p)  # a re-enrich POST lands while the old connection is still tailing
+    enrich_events.emit(p, "job_start", run_id="r")
+    enrich_events.emit(p, "voices_total", total=3)
+    events, new_offset = enrich_events.read_from(p, offset)
+    assert [(n, e["event"]) for n, e in events] == [(0, "job_start"), (1, "voices_total")]
+    assert new_offset == 2
+
+
 def test_from_env_gate(monkeypatch) -> None:
     monkeypatch.delenv(enrich_events.ENV_VAR, raising=False)
     assert enrich_events.from_env() is None
