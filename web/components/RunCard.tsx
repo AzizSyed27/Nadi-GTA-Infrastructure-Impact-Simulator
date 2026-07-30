@@ -64,6 +64,10 @@ export function RunCard({
   const [streamDegraded, setStreamDegraded] = useState(false);
   const lastStage = useRef<string | null>(null);
   const streamClose = useRef<(() => void) | null>(null);
+  // The current job's stream reached its terminal frame. Without this, the reconnect effect would
+  // re-open the finished stream every render until the POLL sees done (the status stays enrich:* for
+  // up to a poll tick after job_done) — an open/replay/close loop. Reset when a new enrich launches.
+  const streamEnded = useRef(false);
   const onLoadedRef = useRef(onLoaded);
   const onVoiceRef = useRef(onVoice);
   // Keep the callback refs fresh without re-running the polling effect. (Parent remounts this component per
@@ -117,6 +121,7 @@ export function RunCard({
       onProgress: (p) => setStreamProgress((prev) => ({ ...prev, ...p })),
       onTerminal: () => {
         streamClose.current = null;
+        streamEnded.current = true;
       },
       onDegrade: () => {
         streamClose.current = null;
@@ -130,7 +135,7 @@ export function RunCard({
   // Page-reload reconnect: a freshly-mounted card that finds the run already enriching re-opens the
   // stream — replay-from-0 restores the counts (and re-delivers voices; the parent dedups by index).
   useEffect(() => {
-    if (enriching && !streamDegraded) openStream();
+    if (enriching && !streamDegraded && !streamEnded.current) openStream();
   }, [enriching, streamDegraded, openStream]);
 
   // Unmount: close the EventSource (the per-runId `key` remount makes this the only cleanup needed).
@@ -155,6 +160,7 @@ export function RunCard({
       lastStage.current = `enrich:${stage}`; // so the next `done` edge re-fires onLoaded
       setNonce((n) => n + 1); // restart polling for the enrich run
       setStreamProgress(null); // a fresh job — never show a previous stage's counts
+      streamEnded.current = false;
       openStream(); // open immediately (job_start is already on disk — the POST wrote it synchronously)
     },
     [runId, openStream],
