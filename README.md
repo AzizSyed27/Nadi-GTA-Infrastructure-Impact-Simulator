@@ -6,7 +6,7 @@
 > moving dots on a map with a per-stakeholder scorecard, a credibility-first report you can query, and
 > a simulated public-discourse view.
 
-**Status:** Phases 0–5 and V2.0–V2.2 complete · Trajectory contract **v0.8.0** · Study corridor:
+**Status:** Phases 0–5 and V2.0–V2.2 complete, tagged **`v2.2`** · Trajectory contract **v0.8.0** · Study corridor:
 **Scarborough / Pickering / Ajax** · The *simulation* is bounded to one corridor/neighborhood, even
 though the framing is "the GTA."
 
@@ -69,6 +69,9 @@ These are locked decisions — they're what keep the tool honest:
 - **Numbers carry their own caveats.** What a number means rides the artifact (confidence, notes,
   seed ranges, population disclosures like "pedestrian entities from the calibrated demand — not
   modeled schoolchildren"), never just a docstring. Refusals to compute look different from absence.
+  On a windowed run, the **scope disclosure** says both scopes out loud — scorecard measures cover
+  the whole simulated period; the change was active for only its window of it — in the report, its
+  caveats, the chat corpus, and the scorecard panel.
 - **Two graphs, two jobs.** The OASIS social graph (opinion propagation) and the report agent's
   GraphRAG memory are distinct and never conflated.
 - **Playback, not stream-live.** Run the physics, run the agent pass batched, then replay.
@@ -117,8 +120,8 @@ data/                     # counts / demand / schools — open-data provenance +
 web/
   components/             # MapView, EditPanel+palettes, ScorecardPanel, RunCard, CompareView, …
   lib/                    # types, loaders, compare logic, sim-time formatting
-  tests/                  # 32 Playwright tests across 8 specs
-python/tests/             # 300 pytest tests (golden spine, contract gates, honesty invariants)
+  tests/                  # 34 Playwright tests across 9 specs
+python/tests/             # 311 pytest tests (golden spine, contract gates, honesty invariants)
 ```
 
 ## Quickstart
@@ -146,8 +149,8 @@ finished runs via ⇄ Compare or `/?run=<A>&compare=<B>`.
 **Tests**
 
 ```bash
-python -m pytest python/tests        # 300 tests
-cd web && npx playwright test        # 32 tests, 8 specs
+python -m pytest python/tests        # 311 tests
+cd web && npx playwright test        # 34 tests, 9 specs
 ```
 
 ## Roadmap
@@ -160,12 +163,19 @@ cd web && npx playwright test        # 32 tests, 8 specs
 - **Phase 5 — ✅ The editor.** The server fronts the pipeline; draw-a-road + edit-an-edge.
 - **V2.0 — ✅** Contract v0.5.0 (multi-change scenarios) + the network itself as the base map layer.
 - **V2.1 — ✅** Count-calibrated AM-peak demand, settled assignment, seed ranges, ⇄ Compare.
-- **V2.2 — ✅** Windowed changes with in-sim revert proofs, lane/road closures, incidents, the
-  response-detour fact, the full editor palette, and the **school zone** — the first real composite,
-  accepted synthetically and landed on a calibrated run (zone conflict pair 30-vs-28, direction
-  deliberately not claimed at that n).
-- **Next** — V2.5 network styling; the bbox-expansion + signal-plan rebuild (`BACKLOG.md`): the pace
-  probe measured the boundary-clipped corridor **saturating** under calibrated AM peak (inflow >
+- **V2.2 — ✅ (tagged `v2.2`)** Windowed changes with in-sim revert proofs, lane/road closures,
+  incidents, the response-detour fact, the full editor palette, and the **school zone** — the first
+  real composite, accepted synthetically and landed on a calibrated run (zone conflict pair 30-vs-28,
+  direction deliberately not claimed at that n). Closed out with the **windowed-scope disclosure**:
+  every windowed run states that scorecard measures cover the whole run while the change was active
+  for only its window — and unwindowed reports are golden-pinned byte-identical.
+- **Next — V2.3** (`docs/v2.3-plan.md`): the agent-experience layer — voices stream in as they
+  generate, any persona is interviewable in character about its own simulated trip (live-guarded,
+  referendum questions deflected), **mandate-grounded institutional stakeholders** (fire service
+  first) that speak only facts the tool computed, and the two graphs (OASIS social vs report
+  GraphRAG) rendered side by side doing their different jobs.
+- **Further** — V2.5 network styling; the bbox-expansion + signal-plan rebuild (`BACKLOG.md`): the
+  pace probe measured the boundary-clipped corridor **saturating** under calibrated AM peak (inflow >
   outflow all window; 72% of demand delivered by 09:00) — a larger net is what changes that.
 
 ## Tech stack

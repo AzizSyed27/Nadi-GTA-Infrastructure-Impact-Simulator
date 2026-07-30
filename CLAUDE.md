@@ -93,8 +93,10 @@ school-hours exemplar LANDED (`multimodal-scenario-20260727T180728Z`: zone pair 
 claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). V2.2 is closed out and
 TAGGED **`v2.2`**: every windowed run renders the WINDOWED-SCOPE DISCLOSURE (run-scoped scorecard vs
 window-scoped change — report line + caveat + chat corpus + ScorecardPanel one-liner; unwindowed reports
-byte-identical, golden-pinned). Suites: **311 pytest + 34 Playwright**. Open threads: V2.5 network styling +
-`BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
+byte-identical, golden-pinned). Suites: **311 pytest + 34 Playwright**. Open threads: **V2.3 is the authored
+next phase (`docs/v2.3-plan.md`: SSE-streamed enrich, in-character persona interviews, mandate-grounded
+institutional stakeholders that speak only computed facts, the two graphs visible side by side)**; then V2.5
+network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
 parameterized change, e.g. a speed limit, to one corridor edge), a per-vehicle outcome join, a sampler
@@ -573,9 +575,9 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (golden spine + contract 0.6.0–0.8.0 sections + seed-range/report
-  honesty invariants) and `cd web && npx playwright test` (32 tests across 8 spec files incl. seeds, compare,
-  school-zone). **Dev-only Playwright
+- **Tests:** `python -m pytest python/tests` (311 tests: golden spine + contract 0.6.0–0.8.0 sections +
+  seed-range/report honesty invariants + the unwindowed-report golden) and `cd web && npx playwright test`
+  (34 tests across 9 spec files incl. seeds, compare, school-zone, scorecard-scope). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
