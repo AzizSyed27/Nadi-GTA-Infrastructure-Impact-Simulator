@@ -494,9 +494,15 @@ export default function MapView() {
     };
   }, [mode, fetchJunctions]);
 
+  // V2.3a — voices streamed so far this enrich (arrival order): the EditPanel live ticker's data.
+  // Cleared by loadRun — the done-edge reload swaps in the authoritative artifact and the ticker yields
+  // to the real feed. A mid-stream degrade keeps what already arrived (the panel is never corrupted).
+  const [streamedAgents, setStreamedAgents] = useState<Agent[]>([]);
+
   // Load a completed run's artifact by id (per-run public copy). RunCard calls this on the `done` edge.
   const loadRun = useCallback(async (id: string) => {
     setActiveRunId(id);
+    setStreamedAgents([]); // authoritative swap (or run switch) — the live ticker's job is over
     try {
       const r = await fetch(`/${id}.json`, { cache: 'no-store' });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
@@ -508,9 +514,10 @@ export default function MapView() {
     }
   }, []);
 
-  // V2.3a — a voice streamed in mid-enrich: append its agent to the loaded artifact so the feed (and
-  // any pinned-sim dot) renders incrementally. Dedup by `index` (stream replays overlap on reconnect);
-  // the done-edge loadRun replaces the whole artifact — the authoritative swap this only previews.
+  // V2.3a — a voice streamed in mid-enrich: append its agent to the loaded artifact (hasVoices flips,
+  // the playback feed grows, a pinned-sim dot appears) AND to the arrival-order ticker list. Dedup by
+  // `index` (stream replays overlap on reconnect); the done-edge loadRun replaces the whole artifact —
+  // the authoritative swap this only previews.
   const streamedVoices = useRef<{ runId: string | null; seen: Set<number> }>({ runId: null, seen: new Set() });
   const handleVoice = useCallback((runId: string, v: VoiceEvent) => {
     const s = streamedVoices.current;
@@ -520,6 +527,7 @@ export default function MapView() {
     }
     if (s.seen.has(v.index)) return;
     s.seen.add(v.index);
+    setStreamedAgents((prev) => [...prev, v.agent]);
     setArtifact((prev) => {
       // run-id guard: never wire streamed voices onto a different loaded run
       if (!prev || prev.meta.run_id !== runId) return prev;
@@ -1259,6 +1267,7 @@ export default function MapView() {
           onDrawAnother={drawAnother}
           onLoaded={loadRun}
           onVoice={handleVoice}
+          streamedVoices={streamedAgents}
           onLoadRun={setActiveRunId}
           runLoaded={runLoaded}
           hasVoices={hasVoices}

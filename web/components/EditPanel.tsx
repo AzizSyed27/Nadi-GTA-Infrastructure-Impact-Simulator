@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { ChangeWindow, Junction, Edge, RunOptions } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
-import type { Scorecard } from '@/lib/types';
+import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { RunSwitcher } from '@/components/RunSwitcher';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
@@ -32,6 +32,9 @@ interface EditPanelProps {
   onDrawAnother: () => void; // clear the active run + draw state, back to drawing
   onLoaded: (id: string) => void; // RunCard reached done → parent re-fetches the artifact
   onVoice: (id: string, v: VoiceEvent) => void; // V2.3a: a streamed voice → parent appends it to the artifact
+  // V2.3a: voices streamed so far (arrival order) — the live ticker while enrich generates; cleared by
+  // the parent when the done-edge reload swaps in the authoritative artifact.
+  streamedVoices: Agent[];
   onLoadRun: (id: string) => void; // RunSwitcher picked a run → parent switches active run
   runLoaded: boolean; // the active run's artifact is the one currently shown (honesty flags are trustworthy)
   hasVoices: boolean;
@@ -217,6 +220,28 @@ export function EditPanel(props: EditPanelProps) {
       {activeRunId ? (
         <>
           <RunCard key={activeRunId} runId={activeRunId} onLoaded={props.onLoaded} onVoice={props.onVoice} />
+          {props.streamedVoices.length > 0 && (
+            <div style={card} data-testid="voice-stream-panel">
+              <div style={contains}>
+                Voices streaming in — {props.streamedVoices.length} so far (anticipated reactions, not a poll)
+              </div>
+              {props.streamedVoices
+                .slice(-STREAM_SHOWN)
+                .reverse()
+                .map((a, i) => (
+                  <div key={`${a.persona.id}:${props.streamedVoices.length - i}`} style={voiceRow} data-testid="voice-stream-row">
+                    <span style={voiceLabel}>
+                      {a.persona.label}
+                      {a.grounding === 'inferred' ? ' — community perspective' : ''}
+                    </span>
+                    <span style={voiceComment}>{a.reaction.comment}</span>
+                  </div>
+                ))}
+              {props.streamedVoices.length > STREAM_SHOWN && (
+                <div style={voiceMore}>…and {props.streamedVoices.length - STREAM_SHOWN} earlier</div>
+              )}
+            </div>
+          )}
           {props.runLoaded && (
             <div style={{ flexShrink: 0 }}>
               <ScorecardPanel scorecard={props.scorecard} activeGroup={null} onSelectGroup={() => {}} />
@@ -393,4 +418,10 @@ const linkBtn: React.CSSProperties = {
 };
 const hintText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23a3a' };
 const contains: React.CSSProperties = { fontSize: 12, color: '#4b5563' };
+// V2.3a — the streamed-voices ticker (newest first; capped, the rest summarized)
+const STREAM_SHOWN = 6;
+const voiceRow: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 1, marginTop: 8 };
+const voiceLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#1f2937' };
+const voiceComment: React.CSSProperties = { fontSize: 11, color: '#4b5563', lineHeight: 1.4 };
+const voiceMore: React.CSSProperties = { marginTop: 8, fontSize: 10, color: '#8a9099' };
 const emptyHint: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#6b7280', lineHeight: 1.5 };
