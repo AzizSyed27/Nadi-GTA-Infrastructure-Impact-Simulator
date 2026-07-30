@@ -11,21 +11,25 @@ Run from python/src:  uvicorn server:app --reload --port 8000
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
 import sys
+import time
 from typing import Literal
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))  # bare imports work regardless of cwd
+import enrich_events  # noqa: E402
 import llm_provider  # noqa: E402
 import network_edit  # noqa: E402  (SUMO junctions + the new_road patch)
 import report  # noqa: E402
@@ -266,23 +270,42 @@ class EnrichReq(BaseModel):
     stage: str  # voices | report | discourse
 
 
-def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str) -> None:
-    """Run one or more subprocesses sequentially under the held lock; reconcile state; always release."""
+def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
+                        events_path: Path | None = None, labels: list[str] | None = None) -> None:
+    """Run one or more subprocesses sequentially under the held lock; reconcile state; always release.
+
+    V2.3a: enrich jobs pass ``events_path`` (+ per-cmd human ``labels``) — lifecycle events (cmd_start/
+    cmd_end/job_done/job_failed) are appended here and NADI_ENRICH_EVENTS is exported so reactions.py
+    streams per-voice events into the same file. Simulate passes neither (no events file → the stream
+    endpoint 404s for simulate runs, correctly). The two writers are temporally disjoint: this process
+    writes only between subprocess lifetimes."""
     # PIN DeepSeek for the LLM enrich steps (reactions/report/propagation) — else reactions.py defaults to
     # Gemini's tiny free tier (20 req/day) and enrich fails 429. setdefault respects an explicit PROVIDER.
     env = {**os.environ}
     env.setdefault("PROVIDER", "deepseek")
+    if events_path is not None:
+        env[enrich_events.ENV_VAR] = str(events_path)
+
+    def _emit(event: str, **payload) -> None:
+        if events_path is not None:
+            enrich_events.emit(events_path, event, **payload)
+
     try:
-        for cmd in cmds:
+        for i, cmd in enumerate(cmds):
+            cmd_label = (labels[i] if labels and i < len(labels) else Path(cmd[1]).stem)
+            _emit("cmd_start", i=i, n=len(cmds), label=cmd_label)
             proc = subprocess.run(cmd, cwd=str(SRC), capture_output=True, text=True, env=env)
+            _emit("cmd_end", i=i, n=len(cmds), label=cmd_label, returncode=proc.returncode)
             if proc.returncode != 0:
                 st = run_state.read(run_id)
                 if not st or st.get("status") != "failed":
                     run_state.set_stage(run_id, "failed", f"{label} failed: {(proc.stderr or '')[-280:]}")
+                _emit("job_failed", label=label, detail=(proc.stderr or "")[-280:])
                 return
         st = run_state.read(run_id)  # the pipeline sets its own terminal "done"; enrich sets it here.
         if label != "simulate":
             run_state.set_stage(run_id, "done", f"{label} complete")
+        _emit("job_done", label=label)
     finally:
         run_state.release()
 
@@ -579,12 +602,48 @@ async def runs():
                       "stage": s.get("stage"), "started_at": s.get("started_at")} for s in run_state.list_all()]}
 
 
+def _enrich_progress(run_id: str) -> dict | None:
+    """V2.3a — derive {done, total, label} from the run's events file for the POLL degrade path.
+
+    READ-ONLY derivation in the GET handler: the run-state file is never written with progress (its
+    ``set_stage`` is an unlocked read-merge-write — a second writer would race the server's own writes).
+    The events file is a few hundred KB at most; parsing it per 1.5 s poll is cheap."""
+    path = enrich_events.events_path(run_id)
+    events, _ = enrich_events.read_from(path, 0)
+    if not events:
+        return None
+    out: dict = {}
+    for _, ev in events:
+        kind = ev.get("event")
+        if kind == "voices_total":
+            out["total"] = ev.get("total")
+        elif kind == "voice":
+            out["done"] = ev.get("done")
+            out["total"] = ev.get("total")
+        elif kind == "cmd_start":
+            out["label"] = ev.get("label")
+    return out or None
+
+
 @app.get("/api/runs/{run_id}/status")
 async def run_status(run_id: str):
     st = run_state.read(run_id)
     if st is None:
         raise HTTPException(404, f"no such run {run_id!r}")
+    if str(st.get("stage", "")).startswith("enrich:"):
+        prog = _enrich_progress(run_id)
+        if prog:
+            st["enrich_progress"] = prog
     return st
+
+
+# Human labels for the enrich sub-commands — these ride cmd_start events and render live in the UI
+# ("writing the report…"). Coarse per-cmd progress is D3's whole ask for report/discourse.
+_ENRICH_LABELS = {
+    "voices": ["sampling travelers", "generating voices"],
+    "report": ["writing the report", "rebuilding the chat index"],
+    "discourse": ["running the discourse cascades"],
+}
 
 
 @app.post("/api/runs/{run_id}/enrich")
@@ -608,5 +667,65 @@ async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     if not run_state.try_acquire(run_id):
         raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
     run_state.set_stage(run_id, f"enrich:{req.stage}", f"running {req.stage}")
-    bg.add_task(_run_subprocess_job, run_id, cmds, f"enrich:{req.stage}")
+    # V2.3a INVARIANT — POST-time ordering: truncate → emit job_start → launch. All three run
+    # synchronously HERE (BackgroundTasks fire after the response), under the held lock, BEFORE the
+    # subprocess exists, so: (a) the client's stream GET never 404s in the postEnrich→EventSource gap;
+    # (b) job_start is structurally LINE 0 of every fresh file — clients reset their Last-Event-ID
+    # dedup on job_start, and a stale id past EOF replays from 0, which only recovers because of this.
+    labels = _ENRICH_LABELS[req.stage]
+    ev = enrich_events.events_path(run_id)
+    enrich_events.prune()  # prune's one call site: cheap, bounded, and we're already touching the dir
+    enrich_events.truncate(ev)
+    enrich_events.emit(ev, "job_start", run_id=run_id, label=f"enrich:{req.stage}", stages=labels)
+    bg.add_task(_run_subprocess_job, run_id, cmds, f"enrich:{req.stage}", ev, labels)
     return {"run_id": run_id, "stage": req.stage}
+
+
+@app.get("/api/runs/{run_id}/enrich/stream")
+async def enrich_stream(run_id: str, request: Request):
+    """V2.3a — SSE over the run's enrich events file: replay from 0 (or Last-Event-ID), then tail.
+
+    The ``id:`` of each frame is the file's absolute line number, so a dropped EventSource resumes via
+    the native Last-Event-ID reconnect; a stale id past EOF (a new job truncated the file) replays from
+    0 and the client's job_start reset handles the rest. Degrade path: no events file → 404 → the client
+    falls back to the poll it never stopped running."""
+    path = enrich_events.events_path(run_id)
+    if not path.is_file():
+        raise HTTPException(404, f"no enrich event stream for {run_id!r}")
+    raw = request.headers.get("last-event-id", "")
+    resume_after = int(raw) if raw.isdigit() else -1
+
+    async def gen():
+        offset = 0
+        start = resume_after + 1
+        _, eof = enrich_events.read_from(path, 0)
+        if start > eof:  # stale Last-Event-ID from a previous job's longer file → replay from 0
+            start = 0
+        last_beat = time.monotonic()
+        while True:
+            events, offset = enrich_events.read_from(path, offset)
+            for lineno, ev in events:
+                if lineno < start:
+                    continue
+                yield f"id: {lineno}\nevent: {ev.get('event', 'message')}\ndata: {json.dumps(ev)}\n\n"
+                last_beat = time.monotonic()
+                if ev.get("event") in enrich_events.TERMINAL:
+                    return
+            if await request.is_disconnected():
+                return
+            # ORPHAN GUARD: the job died without a terminal event (server restart / killed subprocess).
+            # run_state.read already coerces stale "running" to failed; without this, the stream would
+            # heartbeat a dead job forever.
+            st = run_state.read(run_id)
+            if st and st.get("status") in ("done", "failed") and run_state.active() != run_id:
+                synthetic = {"event": "job_done" if st["status"] == "done" else "job_failed",
+                             "ts": time.time(), "synthetic": True, "detail": st.get("detail", "")}
+                yield f"id: {offset}\nevent: {synthetic['event']}\ndata: {json.dumps(synthetic)}\n\n"
+                return
+            if time.monotonic() - last_beat > 15:
+                yield ": ping\n\n"
+                last_beat = time.monotonic()
+            await asyncio.sleep(0.25)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
