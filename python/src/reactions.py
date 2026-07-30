@@ -32,6 +32,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+import enrich_events
 import trajectory_io
 from contract_models import Agent, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of
 from llm_provider import LLMClient, get_client
@@ -318,12 +319,26 @@ MAX_CONCURRENCY = int(os.environ.get("MAX_CONCURRENCY", "8"))
 
 async def generate_reactions(client: LLMClient, records: list[dict], changes: list[dict],
                              profile: str = "synthetic_demo",
-                             tags: list[str] | None = None) -> list[tuple[Reaction, bool]]:
+                             tags: list[str] | None = None,
+                             events_path: Path | None = None) -> list[tuple[Reaction, bool]]:
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
+    # V2.3a stream events (env-gated by the caller; None → byte-identical no-op path). `index` is the
+    # record's position in the ORIGINAL order — which is the final artifact's agents[] order — so the
+    # client can dedup/reorder. `done` counts completions (single-threaded event loop → race-free).
+    orig_index = {id(r): i for i, r in enumerate(records)}
+    done = 0
 
     async def _guarded(rec: dict) -> tuple[Reaction, bool]:
+        nonlocal done
         async with sem:
-            return await react_one(client, rec, changes, profile, tags)
+            res = await react_one(client, rec, changes, profile, tags)
+        if events_path is not None:
+            done += 1
+            agent = build_agent(rec, res[0])  # the SAME builder as assemble_in_place — transport, not content
+            enrich_events.emit(events_path, "voice", index=orig_index[id(rec)], done=done,
+                               total=len(records),
+                               agent=agent.model_dump(mode="json", exclude_none=True, by_alias=True))
+        return res
 
     # Order so each persona's calls are ADJACENT — prefix locality for DeepSeek's prompt cache (the
     # shared framing+change prefix hits after call #1 regardless; adjacency also warms the persona slice).
@@ -333,24 +348,28 @@ async def generate_reactions(client: LLMClient, records: list[dict], changes: li
     return [by_key[id(r)] for r in records]
 
 
+def build_agent(rec: dict, reaction: Reaction) -> Agent:
+    """ONE record → ONE contract Agent. The SINGLE builder for both paths — the final artifact assembly
+    (``assemble_in_place``) and the V2.3a per-voice stream events — so a streamed voice is structurally
+    identical to the artifact's (streaming is transport, not content)."""
+    p = rec["persona"]
+    persona = Persona(id=p["id"], label=p["label"])  # trim rich PersonaSpec -> contract {id,label}
+    if rec["grounding"] == "sim":
+        kw: dict = {"grounding": "sim", "persona": persona, "reaction": reaction,
+                    "outcome": Outcome.model_validate(rec["outcome"]), "trigger_t": rec["trigger_t"]}
+        if "vehicle_id" in rec:
+            kw["vehicle_id"] = rec["vehicle_id"]
+        if "person_id" in rec:
+            kw["person_id"] = rec["person_id"]
+        return Agent(**kw)
+    # inferred: persona + reaction only (no pin/outcome/trigger_t — the 2.3 invariant)
+    return Agent(grounding="inferred", persona=persona, reaction=reaction)
+
+
 def assemble_in_place(scenario_art: TrajectoryArtifact, records: list[dict], reactions: list[Reaction]) -> TrajectoryArtifact:
     """Set agents[] on the scenario artifact IN PLACE — preserving meta / vehicles / persons / conflicts /
     scorecard (the 2.4 artifact carries all of them; a fresh TrajectoryArtifact(...) would drop them)."""
-    agents = []
-    for rec, reaction in zip(records, reactions):
-        p = rec["persona"]
-        persona = Persona(id=p["id"], label=p["label"])  # trim rich PersonaSpec -> contract {id,label}
-        if rec["grounding"] == "sim":
-            kw: dict = {"grounding": "sim", "persona": persona, "reaction": reaction,
-                        "outcome": Outcome.model_validate(rec["outcome"]), "trigger_t": rec["trigger_t"]}
-            if "vehicle_id" in rec:
-                kw["vehicle_id"] = rec["vehicle_id"]
-            if "person_id" in rec:
-                kw["person_id"] = rec["person_id"]
-            agents.append(Agent(**kw))
-        else:  # inferred: persona + reaction only (no pin/outcome/trigger_t — the 2.3 invariant)
-            agents.append(Agent(grounding="inferred", persona=persona, reaction=reaction))
-    scenario_art.agents = agents  # mutate in place; meta/vehicles/persons/conflicts/scorecard untouched
+    scenario_art.agents = [build_agent(rec, reaction) for rec, reaction in zip(records, reactions)]
     return scenario_art
 
 
@@ -405,10 +424,15 @@ async def run(instrumented_path: Path) -> Path:
     n_sim = sum(1 for r in records if r["grounding"] == "sim")
     print(f"[llm] provider={provider} model={model}  agents={len(records)} ({n_sim} sim + {len(records) - n_sim} inferred)")
 
+    # V2.3a: stream events ONLY when the server set NADI_ENRICH_EVENTS (CLI runs: None → no file, no change)
+    events_path = enrich_events.from_env()
+    if events_path is not None:
+        enrich_events.emit(events_path, "voices_total", total=len(records))
+
     print("[llm] smoke test (warms the shared-prefix cache) ...")
     await smoke_test(client, changes, profile, tags)  # raises here (clear error) if the key/model is bad
 
-    results = await generate_reactions(client, records, changes, profile, tags)
+    results = await generate_reactions(client, records, changes, profile, tags, events_path=events_path)
     reactions = [r for r, _ in results]
     fallbacks = sum(1 for _, fb in results if fb)
 
