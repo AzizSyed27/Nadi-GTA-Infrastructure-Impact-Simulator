@@ -16,6 +16,7 @@ import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
+import type { VoiceEvent } from '@/lib/enrichStream';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -505,6 +506,25 @@ export default function MapView() {
     } catch (e) {
       console.error('failed to load run', id, e);
     }
+  }, []);
+
+  // V2.3a — a voice streamed in mid-enrich: append its agent to the loaded artifact so the feed (and
+  // any pinned-sim dot) renders incrementally. Dedup by `index` (stream replays overlap on reconnect);
+  // the done-edge loadRun replaces the whole artifact — the authoritative swap this only previews.
+  const streamedVoices = useRef<{ runId: string | null; seen: Set<number> }>({ runId: null, seen: new Set() });
+  const handleVoice = useCallback((runId: string, v: VoiceEvent) => {
+    const s = streamedVoices.current;
+    if (s.runId !== runId) {
+      s.runId = runId;
+      s.seen = new Set();
+    }
+    if (s.seen.has(v.index)) return;
+    s.seen.add(v.index);
+    setArtifact((prev) => {
+      // run-id guard: never wire streamed voices onto a different loaded run
+      if (!prev || prev.meta.run_id !== runId) return prev;
+      return { ...prev, agents: [...(prev.agents ?? []), v.agent] };
+    });
   }, []);
 
   // Overlay-level click: snap to the picked junction, else the nearest within SNAP_M; 1st→A, 2nd→B (opens form).
@@ -1238,6 +1258,7 @@ export default function MapView() {
           activeRunId={activeRunId}
           onDrawAnother={drawAnother}
           onLoaded={loadRun}
+          onVoice={handleVoice}
           onLoadRun={setActiveRunId}
           runLoaded={runLoaded}
           hasVoices={hasVoices}

@@ -154,6 +154,9 @@ export interface RunStatus {
   non_completions_split?: Record<string, { entered_not_finished: number; not_inserted: number }>;
   insertion_backlog?: Record<string, { baseline: number; scenario: number }>;
   window_events?: unknown[];
+  // V2.3a: live enrich progress DERIVED server-side from the events file (present only while
+  // stage is enrich:*) — the poll degrade path's counts when the SSE stream is unavailable.
+  enrich_progress?: { done?: number; total?: number; label?: string };
   // V2.2b (capacity runs: closures + incidents): the emergency-response detour fact — free-flow
   // routing estimate; both honesty sentences ride the payload and must render with the numbers.
   response_detour?: {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRunStatus, postEnrich, type EnrichStage, type RunStatus } from '@/lib/api';
+import { openEnrichStream, type VoiceEvent } from '@/lib/enrichStream';
 import { signedMinutes } from '@/lib/viz';
 import { fmtWindowRange } from '@/lib/simTime';
 
@@ -39,20 +40,38 @@ const POLL_MS = 1500;
  * on each transition into `done` it calls `onLoaded(runId)` so the parent re-fetches `/<runId>.json`
  * (a fresh run → scorecard; after voices → the feed; after discourse → discourse unlocks). One job at a
  * time is enforced server-side; a 409 on an enrich click surfaces inline.
+ *
+ * V2.3a: during an enrich the card ALSO opens the SSE stream — live counts ("voices 47/212") replace
+ * dead air, and per-voice events flow up via `onVoice` so the feed renders incrementally. The poll loop
+ * is untouched and remains the backstop: if the stream dies for good a labeled note says so and the
+ * polled `enrich_progress` carries the counts. The done-edge reload stays the authoritative swap.
  */
-export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: string) => void }) {
+export function RunCard({
+  runId,
+  onLoaded,
+  onVoice,
+}: {
+  runId: string;
+  onLoaded: (runId: string) => void;
+  onVoice?: (runId: string, v: VoiceEvent) => void;
+}) {
   const [status, setStatus] = useState<RunStatus | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [enrichBusy, setEnrichBusy] = useState<EnrichStage | null>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0); // bump to restart polling after launching an enrich
+  const [streamProgress, setStreamProgress] = useState<{ done?: number; total?: number; label?: string } | null>(null);
+  const [streamDegraded, setStreamDegraded] = useState(false);
   const lastStage = useRef<string | null>(null);
+  const streamClose = useRef<(() => void) | null>(null);
   const onLoadedRef = useRef(onLoaded);
-  // Keep the callback ref fresh without re-running the polling effect. (Parent remounts this component per
+  const onVoiceRef = useRef(onVoice);
+  // Keep the callback refs fresh without re-running the polling effect. (Parent remounts this component per
   // runId via `key`, so no explicit per-run reset effect is needed — a fresh mount clears all state.)
   useEffect(() => {
     onLoadedRef.current = onLoaded;
-  }, [onLoaded]);
+    onVoiceRef.current = onVoice;
+  }, [onLoaded, onVoice]);
 
   useEffect(() => {
     let stop = false;
@@ -88,6 +107,41 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
     };
   }, [runId, nonce]);
 
+  // V2.3a — open the SSE stream (idempotent; the server replays from line 0 so a late open loses
+  // nothing). The stream is ADDITIVE: closing/degrading never touches the poll loop.
+  const openStream = useCallback(() => {
+    if (streamClose.current) return; // already open
+    setStreamDegraded(false);
+    streamClose.current = openEnrichStream(runId, {
+      onVoice: (v) => onVoiceRef.current?.(runId, v),
+      onProgress: (p) => setStreamProgress((prev) => ({ ...prev, ...p })),
+      onTerminal: () => {
+        streamClose.current = null;
+      },
+      onDegrade: () => {
+        streamClose.current = null;
+        setStreamDegraded(true); // labeled degradation — the poll (still running) carries the counts
+      },
+    });
+  }, [runId]);
+
+  const enriching = (status?.stage ?? '').startsWith('enrich:');
+
+  // Page-reload reconnect: a freshly-mounted card that finds the run already enriching re-opens the
+  // stream — replay-from-0 restores the counts (and re-delivers voices; the parent dedups by index).
+  useEffect(() => {
+    if (enriching && !streamDegraded) openStream();
+  }, [enriching, streamDegraded, openStream]);
+
+  // Unmount: close the EventSource (the per-runId `key` remount makes this the only cleanup needed).
+  useEffect(
+    () => () => {
+      streamClose.current?.();
+      streamClose.current = null;
+    },
+    [],
+  );
+
   const runEnrich = useCallback(
     async (stage: EnrichStage) => {
       setEnrichError(null);
@@ -100,8 +154,10 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
       }
       lastStage.current = `enrich:${stage}`; // so the next `done` edge re-fires onLoaded
       setNonce((n) => n + 1); // restart polling for the enrich run
+      setStreamProgress(null); // a fresh job — never show a previous stage's counts
+      openStream(); // open immediately (job_start is already on disk — the POST wrote it synchronously)
     },
-    [runId],
+    [runId, openStream],
   );
 
   if (notFound && !status) {
@@ -116,8 +172,13 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
   const stage = status?.stage ?? 'queued';
   const failed = status?.status === 'failed';
   const done = status?.stage === 'done';
-  const enriching = stage.startsWith('enrich:');
   const isNewRoad = status?.change?.type === 'new_road';
+
+  // V2.3a — live enrich progress: stream counts while it's up; the polled derivation once degraded.
+  // Counts ("47/212") beat the sub-command label; the label alone covers report/discourse.
+  const prog = streamDegraded ? status?.enrich_progress : (streamProgress ?? status?.enrich_progress);
+  const enrichProgressText =
+    prog?.total != null ? `${prog.done ?? 0}/${prog.total}` : (prog?.label ?? '');
   const baseStages: readonly string[] = isNewRoad ? NEWROAD_STAGES : RUNTIME_STAGES; // runtime: NO regen
   const STAGES =
     status?.assignment === 'settled'
@@ -285,7 +346,16 @@ export function RunCard({ runId, onLoaded }: { runId: string; onLoaded: (runId: 
         })}
       </ol>
 
-      {enriching && <div style={enrichNote} data-testid="enrich-running">Enriching: {stage.replace('enrich:', '')}…</div>}
+      {enriching && (
+        <div style={enrichNote} data-testid="enrich-running">
+          Enriching: {stage.replace('enrich:', '')}…{enrichProgressText ? ` ${enrichProgressText}` : ''}
+        </div>
+      )}
+      {enriching && streamDegraded && (
+        <div style={{ ...sub, opacity: 0.85, marginTop: 4 }} data-testid="enrich-stream-degraded">
+          live stream unavailable — updating by poll
+        </div>
+      )}
       {failed && <div style={errText} data-testid="run-failed">{status?.detail || 'the run failed'}</div>}
 
       {done && (

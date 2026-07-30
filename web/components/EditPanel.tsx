@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { ChangeWindow, Junction, Edge, RunOptions } from '@/lib/api';
+import type { VoiceEvent } from '@/lib/enrichStream';
 import type { Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { RunSwitcher } from '@/components/RunSwitcher';
@@ -30,6 +31,7 @@ interface EditPanelProps {
   activeRunId: string | null;
   onDrawAnother: () => void; // clear the active run + draw state, back to drawing
   onLoaded: (id: string) => void; // RunCard reached done → parent re-fetches the artifact
+  onVoice: (id: string, v: VoiceEvent) => void; // V2.3a: a streamed voice → parent appends it to the artifact
   onLoadRun: (id: string) => void; // RunSwitcher picked a run → parent switches active run
   runLoaded: boolean; // the active run's artifact is the one currently shown (honesty flags are trustworthy)
   hasVoices: boolean;
@@ -214,7 +216,7 @@ export function EditPanel(props: EditPanelProps) {
 
       {activeRunId ? (
         <>
-          <RunCard key={activeRunId} runId={activeRunId} onLoaded={props.onLoaded} />
+          <RunCard key={activeRunId} runId={activeRunId} onLoaded={props.onLoaded} onVoice={props.onVoice} />
           {props.runLoaded && (
             <div style={{ flexShrink: 0 }}>
               <ScorecardPanel scorecard={props.scorecard} activeGroup={null} onSelectGroup={() => {}} />
