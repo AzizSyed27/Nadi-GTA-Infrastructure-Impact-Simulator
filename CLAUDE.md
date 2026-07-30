@@ -93,9 +93,12 @@ school-hours exemplar LANDED (`multimodal-scenario-20260727T180728Z`: zone pair 
 claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). V2.2 is closed out and
 TAGGED **`v2.2`**: every windowed run renders the WINDOWED-SCOPE DISCLOSURE (run-scoped scorecard vs
 window-scoped change — report line + caveat + chat corpus + ScorecardPanel one-liner; unwindowed reports
-byte-identical, golden-pinned). Suites: **311 pytest + 34 Playwright**. Open threads: **V2.3 is the authored
-next phase (`docs/v2.3-plan.md`: SSE-streamed enrich, in-character persona interviews, mandate-grounded
-institutional stakeholders that speak only computed facts, the two graphs visible side by side)**; then V2.5
+byte-identical, golden-pinned). **V2.3a (SSE-streamed enrich) is COMPLETE**: enrich jobs stream over
+`GET /api/runs/<id>/enrich/stream` (NDJSON events file → SSE; env-gated so CLI enrich stays byte-identical),
+voices render incrementally (RunCard live counts + the EditPanel ticker), and a dead stream degrades LABELED
+to the untouched poll. Suites: **329 pytest + 38 Playwright**. Open threads: **the rest of V2.3
+(`docs/v2.3-plan.md`: in-character persona interviews, mandate-grounded institutional stakeholders that speak
+only computed facts, the two graphs visible side by side)**; then V2.5
 network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
@@ -502,11 +505,55 @@ now v0.8.0).**
   car/ped/resident safety magnitudes vary up to ~6× but HOLD sign — while synthetic demand flips ALL safety signs
   (V1 reproduced natively in `…20260719T042917Z`); travel medians are seed-robust ([0,0] ranges).
 
+**V2.3 Step a — the SSE-STREAMED ENRICH — COMPLETE (streaming is TRANSPORT, not content; no contract change).**
+- **Events channel (`python/src/enrich_events.py`):** an NDJSON file at `%LOCALAPPDATA%\nadi-enrich\<run_id>.events.jsonl`
+  appended by writers, tailed by the server's SSE endpoint — reconnect-safe by construction (SSE `id:` = absolute
+  line NUMBER; no seq field, no cross-process counter; replay-from-0 IS the resume story). Emission is
+  **env-gated** (`NADI_ENRICH_EVENTS`, set only by the server) → CLI enrich byte-identity by construction. Reader
+  tolerates a partial trailing line + skips-but-counts corrupt lines (linenos stay aligned). Vocabulary: `job_start`
+  (the client dedup-reset sentinel) / `cmd_start`/`cmd_end` (server-written per subprocess — this alone gives
+  report/discourse live stage labels) / `voices_total` / `voice {index, done, total, agent}` / `job_done`/`job_failed`.
+- **POST-TIME ORDERING INVARIANT (test-pinned):** truncate → emit `job_start` → launch subprocess, synchronously in
+  the POST handler under the held lock — `job_start` is structurally LINE 0 of every fresh file, so the client's
+  dedup reset and the stale-id-past-EOF replay can never misfire. `prune()` (7-day) has its ONE call site there.
+- **Byte-identity mechanic:** `reactions.build_agent(rec, reaction)` extracted as the SINGLE builder — final
+  assembly and stream emission share it; the streamed agent is `model_dump(mode="json", exclude_none=True,
+  by_alias=True)` (the `dump_artifact` shape); pinned by an element-for-element two-path test. Proven live: a CLI
+  reactions run touched no events file (mtime+linecount unchanged) and assembled all 212 agents.
+- **Server:** `GET /api/runs/<id>/enrich/stream` (StreamingResponse; replay-then-tail at 0.25 s; `Last-Event-ID`
+  resume, stale-id → replay from 0; 15 s ping heartbeat; ORPHAN GUARD — run-state terminal + lock free but no
+  terminal event → synthetic terminal frame, a stream never heartbeats a dead job forever; 404 when no events file).
+  `GET status` derives `enrich_progress {done,total,label}` READ-ONLY from the events tail during `enrich:*`
+  (run_state's set_stage is an unlocked read-merge-write — nothing new is ever written there). Poll loop untouched.
+- **Frontend:** `web/lib/enrichStream.ts` (typed EventSource wrapper: dedup by lastEventId, reset on `job_start`;
+  native auto-reconnect is the resume path; `readyState CLOSED` → onDegrade ONCE). RunCard: "Enriching: voices…
+  47/212" live (stream counts beat the label; polled `enrich_progress` once degraded), the LABELED degrade note
+  "live stream unavailable — updating by poll", `streamEnded` ref kills the job_done→poll-lag reopen loop
+  (Playwright-caught). EditPanel: the voices TICKER (newest-first, cap 6, inferred labeled "community
+  perspective", "not a poll"). MapView `handleVoice`: appends the streamed agent to the loaded artifact (run-id
+  guarded — hasVoices flips live, the feed grows) + the ticker list; `done === 1` marks a NEW JOB — resets the
+  index dedup and REPLACES the voice sets (a re-enrich otherwise streams into a stale seen-set that swallows every
+  voice — live-smoke-caught); the done-edge `loadRun` reload stays the authoritative swap (clears the ticker).
+- **Verified:** unit 18 (events 8 + builder 3 + endpoint 7) in the 329; `enrich-stream.spec.ts` ×4 (incremental
+  render while status still enriching; re-enrich fresh-set/no-pile-up; mid-stream disconnect degrades uncorrupted;
+  NETWORK-level failure degrades too — review-caught: an aborted connection retries CONNECTING forever and never
+  reaches CLOSED, so the wrapper now degrades after 3 consecutive failed opens, else stale counts paint unlabeled.
+  Review also hardened `read_from` against truncation-under-a-tail (offset past EOF → replay from 0). Spec GATE
+  ORDER: assert the enriching state RENDERED before waiting for it to end, else the wait passes in the
+  pre-first-poll window and the panel assertion runs mid-enrich). Live smoke: 212/212 counts ticked, ticker rows,
+  `cmd_start` labels ("sampling travelers"), done-edge swap clean. **Real-browser degrade PROVEN** (the fold-in-#3
+  check): mid-enrich 404 on the stream route + reload → real Chrome EventSource gave up (CLOSED) → verbatim note →
+  POLLED counts advanced 79→201/212 → poll finished the job → note cleared, voices ✓. Report/discourse live labels
+  ride the same `cmd_start` plumbing (voices-proven; no live report enrich — the latest-report singleton + cost).
+- **Ops note:** `.claude/hooks/format.py`'s prettier leg is ARMED-BUT-CONFIGLESS — any `npx prettier` run seeds the
+  npx cache and the PostToolUse hook then rewrites edited web files to prettier DEFAULTS (no repo config exists;
+  cost a 231-line accidental reformat, reverted). Keep prettier out of the npx cache, or land a real config.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
   ```bash
-  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich] /api/report /api/chat
+  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream] /api/report /api/chat
   cd web && npm run dev                            # http://localhost:3000 → open the ✏️ Edit toggle
   python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
   ```
@@ -575,9 +622,10 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (311 tests: golden spine + contract 0.6.0–0.8.0 sections +
-  seed-range/report honesty invariants + the unwindowed-report golden) and `cd web && npx playwright test`
-  (34 tests across 9 spec files incl. seeds, compare, school-zone, scorecard-scope). **Dev-only Playwright
+- **Tests:** `python -m pytest python/tests` (328 tests: golden spine + contract 0.6.0–0.8.0 sections +
+  seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
+  sections) and `cd web && npx playwright test`
+  (38 tests across 11 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
