@@ -516,22 +516,28 @@ export default function MapView() {
 
   // V2.3a — a voice streamed in mid-enrich: append its agent to the loaded artifact (hasVoices flips,
   // the playback feed grows, a pinned-sim dot appears) AND to the arrival-order ticker list. Dedup by
-  // `index` (stream replays overlap on reconnect); the done-edge loadRun replaces the whole artifact —
-  // the authoritative swap this only previews.
+  // `index` (stream replays overlap on reconnect; the wrapper's lastEventId filter already drops
+  // same-connection replays — this set is the cross-reload backstop); the done-edge loadRun replaces
+  // the whole artifact — the authoritative swap this only previews.
+  // `done === 1` is the first completion of a JOB: it resets the dedup set and REPLACES the voice
+  // sets rather than appending — a RE-enrich of the same run streams a new voice set, and without the
+  // reset the stale per-run indexes swallow every new voice (live-smoke-caught) while appends would
+  // pile onto the previous enrich's 212.
   const streamedVoices = useRef<{ runId: string | null; seen: Set<number> }>({ runId: null, seen: new Set() });
   const handleVoice = useCallback((runId: string, v: VoiceEvent) => {
     const s = streamedVoices.current;
-    if (s.runId !== runId) {
+    const newJob = v.done === 1;
+    if (s.runId !== runId || newJob) {
       s.runId = runId;
       s.seen = new Set();
     }
     if (s.seen.has(v.index)) return;
     s.seen.add(v.index);
-    setStreamedAgents((prev) => [...prev, v.agent]);
+    setStreamedAgents((prev) => (newJob ? [v.agent] : [...prev, v.agent]));
     setArtifact((prev) => {
       // run-id guard: never wire streamed voices onto a different loaded run
       if (!prev || prev.meta.run_id !== runId) return prev;
-      return { ...prev, agents: [...(prev.agents ?? []), v.agent] };
+      return { ...prev, agents: [...(newJob ? [] : (prev.agents ?? [])), v.agent] };
     });
   }, []);
 

@@ -89,7 +89,7 @@ async function mockBackend(
   const enriched = JSON.stringify(enrichedArt);
 
   let enrichPosted = false;
-  let enrichPolls = 0;
+  let enrichPolls = 0; // reset on every enrich POST — the machine supports a re-enrich cycle
   let streamCalls = 0;
   let enrichDone = false;
 
@@ -100,6 +100,8 @@ async function mockBackend(
   );
   await page.route('**/api/runs/*/enrich', (route) => {
     enrichPosted = true;
+    enrichPolls = 0; // each POST starts a fresh cycle (a RE-enrich re-runs the machine)
+    enrichDone = false;
     return route.fulfill({ json: { run_id: RUN_ID, stage: 'voices' } });
   });
   await page.route('**/api/runs/*/enrich/stream', (route) => {
@@ -190,6 +192,30 @@ test('streamed voices render incrementally while the enrich job is still running
   const body = await page.locator('body').innerText();
   expect(body).not.toMatch(BANNED);
   expect(body).not.toMatch(STANCE_TALLY);
+});
+
+test('a re-enrich of the same run streams a fresh voice set (dedup resets, no pile-up)', async ({ page }) => {
+  await mockBackend(page, { streamBody: () => fullStreamBody(), holdPolls: 4 });
+  await openRun(page);
+
+  // First enrich runs to done. GATE ORDER MATTERS: wait for the enriching state to RENDER before
+  // waiting for it to end — a bare toBeHidden right after the click passes instantly in the window
+  // before the first status poll commits "Enriching…", and the panel assertion then runs mid-enrich.
+  await page.getByTestId('enrich-voices').click();
+  await expect(page.getByTestId('enrich-running')).toBeVisible();
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(4, { timeout: 10_000 });
+  await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
+
+  // RE-enrich the same run: the new job's voices must stream (a stale per-run dedup set swallowed
+  // them all — live-smoke-caught) and the ticker must RESET to the new set's count, never pile onto
+  // the previous enrich's voices. (The exact-4-in-playback no-duplicates property is test 1's job.)
+  await page.getByTestId('enrich-voices').click();
+  await expect(page.getByTestId('enrich-running')).toBeVisible();
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(4, { timeout: 10_000 });
+  await expect(page.getByTestId('voice-stream-panel')).toContainText('4 so far');
+  await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
 });
 
 test('a mid-stream disconnect degrades to the poll without corrupting the panel', async ({ page }) => {
