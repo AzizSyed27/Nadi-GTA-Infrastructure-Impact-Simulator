@@ -263,3 +263,39 @@ export function postEnrich(runId: string, stage: EnrichStage): Promise<ApiResult
     body: JSON.stringify({ stage }),
   });
 }
+
+/** V2.3b — one interview turn. The transcript is CLIENT-held (ephemeral, session-only) and sent back
+ * with each question; the server caps it and its honesty guard audits every answer regardless. */
+export interface InterviewTurn {
+  role: 'user' | 'agent';
+  text: string;
+}
+
+/** A drawer message: a turn plus the server's audit verdict on agent answers. */
+export interface InterviewMsg extends InterviewTurn {
+  audit?: { status?: string };
+}
+
+export interface InterviewResp {
+  answer: string;
+  audit: { status: string; [k: string]: unknown };
+  grounding: 'sim' | 'inferred';
+  run_id: string;
+  agent_id: string;
+  persona_label: string;
+}
+
+/** POST /api/interview — ask ONE of a run's voices a question, in character. The client sends IDS,
+ * never facts: the grounding context is built server-side from the run's artifact. */
+export function postInterview(
+  runId: string,
+  agentId: string,
+  question: string,
+  transcript: InterviewTurn[],
+): Promise<ApiResult<InterviewResp>> {
+  return req(`/api/interview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ run_id: runId, agent_id: agentId, question, transcript }),
+  });
+}

@@ -15,8 +15,9 @@ import { changesOf } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
-import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
+import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -134,6 +135,16 @@ export default function MapView() {
   const [artifact, setArtifact] = useState<TrajectoryArtifact | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [selected, setSelected] = useState<PinnedSimAgent | null>(null);
+  // V2.3b — the interview drawer: which voice is being interviewed + per-agent SESSION transcripts
+  // (a ref record keyed by agentId — NB `Map` here is the react-map-gl component — never persisted
+  // anywhere; a tick re-renders on update).
+  const [interviewee, setInterviewee] = useState<Agent | null>(null);
+  const interviews = useRef<Record<string, InterviewMsg[]>>({});
+  const [, setInterviewTick] = useState(0);
+  const onInterviewMsgs = useCallback((id: string, msgs: InterviewMsg[]) => {
+    interviews.current[id] = msgs;
+    setInterviewTick((n) => n + 1);
+  }, []);
   const [showAllConflicts, setShowAllConflicts] = useState(true);
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
@@ -503,6 +514,9 @@ export default function MapView() {
   const loadRun = useCallback(async (id: string) => {
     setActiveRunId(id);
     setStreamedAgents([]); // authoritative swap (or run switch) — the live ticker's job is over
+    // V2.3b: interviews are per-run sessions — a run swap ends them (ephemeral by construction)
+    setInterviewee(null);
+    interviews.current = {};
     try {
       const r = await fetch(`/${id}.json`, { cache: 'no-store' });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
@@ -1308,6 +1322,7 @@ export default function MapView() {
             onClearFilter={() => setFeedGroup(null)}
             onSelect={setSelected}
             onLocate={onLocate}
+            onInterview={setInterviewee}
             selectedId={selected ? agentId(selected) : null}
           />
           <div style={rightRail}>
@@ -1318,7 +1333,17 @@ export default function MapView() {
               demandProfile={meta.demand_profile}
               changeWindow={windowedSpan(changesOf(artifact), meta.sim_end)}
             />
-            <AgentPanel agent={selected} onClose={() => setSelected(null)} />
+            <AgentPanel agent={selected} onClose={() => setSelected(null)} onInterview={setInterviewee} />
+            {interviewee && (
+              <InterviewDrawer
+                key={agentId(interviewee)}
+                agent={interviewee}
+                runId={meta.run_id}
+                messages={interviews.current[agentId(interviewee)] ?? []}
+                onMessages={onInterviewMsgs}
+                onClose={() => setInterviewee(null)}
+              />
+            )}
           </div>
           <ConflictLegend
             count={conflicts.length}

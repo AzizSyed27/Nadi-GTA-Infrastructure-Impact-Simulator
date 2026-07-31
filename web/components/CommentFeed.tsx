@@ -20,6 +20,9 @@ interface CommentFeedProps {
   onSelect: (agent: PinnedSimAgent) => void;
   /** Reverse join: pan/flash a pinned agent's dot. */
   onLocate: (agent: PinnedSimAgent) => void;
+  /** V2.3b: open the interview drawer for an INFERRED community voice (sim voices interview via the
+   * AgentPanel button; this is the community rows' click affordance). */
+  onInterview?: (agent: Agent) => void;
   selectedId?: string | null;
 }
 
@@ -48,8 +51,19 @@ function hash01(s: string): number {
  * this is voices over time, never a vote.
  */
 export function CommentFeed(props: CommentFeedProps) {
-  const { agents, inferred, currentTime, simStart, simEnd, filterGroup, onClearFilter, onSelect, onLocate, selectedId } =
-    props;
+  const {
+    agents,
+    inferred,
+    currentTime,
+    simStart,
+    simEnd,
+    filterGroup,
+    onClearFilter,
+    onSelect,
+    onLocate,
+    onInterview,
+    selectedId,
+  } = props;
   const [expanded, setExpanded] = useState(false);
 
   // Synthetic display clock for inferred voices — evenly spaced + small deterministic jitter so they
@@ -127,7 +141,15 @@ export function CommentFeed(props: CommentFeedProps) {
                   </span>
                 </button>
               ) : (
-                <div key={it.key} data-testid="community-row" style={communityRow}>
+                // V2.3b: a community row is now a click target — it opens the interview drawer for
+                // this inferred voice (styling unchanged; UA button styles reset in communityRow).
+                <button
+                  key={it.key}
+                  data-testid="community-row"
+                  style={{ ...communityRow, ...(onInterview ? { cursor: 'pointer' } : null) }}
+                  onClick={() => onInterview?.(it.agent)}
+                  title="Ask this voice a question"
+                >
                   <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
                   <span style={rowText}>
                     <span style={rowLabel}>
@@ -137,7 +159,7 @@ export function CommentFeed(props: CommentFeedProps) {
                     </span>
                     <span style={rowComment}>{it.agent.reaction.comment}</span>
                   </span>
-                </div>
+                </button>
               ),
             )}
             {hiddenCount > 0 && (
@@ -216,6 +238,11 @@ const communityRow: React.CSSProperties = {
   borderLeft: '3px solid #b79bd6',
   background: '#f7f4fb',
   marginBottom: 1,
+  // V2.3b: now a <button> — reset the UA styles so the row renders exactly as the old div did
+  border: 'none',
+  textAlign: 'left',
+  font: 'inherit',
+  color: 'inherit',
 };
 const rowFresh: React.CSSProperties = { background: '#fff7e6' };
 const rowSelected: React.CSSProperties = { background: '#e8f0fe' };

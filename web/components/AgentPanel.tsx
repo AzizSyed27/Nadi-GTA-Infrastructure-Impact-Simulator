@@ -4,8 +4,17 @@ import type { PinnedSimAgent } from '@/lib/types';
 import { minutes, sentimentHex, signedMinutes } from '@/lib/viz';
 
 /** Side panel for a clicked instrumented traveler: persona, before/after numbers, full comment.
- *  Handles both pinned-sim kinds — vehicle-backed (driving) and person-backed (walking). */
-export function AgentPanel({ agent, onClose }: { agent: PinnedSimAgent | null; onClose: () => void }) {
+ *  Handles both pinned-sim kinds — vehicle-backed (driving) and person-backed (walking).
+ *  V2.3b: `onInterview` opens the interview drawer for this agent (session-only Q&A). */
+export function AgentPanel({
+  agent,
+  onClose,
+  onInterview,
+}: {
+  agent: PinnedSimAgent | null;
+  onClose: () => void;
+  onInterview?: (agent: PinnedSimAgent) => void;
+}) {
   if (!agent) return null;
   const { persona, outcome, reaction } = agent;
   const walking = agent.person_id != null;
@@ -45,6 +54,17 @@ export function AgentPanel({ agent, onClose }: { agent: PinnedSimAgent | null; o
       </div>
 
       <div style={commentBox}>“{reaction.comment}”</div>
+
+      {onInterview && (
+        <button
+          style={interviewBtn}
+          data-testid="interview-open"
+          onClick={() => onInterview(agent)}
+          title="Ask this persona questions — answers come from its own simulated trip in this run."
+        >
+          {'🎤 Interview · <1¢'}
+        </button>
+      )}
     </div>
   );
 }
@@ -96,6 +116,17 @@ const cell: React.CSSProperties = { background: '#f3f4f6', borderRadius: 8, padd
 const cellLabel: React.CSSProperties = { fontSize: 10, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: 0.4 };
 const cellVal: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: '#1f2937', marginTop: 2, fontVariantNumeric: 'tabular-nums' };
 const commentBox: React.CSSProperties = { fontSize: 14, lineHeight: 1.45, color: '#374151', fontStyle: 'italic' };
+const interviewBtn: React.CSSProperties = {
+  marginTop: 10,
+  border: 'none',
+  background: '#e8f0fe',
+  color: '#1f4e9c',
+  borderRadius: 8,
+  padding: '6px 10px',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
 
 function dot(color: string): React.CSSProperties {
   return { width: 12, height: 12, borderRadius: '50%', background: color, display: 'inline-block', flex: '0 0 auto' };
