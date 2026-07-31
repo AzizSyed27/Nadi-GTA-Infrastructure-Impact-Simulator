@@ -30,6 +30,7 @@ from pydantic import BaseModel
 SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))  # bare imports work regardless of cwd
 import enrich_events  # noqa: E402
+import interview  # noqa: E402
 import llm_provider  # noqa: E402
 import network_edit  # noqa: E402  (SUMO junctions + the new_road patch)
 import report  # noqa: E402
@@ -67,14 +68,27 @@ _STATE: dict = {"rag": None, "client": None, "run_id": None, "index_ts": None}
 
 
 def _deepseek_client():
-    """A DeepSeek client for the guarded answer — explicit (not PROVIDER-env dependent), reusing the preset."""
+    """A DeepSeek client for the guarded answer — explicit (not PROVIDER-env dependent), reusing the preset.
+    V2.3b fix: mirror get_client()'s v4/reasoner thinking-disable — without it V4 defaults thinking ON,
+    `temperature` is a no-op and reasoning is billed as output (the CLAUDE.md DeepSeek convention)."""
     llm_provider._load_env()
     base_url, model, key_env, json_mode = llm_provider.PROVIDER_PRESETS["deepseek"]
     key = os.environ.get(key_env)
     if not key:
         raise RuntimeError(f"{key_env} is not set (put it in python/.env).")
+    extra_body = None
+    if any(tag in model.lower() for tag in ("v4", "reasoner")):
+        extra_body = {"thinking": {"type": "disabled"}}
     return llm_provider.OpenAICompatAdapter(base_url=base_url, model=model, api_key=key,
-                                            json_mode=json_mode, max_tokens=500)
+                                            json_mode=json_mode, extra_body=extra_body, max_tokens=500)
+
+
+def _interview_client():
+    """Lazy per-process client for /api/interview — independent of the RAG index (interviews must work
+    when no chat index is built, and under TestClient-without-lifespan). RuntimeError → HTTP 503."""
+    if _STATE.get("interview_client") is None:
+        _STATE["interview_client"] = _deepseek_client()
+    return _STATE["interview_client"]
 
 
 @asynccontextmanager
@@ -119,6 +133,23 @@ app.add_middleware(
 
 class ChatReq(BaseModel):
     question: str
+
+
+class InterviewTurn(BaseModel):
+    role: Literal["user", "agent"]
+    text: str
+
+
+class InterviewReq(BaseModel):
+    """V2.3b — ask ONE persona a question. The client sends IDS, never facts: the grounding context is
+    built server-side from the run's artifact. `transcript` is the client-held session history (ephemeral
+    — nothing is stored server-side); the server caps it (interview.TRANSCRIPT_MAX_TURNS) and the honesty
+    guard audits every answer regardless of what the transcript contains."""
+
+    run_id: str
+    agent_id: str  # vehicle_id ?? person_id ?? persona.id — the web/lib/viz.ts agentId convention
+    question: str
+    transcript: list[InterviewTurn] = []
 
 
 @app.get("/api/report")
@@ -207,6 +238,39 @@ async def chat(req: ChatReq):
     context = _build_context(chunks, entities, relations)
     answer, audit = await _guarded_answer(q, context, sources)
     return {"answer": answer, "sources": sources, "run_id": _STATE["run_id"], "audit": audit}
+
+
+@app.post("/api/interview")
+async def interview_endpoint(req: InterviewReq):
+    """V2.3b — an in-character, honesty-guarded answer from ONE of a run's voices. EPHEMERAL: reads the
+    artifact, writes nothing (no lock — this is a live read-only LLM call, deliberately outside the
+    one-job subprocess lock). Guard failures are CONTENT (200 + audit status), matching /api/chat."""
+    q = (req.question or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="ask a question")
+    if len(q) > interview.QUESTION_MAX_CHARS:
+        raise HTTPException(status_code=400,
+                            detail=f"question too long (max {interview.QUESTION_MAX_CHARS} chars)")
+    try:
+        ctx = interview.load_run_context(req.run_id)
+    except interview.RunNotFound:
+        raise HTTPException(status_code=404,
+                            detail=f"no artifact for run {req.run_id!r} — run the simulation first")
+    except interview.RunNotEnriched:
+        raise HTTPException(status_code=409,
+                            detail=f"run {req.run_id!r} has no voices yet — run the voices enrich first")
+    agent = interview.find_agent(ctx, req.agent_id)
+    if agent is None:
+        raise HTTPException(status_code=404, detail=f"no agent {req.agent_id!r} in run {req.run_id!r}")
+    try:
+        client = _interview_client()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    text, audit = await interview.answer(client, ctx, agent, q,
+                                         [t.model_dump() for t in req.transcript])
+    return {"answer": text, "audit": audit, "grounding": agent.get("grounding", "sim"),
+            "run_id": req.run_id, "agent_id": req.agent_id,
+            "persona_label": (agent.get("persona") or {}).get("label", "")}
 
 
 # ===================================================================================================
