@@ -104,7 +104,7 @@ to the untouched poll. **V2.3b (persona interviews) is COMPLETE**: every voice i
 via `POST /api/interview` — grounding built SERVER-side from that ONE agent's own records (ids on the wire,
 never facts; sibling inferred voices disambiguated by agents[] index), every answer passes the live honesty
 guard (audit_prose + verdict rule; retry-once → in-character refusal), inferred voices disclose their basis,
-and the whole thing is EPHEMERAL (session transcripts only, nothing written). Suites: **365 pytest + 42
+and the whole thing is EPHEMERAL (session transcripts only, nothing written). Suites: **367 pytest + 42
 Playwright**. Open threads: **the rest of V2.3 (`docs/v2.3-plan.md`: mandate-grounded institutional
 stakeholders that speak only computed facts, the two graphs visible side by side)**; then V2.5
 network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
@@ -681,7 +681,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (365 tests: golden spine + contract 0.6.0–0.8.0 sections +
+- **Tests:** `python -m pytest python/tests` (367 tests: golden spine + contract 0.6.0–0.8.0 sections +
   seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
   sections + the V2.3b interview grounding/guard/endpoint sections) and `cd web && npx playwright test`
   (42 tests across 12 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
