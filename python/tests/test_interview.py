@@ -153,6 +153,10 @@ def test_guard_passes_benign_persona_texture() -> None:
 def test_guard_allowlist_lets_a_refusal_name_what_it_refuses() -> None:
     assert interview.audit_interview("I can't give you a verdict on that.") == []
     assert interview.audit_interview("I can't predict crashes — that isn't something I could know.") == []
+    # the clause-bounded strip keeps a MULTI-OBJECT disclaimer whole (the bare-span strip used to
+    # leak "…or their probability" back into the crash check — latent false positive, now shared
+    # with report._strip_disclaimers)
+    assert interview.audit_interview("I can't predict crashes or their probability.") == []
 
 
 def test_guard_allow_clause_cannot_smuggle_a_real_claim() -> None:

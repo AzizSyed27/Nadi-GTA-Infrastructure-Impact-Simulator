@@ -444,6 +444,26 @@ _CRASH = re.compile(r"\b(crash\w*|accident\w*|collision\w*|fatalit\w*|injur\w*|p
 # LLM slots are constrained so this rarely fires, but it keeps the audit from flagging a pure disclaimer.
 _ALLOW = re.compile(r"(cannot|can't|does not|do not|doesn't|don't|not a|isn't|is not)\b.{0,40}"
                     r"(predict|prediction|verdict|crash|collision|guarantee|claim)", re.I)
+_CLAUSE_BOUNDARY = re.compile(r"[,;:—–]")
+
+
+def _strip_disclaimers(sentence: str) -> str:
+    """Remove each _ALLOW-licensed disclaimer CLAUSE — from the match's start to the next clause
+    boundary (or sentence end) — so the REMAINDER can be re-checked. The allow-skip must not be
+    whole-sentence: a compound sentence pairing a disclaimer with a real claim ("I can't give a
+    verdict, but the majority should approve it") would smuggle the claim past the audit (V2.3b
+    review-caught). Clause-bounded, not span-bounded, so a multi-object disclaimer ("cannot predict
+    crashes or their probability") stays whole instead of leaking its tail back into the checks."""
+    out: list[str] = []
+    i = 0
+    while True:
+        m = _ALLOW.search(sentence, i)
+        if not m:
+            out.append(sentence[i:])
+            return "".join(out)
+        out.append(sentence[i : m.start()])
+        b = _CLAUSE_BOUNDARY.search(sentence, m.end())
+        i = b.start() if b else len(sentence)  # the boundary char itself is kept
 
 
 def _sentences(text: str) -> list[str]:
@@ -455,18 +475,19 @@ def _safety_direction(sentence: str) -> bool:
 
 
 def audit_prose(text: str) -> list[tuple[str, str]]:
-    """Return [(rule, offending_sentence)] for a piece of LLM prose. Empty = clean."""
+    """Return [(rule, offending_sentence)] for a piece of LLM prose. Empty = clean. Allow-listed
+    disclaimer CLAUSES are stripped (not the whole sentence — see _strip_disclaimers) before the
+    safety/tally/crash checks; digits are checked on the full sentence, as always."""
     viol: list[tuple[str, str]] = []
     for s in _sentences(text):
         if _DIGIT.search(s):
             viol.append(("digits", s))
-        if _ALLOW.search(s):
-            continue
-        if _safety_direction(s):
+        t = _strip_disclaimers(s) if _ALLOW.search(s) else s
+        if _safety_direction(t):
             viol.append(("safety_direction", s))
-        if _TALLY.search(s):
+        if _TALLY.search(t):
             viol.append(("tally", s))
-        if _CRASH.search(s):
+        if _CRASH.search(t):
             viol.append(("crash", s))
     # de-dupe, preserve order
     seen, out = set(), []
@@ -527,13 +548,12 @@ def audit_prose_cascade(text: str) -> list[tuple[str, str]]:
     for s in _sentences(text):
         if _DIGIT.search(s):
             viol.append(("digits", s))
-        if _ALLOW.search(s):
-            continue
-        if _persona_safety_excluded(s):
+        t = _strip_disclaimers(s) if _ALLOW.search(s) else s
+        if _persona_safety_excluded(t):
             viol.append(("safety_direction", s))
-        if _TALLY.search(s):
+        if _TALLY.search(t):
             viol.append(("tally", s))
-        if _CRASH.search(s):
+        if _CRASH.search(t):
             viol.append(("crash", s))
     seen, out = set(), []
     for v in viol:

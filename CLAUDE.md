@@ -65,6 +65,10 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   `deepseek-v4-flash` HELD the baseline — **2 corrected on retry (both `safety_direction` "safer streets"), 0
   unresolved** = no model drift. The report's audit-retry count is the drift signal: a meaningfully higher count
   (or any UNRESOLVED, which fails loudly) on a future model swap is the flag — investigate, don't push through.
+  **BASELINE SHIFT (2026-07-31):** the guard TIGHTENED (V2.3b follow-up — the clause-bounded
+  `_strip_disclaimers` re-check in `audit_prose`; disclaimer-paired claims no longer skip) — a modestly higher
+  corrected-on-retry count on the NEXT report regen is expected from the guard change, not model drift;
+  compare against a post-change baseline before reading it as a flag.
 - **Windows-native gotchas (LightRAG):** the per-run RAG index lives under `%LOCALAPPDATA%\nadi-report-agent\`,
   NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
   (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation
@@ -569,10 +573,14 @@ now v0.8.0).**
   falls back to the first-match scan (old callers work). The drawer remount key + transcript session are
   index-qualified client-side too.
 - **The GUARD is the FLOOR no matter what the client sends:** `audit_interview` = `report.audit_prose` VERBATIM
-  (digits/safety-direction/tally/crash — strictly stronger than the asked-for list; report.py untouched) + a
-  narrow `_VERDICT` rule (city/council should…, approve/reject/scrap, recommend-forms, negated should). The
-  `_ALLOW` disclaimer skip is NOT whole-sentence here — the licensed span is STRIPPED and the remainder
-  re-checked (review-caught: "I can't give a verdict, but the majority should approve it" slipped every check).
+  (digits/safety-direction/tally/crash — strictly stronger than the asked-for list) + a narrow `_VERDICT` rule
+  (city/council should…, approve/reject/scrap, recommend-forms, negated should). The `_ALLOW` disclaimer skip
+  is NOT whole-sentence — review-caught: "I can't give a verdict, but the majority should approve it" slipped
+  every check. **Follow-up (user-directed): the fix is HOISTED into `report._strip_disclaimers` and now guards
+  audit_prose (report slots + chat) AND audit_prose_cascade too** — the strip is CLAUSE-bounded (match → next
+  `,;:—–` or sentence end), not bare-span, so a multi-object disclaimer ("cannot predict crashes or their
+  probability") stays licensed while a ", but <claim>" clause is re-checked (the bare-span version was a latent
+  interview false positive). Smuggle + multi-object pins per consumer in test_report.py/test_interview.py.
   Retry-once quoting violations → the in-character refusal constants (unit-pinned to audit clean); LLM
   exceptions/empty answers → refusal + status "error", never a 500. Referendum deflection lives in BOTH the
   system prompt (rule 5) and the guard (_TALLY + _VERDICT). **Transcript-laundering pin:** planted "You said:"

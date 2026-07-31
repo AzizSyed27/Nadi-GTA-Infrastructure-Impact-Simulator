@@ -236,25 +236,14 @@ _VERDICT = re.compile(
 
 
 def audit_interview(text: str) -> list[tuple[str, str]]:
-    """report.audit_prose + the verdict rule. The _ALLOW skip (a refusal may name the thing it
-    refuses) is NOT a whole-sentence pass here: a compound sentence pairing a disclaimer clause with
-    a real claim ("I can't give a verdict, but the majority should approve it") would smuggle the
-    claim past audit_prose's skip (review-caught) — so allow-listed sentences get their disclaimer
-    span STRIPPED and the remainder re-checked against every non-digit rule. Empty = clean."""
+    """report.audit_prose (smuggle-proof since the clause-bounded _strip_disclaimers hoist — a
+    compound sentence pairing a disclaimer with a real claim is re-checked on its remainder) + the
+    interview-specific verdict rule, applied through the SAME disclaimer strip so a refusal may
+    still name the thing it refuses. Empty = clean."""
     viol = report.audit_prose(text)
     for s in report._sentences(text):
-        if report._ALLOW.search(s):
-            # re-check what's left once the licensed "can't … verdict/predict/…" span is removed
-            remainder = report._ALLOW.sub("", s)
-            if report._safety_direction(remainder):
-                viol.append(("safety_direction", s))
-            if report._TALLY.search(remainder):
-                viol.append(("tally", s))
-            if report._CRASH.search(remainder):
-                viol.append(("crash", s))
-            if _VERDICT.search(remainder):
-                viol.append(("verdict", s))
-        elif _VERDICT.search(s):
+        t = report._strip_disclaimers(s) if report._ALLOW.search(s) else s
+        if _VERDICT.search(t):
             viol.append(("verdict", s))
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str]] = []

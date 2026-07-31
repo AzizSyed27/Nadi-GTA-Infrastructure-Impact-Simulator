@@ -62,8 +62,26 @@ def test_audit_catches_tally_but_allows_texture():
 
 def test_audit_catches_crash_words_but_allows_disclaimer():
     assert "crash" in _rules("This change will cause more accidents on the corridor.")
-    # a pure disclaimer that names what it refuses to claim is allowlisted
+    # a pure disclaimer that names what it refuses to claim is allowlisted — including a
+    # MULTI-OBJECT one (the clause-bounded strip must keep the whole disclaimer clause together)
     assert not _rules("This tool cannot predict crashes or their probability.")
+
+
+def test_audit_allow_clause_cannot_smuggle_a_real_claim():
+    """V2.3b review-caught, hoisted from the interview guard: the _ALLOW skip is clause-bounded,
+    not whole-sentence — a compound sentence pairing a licensed disclaimer with a REAL claim must
+    still trip on the claim's clause."""
+    assert "tally" in _rules("I can't give a verdict, but the majority supports this.")
+    assert "crash" in _rules("I can't predict the future, but there would be fewer collisions here.")
+    # the disclaimer clause itself stays licensed
+    assert not _rules("This isn't a verdict; it is one corridor preview.")
+
+
+def test_audit_cascade_allow_clause_cannot_smuggle_a_tally():
+    rules = {r for r, _ in report.audit_prose_cascade("I can't give a verdict, but most agents vote yes.")}
+    assert "tally" in rules
+    # and the persona-calibrated variant keeps licensing a pure disclaimer
+    assert not report.audit_prose_cascade("I can't predict crashes, that's not my place.")
 
 
 # --------------------------------------------------------------------------------------------------
