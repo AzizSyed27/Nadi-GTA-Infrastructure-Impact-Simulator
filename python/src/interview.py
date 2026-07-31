@@ -96,12 +96,25 @@ def load_run_context(run_id: str) -> RunContext:
     return ctx  # `raw` (the full tree) is garbage from here — only the slim extract is retained
 
 
-def find_agent(ctx: RunContext, agent_id: str) -> dict | None:
+def _wire_id(a: dict) -> str | None:
+    return a.get("vehicle_id") or a.get("person_id") or (a.get("persona") or {}).get("id")
+
+
+def find_agent(ctx: RunContext, agent_id: str, agent_index: int | None = None) -> dict | None:
     """Resolve the client's agent reference — the established convention is
-    ``vehicle_id ?? person_id ?? persona.id`` (web/lib/viz.ts agentId)."""
+    ``vehicle_id ?? person_id ?? persona.id`` (web/lib/viz.ts agentId).
+
+    INFERRED voices are NOT unique under that convention: the sampler round-robins few inferred
+    personas over more records, so several sibling records share one persona.id (with distinct
+    reaction comments — review-caught misattribution). The client therefore also sends the record's
+    ``agents[]`` INDEX; when it's valid AND its id matches, it picks the exact sibling. An
+    invalid/mismatched index falls back to the first-match scan (old clients keep working)."""
+    if agent_index is not None and 0 <= agent_index < len(ctx.agents):
+        a = ctx.agents[agent_index]
+        if _wire_id(a) == agent_id:
+            return a
     for a in ctx.agents:
-        aid = a.get("vehicle_id") or a.get("person_id") or (a.get("persona") or {}).get("id")
-        if aid == agent_id:
+        if _wire_id(a) == agent_id:
             return a
     return None
 
@@ -209,11 +222,13 @@ def build_user(question: str, transcript: list[dict]) -> str:
 
 # Verdict language = directives at the CITY's decision. Kept narrow so persona grievance texture
 # ("nobody asked us first", "I'd feel calmer") never trips it — the retry path absorbs rare misses.
+# Review-hardened: negated should ("shouldn't go ahead") + recommend-forms are verdicts too.
 _VERDICT = re.compile(
     r"\b(?:the\s+city|council|planners?)\s+should\b"
-    r"|\bshould\s+(?:be\s+)?(?:approved?|rejected?|scrapped|cancell?ed|built|go\s+ahead|proceed)\b"
+    r"|\bshould(?:n'?t|\s+not)?\s+(?:be\s+)?(?:approved?|rejected?|scrapped|cancell?ed|built|"
+    r"go\s+ahead|proceed)\b"
     r"|\b(?:approve|reject|greenlight|scrap|cancel)\s+(?:this|the)\s+(?:change|plan|proposal|project)\b"
-    r"|\bverdict\b"
+    r"|\bverdict\b|\brecommend\w*\b"
     r"|\b(?:right|wrong|best|better)\s+(?:choice|option|decision|call)\s+for\s+the\s+"
     r"(?:city|corridor|neighbou?rhood)\b",
     re.I,
@@ -221,13 +236,25 @@ _VERDICT = re.compile(
 
 
 def audit_interview(text: str) -> list[tuple[str, str]]:
-    """report.audit_prose + the verdict rule, honoring the same per-sentence _ALLOW skip (a refusal
-    may name the thing it refuses). Empty = clean."""
+    """report.audit_prose + the verdict rule. The _ALLOW skip (a refusal may name the thing it
+    refuses) is NOT a whole-sentence pass here: a compound sentence pairing a disclaimer clause with
+    a real claim ("I can't give a verdict, but the majority should approve it") would smuggle the
+    claim past audit_prose's skip (review-caught) — so allow-listed sentences get their disclaimer
+    span STRIPPED and the remainder re-checked against every non-digit rule. Empty = clean."""
     viol = report.audit_prose(text)
     for s in report._sentences(text):
         if report._ALLOW.search(s):
-            continue
-        if _VERDICT.search(s):
+            # re-check what's left once the licensed "can't … verdict/predict/…" span is removed
+            remainder = report._ALLOW.sub("", s)
+            if report._safety_direction(remainder):
+                viol.append(("safety_direction", s))
+            if report._TALLY.search(remainder):
+                viol.append(("tally", s))
+            if report._CRASH.search(remainder):
+                viol.append(("crash", s))
+            if _VERDICT.search(remainder):
+                viol.append(("verdict", s))
+        elif _VERDICT.search(s):
             viol.append(("verdict", s))
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str]] = []
@@ -270,6 +297,8 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     except Exception as e:  # noqa: BLE001 — provider SDK errors vary
         return refusal_for(agent), {"status": "error", "detail": str(e)[:140]}
     text = obj["text"].strip()
+    if not text:  # a degenerate empty answer must not render as a blank clean bubble
+        return refusal_for(agent), {"status": "error", "detail": "empty answer"}
     v1 = audit_interview(text)
     if not v1:
         return text, {"status": "clean", "violations": []}
@@ -286,6 +315,8 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     except Exception as e:  # noqa: BLE001
         return refusal_for(agent), {"status": "error", "detail": str(e)[:140], "violations": caught}
     text2 = obj["text"].strip()
+    if not text2:
+        return refusal_for(agent), {"status": "error", "detail": "empty answer", "violations": caught}
     v2 = audit_interview(text2)
     if v2:
         return refusal_for(agent), {

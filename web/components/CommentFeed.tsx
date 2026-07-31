@@ -235,11 +235,13 @@ const communityRow: React.CSSProperties = {
   width: '100%',
   padding: '7px 8px 7px 7px',
   borderRadius: 8,
-  borderLeft: '3px solid #b79bd6',
   background: '#f7f4fb',
   marginBottom: 1,
-  // V2.3b: now a <button> — reset the UA styles so the row renders exactly as the old div did
+  // V2.3b: now a <button> — reset the UA styles so the row renders exactly as the old div did.
+  // ORDER MATTERS: the `border` shorthand wipes every longhand, so the purple accent must come AFTER
+  // it (review-caught: shorthand-after-longhand silently erased the borderLeft).
   border: 'none',
+  borderLeft: '3px solid #b79bd6',
   textAlign: 'left',
   font: 'inherit',
   color: 'inherit',

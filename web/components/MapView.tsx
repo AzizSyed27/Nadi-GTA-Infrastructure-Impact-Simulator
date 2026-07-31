@@ -1334,16 +1334,26 @@ export default function MapView() {
               changeWindow={windowedSpan(changesOf(artifact), meta.sim_end)}
             />
             <AgentPanel agent={selected} onClose={() => setSelected(null)} onInterview={setInterviewee} />
-            {interviewee && (
-              <InterviewDrawer
-                key={agentId(interviewee)}
-                agent={interviewee}
-                runId={meta.run_id}
-                messages={interviews.current[agentId(interviewee)] ?? []}
-                onMessages={onInterviewMsgs}
-                onClose={() => setInterviewee(null)}
-              />
-            )}
+            {interviewee &&
+              (() => {
+                // Index-qualified identity: sibling INFERRED voices share a persona.id (the sampler
+                // round-robins few personas over more records), so the agents[] index — not agentId
+                // alone — keys the drawer remount, the transcript session, and the wire reference.
+                const idx = artifact.agents?.indexOf(interviewee) ?? -1;
+                const sessionKey = idx >= 0 ? `agent#${idx}` : agentId(interviewee);
+                return (
+                  <InterviewDrawer
+                    key={sessionKey}
+                    agent={interviewee}
+                    agentIndex={idx}
+                    runId={meta.run_id}
+                    sessionKey={sessionKey}
+                    messages={interviews.current[sessionKey] ?? []}
+                    onMessages={onInterviewMsgs}
+                    onClose={() => setInterviewee(null)}
+                  />
+                );
+              })()}
           </div>
           <ConflictLegend
             count={conflicts.length}

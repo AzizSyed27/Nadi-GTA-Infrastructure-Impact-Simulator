@@ -41,6 +41,13 @@ INFERRED_AGENT = {
     "grounding": "inferred",
     "stakeholder": "taxpayer",
 }
+# a SIBLING sharing the same persona.id (the sampler round-robin shape) with a distinct comment
+INFERRED_SIBLING = {
+    "persona": {"id": "taxpayer_voice", "label": "Omar, taxpayer"},
+    "reaction": {"comment": "SIBLING wants receipts", "sentiment": -0.4, "stance": "opposed"},
+    "grounding": "inferred",
+    "stakeholder": "taxpayer",
+}
 
 
 class _ScriptedClient:
@@ -74,7 +81,7 @@ def client(tmp_path: Path, monkeypatch) -> TestClient:
     art = {"meta": {"demand_profile": "synthetic_demo",
                     "scenario": {"changes": [{"type": "speed_limit", "description": "Speed lowered",
                                               "value_mps": 11.11}]}},
-           "agents": [SIM_AGENT, INFERRED_AGENT]}
+           "agents": [SIM_AGENT, INFERRED_AGENT, INFERRED_SIBLING]}
     (runs / f"{RUN}.json").write_text(json.dumps(art), encoding="utf-8")
     (runs / "unenriched.json").write_text(json.dumps({"meta": {}, "agents": []}), encoding="utf-8")
     yield TestClient(server.app)  # no `with` → lifespan never runs
@@ -150,6 +157,18 @@ def test_inferred_agent_by_persona_id(client: TestClient, monkeypatch) -> None:
     system, _ = stub.calls[0]
     assert "NOT simulated directly" in system
     assert "HOW IT AFFECTS YOUR USUAL TRIP" not in system  # no sim trip block for an inferred voice
+
+
+def test_agent_index_grounds_the_exact_sibling(client: TestClient, monkeypatch) -> None:
+    """Review-caught misattribution: two inferred records share persona.id 'taxpayer_voice' with
+    distinct comments — agent_index must ground the interview in the CLICKED sibling's record."""
+    stub = _ScriptedClient("Receipts first, promises second — that is all I am saying.")
+    _stub(monkeypatch, stub)
+    r = _post(client, agent_id="taxpayer_voice", agent_index=2)
+    assert r.status_code == 200
+    system, _ = stub.calls[0]
+    assert "SIBLING wants receipts" in system  # the index-picked record's own prior comment
+    assert "show me it works" not in system  # never the first-match sibling's
 
 
 def test_violation_resolved_on_retry(client: TestClient, monkeypatch) -> None:

@@ -148,6 +148,9 @@ class InterviewReq(BaseModel):
 
     run_id: str
     agent_id: str  # vehicle_id ?? person_id ?? persona.id — the web/lib/viz.ts agentId convention
+    # The record's agents[] index — REQUIRED to disambiguate sibling INFERRED voices (several share
+    # one persona.id with distinct comments); optional on the wire so id-only callers still resolve.
+    agent_index: int | None = None
     question: str
     transcript: list[InterviewTurn] = []
 
@@ -252,14 +255,16 @@ async def interview_endpoint(req: InterviewReq):
         raise HTTPException(status_code=400,
                             detail=f"question too long (max {interview.QUESTION_MAX_CHARS} chars)")
     try:
-        ctx = interview.load_run_context(req.run_id)
+        # to_thread: a cold calibrated artifact is a ~90 MB synchronous read+parse — keep it off the
+        # event loop so the SSE enrich stream and status polls don't stall behind it (cached after).
+        ctx = await asyncio.to_thread(interview.load_run_context, req.run_id)
     except interview.RunNotFound:
         raise HTTPException(status_code=404,
                             detail=f"no artifact for run {req.run_id!r} — run the simulation first")
     except interview.RunNotEnriched:
         raise HTTPException(status_code=409,
                             detail=f"run {req.run_id!r} has no voices yet — run the voices enrich first")
-    agent = interview.find_agent(ctx, req.agent_id)
+    agent = interview.find_agent(ctx, req.agent_id, req.agent_index)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"no agent {req.agent_id!r} in run {req.run_id!r}")
     try:

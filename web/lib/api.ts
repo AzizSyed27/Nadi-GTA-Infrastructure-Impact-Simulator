@@ -286,16 +286,25 @@ export interface InterviewResp {
 }
 
 /** POST /api/interview — ask ONE of a run's voices a question, in character. The client sends IDS,
- * never facts: the grounding context is built server-side from the run's artifact. */
+ * never facts: the grounding context is built server-side from the run's artifact. `agentIndex` is
+ * the record's position in agents[] — it disambiguates sibling INFERRED voices that share one
+ * persona.id (pass -1 / omit when unknown; the server falls back to the id scan). */
 export function postInterview(
   runId: string,
   agentId: string,
   question: string,
   transcript: InterviewTurn[],
+  agentIndex?: number,
 ): Promise<ApiResult<InterviewResp>> {
   return req(`/api/interview`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ run_id: runId, agent_id: agentId, question, transcript }),
+    body: JSON.stringify({
+      run_id: runId,
+      agent_id: agentId,
+      ...(agentIndex != null && agentIndex >= 0 ? { agent_index: agentIndex } : {}),
+      question,
+      transcript,
+    }),
   });
 }

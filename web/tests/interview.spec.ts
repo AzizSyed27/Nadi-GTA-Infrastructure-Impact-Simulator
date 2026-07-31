@@ -116,11 +116,13 @@ test('sim voice: drawer opens from the agent panel; the payload carries ids, nev
   await expect(page.getByTestId('interview-msg')).toHaveCount(2, { timeout: 10_000 }); // question + answer
   await expect(page.getByTestId('interview-msg').last()).toContainText('a little slower than usual');
 
-  // IDS, NEVER FACTS: the client sends run_id + agent_id + question + transcript — no outcome numbers.
+  // IDS, NEVER FACTS: the client sends run_id + agent_id + agent_index + question + transcript —
+  // no outcome numbers (agent_index is a positional REFERENCE, disambiguating sibling inferred voices).
   expect(captured).toHaveLength(1);
   const body = captured[0].body;
-  expect(Object.keys(body).sort()).toEqual(['agent_id', 'question', 'run_id', 'transcript']);
+  expect(Object.keys(body).sort()).toEqual(['agent_id', 'agent_index', 'question', 'run_id', 'transcript']);
   expect(body.agent_id).toBe('veh0');
+  expect(body.agent_index).toBe(0); // the sim voice is agents[0] in the fixture
   expect(body.run_id).toBe('school-zone-fixture');
   const raw = JSON.stringify(body);
   for (const leak of ['outcome', 'baseline_duration', 'delta_seconds', '240', '360']) {
@@ -133,6 +135,14 @@ test('inferred voice: a community row opens the drawer with the inferred-basis d
   await mockBackend(page, (b) => reply(b, 'I was not one of the measured trips — for me it is about trust.'), captured);
   await openPlayback(page);
 
+  // the community rows keep their purple accent (review-caught: the button-reset `border: 'none'`
+  // shorthand silently wiped the borderLeft when ordered after it)
+  const accent = await page
+    .getByTestId('community-row')
+    .first()
+    .evaluate((el) => getComputedStyle(el).borderLeftWidth);
+  expect(accent).toBe('3px');
+
   await page.getByTestId('community-row').first().click();
   await expect(page.getByTestId('interview-drawer')).toBeVisible();
   await expect(page.getByTestId('interview-grounding')).toHaveText(INFERRED_GROUNDING);
@@ -141,6 +151,8 @@ test('inferred voice: a community row opens the drawer with the inferred-basis d
   await page.getByTestId('interview-send').click();
   await expect(page.getByTestId('interview-msg')).toHaveCount(2, { timeout: 10_000 });
   expect(INFERRED_IDS).toContain(captured[0].body.agent_id);
+  // the index rides the wire and points at an inferred record (agents[1..3] in the fixture)
+  expect([1, 2, 3]).toContain(captured[0].body.agent_index);
 });
 
 test('a failed audit renders the in-character refusal + the labeled guard note', async ({ page }) => {

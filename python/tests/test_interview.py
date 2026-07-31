@@ -152,6 +152,23 @@ def test_guard_passes_benign_persona_texture() -> None:
 
 def test_guard_allowlist_lets_a_refusal_name_what_it_refuses() -> None:
     assert interview.audit_interview("I can't give you a verdict on that.") == []
+    assert interview.audit_interview("I can't predict crashes — that isn't something I could know.") == []
+
+
+def test_guard_allow_clause_cannot_smuggle_a_real_claim() -> None:
+    """Review-caught: a compound sentence pairing a licensed disclaimer with a REAL violation must
+    still trip — the disclaimer span is stripped and the remainder re-checked."""
+    rules = {r for r, _ in interview.audit_interview(
+        "I can't give a verdict, but the majority should approve this plan.")}
+    assert "tally" in rules and "verdict" in rules
+    rules2 = {r for r, _ in interview.audit_interview(
+        "I can't predict the future, but there would be fewer collisions here.")}
+    assert "crash" in rules2
+
+
+def test_guard_verdict_covers_recommend_and_negated_should() -> None:
+    assert {r for r, _ in interview.audit_interview("I recommend the city build this right away.")} == {"verdict"}
+    assert {r for r, _ in interview.audit_interview("This shouldn't go ahead in my opinion.")} == {"verdict"}
 
 
 def test_refusal_constants_audit_clean() -> None:
@@ -240,3 +257,19 @@ def test_find_agent_resolution() -> None:
     assert interview.find_agent(ctx, "ped3") is per
     assert interview.find_agent(ctx, "pc") is inf
     assert interview.find_agent(ctx, "missing") is None
+
+
+def test_find_agent_index_disambiguates_sibling_inferred_voices() -> None:
+    """Review-caught: the sampler round-robins few inferred personas over more records, so sibling
+    records share ONE persona.id with DISTINCT comments — the id-only scan always returned the first
+    (grounding misattribution). The agents[] index picks the exact sibling."""
+    s1 = _inferred_agent("longtime_resident", "R", "local_resident", "FIRST sibling comment")
+    s2 = _inferred_agent("longtime_resident", "R", "local_resident", "SECOND sibling comment")
+    ctx = _ctx([s1, s2])
+    assert interview.find_agent(ctx, "longtime_resident") is s1  # id-only: first match (back-compat)
+    assert interview.find_agent(ctx, "longtime_resident", 1) is s2  # the index picks the sibling
+    # invalid or mismatched index falls back to the scan, never a wrong record
+    assert interview.find_agent(ctx, "longtime_resident", 99) is s1
+    assert interview.find_agent(ctx, "missing", 1) is None
+    g = interview.build_grounding(s2, ctx)
+    assert "SECOND sibling comment" in g and "FIRST sibling comment" not in g

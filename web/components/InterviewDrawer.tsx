@@ -14,13 +14,20 @@ import { postInterview, type InterviewMsg } from '@/lib/api';
  */
 export function InterviewDrawer({
   agent,
+  agentIndex,
   runId,
+  sessionKey,
   messages,
   onMessages,
   onClose,
 }: {
   agent: Agent;
+  /** The record's position in agents[] — disambiguates sibling inferred voices sharing a persona.id
+   * (sent on the wire; -1 = unknown, the server falls back to the id scan). */
+  agentIndex: number;
   runId: string;
+  /** Parent's transcript-map key for THIS record (index-qualified — persona.id alone collides). */
+  sessionKey: string;
   messages: InterviewMsg[];
   onMessages: (id: string, msgs: InterviewMsg[]) => void;
   onClose: () => void;
@@ -40,15 +47,15 @@ export function InterviewDrawer({
     // the transcript sent is the PRIOR history — the question rides its own field (no duplication)
     const history = messages.map(({ role, text }) => ({ role, text }));
     const withUser = [...messages, { role: 'user' as const, text: q }];
-    onMessages(id, withUser);
+    onMessages(sessionKey, withUser);
     setLoading(true);
-    const res = await postInterview(runId, id, q, history);
+    const res = await postInterview(runId, id, q, history, agentIndex);
     setLoading(false);
     if (!res.ok) {
       setErr(res.error);
       return; // the user turn stays; the error renders labeled below the thread
     }
-    onMessages(id, [...withUser, { role: 'agent', text: res.value.answer, audit: res.value.audit }]);
+    onMessages(sessionKey, [...withUser, { role: 'agent', text: res.value.answer, audit: res.value.audit }]);
   };
 
   return (
