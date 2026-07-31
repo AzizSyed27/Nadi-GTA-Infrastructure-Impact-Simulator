@@ -96,9 +96,13 @@ window-scoped change — report line + caveat + chat corpus + ScorecardPanel one
 byte-identical, golden-pinned). **V2.3a (SSE-streamed enrich) is COMPLETE**: enrich jobs stream over
 `GET /api/runs/<id>/enrich/stream` (NDJSON events file → SSE; env-gated so CLI enrich stays byte-identical),
 voices render incrementally (RunCard live counts + the EditPanel ticker), and a dead stream degrades LABELED
-to the untouched poll. Suites: **329 pytest + 38 Playwright**. Open threads: **the rest of V2.3
-(`docs/v2.3-plan.md`: in-character persona interviews, mandate-grounded institutional stakeholders that speak
-only computed facts, the two graphs visible side by side)**; then V2.5
+to the untouched poll. **V2.3b (persona interviews) is COMPLETE**: every voice is interviewable in character
+via `POST /api/interview` — grounding built SERVER-side from that ONE agent's own records (ids on the wire,
+never facts; sibling inferred voices disambiguated by agents[] index), every answer passes the live honesty
+guard (audit_prose + verdict rule; retry-once → in-character refusal), inferred voices disclose their basis,
+and the whole thing is EPHEMERAL (session transcripts only, nothing written). Suites: **365 pytest + 42
+Playwright**. Open threads: **the rest of V2.3 (`docs/v2.3-plan.md`: mandate-grounded institutional
+stakeholders that speak only computed facts, the two graphs visible side by side)**; then V2.5
 network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
@@ -549,11 +553,58 @@ now v0.8.0).**
   npx cache and the PostToolUse hook then rewrites edited web files to prettier DEFAULTS (no repo config exists;
   cost a 231-line accidental reformat, reverted). Keep prettier out of the npx cache, or land a real config.
 
+**V2.3 Step b — PERSONA INTERVIEWS — COMPLETE (ephemeral; no contract change; agents stay a preview).**
+- **`POST /api/interview {run_id, agent_id, agent_index?, question, transcript}`** → an in-character answer
+  from ONE of a run's voices. Grounding is built SERVER-SIDE (`python/src/interview.py`) from the artifact —
+  the client sends IDS, never facts (spec-pinned: the POST body carries no outcome fields): persona description
+  re-hydrated from `personas.json` (the wire trims it to {id,label}), prior reaction quoted ("stay consistent"),
+  sim agents get their OWN trip via `reactions._sim_suffix`, inferred agents get `_inferred_context` + the
+  in-character basis duty ("I wasn't simulated directly — speaking from what the scenario implies for someone
+  like me"). `build_grounding` receives ONE agent + run-level context — the structural LEAKAGE guarantee,
+  test-pinned with marker agents (another agent's comment/label/minutes in the context = failure).
+- **AGENT IDENTITY (review-caught misattribution):** the `vehicle_id ?? person_id ?? persona.id` convention is
+  NOT unique for inferred voices — the sampler round-robins few inferred personas over more records, so siblings
+  share one persona.id with distinct comments (real artifact: `longtime_resident` ×3). The client sends the
+  record's **agents[] index** alongside the id; `find_agent` picks the exact sibling when index+id agree, else
+  falls back to the first-match scan (old callers work). The drawer remount key + transcript session are
+  index-qualified client-side too.
+- **The GUARD is the FLOOR no matter what the client sends:** `audit_interview` = `report.audit_prose` VERBATIM
+  (digits/safety-direction/tally/crash — strictly stronger than the asked-for list; report.py untouched) + a
+  narrow `_VERDICT` rule (city/council should…, approve/reject/scrap, recommend-forms, negated should). The
+  `_ALLOW` disclaimer skip is NOT whole-sentence here — the licensed span is STRIPPED and the remainder
+  re-checked (review-caught: "I can't give a verdict, but the majority should approve it" slipped every check).
+  Retry-once quoting violations → the in-character refusal constants (unit-pinned to audit clean); LLM
+  exceptions/empty answers → refusal + status "error", never a 500. Referendum deflection lives in BOTH the
+  system prompt (rule 5) and the guard (_TALLY + _VERDICT). **Transcript-laundering pin:** planted "You said:"
+  turns full of violations, echoed by a stub model, die at the guard (the transcript feeds only the prompt).
+- **Server:** temp **0.8** through `report._call` (persona texture — honesty comes from the guard, not
+  determinism); the run's artifact loads through an mtime-invalidated 2-entry LRU keeping ONLY
+  agents+changes+profile+tags (the 90 MB tree drops immediately; cold load via `asyncio.to_thread` so SSE/polls
+  never stall). 400 empty/oversize question (cap 500 chars); 404 no artifact / unknown agent; 409 unenriched;
+  503 no key; guard failures are CONTENT (200 + audit status). No one-job lock (live read-only call).
+  **Fix in passing:** the server's `_deepseek_client` now sends the v4 thinking-disable `extra_body` it had
+  omitted (chat + interviews; without it V4 billed reasoning as output and temperature was a no-op).
+- **Frontend:** `InterviewDrawer.tsx` (right-rail card) opens from the AgentPanel 🎤 button (sim) or a
+  community row (now a real button — UA-reset ORDER matters: the `border` shorthand wipes `borderLeft`, the
+  accent must come after it, computed-style-pinned). Per-grounding disclosure lines ("answers come from this
+  persona's own simulated trip…" / "wasn't simulated directly…"); labeled guard/error notes (never silent);
+  cost-honest send button "Ask · <1¢" + tooltip (actual ~0.03¢ — never understate). Per-agent transcripts in a
+  MapView session ref keyed `agent#<index>`, cleared on run swap — ephemeral by construction. NB in MapView
+  `Map` is the react-map-gl component — the transcript store is a plain Record for that reason.
+- **Verified:** 36 unit/endpoint tests (leakage, guard classes incl. smuggle/verdict forms, refusal-constant
+  pins, cache LRU/mtime, sibling disambiguation, status matrix, transcript laundering, EPHEMERALITY — a POST
+  changes nothing on disk) + `interview.spec.ts` ×4 (ids-never-facts payload pin, inferred disclosure,
+  failed-audit refusal + guard note + banned regexes, per-agent transcripts). **Live smoke** on the pinned
+  212-voice run: a walking school-run parent answered in character, digit-free ("a few extra seconds"),
+  multi-turn consistent (second turn ~1.8 s — cache + prefix hits); "Should the city go ahead? How many would
+  support it?" → in-character deflection ("that's your call, I can't speak for anyone else"); an inferred voice
+  disclosed its basis and refused exact numbers; git tree clean after (nothing written).
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
   ```bash
-  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream] /api/report /api/chat
+  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream] /api/report /api/chat /api/interview
   cd web && npm run dev                            # http://localhost:3000 → open the ✏️ Edit toggle
   python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
   ```
@@ -622,10 +673,11 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (328 tests: golden spine + contract 0.6.0–0.8.0 sections +
+- **Tests:** `python -m pytest python/tests` (365 tests: golden spine + contract 0.6.0–0.8.0 sections +
   seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
-  sections) and `cd web && npx playwright test`
-  (38 tests across 11 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream). **Dev-only Playwright
+  sections + the V2.3b interview grounding/guard/endpoint sections) and `cd web && npx playwright test`
+  (42 tests across 12 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
