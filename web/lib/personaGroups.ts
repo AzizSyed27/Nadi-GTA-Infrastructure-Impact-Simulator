@@ -42,7 +42,15 @@ export const PERSONA_GROUP: Record<string, string> = {
   transit_rider: 'transit_riders',
   // no scorecard row — the "other voices" bucket
   skeptical_taxpayer: 'taxpayer',
+  // V2.3c mandate-grounded institutions (0.9.0+) — their own group, NEVER a scorecard group
+  // (no scorecard→feed join hits an institution)
+  tfs: 'institution',
+  tdsb: 'institution',
+  transport_ops: 'institution',
 };
+
+/** Sentinel group id for mandate-grounded institutional voices (no scorecard row, own feed section). */
+export const INSTITUTION_GROUP = 'institution';
 
 /** Sentinel group id for voices with no scorecard row (currently just the skeptical taxpayer). */
 export const OTHER_VOICES_GROUP = 'taxpayer';
@@ -112,10 +120,13 @@ export const GROUP_LABEL: Record<string, string> = {
   accessibility: 'Accessibility',
   transit_riders: 'Transit riders',
   taxpayer: 'Other voices',
+  institution: 'Institutional perspectives',
 };
 
 /** The group an agent's voice belongs to (or null if unmapped — never expected). Derives from the artifact
- *  persona (mode/stakeholder) when present, else the hardcoded map. */
+ *  persona (mode/stakeholder) when present, else the hardcoded map. Mandate agents are ALWAYS the
+ *  institution group — grounding wins over any persona fields. */
 export function groupOfAgent(a: Agent): string | null {
+  if (a.grounding === 'mandate') return INSTITUTION_GROUP;
   return groupOfPersona(a.persona);
 }

@@ -74,6 +74,18 @@ interface Report {
     what_tested: { framing: string };
     who_affected: { glosses: Record<string, string> };
     what_they_say: { groups: SynthGroup[] };
+    /** V2.3c — code-rendered mandate-lens voices; null/absent on pre-0.9.0 reports (renders nothing). */
+    institutional?: {
+      voices: {
+        id: string;
+        label: string;
+        mandate: { institution: string; mission: string; source: string; retrieved: string };
+        citations: { key: string; text: string; notes?: string[] }[];
+        comment: string;
+      }[];
+      empty_reason: string | null;
+      disclaimer: string;
+    } | null;
     discourse: Discourse | null;
     cannot_tell: { intro: string; caveats: Caveat[] };
   };
@@ -191,6 +203,43 @@ export function ReportPanel({ onClose }: { onClose: () => void }) {
                 })}
               </div>
             ))}
+
+            {/* 3b. Institutional perspectives — V2.3c mandate lens (code-rendered; absent pre-0.9.0) */}
+            {report.sections.institutional && (
+              <div data-testid="report-institutional" style={{ marginTop: 20 }}>
+                <h3 style={h3}>Institutional perspectives (mandate lens)</h3>
+                <div style={subtle}>{report.sections.institutional.disclaimer}</div>
+                {report.sections.institutional.voices.length === 0 ? (
+                  <p style={para} data-testid="report-institutional-empty">
+                    {report.sections.institutional.empty_reason}
+                  </p>
+                ) : (
+                  report.sections.institutional.voices.map((v) => (
+                    <div key={v.id} style={instCard} data-testid="report-institution" data-institution={v.id}>
+                      <div style={{ fontWeight: 700, color: '#1f2937' }}>{v.label}</div>
+                      <div style={instMeta}>
+                        Published mandate —{' '}
+                        <a href={v.mandate.source} target="_blank" rel="noreferrer" style={{ color: '#1f4e9c' }}>
+                          source
+                        </a>{' '}
+                        · retrieved {v.mandate.retrieved}
+                      </div>
+                      <div style={instMission}>“{v.mandate.mission}”</div>
+                      {v.citations.map((c, i) => (
+                        <div key={i} style={{ marginTop: 6 }}>
+                          <div style={instCite}>{c.text}</div>
+                          {(c.notes ?? []).map((n, j) => (
+                            <div key={j} style={instNote}>
+                              {n}.
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
 
             {/* 4. How discourse might unfold (v0.4.0 social cascade) */}
             {report.sections.discourse && (
@@ -568,6 +617,18 @@ const quoteText: React.CSSProperties = { fontSize: 13.5, fontStyle: 'italic', co
 const quoteAttr: React.CSSProperties = { fontSize: 11.5, color: '#6b7280', marginTop: 3 };
 const tagSim: React.CSSProperties = { color: '#64748b' };
 const tagCommunity: React.CSSProperties = { color: '#7c5aa8' };
+// V2.3c — the institutional cards (steel blue; distinct from sim grey and community purple)
+const instCard: React.CSSProperties = {
+  background: '#eef3f7',
+  borderLeft: '3px solid #3e6b8f',
+  borderRadius: 8,
+  padding: '10px 12px',
+  marginTop: 10,
+};
+const instMeta: React.CSSProperties = { fontSize: 11, color: '#4b5f70', margin: '2px 0 4px' };
+const instMission: React.CSSProperties = { fontSize: 12.5, fontStyle: 'italic', color: '#374151', lineHeight: 1.45 };
+const instCite: React.CSSProperties = { fontSize: 12.5, color: '#1f2937', lineHeight: 1.4, fontVariantNumeric: 'tabular-nums' };
+const instNote: React.CSSProperties = { fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginTop: 1 };
 
 const caveatWrap: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 };
 const caveatCard: React.CSSProperties = {

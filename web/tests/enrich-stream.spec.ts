@@ -19,7 +19,9 @@ const DEGRADE_COPY = 'live stream unavailable — updating by poll';
 const BANNED = /\b(majority|minority|referendum|consensus|unanimous|plurality)\b/i;
 const STANCE_TALLY = /\d+\s*%[^.]{0,24}(support|oppos|favou?r|against)|\bfinal (distribution|tally|result|vote)\b|\d+\s+for\s*\/\s*\d+\s+against/i;
 
-// The four streamed voices: 1 sim (pinned to the fixture's real veh0) + 3 inferred community voices.
+// The five streamed voices: 1 sim (pinned to the fixture's real veh0) + 3 inferred community voices
+// + 1 mandate-grounded institutional voice (V2.3c — streams through the SAME plumbing unchanged;
+// mandate agents force the enriched artifact to 0.9.0, which the client ajv-validates).
 const VOICES = [
   {
     persona: { id: 'time_pressed', label: 'Devi, commuter' },
@@ -44,21 +46,38 @@ const VOICES = [
     reaction: { comment: 'I did not ask for this change and I want to see what it actually does first.', sentiment: -0.3, stance: 'neutral' },
     grounding: 'inferred',
   },
+  {
+    grounding: 'mandate',
+    persona: { id: 'transport_ops', label: 'City of Toronto Transportation Services' },
+    mandate: {
+      institution: 'City of Toronto Transportation Services',
+      mission: 'to provide a safe, efficient, and effective transportation system that serves our residents, businesses, and visitors in an environmentally, socially and economically sustainable manner.',
+      source: 'https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/transportation-services/',
+      retrieved: '2026-08-01',
+    },
+    citations: [{ key: 'reroute', text: '12 of 300 matched car trips diverted onto other streets during the run.', notes: [] }],
+    reaction: {
+      comment: "City of Toronto Transportation Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes a safe, efficient, and effective transportation system. Read against that mandate, this run computed: 12 of 300 matched car trips diverted onto other streets during the run.",
+      sentiment: 0.0,
+      stance: 'neutral',
+    },
+  },
 ];
+const TOTAL = VOICES.length; // 5
 
 const frame = (id: number, event: string, data: Record<string, unknown>) =>
   `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({ event, ts: 0, ...data })}\n\n`;
 
-/** A complete stream: job_start(0) … 4 voices … job_done. `retry: 100` speeds any reconnect. */
+/** A complete stream: job_start(0) … all voices … job_done. `retry: 100` speeds any reconnect. */
 function fullStreamBody(): string {
   let b = 'retry: 100\n\n';
   b += frame(0, 'job_start', { run_id: RUN_ID, label: 'enrich:voices', stages: ['sampling travelers', 'generating voices'] });
   b += frame(1, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
-  b += frame(2, 'voices_total', { total: 4 });
+  b += frame(2, 'voices_total', { total: TOTAL });
   VOICES.forEach((agent, i) => {
-    b += frame(3 + i, 'voice', { index: i, done: i + 1, total: 4, agent });
+    b += frame(3 + i, 'voice', { index: i, done: i + 1, total: TOTAL, agent });
   });
-  b += frame(7, 'job_done', { label: 'enrich:voices' });
+  b += frame(3 + TOTAL, 'job_done', { label: 'enrich:voices' });
   return b;
 }
 
@@ -67,9 +86,9 @@ function partialStreamBody(): string {
   let b = 'retry: 100\n\n';
   b += frame(0, 'job_start', { run_id: RUN_ID, label: 'enrich:voices', stages: ['sampling travelers', 'generating voices'] });
   b += frame(1, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
-  b += frame(2, 'voices_total', { total: 4 });
-  b += frame(3, 'voice', { index: 0, done: 1, total: 4, agent: VOICES[0] });
-  b += frame(4, 'voice', { index: 1, done: 2, total: 4, agent: VOICES[1] });
+  b += frame(2, 'voices_total', { total: TOTAL });
+  b += frame(3, 'voice', { index: 0, done: 1, total: TOTAL, agent: VOICES[0] });
+  b += frame(4, 'voice', { index: 1, done: 2, total: TOTAL, agent: VOICES[1] });
   return b;
 }
 
@@ -86,6 +105,7 @@ async function mockBackend(
   const base = fs.readFileSync(FIXTURE, 'utf-8');
   const enrichedArt = JSON.parse(base);
   enrichedArt.agents = VOICES;
+  enrichedArt.schema_version = '0.9.0'; // a mandate agent makes it a 0.9.0 artifact (ajv-checked)
   const enriched = JSON.stringify(enrichedArt);
 
   let enrichPosted = false;
@@ -171,9 +191,10 @@ test('streamed voices render incrementally while the enrich job is still running
   // done-edge artifact reload could have delivered them.
   await expect(page.getByTestId('voice-stream-panel')).toBeVisible({ timeout: 5000 });
   await expect(page.getByTestId('enrich-running')).toBeVisible(); // still enriching
-  await expect(page.getByTestId('enrich-running')).toContainText('4/4'); // live stream counts
-  await expect(page.getByTestId('voice-stream-row')).toHaveCount(4);
+  await expect(page.getByTestId('enrich-running')).toContainText('5/5'); // live stream counts
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(5);
   await expect(page.getByTestId('voice-stream-panel')).toContainText('community perspective'); // inferred labeled
+  await expect(page.getByTestId('voice-stream-panel')).toContainText('institutional (mandate lens)'); // V2.3c ticker tag
   await expect(page.getByTestId('voice-stream-panel')).toContainText('not a poll');
   // hasVoices flipped live from the streamed append (the artifact copy, not the ticker)
   await expect(page.getByTestId('run-contains')).toContainText('voices ✓');
@@ -183,11 +204,13 @@ test('streamed voices render incrementally while the enrich job is still running
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
   await expect(page.getByTestId('run-contains')).toContainText('voices ✓');
 
-  // Playback shows exactly the 4 artifact voices (1 sim + 3 community) — no stream duplicates.
+  // Playback shows exactly the artifact voices (1 sim + 3 community; the mandate voice renders in
+  // its own pinned institutional sub-block, never a community row) — no stream duplicates.
   await page.getByTestId('mode-playback').click();
   await scrubToEnd(page); // all voices fired by sim end
   await expect(page.getByTestId('comment-row')).toHaveCount(1);
   await expect(page.getByTestId('community-row')).toHaveCount(3);
+  await expect(page.getByTestId('institution-row')).toHaveCount(1);
 
   const body = await page.locator('body').innerText();
   expect(body).not.toMatch(BANNED);
@@ -203,17 +226,17 @@ test('a re-enrich of the same run streams a fresh voice set (dedup resets, no pi
   // before the first status poll commits "Enriching…", and the panel assertion then runs mid-enrich.
   await page.getByTestId('enrich-voices').click();
   await expect(page.getByTestId('enrich-running')).toBeVisible();
-  await expect(page.getByTestId('voice-stream-row')).toHaveCount(4, { timeout: 10_000 });
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(5, { timeout: 10_000 });
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
 
   // RE-enrich the same run: the new job's voices must stream (a stale per-run dedup set swallowed
   // them all — live-smoke-caught) and the ticker must RESET to the new set's count, never pile onto
-  // the previous enrich's voices. (The exact-4-in-playback no-duplicates property is test 1's job.)
+  // the previous enrich's voices. (The exact-count-in-playback no-duplicates property is test 1's job.)
   await page.getByTestId('enrich-voices').click();
   await expect(page.getByTestId('enrich-running')).toBeVisible();
-  await expect(page.getByTestId('voice-stream-row')).toHaveCount(4, { timeout: 10_000 });
-  await expect(page.getByTestId('voice-stream-panel')).toContainText('4 so far');
+  await expect(page.getByTestId('voice-stream-row')).toHaveCount(5, { timeout: 10_000 });
+  await expect(page.getByTestId('voice-stream-panel')).toContainText('5 so far');
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
 });
@@ -223,7 +246,7 @@ test('a network-level stream failure (never CLOSED) still degrades labeled, not 
   // reaches CLOSED — the wrapper must degrade after 3 consecutive failed opens (review-caught gap:
   // without it the last stream counts keep painting with no label, the silent fallback the labeled-
   // degradation rule forbids).
-  await mockBackend(page, { streamBody: () => null, holdPolls: 8, polledProgress: { done: 2, total: 4 } });
+  await mockBackend(page, { streamBody: () => null, holdPolls: 8, polledProgress: { done: 2, total: 5 } });
   let streamCalls = 0;
   await page.route('**/api/runs/*/enrich/stream', (route) => {
     if (streamCalls++ === 0)
@@ -238,7 +261,7 @@ test('a network-level stream failure (never CLOSED) still degrades labeled, not 
   await expect(page.getByTestId('enrich-stream-degraded')).toHaveText(DEGRADE_COPY);
   // uncorrupted + polled counts carry on, exactly like the 404 degrade
   await expect(page.getByTestId('voice-stream-row')).toHaveCount(2);
-  await expect(page.getByTestId('enrich-running')).toContainText('2/4');
+  await expect(page.getByTestId('enrich-running')).toContainText('2/5');
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 25_000 });
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
 });
@@ -248,7 +271,7 @@ test('a mid-stream disconnect degrades to the poll without corrupting the panel'
   await mockBackend(page, {
     streamBody: (i) => (i === 0 ? partialStreamBody() : null),
     holdPolls: 8,
-    polledProgress: { done: 2, total: 4 },
+    polledProgress: { done: 2, total: 5 },
   });
   await openRun(page);
 
@@ -261,9 +284,9 @@ test('a mid-stream disconnect degrades to the poll without corrupting the panel'
   await expect(page.getByTestId('enrich-stream-degraded')).toHaveText(DEGRADE_COPY);
   // The panel is uncorrupted: what already streamed stays, and the POLLED counts carry on.
   await expect(page.getByTestId('voice-stream-row')).toHaveCount(2);
-  await expect(page.getByTestId('enrich-running')).toContainText('2/4');
+  await expect(page.getByTestId('enrich-running')).toContainText('2/5');
 
-  // The poll (never stopped) finishes the job: done → enriched artifact reload → all 4 voices.
+  // The poll (never stopped) finishes the job: done → enriched artifact reload → all voices.
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 25_000 });
   await expect(page.getByTestId('enrich-stream-degraded')).toBeHidden();
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
@@ -271,4 +294,5 @@ test('a mid-stream disconnect degrades to the poll without corrupting the panel'
   await scrubToEnd(page);
   await expect(page.getByTestId('comment-row')).toHaveCount(1);
   await expect(page.getByTestId('community-row')).toHaveCount(3);
+  await expect(page.getByTestId('institution-row')).toHaveCount(1);
 });

@@ -10,8 +10,8 @@ import { ScatterplotLayer, LineLayer, PathLayer, IconLayer, TextLayer } from '@d
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import type { Agent, ChangeType, Conflict, LonLat, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
-import { changesOf } from '@/lib/types';
+import type { Agent, ChangeType, Conflict, LonLat, MandateAgent, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
+import { changesOf, isMandateAgent } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
@@ -25,6 +25,7 @@ import { DiscourseFeed } from '@/components/DiscourseFeed';
 import { CascadeSelector } from '@/components/CascadeSelector';
 import { ArgumentEngagementPanel } from '@/components/ArgumentEngagementPanel';
 import { AgentPanel } from '@/components/AgentPanel';
+import { InstitutionPanel } from '@/components/InstitutionPanel';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
@@ -370,6 +371,18 @@ export default function MapView() {
     () => (artifact?.agents ?? []).filter((a) => a.grounding === 'inferred'),
     [artifact],
   );
+  // V2.3c — mandate-grounded institutional voices (0.9.0+): no dot, no synthetic clock; a pinned
+  // feed sub-block + the InstitutionPanel grounding card. The empty NOTE renders only where they
+  // COULD have spoken (a 0.9.0 run with voices) — pre-0.9.0 artifacts render nothing new.
+  const institutionAgents = useMemo<MandateAgent[]>(
+    () => (artifact?.agents ?? []).filter(isMandateAgent),
+    [artifact],
+  );
+  const institutionsEmpty =
+    artifact?.schema_version === '0.9.0' &&
+    (artifact.agents?.length ?? 0) > 0 &&
+    institutionAgents.length === 0;
+  const [institution, setInstitution] = useState<MandateAgent | null>(null);
   // agentId → pinned entry, for the reverse join (feed row → fly to that traveler's dot).
   const pinnedById = useMemo(() => {
     const m: Record<string, Pinned> = {};
@@ -517,6 +530,7 @@ export default function MapView() {
     // V2.3b: interviews are per-run sessions — a run swap ends them (ephemeral by construction)
     setInterviewee(null);
     interviews.current = {};
+    setInstitution(null); // V2.3c: the grounding card is per-run too
     try {
       const r = await fetch(`/${id}.json`, { cache: 'no-store' });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
@@ -1323,6 +1337,9 @@ export default function MapView() {
             onSelect={setSelected}
             onLocate={onLocate}
             onInterview={setInterviewee}
+            institutions={institutionAgents}
+            institutionsEmpty={institutionsEmpty}
+            onInstitution={setInstitution}
             selectedId={selected ? agentId(selected) : null}
           />
           <div style={rightRail}>
@@ -1334,6 +1351,11 @@ export default function MapView() {
               changeWindow={windowedSpan(changesOf(artifact), meta.sim_end)}
             />
             <AgentPanel agent={selected} onClose={() => setSelected(null)} onInterview={setInterviewee} />
+            <InstitutionPanel
+              agent={institution}
+              onClose={() => setInstitution(null)}
+              onInterview={setInterviewee}
+            />
             {interviewee &&
               (() => {
                 // Index-qualified identity: sibling INFERRED voices share a persona.id (the sampler

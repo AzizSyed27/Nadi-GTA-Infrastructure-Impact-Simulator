@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import type { Agent, PinnedSimAgent } from '@/lib/types';
+import type { Agent, MandateAgent, PinnedSimAgent } from '@/lib/types';
 import { agentId, sentimentHex } from '@/lib/viz';
 import { GROUP_LABEL, groupOfAgent, modeIcon } from '@/lib/personaGroups';
 
@@ -11,6 +11,14 @@ interface CommentFeedProps {
   agents: PinnedSimAgent[];
   /** Inferred community agents (no trigger_t — interleaved on a synthetic render-time clock). */
   inferred: Agent[];
+  /** V2.3c mandate-grounded institutional voices — a PINNED sub-block (never time-gated: a mandate
+   * reading isn't a traveler moment), rendered above the ticker. */
+  institutions?: MandateAgent[];
+  /** True when this run COULD have institutional voices (0.9.0 + voices) but none had facts —
+   * renders the honest empty-state line instead of silent absence. */
+  institutionsEmpty?: boolean;
+  /** Open the institutional grounding card (InstitutionPanel). */
+  onInstitution?: (agent: MandateAgent) => void;
   currentTime: number;
   simStart: number;
   simEnd: number;
@@ -54,6 +62,9 @@ export function CommentFeed(props: CommentFeedProps) {
   const {
     agents,
     inferred,
+    institutions = [],
+    institutionsEmpty = false,
+    onInstitution,
     currentTime,
     simStart,
     simEnd,
@@ -92,10 +103,11 @@ export function CommentFeed(props: CommentFeedProps) {
     return scoped.sort((a, b) => b.when - a.when);
   }, [simItems, communityItems, currentTime, filterGroup]);
 
-  if (agents.length === 0 && inferred.length === 0) return null;
+  if (agents.length === 0 && inferred.length === 0 && institutions.length === 0) return null;
 
   const shown = expanded ? fired : fired.slice(0, CAP);
   const hiddenCount = fired.length - shown.length;
+  const showInstitutionBlock = !filterGroup && (institutions.length > 0 || institutionsEmpty);
 
   return (
     <div style={wrap} data-testid="comment-feed">
@@ -107,6 +119,36 @@ export function CommentFeed(props: CommentFeedProps) {
           </button>
         )}
       </div>
+      {showInstitutionBlock && (
+        <div style={instBlock} data-testid="institution-block">
+          <div style={instHead}>INSTITUTIONAL PERSPECTIVES — MANDATE LENS</div>
+          {institutions.length === 0 ? (
+            <div style={instEmpty} data-testid="institution-empty">
+              Institutions speak only when the run computes facts within their mandate — this run
+              has none.
+            </div>
+          ) : (
+            institutions.map((a) => (
+              <button
+                key={agentId(a)}
+                data-testid="institution-row"
+                style={instRow}
+                onClick={() => onInstitution?.(a)}
+                title="See this voice's grounding — mandate source + the facts it cites"
+              >
+                <span style={rowText}>
+                  <span style={rowLabel}>
+                    <span style={icon}>🏛️</span>
+                    {a.persona.label}
+                    <span style={instTag}>— mandate lens</span>
+                  </span>
+                  <span style={rowComment}>{a.reaction.comment}</span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
       <div style={list}>
         {shown.length === 0 ? (
           <div style={empty}>
@@ -246,6 +288,27 @@ const communityRow: React.CSSProperties = {
   font: 'inherit',
   color: 'inherit',
 };
+const instBlock: React.CSSProperties = { padding: '6px 6px 2px', borderBottom: '1px solid #eee' };
+const instHead: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5, color: '#3e6b8f', padding: '0 6px 4px' };
+const instEmpty: React.CSSProperties = { padding: '0 6px 8px', fontSize: 11, color: '#9aa0a6', lineHeight: 1.35 };
+const instRow: React.CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'flex-start',
+  width: '100%',
+  padding: '6px 8px 6px 7px',
+  borderRadius: 8,
+  background: '#eef3f7',
+  marginBottom: 3,
+  cursor: 'pointer',
+  // button UA reset; the accent must come AFTER the shorthand (the border-wipe lesson)
+  border: 'none',
+  borderLeft: '3px solid #3e6b8f',
+  textAlign: 'left',
+  font: 'inherit',
+  color: 'inherit',
+};
+const instTag: React.CSSProperties = { fontSize: 10, fontWeight: 500, color: '#3e6b8f', letterSpacing: 0.1 };
 const rowFresh: React.CSSProperties = { background: '#fff7e6' };
 const rowSelected: React.CSSProperties = { background: '#e8f0fe' };
 const rowText: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 };

@@ -35,7 +35,7 @@ export function InterviewDrawer({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const sim = agent.grounding !== 'inferred';
+  const kind = agent.grounding === 'mandate' ? 'mandate' : agent.grounding === 'inferred' ? 'inferred' : 'sim';
   const id = agentId(agent);
 
   const send = async (e: FormEvent) => {
@@ -63,12 +63,17 @@ export function InterviewDrawer({
       <button style={close} onClick={onClose} aria-label="Close interview">
         ×
       </button>
-      <div style={kicker}>INTERVIEW · {sim ? 'simulated traveler' : 'community voice'}</div>
+      <div style={kicker}>
+        INTERVIEW ·{' '}
+        {kind === 'mandate' ? 'institutional (mandate lens)' : kind === 'inferred' ? 'community voice' : 'simulated traveler'}
+      </div>
       <div style={title}>{agent.persona.label}</div>
       <div style={grounding} data-testid="interview-grounding">
-        {sim
-          ? "Answers come from this persona's own simulated trip in this run — anticipation, never a verdict."
-          : "This voice wasn't simulated directly — it speaks from what the scenario implies for someone like them."}
+        {kind === 'mandate'
+          ? "Answers are generated from this organization's published mandate and this run's computed facts — not from the organization itself."
+          : kind === 'inferred'
+            ? "This voice wasn't simulated directly — it speaks from what the scenario implies for someone like them."
+            : "Answers come from this persona's own simulated trip in this run — anticipation, never a verdict."}
       </div>
 
       <div style={thread}>

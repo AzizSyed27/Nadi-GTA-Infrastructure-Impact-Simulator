@@ -232,7 +232,7 @@ export function EditPanel(props: EditPanelProps) {
                   <div key={`${a.persona.id}:${props.streamedVoices.length - i}`} style={voiceRow} data-testid="voice-stream-row">
                     <span style={voiceLabel}>
                       {a.persona.label}
-                      {a.grounding === 'inferred' ? ' — community perspective' : ''}
+                      {a.grounding === 'inferred' ? ' — community perspective' : a.grounding === 'mandate' ? ' — institutional (mandate lens)' : ''}
                     </span>
                     <span style={voiceComment}>{a.reaction.comment}</span>
                   </div>
