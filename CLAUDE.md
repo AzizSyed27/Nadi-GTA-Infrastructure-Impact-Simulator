@@ -88,7 +88,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.8.0**. Phases 0–5 and V2.0–V2.2 are COMPLETE: the ✏️ editor fronts the whole pipeline
+Contract **v0.9.0**. Phases 0–5 and V2.0–V2.2 are COMPLETE: the ✏️ editor fronts the whole pipeline
 (draw a road / speed / bike lane / lane- & road-closures / incidents / 🏫 school-zone COMPOSITES —
 windowed changes apply+revert in-sim with proof logs), demand is synthetic or calibrated AM-peak,
 assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
@@ -104,10 +104,16 @@ to the untouched poll. **V2.3b (persona interviews) is COMPLETE**: every voice i
 via `POST /api/interview` — grounding built SERVER-side from that ONE agent's own records (ids on the wire,
 never facts; sibling inferred voices disambiguated by agents[] index), every answer passes the live honesty
 guard (audit_prose + verdict rule; retry-once → in-character refusal), inferred voices disclose their basis,
-and the whole thing is EPHEMERAL (session transcripts only, nothing written). Suites: **367 pytest + 42
-Playwright**. Open threads: **the rest of V2.3 (`docs/v2.3-plan.md`: mandate-grounded institutional
-stakeholders that speak only computed facts, the two graphs visible side by side)**; then V2.5
-network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand).
+and the whole thing is EPHEMERAL (session transcripts only, nothing written). **V2.3c (the institutions
+speak) is COMPLETE — contract v0.9.0**: `grounding:"mandate"` agents carry a SOURCED published mandate
+(verbatim, byte-identity-pinned — never LLM-touched) + citations of this run's computed facts with the
+honesty sentences riding; the roster (TFS / TDSB / Transportation Services) is FACTS-GATED (no facts →
+no voice, all-zero payloads are not standing, the section says why it's empty), voices are DETERMINISTIC
+(zero LLM calls), excluded from cascades, rendered as a pinned mandate-lens feed block + grounding cards +
+a code-rendered report subsection under verify_facts REQUIRED-iff enforcement, and interviewable third-
+person-only with operational-claim refusal. Suites: **397 pytest + 45 Playwright**. Open threads: **the
+rest of V2.3 (`docs/v2.3-plan.md`: the two graphs visible side by side)**; then V2.5
+network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand, mandate re-verification).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
 parameterized change, e.g. a speed limit, to one corridor edge), a per-vehicle outcome join, a sampler
@@ -608,6 +614,64 @@ now v0.8.0).**
   support it?" → in-character deflection ("that's your call, I can't speak for anyone else"); an inferred voice
   disclosed its basis and refused exact numbers; git tree clean after (nothing written).
 
+**V2.3 Step c — the INSTITUTIONS SPEAK — COMPLETE (contract v0.9.0; mandate-grounded, facts-gated,
+deterministic; agents stay a preview and institutions are NEVER impersonated).**
+- **Contract 0.9.0 (additive; the full ceremony):** `grounding` gains `"mandate"`; Agent gains optional
+  `mandate {institution, mission, source, retrieved}` + `citations [{key, text, notes[]}]`. Model invariants:
+  no pin/outcome/trigger_t; mandate + non-empty citations REQUIRED; **sentiment 0.0 + stance "neutral"**
+  (institutions recite facts within mandate, never stances — the referendum guard at the contract layer);
+  sim/inferred may not carry the fields. Gates: obligation gates A/B/C/E extended, NEW pre-0.9.0 forbid gate
+  (the range-gate properties idiom), `audit_version_gate` tuples extended INCLUDING the literal-`!=` trap at
+  the range forbid (now `not in (…)`, regression-pinned), TS mirror + `sample_v0_9_0.json` + negatives both
+  layers. Producer emits 0.9.0; **voices-enrich upgrades a 0.8.0 artifact to 0.9.0 even when NO institution
+  speaks** (the honest empty-state gates on 0.9.0 and must be reachable on re-enriched runs); pre-0.8.0
+  re-enriches stay untouched (mandates on one would exit loudly). **NEVER re-enrich the pinned Playwright run
+  `multimodal-scenario-20260702T044134Z`** — any voices enrich now rewrites it at 0.9.0 with institutions and
+  breaks the spec + latest-report singleton anchoring.
+- **The roster (`python/src/institutions.json` + `institutions.py`):** TFS / TDSB / City of Toronto
+  Transportation Services (TTC deferred — nothing sim-grounded to stand on). Missions are VERBATIM quotes of
+  the live pages (researched 2026-08-01, url + retrieval date in `_provenance`) — **byte-identity-pinned
+  roster → artifact (`test_institutions.py`): the mission is never templated, truncated, or LLM-touched; for
+  a real organization, paraphrase is misrepresentation.** Staleness: the retrieval date renders wherever the
+  mandate renders (report, InstitutionPanel, interview grounding); re-verification duty in `BACKLOG.md`.
+- **Facts gating (`institutions.speaks` — a PURE function of the sidecar, the single gate source):** TFS ⇔
+  `response_detour`; TDSB ⇔ `zone_facts` (school-zone runs); ops ⇔ diversions > 0 OR non-completions with
+  SIGNAL. Two live-acceptance catches, both pinned: **presence is not standing** (a closure smoke carries
+  all-zero non_completions — `_has_signal` refuses purely-zero numeric trees; the 0-vs-0 zone pair and the
+  honest-zero detour KEEP standing — their payloads carry the structural notes), and **origin labels derive
+  from the probes' `represents`** (old sidecars carry the retired corridor-entry probes — calling them "fire
+  stations" would misdescribe the data).
+- **Generation is DETERMINISTIC (zero LLM calls, stub-pinned):** the sampler bakes the sidecar fact subsets
+  into mandate records (appended AFTER inferred — index stability); reactions composes citations + the
+  third-person mandate-lens comment code-side and streams them through the V2.3a plumbing unchanged.
+  Citations LIFT the honesty sentences verbatim from the fact payloads (free-flow/lower-bound framing,
+  origins note, zone variation/population/method notes, the backlog attribution parenthetical). Institutions
+  never seed OASIS cascades (`propagation.build_nodes` skips + counts) and never enter `slot_synthesis` LLM
+  prompts or `voice__` corpus docs (they get `institution__<id>` docs with the disclaimer).
+- **Report:** a code-rendered `### Institutional perspectives (mandate lens)` subsection (mission verbatim +
+  source + retrieved date + citation lines + notes) + the impersonation caveat ("not statements by, from, or
+  on behalf of the named organizations"); the honest EMPTY state ("this run computed none for: …") renders
+  ONLY on 0.9.0 runs with voices — pre-0.9.0 renders NOTHING (unwindowed golden byte-identical, test-pinned).
+  `verify_facts` enforces the speaking set REQUIRED-IFF BOTH WAYS (TFS present iff response_detour; ABSENT on
+  a quiet run), recomputes citation figures with verify-side literals, and pins the riding honesty sentences
+  + the roster-verbatim mission.
+- **Frontend:** pinned "INSTITUTIONAL PERSPECTIVES — MANDATE LENS" feed sub-block (never time-gated; mandate
+  agents excluded from dots + the community synthetic clock) + the empty-state line; `InstitutionPanel`
+  grounding card (mission + source link + retrieved + citations with notes + disclaimer + 🎤); ticker tag
+  "— institutional (mandate lens)"; ReportPanel renders the JSON section; personaGroups maps institution ids
+  to their own group (no scorecard→feed join hits). Interviews: `INSTITUTION_CONSTITUTION` (third person
+  ALWAYS — never we/our/us), mandate+citations-only grounding, `INSTITUTION_REFUSAL` naming the free-flow
+  limitation, mandate-only guard rules `_OPERATIONAL` + `_FIRST_PERSON` keyed on the SERVER-loaded grounding.
+- **Accepted live:** closure run `…0725T025409Z` re-enriched → 213 agents, **TFS only** (ops silenced by the
+  padding gate), honest-zero detour citation with both honesty sentences; report regenerated (audit 9 clean /
+  0 corrected / 0 unresolved; institutional subsection + caveat; singleton restored). School-zone
+  `…0726T235722Z` → **TDSB (0-vs-0 pair + all notes) + ops (2 diverted), TFS ABSENT**. A FRESH synthetic
+  bike_lane run (`…0801T070538Z`) emitted **0.9.0 from the producer** (the ceremony's real-run acceptance),
+  0 diversions → NO institutions and the honest empty-state line rendered live; a pre-0.8.0 quiet re-enrich
+  stayed at its version (legacy path). Live TFS interview: "how many trucks would you dispatch?" →
+  third-person refusal naming the free-flow limitation, clean first pass. Streaming: 214 total ticked live,
+  institutional rows in the ticker + the pinned feed block + grounding card verified in the real UI.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -681,11 +745,12 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (367 tests: golden spine + contract 0.6.0–0.8.0 sections +
+- **Tests:** `python -m pytest python/tests` (397 tests: golden spine + contract 0.6.0–0.9.0 sections +
   seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
-  sections + the V2.3b interview grounding/guard/endpoint sections) and `cd web && npx playwright test`
-  (42 tests across 12 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview). **Dev-only Playwright
+  sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c institutions
+  roster/gating/composition/verify sections) and `cd web && npx playwright test`
+  (45 tests across 13 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.

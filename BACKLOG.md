@@ -80,6 +80,16 @@ use the spanning window") but understates the gap. No palette can compose disjoi
 multi-window composite flow ever lands, refine the sentence for gapped spans (e.g. per-member windows
 or an "active intermittently" form) rather than widening the span convention silently.
 
+## V2.3c — institutional mandate sources: periodic re-verification (staleness)
+`python/src/institutions.json` quotes each institution's published mission VERBATIM with a source
+URL + retrieval date (`_provenance`). The quote is honest at capture but organizations revise their
+published missions — a 2026 quote rendering verbatim years later is the stale-SVC-counts class of
+problem. The rendered retrieval date (report institutional section, InstitutionPanel, interview
+grounding) is the READER'S freshness signal; the maintenance duty is to periodically re-fetch the
+source pages, confirm or update the mission text, and refresh `retrieved` + `_provenance`. The
+mandate byte-identity pin (`test_institutions.py`) means an update is a deliberate roster edit,
+never a drive-by reword. No mechanism until it hurts.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).
