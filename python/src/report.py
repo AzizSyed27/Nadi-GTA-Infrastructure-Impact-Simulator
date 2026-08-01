@@ -445,6 +445,17 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                         if f"{worst:+g} s" not in c["text"]:
                             problems.append(f"{iid}: response_detour citation missing the recomputed "
                                             f"worst-station figure {worst:+g} s")
+                    # an unreachable origin is the most consequential fact — it must be counted and
+                    # named in the citation, never silently dropped (verify-side recompute)
+                    u2 = [p for p in rd2.get("probes", [])
+                          if p.get("added_s") is None and "unreachable" in (p.get("note") or "")]
+                    if u2:
+                        n_probes = len(rd2.get("probes", []))
+                        expected_count = (f"all {n_probes}" if len(u2) == n_probes
+                                          else f"{len(u2)} of {n_probes}")
+                        if expected_count not in c["text"] or "unreachable" not in c["text"]:
+                            problems.append(f"{iid}: {len(u2)} unreachable origin(s) not surfaced "
+                                            "in the response_detour citation")
                     notes = c.get("notes") or []
                     if not any("not a dispatch model" in n for n in notes):
                         problems.append(f"{iid}: the free-flow framing sentence must ride the citation")

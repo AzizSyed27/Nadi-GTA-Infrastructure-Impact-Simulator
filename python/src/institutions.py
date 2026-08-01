@@ -102,15 +102,29 @@ def speaking_institutions(side: dict) -> list[tuple[dict, dict]]:
 def _cite_response_detour(rd: dict) -> dict:
     probes = rd.get("probes") or []
     numeric = [p for p in probes if isinstance(p.get("added_s"), (int, float))]
+    # A probe whose destination becomes UNREACHABLE while the change is active is the single most
+    # consequential fact in the payload — it must be NAMED, never silently dropped (the doorstep
+    # closure exposed exactly this: "worst of 4" listing 3 rows, 231-unreachable omitted).
+    unreachable = [p for p in probes
+                   if p.get("added_s") is None and "unreachable" in (p.get("note") or "")]
+    # NEVER assume the origin kind — old sidecars carry the retired corridor-entry probes, and
+    # calling those "fire stations" would misdescribe the data (live-acceptance-caught)
+    origins = ("fire stations" if probes and all(p.get("represents") == "fire_station" for p in probes)
+               else "response-route origins")
     if numeric:
         worst = max(p["added_s"] for p in numeric)
         per = "; ".join(f"{p['label']}: {p['added_s']:+g} s" for p in numeric)
-        # NEVER assume the origin kind — old sidecars carry the retired corridor-entry probes, and
-        # calling those "fire stations" would misdescribe the data (live-acceptance-caught)
-        origins = ("fire stations" if probes and all(p.get("represents") == "fire_station" for p in probes)
-                   else "response-route origins")
-        text = (f"Response access (free-flow estimate): worst of {len(probes)} {origins} "
-                f"{worst:+g} s added response-route time ({per}).")
+        if unreachable:
+            names = "; ".join(p["label"] for p in unreachable)
+            text = (f"Response access (free-flow estimate): {len(unreachable)} of {len(probes)} "
+                    f"{origins} unreachable during the window; worst of the reachable {worst:+g} s "
+                    f"added response-route time ({per}; unreachable: {names}).")
+        else:
+            text = (f"Response access (free-flow estimate): worst of {len(probes)} {origins} "
+                    f"{worst:+g} s added response-route time ({per}).")
+    elif unreachable and len(unreachable) == len(probes):
+        text = (f"Response access (free-flow estimate): all {len(probes)} {origins} unreachable "
+                "during the window.")
     else:
         text = ("Response access: the free-flow response-route estimate could not be computed "
                 "for any station in this run.")

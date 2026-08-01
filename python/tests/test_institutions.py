@@ -142,6 +142,32 @@ def test_tfs_citation_carries_both_honesty_sentences_verbatim() -> None:
     assert institutions.compose_citations(_entry("tfs"), facts) == cites
 
 
+def test_tfs_citation_names_unreachable_stations_with_an_honest_count() -> None:
+    """Doorstep-closure-caught: the count said 'worst of 4' while the list showed 3 and the
+    UNREACHABLE station — the single most consequential fact — was silently dropped. Mixed payloads
+    now count honestly and NAME the unreachable origins."""
+    rd = dict(RESPONSE_DETOUR)
+    rd["probes"] = [
+        {"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "E1", "represents": "fire_station",
+         "baseline_s": 25.0, "scenario_s": None, "added_s": None,
+         "note": "destination unreachable from this origin during the window"},
+        {"label": "Fire Station 232 (1550 Midland Ave)", "origin_edge": "E2", "represents": "fire_station",
+         "baseline_s": 251.7, "scenario_s": 261.9, "added_s": 10.2},
+        {"label": "Fire Station 234 (40 Coronation Dr)", "origin_edge": "E3", "represents": "fire_station",
+         "baseline_s": 239.7, "scenario_s": 268.8, "added_s": 29.1},
+    ]
+    c = institutions.compose_citations(_entry("tfs"), {"response_detour": rd})[0]
+    assert "1 of 3 fire stations unreachable during the window" in c["text"]
+    assert "worst of the reachable +29.1 s" in c["text"]
+    assert "unreachable: Fire Station 231 (740 Markham Rd)" in c["text"]
+
+    # ALL unreachable — its own honest shape
+    rd2 = dict(RESPONSE_DETOUR)
+    rd2["probes"] = [dict(rd["probes"][0]), dict(rd["probes"][0])]
+    c2 = institutions.compose_citations(_entry("tfs"), {"response_detour": rd2})[0]
+    assert "all 2 fire stations unreachable during the window" in c2["text"]
+
+
 def test_tfs_citation_never_mislabels_retired_origins_as_stations() -> None:
     """Live-acceptance-caught: old sidecars carry the RETIRED corridor-entry probes (no
     represents=fire_station) — the citation must not call them fire stations."""
