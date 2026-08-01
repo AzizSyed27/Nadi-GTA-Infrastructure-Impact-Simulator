@@ -254,9 +254,15 @@ def test_ensure_version_for_mandate() -> None:
     with pytest.raises(SystemExit):
         reactions.ensure_version_for_mandate(art9, mandate_rec)
 
+    # a QUIET re-enrich (no mandates) still upgrades 0.8.0 -> 0.9.0 — the honest empty-state
+    # gates on 0.9.0 and must be reachable on re-enriched runs, not just fresh ones
+    art9.schema_version = "0.8.0"
+    reactions.ensure_version_for_mandate(art9, [{"grounding": "inferred"}])
+    assert art9.schema_version == "0.9.0"
+
     art9.schema_version = "0.7.0"
     reactions.ensure_version_for_mandate(art9, [{"grounding": "inferred"}])
-    assert art9.schema_version == "0.7.0"  # no mandate records -> untouched
+    assert art9.schema_version == "0.7.0"  # pre-0.8.0 without mandates -> untouched (legacy path)
 
 
 def test_mandate_agents_never_seed_the_social_graph() -> None:

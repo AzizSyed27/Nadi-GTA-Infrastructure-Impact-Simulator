@@ -393,20 +393,23 @@ def assemble_in_place(scenario_art: TrajectoryArtifact, records: list[dict], rea
 
 
 def ensure_version_for_mandate(scenario_art: TrajectoryArtifact, records: list[dict]) -> None:
-    """V2.3c — a mandate record makes this a 0.9.0 artifact. Older quant artifacts arrive at their
-    emitted version: 0.8.0 upgrades in place (additive; every 0.9.0 obligation is a 0.8.0 one);
-    anything older would be a doomed dump — fail LOUDLY before any LLM spend."""
-    if not any(r["grounding"] == "mandate" for r in records):
-        return
+    """V2.3c — voices enriched under the 0.9.0 producer make a 0.8.0 artifact 0.9.0 (additive: every
+    0.9.0 obligation is a 0.8.0 one) WHETHER OR NOT institutions spoke — a quiet run's honest
+    empty-state ("no institutional facts in this run") gates on 0.9.0 and must be reachable on
+    re-enriched runs, not just fresh ones. Mandate records on a pre-0.8.0 artifact would be a
+    doomed dump — fail LOUDLY before any LLM spend; a pre-0.8.0 re-enrich WITHOUT mandates stays
+    at its version (the legacy path, unchanged)."""
+    has_mandate = any(r["grounding"] == "mandate" for r in records)
     if scenario_art.schema_version == "0.9.0":
         return
     if scenario_art.schema_version == "0.8.0":
         scenario_art.schema_version = "0.9.0"
-        print("[contract] artifact upgraded 0.8.0 -> 0.9.0 (mandate-grounded voices present)")
+        print("[contract] artifact upgraded 0.8.0 -> 0.9.0 (voices enriched under the 0.9.0 producer)")
         return
-    raise SystemExit(
-        f"cannot add mandate-grounded voices to a {scenario_art.schema_version} artifact "
-        "(pre-0.8.0) — re-run the scenario to produce a current artifact first")
+    if has_mandate:
+        raise SystemExit(
+            f"cannot add mandate-grounded voices to a {scenario_art.schema_version} artifact "
+            "(pre-0.8.0) — re-run the scenario to produce a current artifact first")
 
 
 def newest_instrumented() -> Path:
