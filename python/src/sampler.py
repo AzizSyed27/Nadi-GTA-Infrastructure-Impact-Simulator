@@ -237,9 +237,20 @@ def _interleave(per_bin: dict[str, list[dict]]) -> list[tuple[str, dict]]:
 def _validate_records_as_agents(records: list[dict]) -> None:
     """LOAD-BEARING: construct a throwaway Agent per record (trimmed persona + dummy reaction) to prove
     every record satisfies the frozen grounding invariant (sim ⇒ exactly one id + outcome + trigger_t;
-    inferred ⇒ none) BEFORE 2.5b builds ~200 real Agents from this sidecar. Raises on any violation."""
+    inferred ⇒ none; mandate ⇒ mandate block + facts, validated structurally — citations are composed
+    at reactions time) BEFORE 2.5b builds ~200 real Agents from this sidecar. Raises on any violation."""
     for r in records:
         p = r["persona"]
+        if r["grounding"] == "mandate":
+            # citations don't exist yet (reactions composes them from the baked facts) — validate the
+            # mandate structurally here; the full Agent invariant fires at build_agent time.
+            if not r.get("mandate") or not all(
+                r["mandate"].get(k) for k in ("institution", "mission", "source", "retrieved")
+            ):
+                raise ValueError(f"mandate record {p.get('id')!r} missing a complete mandate block")
+            if not r.get("facts"):
+                raise ValueError(f"mandate record {p.get('id')!r} has no baked facts (no facts -> no voice)")
+            continue
         kw: dict = {"grounding": r["grounding"], "persona": Persona(id=p["id"], label=p["label"]),
                     "reaction": Reaction(**_DUMMY_REACTION)}
         if r["grounding"] == "sim":
@@ -291,6 +302,21 @@ def build_instrumented_multimodal(outcomes_path: Path, counts: dict[str, int], u
             "persona": persona.model_dump(), "stakeholder": persona.stakeholder,
         })
 
+    # V2.3c — mandate-grounded institutional voices, gated on the sidecar facts THIS run computed
+    # (no facts -> no voice; never pads). Appended AFTER inferred — index stability for the
+    # client-side agents[] index convention. The relevant sidecar subsets are BAKED into the record
+    # (this stage already holds the sidecar; reactions stays sidecar-free and composes the prose).
+    import institutions
+    for entry, facts in institutions.speaking_institutions(side):
+        records.append({
+            "grounding": "mandate", "mode": "mandate",
+            "persona": {"id": entry["id"], "label": entry["label"]},
+            "mandate": dict(entry["mandate"]),  # VERBATIM — never reworded (byte-identity pinned)
+            "mission_clause": entry["mission_clause"],
+            "cites": list(entry.get("cites", [])),
+            "facts": facts,
+        })
+
     _validate_records_as_agents(records)  # fail here, not 200 LLM calls deep in 2.5b
     return {
         "scenario_run_id": scenario_run_id, "baseline_run_id": baseline_run_id,
@@ -306,6 +332,10 @@ def _print_report_multimodal(payload: dict, out_path: Path) -> None:
     print("INSTRUMENTED MULTI-MODAL SAMPLE")
     print("=" * 74)
     print(f"scenario run : {payload['scenario_run_id']}   requested: {payload['requested']}")
+    mand = [r for r in recs if r.get("grounding") == "mandate"]
+    if mand:
+        print(f"institutional (mandate-grounded, facts-gated): {len(mand)} — "
+              + ", ".join(r["persona"]["id"] for r in mand))
     print("roster (16 personas):")
     for m in ("car", "bicycle", "pedestrian", "inferred"):
         print(f"  {m:11}: " + ", ".join(p.label for p in by_mode.get(m, [])))

@@ -34,7 +34,7 @@ from pydantic import BaseModel
 
 import enrich_events
 import trajectory_io
-from contract_models import Agent, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of
+from contract_models import Agent, Citation, Mandate, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of
 from llm_provider import LLMClient, get_client
 
 
@@ -330,8 +330,20 @@ async def generate_reactions(client: LLMClient, records: list[dict], changes: li
 
     async def _guarded(rec: dict) -> tuple[Reaction, bool]:
         nonlocal done
-        async with sem:
-            res = await react_one(client, rec, changes, profile, tags)
+        if rec["grounding"] == "mandate":
+            # V2.3c — institutional voices are DETERMINISTIC (no LLM, no _ReactionWire): the comment
+            # is code-composed from the sourced mandate + the baked sidecar facts, and the citations
+            # are stamped onto the record so the single builder carries them to both paths.
+            import institutions
+            entry = {"id": rec["persona"]["id"], "label": rec["persona"]["label"],
+                     "mandate": rec["mandate"], "mission_clause": rec["mission_clause"],
+                     "cites": rec.get("cites", [])}
+            citations = institutions.compose_citations(entry, rec["facts"])
+            rec["citations"] = citations
+            res = (institutions.compose_reaction(entry, citations), False)
+        else:
+            async with sem:
+                res = await react_one(client, rec, changes, profile, tags)
         if events_path is not None:
             done += 1
             agent = build_agent(rec, res[0])  # the SAME builder as assemble_in_place — transport, not content
@@ -362,6 +374,13 @@ def build_agent(rec: dict, reaction: Reaction) -> Agent:
         if "person_id" in rec:
             kw["person_id"] = rec["person_id"]
         return Agent(**kw)
+    if rec["grounding"] == "mandate":
+        # V2.3c — the mandate travels VERBATIM from institutions.json (never reworded — for a real
+        # organization, paraphrase is misrepresentation; byte-identity test-pinned); citations were
+        # composed deterministically in _guarded and stamped onto the record.
+        return Agent(grounding="mandate", persona=persona, reaction=reaction,
+                     mandate=Mandate(**rec["mandate"]),
+                     citations=[Citation(**c) for c in rec["citations"]])
     # inferred: persona + reaction only (no pin/outcome/trigger_t — the 2.3 invariant)
     return Agent(grounding="inferred", persona=persona, reaction=reaction)
 
@@ -371,6 +390,23 @@ def assemble_in_place(scenario_art: TrajectoryArtifact, records: list[dict], rea
     scorecard (the 2.4 artifact carries all of them; a fresh TrajectoryArtifact(...) would drop them)."""
     scenario_art.agents = [build_agent(rec, reaction) for rec, reaction in zip(records, reactions)]
     return scenario_art
+
+
+def ensure_version_for_mandate(scenario_art: TrajectoryArtifact, records: list[dict]) -> None:
+    """V2.3c — a mandate record makes this a 0.9.0 artifact. Older quant artifacts arrive at their
+    emitted version: 0.8.0 upgrades in place (additive; every 0.9.0 obligation is a 0.8.0 one);
+    anything older would be a doomed dump — fail LOUDLY before any LLM spend."""
+    if not any(r["grounding"] == "mandate" for r in records):
+        return
+    if scenario_art.schema_version == "0.9.0":
+        return
+    if scenario_art.schema_version == "0.8.0":
+        scenario_art.schema_version = "0.9.0"
+        print("[contract] artifact upgraded 0.8.0 -> 0.9.0 (mandate-grounded voices present)")
+        return
+    raise SystemExit(
+        f"cannot add mandate-grounded voices to a {scenario_art.schema_version} artifact "
+        "(pre-0.8.0) — re-run the scenario to produce a current artifact first")
 
 
 def newest_instrumented() -> Path:
@@ -420,9 +456,14 @@ async def run(instrumented_path: Path) -> Path:
     # V2.2d: scenario tags gate the mechanical zone preface (untagged prompts stay byte-identical)
     tags = list(scenario_art.meta.scenario.tags) if getattr(scenario_art.meta.scenario, "tags", None) else None
 
+    ensure_version_for_mandate(scenario_art, records)
+
     client, provider, model = get_client()
     n_sim = sum(1 for r in records if r["grounding"] == "sim")
-    print(f"[llm] provider={provider} model={model}  agents={len(records)} ({n_sim} sim + {len(records) - n_sim} inferred)")
+    n_mandate = sum(1 for r in records if r["grounding"] == "mandate")
+    n_inferred = len(records) - n_sim - n_mandate
+    print(f"[llm] provider={provider} model={model}  agents={len(records)} "
+          f"({n_sim} sim + {n_inferred} inferred + {n_mandate} institutional)")
 
     # V2.3a: stream events ONLY when the server set NADI_ENRICH_EVENTS (CLI runs: None → no file, no change)
     events_path = enrich_events.from_env()
