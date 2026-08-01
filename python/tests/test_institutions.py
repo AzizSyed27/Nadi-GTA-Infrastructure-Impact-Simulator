@@ -34,9 +34,9 @@ RESPONSE_DETOUR = {
     "destination_edge": "E9",
     "destination_note": "first downstream junction with an alternate approach",
     "probes": [
-        {"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "E1",
+        {"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "E1", "represents": "fire_station",
          "baseline_s": 57.0, "scenario_s": 105.7, "added_s": 48.7},
-        {"label": "Fire Station 232 (1550 Midland Ave)", "origin_edge": "E2",
+        {"label": "Fire Station 232 (1550 Midland Ave)", "origin_edge": "E2", "represents": "fire_station",
          "baseline_s": 80.0, "scenario_s": 80.0, "added_s": 0.0,
          "note": "the fastest route from this origin does not use the changed road under free-flow conditions"},
     ],
@@ -102,6 +102,21 @@ def test_speed_limit_quiet_run_no_institutions() -> None:
     assert institutions.speaking_institutions(_side()) == []
 
 
+def test_all_zero_numeric_payloads_are_not_standing() -> None:
+    """Live-acceptance-caught padding: a closure smoke run CARRIES non_completions/split/backlog but
+    every count is zero — presence is not standing; ops must stay silent ('never pads'). The zone
+    pair at 0-vs-0 KEEPS standing (its payload carries the structural notes — the designated
+    observation exists; the variation note does the honesty work)."""
+    zeros = {"car": 0, "bicycle": 0, "pedestrian": 0}
+    side = _side(non_completions=zeros,
+                 non_completions_split={m: {"entered_not_finished": 0, "not_inserted": 0} for m in zeros},
+                 insertion_backlog={m: {"baseline": 0, "scenario": 0} for m in zeros})
+    assert institutions.speaks(_entry("transport_ops"), side) is None
+    zf0 = dict(ZONE_FACTS)
+    zf0["ped_vehicle_conflicts"] = {"baseline": 0, "scenario": 0}
+    assert institutions.speaks(_entry("tdsb"), _side(zone_facts=zf0)) is not None
+
+
 def test_speaking_set_on_a_closure_sidecar() -> None:
     side = _side(response_detour=RESPONSE_DETOUR, non_completions=NON_COMPLETIONS,
                  non_completions_split=SPLIT, insertion_backlog=BACKLOG)
@@ -125,6 +140,17 @@ def test_tfs_citation_carries_both_honesty_sentences_verbatim() -> None:
     assert any("do not indicate which station would respond" in n for n in c["notes"])
     # determinism
     assert institutions.compose_citations(_entry("tfs"), facts) == cites
+
+
+def test_tfs_citation_never_mislabels_retired_origins_as_stations() -> None:
+    """Live-acceptance-caught: old sidecars carry the RETIRED corridor-entry probes (no
+    represents=fire_station) — the citation must not call them fire stations."""
+    old = dict(RESPONSE_DETOUR)
+    old["probes"] = [{"label": "Markham Rd / Kingston Rd (corridor entry)", "origin_edge": "E1",
+                      "baseline_s": 57.0, "scenario_s": 57.0, "added_s": 0.0}]
+    c = institutions.compose_citations(_entry("tfs"), {"response_detour": old})[0]
+    assert "response-route origins" in c["text"]
+    assert "fire station" not in c["text"].lower()
 
 
 def test_tdsb_citation_carries_zone_notes_verbatim() -> None:

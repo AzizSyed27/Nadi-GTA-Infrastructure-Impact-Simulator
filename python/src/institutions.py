@@ -46,11 +46,29 @@ def _get_path(side: dict, dotted: str):
     return cur
 
 
+def _has_signal(value) -> bool:
+    """Does a fact payload carry anything to STAND on? A purely numeric tree of zeros does not (a
+    closure smoke run's non_completions {car:0,...} exists but says nothing — citing it would be
+    padding, live-acceptance-caught). Any non-numeric content (the zone lens' notes, the detour
+    payload's framing strings/probes) is structural standing even when its counts are zero — those
+    payloads exist only on runs where the observation was designated."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, dict):
+        return any(_has_signal(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_signal(v) for v in value)
+    return bool(value)  # strings/None
+
+
 def speaks(entry: dict, side: dict) -> dict | None:
     """The facts-gating rule: returns the subset of sidecar facts this institution may cite, or
-    None when the run computed nothing in its mandate (no facts -> no voice; never pads)."""
+    None when the run computed nothing in its mandate (no facts -> no voice; never pads —
+    presence of an all-zero numeric payload is NOT standing)."""
     req = entry.get("facts_required") or {}
-    hit = any(side.get(k) is not None for k in req.get("any_of", []))
+    hit = any(_has_signal(side.get(k)) for k in req.get("any_of", []))
     if not hit:
         for dotted in req.get("or_nonzero", []):
             v = _get_path(side, dotted)
@@ -87,7 +105,11 @@ def _cite_response_detour(rd: dict) -> dict:
     if numeric:
         worst = max(p["added_s"] for p in numeric)
         per = "; ".join(f"{p['label']}: {p['added_s']:+g} s" for p in numeric)
-        text = (f"Response access (free-flow estimate): worst of {len(probes)} fire stations "
+        # NEVER assume the origin kind — old sidecars carry the retired corridor-entry probes, and
+        # calling those "fire stations" would misdescribe the data (live-acceptance-caught)
+        origins = ("fire stations" if probes and all(p.get("represents") == "fire_station" for p in probes)
+                   else "response-route origins")
+        text = (f"Response access (free-flow estimate): worst of {len(probes)} {origins} "
                 f"{worst:+g} s added response-route time ({per}).")
     else:
         text = ("Response access: the free-flow response-route estimate could not be computed "
