@@ -35,7 +35,8 @@
       },
       "mission_clause": "protection against loss of life, property and the environment",
       "facts_required": { "any_of": ["response_detour"] },
-      "cites": ["response_detour"]
+      "cites": ["response_detour"],
+      "silent_reason": "no response-route fact in this run"
     },
     {
       "id": "tdsb",
@@ -48,7 +49,8 @@
       },
       "mission_clause": "high levels of achievement and well-being",
       "facts_required": { "any_of": ["zone_facts"] },
-      "cites": ["zone_facts"]
+      "cites": ["zone_facts"],
+      "silent_reason": "not a school-zone run"
     },
     {
       "id": "transport_ops",
@@ -64,7 +66,8 @@
         "any_of": ["non_completions", "non_completions_split", "insertion_backlog"],
         "or_nonzero": ["reroute.cars_rerouted"]
       },
-      "cites": ["reroute", "non_completions", "non_completions_split", "insertion_backlog"]
+      "cites": ["reroute", "non_completions", "non_completions_split", "insertion_backlog"],
+      "silent_reason": "no diversions or non-completions in this run"
     }
   ]
 }

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from contract_models import TrajectoryArtifact
+from contract_models import MANDATE_VERSIONS, TrajectoryArtifact
 
 # Repo root is two levels up from python/src/.  python/src/trajectory_io.py -> python/src -> python -> <root>
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -79,8 +79,8 @@ def audit_version_gate(data: dict) -> None:
                         f"version-gate: a {version} artifact's scorecard cell ({grp.get('group')}.{key}) "
                         "must not carry range (a v0.8.0 field)")
     # v0.9.0: mandate grounding + mandate/citations forbidden before (mirror of the schema's
-    # pre-0.9.0 gate). `not in` tuple, never a literal `!=` — extend the tuple on the next bump.
-    if version not in ("0.9.0",):
+    # pre-0.9.0 gate). Single source: contract_models.MANDATE_VERSIONS (extended on every bump).
+    if version not in MANDATE_VERSIONS:
         for a in data.get("agents") or []:
             if a.get("grounding") == "mandate" or "mandate" in a or "citations" in a:
                 raise ValueError(

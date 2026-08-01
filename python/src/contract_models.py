@@ -26,6 +26,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.8.0" for back-compat reads.
 SCHEMA_VERSION: Literal["0.9.0"] = "0.9.0"
 
+# Versions that may carry mandate-grounded agents (v0.9.0+). EXTEND this tuple on every future bump —
+# a literal `== "0.9.0"` at a consumer is the classic enum-plus-gates trap (it would silently disable
+# the institutional surfaces, or crash the enrich, the moment SCHEMA_VERSION moves past 0.9.0).
+# Review-caught; the TS mirror is web/lib/types.ts MANDATE_VERSIONS.
+MANDATE_VERSIONS: tuple[str, ...] = ("0.9.0",)
+
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
 

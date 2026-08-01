@@ -34,7 +34,9 @@ from pydantic import BaseModel
 
 import enrich_events
 import trajectory_io
-from contract_models import Agent, Citation, Mandate, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of
+from contract_models import (
+    MANDATE_VERSIONS, Agent, Citation, Mandate, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of,
+)
 from llm_provider import LLMClient, get_client
 
 
@@ -400,7 +402,7 @@ def ensure_version_for_mandate(scenario_art: TrajectoryArtifact, records: list[d
     doomed dump — fail LOUDLY before any LLM spend; a pre-0.8.0 re-enrich WITHOUT mandates stays
     at its version (the legacy path, unchanged)."""
     has_mandate = any(r["grounding"] == "mandate" for r in records)
-    if scenario_art.schema_version == "0.9.0":
+    if scenario_art.schema_version in MANDATE_VERSIONS:  # already mandate-capable (0.9.0+) — nothing to do
         return
     if scenario_art.schema_version == "0.8.0":
         scenario_art.schema_version = "0.9.0"

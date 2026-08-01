@@ -11,7 +11,7 @@ import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { Agent, ChangeType, Conflict, LonLat, MandateAgent, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
-import { changesOf, isMandateAgent } from '@/lib/types';
+import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
@@ -379,8 +379,8 @@ export default function MapView() {
     [artifact],
   );
   const institutionsEmpty =
-    artifact?.schema_version === '0.9.0' &&
-    (artifact.agents?.length ?? 0) > 0 &&
+    MANDATE_VERSIONS.includes(artifact?.schema_version ?? '') &&
+    (artifact?.agents?.length ?? 0) > 0 &&
     institutionAgents.length === 0;
   const [institution, setInstitution] = useState<MandateAgent | null>(null);
   // agentId → pinned entry, for the reverse join (feed row → fly to that traveler's dot).

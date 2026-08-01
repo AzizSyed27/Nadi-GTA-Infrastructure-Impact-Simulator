@@ -1,5 +1,9 @@
 // TypeScript half of the frozen trajectory contract.
-// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.8.0).
+// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.9.0).
+// v0.9.0 (additive over 0.8.0): agents gain the 'mandate' grounding — an INSTITUTIONAL voice with a
+// sourced published mandate (mission verbatim, never reworded; retrieved = the freshness signal) +
+// citations[] of the run's code-rendered facts with their honesty notes; no pin/outcome/trigger_t;
+// sentiment 0 / stance neutral. Forbidden pre-0.9.0.
 // v0.8.0 (additive over 0.7.0): scorecard cells gain optional range {min,max,n_seeds,sign_stable} —
 // cross-seed robustness (seed 42 canonical: its run IS the artifact; probes contribute only the range;
 // sign_stable=false iff the per-seed values strictly straddle zero). Forbidden pre-0.8.0.
@@ -187,6 +191,11 @@ export interface Reaction {
 }
 
 export type Grounding = 'sim' | 'inferred' | 'mandate';
+
+/** Versions that may carry mandate-grounded agents (v0.9.0+). EXTEND on every future bump — a
+ * literal `=== '0.9.0'` at a consumer silently disables the institutional surfaces the moment the
+ * producer moves past 0.9.0 (the enum-plus-gates trap; python mirror: contract_models.MANDATE_VERSIONS). */
+export const MANDATE_VERSIONS: readonly string[] = ['0.9.0'];
 
 /**
  * v0.9.0+. An institution's PUBLISHED mandate, quoted verbatim from a sourced page — never reworded

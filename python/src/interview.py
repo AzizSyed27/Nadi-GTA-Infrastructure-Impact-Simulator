@@ -287,26 +287,51 @@ _VERDICT = re.compile(
 
 # V2.3c — MANDATE-interview-only rules. _OPERATIONAL = operational claims the tool didn't compute
 # (dispatch/deployment/coverage/response-time commitments — the run has only a free-flow route
-# estimate). Kept narrow (subject + modal + operational verb); false positives degrade to the
-# refusal, which is the guard-is-floor rule working. _FIRST_PERSON backs the impersonation rule:
-# mandate answers are third person ALWAYS — "we/our/us" reads as the real institution speaking.
-_OPERATIONAL = re.compile(
-    r"\b(?:we|they|the\s+(?:service|department|division|board|city)|crews?|units?|trucks?|engines?)\s+"
-    r"(?:would|will|could|can|are\s+going\s+to)\s+"
-    r"(?:dispatch|deploy|send|respond|arrive|staff|cover|reroute)\b"
-    r"|\bresponse\s+times?\s+(?:is|are|was|were|would\s+be|will\s+be)\b"
-    r"|\bwithin\s+\w+\s+minutes?\b",
-    re.I,
-)
+# estimate). Subjects include the ROSTER LABELS (review-caught: "Toronto Fire Services would
+# dispatch…" is the most likely phrasing — the grounding leads with the institution's name — and a
+# fixed pronoun list missed it). False positives degrade to the refusal — guard-is-floor.
+# _FIRST_PERSON backs the impersonation rule: mandate answers are third person ALWAYS — "we/our/us"
+# reads as the real institution speaking — EXCEPT when the words are quoted mandate text (the
+# Transportation Services mission itself says "our residents"; the mission is SERVER-loaded, so the
+# license can't be client-smuggled).
+def _operational_pattern() -> re.Pattern:
+    from institutions import load_roster
+
+    labels = "|".join(re.escape(e["label"]) for e in load_roster())
+    return re.compile(
+        rf"\b(?:we|they|{labels}|the\s+(?:service|department|division|board|city)|"
+        r"the\s+fire\s+department|the\s+school\s+board|crews?|units?|trucks?|engines?)\s+"
+        r"(?:would|will|could|can|are\s+going\s+to)\s+"
+        r"(?:dispatch|deploy|send|respond|arrive|staff|cover|reroute)\b"
+        r"|\bresponse\s+times?\s+(?:is|are|was|were|would\s+be|will\s+be)\b"
+        r"|\bwithin\s+\w+\s+minutes?\b",
+        re.I,
+    )
+
+
+_OPERATIONAL = _operational_pattern()
 _FIRST_PERSON = re.compile(r"\b(?:we|our|us)\b", re.I)
 
 
-def audit_interview(text: str, grounding: str = "sim") -> list[tuple[str, str]]:
+def _first_person_violation(text: str, mission: str | None) -> bool:
+    """True iff the text uses we/our/us OUTSIDE quoted mandate wording. License = the match's
+    two-word window appears verbatim in the (server-loaded) mission — 'serves our residents' quoted
+    from the mission is compliant speech; 'our crews' is the institution speaking and flags."""
+    lic = (mission or "").lower()
+    for m in _FIRST_PERSON.finditer(text):
+        window = re.findall(r"[a-z']+", text[m.start():m.start() + 40].lower())[:2]
+        if lic and len(window) == 2 and " ".join(window) in lic:
+            continue
+        return True
+    return False
+
+
+def audit_interview(text: str, grounding: str = "sim", mission: str | None = None) -> list[tuple[str, str]]:
     """report.audit_prose (smuggle-proof since the clause-bounded _strip_disclaimers hoist — a
     compound sentence pairing a disclaimer with a real claim is re-checked on its remainder) + the
     interview-specific verdict rule, applied through the SAME disclaimer strip so a refusal may
     still name the thing it refuses. Mandate interviews additionally get the operational-claim and
-    first-person rules (keyed on the SERVER-loaded agent's grounding, never client input).
+    first-person rules (keyed on the SERVER-loaded agent's grounding + mission, never client input).
     Empty = clean."""
     viol = report.audit_prose(text)
     for s in report._sentences(text):
@@ -316,7 +341,7 @@ def audit_interview(text: str, grounding: str = "sim") -> list[tuple[str, str]]:
         if grounding == "mandate":
             if _OPERATIONAL.search(t):
                 viol.append(("operational", s))
-            if _FIRST_PERSON.search(t):
+            if _first_person_violation(t, mission):
                 viol.append(("first_person", s))
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str]] = []
@@ -364,6 +389,7 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     system = build_system(agent, ctx)
     user = build_user(question, transcript)
     grounding = agent.get("grounding", "sim")  # SERVER-loaded, never client input — the guard key
+    mission = (agent.get("mandate") or {}).get("mission")  # licenses quoted mandate wording only
     try:
         obj = await report._call(client, system, user, report._TextWire, temperature=0.8)
     except Exception as e:  # noqa: BLE001 — provider SDK errors vary
@@ -371,7 +397,7 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     text = obj["text"].strip()
     if not text:  # a degenerate empty answer must not render as a blank clean bubble
         return refusal_for(agent), {"status": "error", "detail": "empty answer"}
-    v1 = audit_interview(text, grounding)
+    v1 = audit_interview(text, grounding, mission)
     if not v1:
         return text, {"status": "clean", "violations": []}
 
@@ -391,7 +417,7 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     text2 = obj["text"].strip()
     if not text2:
         return refusal_for(agent), {"status": "error", "detail": "empty answer", "violations": caught}
-    v2 = audit_interview(text2, grounding)
+    v2 = audit_interview(text2, grounding, mission)
     if v2:
         return refusal_for(agent), {
             "status": "failed",

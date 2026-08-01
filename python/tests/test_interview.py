@@ -334,6 +334,28 @@ def test_mandate_guard_trips_operational_and_first_person() -> None:
     assert interview.audit_interview("We would love calmer mornings on our street.", "inferred") == []
 
 
+def test_mandate_guard_operational_catches_the_institution_name_as_subject() -> None:
+    """Review-caught: the grounding leads with the institution's NAME — 'Toronto Fire Services would
+    dispatch…' is the most likely operational phrasing and a fixed pronoun list missed it."""
+    rules = {r for r, _ in interview.audit_interview(
+        "Toronto Fire Services would dispatch additional units to the area.", "mandate")}
+    assert "operational" in rules
+
+
+def test_mandate_guard_licenses_first_person_inside_quoted_mission_only() -> None:
+    """Review-caught false positive: the Transportation Services mission itself says 'our residents' —
+    quoting the (server-loaded) mandate must not trip the impersonation rule, while unquoted
+    first person still does."""
+    mission = ("to provide a safe, efficient, and effective transportation system that serves our "
+               "residents, businesses, and visitors in an environmentally, socially and economically "
+               "sustainable manner.")
+    assert interview.audit_interview(
+        "The published mandate emphasizes a system that serves our residents and visitors.",
+        "mandate", mission) == []
+    assert {r for r, _ in interview.audit_interview(
+        "Our crews keep the corridor moving every day.", "mandate", mission)} == {"first_person"}
+
+
 def test_mandate_guard_licenses_the_honesty_sentence_and_refusal() -> None:
     # naming the limitation is licensed speech, not an operational claim
     assert interview.audit_interview(
