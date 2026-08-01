@@ -1,0 +1,70 @@
+{
+  "_provenance": {
+    "researched": "2026-08-01",
+    "note": "Mission texts are VERBATIM quotes of the organizations' published pages (fetched live on the researched date) — never invented, never paraphrased. The `mission` string must reach the artifact byte-identical (test-pinned); `mission_clause` is a literal SUBSTRING of `mission` used inline in composed comments (test-pinned as a substring). Underscore-prefixed keys are documentation — the loader never reads them. Staleness: the retrieved date renders wherever the mandate renders (the reader's freshness signal); re-verification duty is recorded in BACKLOG.md.",
+    "sources": [
+      {
+        "institution": "Toronto Fire Services",
+        "url": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/fire-services/",
+        "section": "Fire Services (division description)",
+        "retrieved": "2026-08-01"
+      },
+      {
+        "institution": "Toronto District School Board",
+        "url": "https://www.tdsb.on.ca/About-Us",
+        "section": "Our Mission",
+        "retrieved": "2026-08-01"
+      },
+      {
+        "institution": "City of Toronto Transportation Services",
+        "url": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/transportation-services/",
+        "section": "The Division's vision",
+        "retrieved": "2026-08-01"
+      }
+    ]
+  },
+  "institutions": [
+    {
+      "id": "tfs",
+      "label": "Toronto Fire Services",
+      "mandate": {
+        "institution": "Toronto Fire Services",
+        "mission": "Fire Services provides Toronto residents, visitors and businesses with protection against loss of life, property and the environment from the effects of fire, illness, accidents and all other hazards through preparedness, prevention, public education and emergency response, with an emphasis on quality services, efficiency, effectiveness and safety.",
+        "source": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/fire-services/",
+        "retrieved": "2026-08-01"
+      },
+      "mission_clause": "protection against loss of life, property and the environment",
+      "facts_required": { "any_of": ["response_detour"] },
+      "cites": ["response_detour"]
+    },
+    {
+      "id": "tdsb",
+      "label": "Toronto District School Board",
+      "mandate": {
+        "institution": "Toronto District School Board",
+        "mission": "To enable all students to reach high levels of achievement and well-being and to acquire the knowledge, skills and values they need to become responsible, contributing members of a democratic and sustainable society.",
+        "source": "https://www.tdsb.on.ca/About-Us",
+        "retrieved": "2026-08-01"
+      },
+      "mission_clause": "high levels of achievement and well-being",
+      "facts_required": { "any_of": ["zone_facts"] },
+      "cites": ["zone_facts"]
+    },
+    {
+      "id": "transport_ops",
+      "label": "City of Toronto Transportation Services",
+      "mandate": {
+        "institution": "City of Toronto Transportation Services",
+        "mission": "to provide a safe, efficient, and effective transportation system that serves our residents, businesses, and visitors in an environmentally, socially and economically sustainable manner.",
+        "source": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/transportation-services/",
+        "retrieved": "2026-08-01"
+      },
+      "mission_clause": "a safe, efficient, and effective transportation system",
+      "facts_required": {
+        "any_of": ["non_completions", "non_completions_split", "insertion_backlog"],
+        "or_nonzero": ["reroute.cars_rerouted"]
+      },
+      "cites": ["reroute", "non_completions", "non_completions_split", "insertion_backlog"]
+    }
+  ]
+}

@@ -23,8 +23,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.7.0" for back-compat reads.
-SCHEMA_VERSION: Literal["0.8.0"] = "0.8.0"
+# Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.8.0" for back-compat reads.
+SCHEMA_VERSION: Literal["0.9.0"] = "0.9.0"
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
@@ -235,22 +235,54 @@ class Reaction(BaseModel):
     stance: Literal["supportive", "neutral", "opposed"]
 
 
+class Mandate(BaseModel):
+    """v0.9.0+. An institution's PUBLISHED mandate, quoted verbatim from a sourced page. ``mission``
+    is NEVER reworded, truncated, or LLM-touched anywhere in the pipeline — for a real organization,
+    paraphrase is misrepresentation (byte-identity test-pinned). ``retrieved`` is the reader's
+    freshness signal and renders wherever the mandate renders."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    institution: str
+    mission: str
+    source: str
+    retrieved: str
+
+
+class Citation(BaseModel):
+    """v0.9.0+. One computed fact a mandate voice cites: ``key`` = the outcomes-sidecar fact key,
+    ``text`` = the code-rendered fact sentence(s), ``notes`` = the verbatim honesty sentences that
+    ride wherever the numbers render (e.g. the free-flow/lower-bound framing on the response detour)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key: str
+    text: str
+    notes: list[str] | None = None
+
+
 class Agent(BaseModel):
     """A sampled stakeholder agent (NOT one per traveler). ``grounding`` (v0.3.0+) discriminates:
       - "sim":      pinned to a simulated traveler — exactly one of vehicle_id/person_id, plus outcome
                     and trigger_t.
       - "inferred": no simulated trip (a resident/business voice) — no pin, no outcome, no trigger_t.
-    Schema stays loose (grounding required only for 0.3.0); this invariant is enforced in the model."""
+      - "mandate":  (v0.9.0+) an institutional voice — a sourced published mandate + citations of this
+                    run's code-rendered facts; no pin/outcome/trigger_t; sentiment 0 and stance neutral
+                    (institutions recite facts within mandate, never stances — the referendum guard at
+                    the contract layer).
+    Schema stays loose (grounding required only for 0.3.0+); these invariants are enforced in the model."""
 
     model_config = ConfigDict(extra="forbid")
 
     persona: Persona
     reaction: Reaction
-    grounding: Literal["sim", "inferred"] = "sim"  # default keeps grounding-less v0.2.0 agents loadable
+    grounding: Literal["sim", "inferred", "mandate"] = "sim"  # default keeps grounding-less v0.2.0 agents loadable
     vehicle_id: str | None = None
     person_id: str | None = None
     outcome: Outcome | None = None
     trigger_t: float | None = Field(default=None, ge=0, description="Sim time (s) the reaction is keyed to")
+    mandate: Mandate | None = None  # v0.9.0+, mandate agents only
+    citations: list[Citation] | None = None  # v0.9.0+, mandate agents only
 
     @model_validator(mode="after")
     def _check_grounding(self) -> "Agent":
@@ -260,11 +292,25 @@ class Agent(BaseModel):
                 raise ValueError("sim-grounded agent requires exactly one of vehicle_id / person_id")
             if self.outcome is None or self.trigger_t is None:
                 raise ValueError("sim-grounded agent requires both outcome and trigger_t")
+        elif self.grounding == "mandate":
+            if pinned or self.outcome is not None or self.trigger_t is not None:
+                raise ValueError("mandate agent must NOT have vehicle_id/person_id/outcome/trigger_t")
+            if self.mandate is None:
+                raise ValueError("mandate agent requires the mandate block")
+            if not self.citations:
+                raise ValueError("mandate agent requires non-empty citations (no facts -> no voice)")
+            if self.reaction.sentiment != 0.0 or self.reaction.stance != "neutral":
+                raise ValueError(
+                    "mandate agent must have sentiment 0.0 and stance 'neutral' — institutions "
+                    "recite facts within mandate, never stances"
+                )
         else:  # inferred
             if pinned or self.outcome is not None or self.trigger_t is not None:
                 raise ValueError(
                     "inferred agent must NOT have vehicle_id/person_id/outcome/trigger_t"
                 )
+        if self.grounding != "mandate" and (self.mandate is not None or self.citations is not None):
+            raise ValueError("mandate/citations are mandate-grounding fields only")
         return self
 
 
@@ -460,8 +506,8 @@ class Social(BaseModel):
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0..0.7.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.8.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.8.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.9.0).
+    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional

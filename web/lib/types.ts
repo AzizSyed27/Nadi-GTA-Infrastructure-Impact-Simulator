@@ -186,12 +186,32 @@ export interface Reaction {
   stance: Stance;
 }
 
-export type Grounding = 'sim' | 'inferred';
+export type Grounding = 'sim' | 'inferred' | 'mandate';
+
+/**
+ * v0.9.0+. An institution's PUBLISHED mandate, quoted verbatim from a sourced page — never reworded
+ * anywhere in the pipeline. `retrieved` is the reader's freshness signal and renders with the mandate.
+ */
+export interface Mandate {
+  institution: string;
+  mission: string;
+  source: string;
+  retrieved: string;
+}
+
+/** v0.9.0+. One computed fact a mandate voice cites (text = code-rendered; notes = verbatim honesty sentences). */
+export interface Citation {
+  key: string;
+  text: string;
+  notes?: string[];
+}
 
 /**
  * A sampled stakeholder agent (NOT one per traveler). `grounding` (v0.3.0+) discriminates:
  *  - 'sim':      pinned to a simulated traveler — exactly one of vehicle_id/person_id, plus outcome + trigger_t.
  *  - 'inferred': no simulated trip (resident/business) — no pin, no outcome, no trigger_t.
+ *  - 'mandate':  (v0.9.0+) an institutional voice — sourced published mandate + citations of this run's
+ *                computed facts; no pin/outcome/trigger_t; sentiment 0 / stance neutral.
  */
 export interface Agent {
   persona: Persona;
@@ -205,6 +225,10 @@ export interface Agent {
   outcome?: Outcome;
   /** Sim time (s) the reaction is keyed to during playback. */
   trigger_t?: number;
+  /** v0.9.0+. Mandate agents only. */
+  mandate?: Mandate;
+  /** v0.9.0+. Mandate agents only (non-empty). */
+  citations?: Citation[];
 }
 
 /**
@@ -236,6 +260,16 @@ export function isSimPersonAgent(a: Agent): a is SimPersonAgent {
 /** A pinned sim agent (vehicle- or person-backed): has a trajectory, an outcome and a trigger_t. */
 export function isPinnedSim(a: Agent): a is PinnedSimAgent {
   return isSimVehicleAgent(a) || isSimPersonAgent(a);
+}
+
+/** v0.9.0+. A mandate-grounded institutional voice (sourced mandate + citations; no dot, no trip). */
+export type MandateAgent = Agent & {
+  grounding: 'mandate';
+  mandate: Mandate;
+  citations: Citation[];
+};
+export function isMandateAgent(a: Agent): a is MandateAgent {
+  return a.grounding === 'mandate' && a.mandate != null && a.citations != null;
 }
 
 /**

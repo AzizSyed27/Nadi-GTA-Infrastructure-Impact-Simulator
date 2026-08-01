@@ -146,9 +146,9 @@
   },
   "allOf": [
     {
-      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0+ — keeping the bumps additive. EXTENDED for 0.5.0, 0.6.0, 0.7.0 and 0.8.0 (existing-gate audit): a version bump must never drop a prior obligation.",
+      "$comment": "v0.3.0+ requires an explicit agent grounding. Older versions (0.1.0/0.2.0) predate it, so it is required only when schema_version is 0.3.0+ — keeping the bumps additive. EXTENDED for 0.5.0, 0.6.0, 0.7.0, 0.8.0 and 0.9.0 (existing-gate audit): a version bump must never drop a prior obligation.",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"]}},
+        "properties": {"schema_version": {"enum": ["0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -164,9 +164,9 @@
       }
     },
     {
-      "$comment": "v0.5.0+ version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected. EXTENDED for 0.6.0, 0.7.0 and 0.8.0 (existing-gate audit).",
+      "$comment": "v0.5.0+ version gate: the scenario (when present) uses the changes[] list authority and OMITS the legacy single change. Reaches meta.scenario via properties (not required), so baseline runs with no scenario are unaffected. EXTENDED for 0.6.0, 0.7.0, 0.8.0 and 0.9.0 (existing-gate audit).",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.5.0", "0.6.0", "0.7.0", "0.8.0"]}},
+        "properties": {"schema_version": {"enum": ["0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -185,9 +185,9 @@
       }
     },
     {
-      "$comment": "v0.6.0+ version gate: meta MUST declare which demand the run simulated (demand_profile). Introduced with the calibrated AM-peak demand — a run's numbers are meaningless without knowing the demand behind them. EXTENDED for 0.7.0 and 0.8.0 (existing-gate audit).",
+      "$comment": "v0.6.0+ version gate: meta MUST declare which demand the run simulated (demand_profile). Introduced with the calibrated AM-peak demand — a run's numbers are meaningless without knowing the demand behind them. EXTENDED for 0.7.0, 0.8.0 and 0.9.0 (existing-gate audit).",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.6.0", "0.7.0", "0.8.0"]}},
+        "properties": {"schema_version": {"enum": ["0.6.0", "0.7.0", "0.8.0", "0.9.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -214,9 +214,9 @@
       }
     },
     {
-      "$comment": "v0.7.0+ version gate: meta MUST declare the assignment mode (day-one vs settled). A settled run's numbers describe an ADJUSTED corridor — interpretation changes, so the artifact carries it. EXTENDED for 0.8.0 (existing-gate audit — the const became an enum).",
+      "$comment": "v0.7.0+ version gate: meta MUST declare the assignment mode (day-one vs settled). A settled run's numbers describe an ADJUSTED corridor — interpretation changes, so the artifact carries it. EXTENDED for 0.8.0 and 0.9.0 (existing-gate audit — the const became an enum).",
       "if": {
-        "properties": {"schema_version": {"enum": ["0.7.0", "0.8.0"]}},
+        "properties": {"schema_version": {"enum": ["0.7.0", "0.8.0", "0.9.0"]}},
         "required": ["schema_version"]
       },
       "then": {
@@ -263,6 +263,27 @@
       }
     },
     {
+      "$comment": "Pre-0.9.0 gate: mandate grounding + the mandate/citations fields did not exist — an older artifact carrying them is mis-versioned and must fail. properties-based (the pre-0.8.0 range-gate precedent): grounding narrows back to the sim/inferred pair; the two new fields are refused with false schemas.",
+      "if": {
+        "properties": {"schema_version": {"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"]}},
+        "required": ["schema_version"]
+      },
+      "then": {
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "grounding": {"enum": ["sim", "inferred"]},
+                "mandate": false,
+                "citations": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "$comment": "Pre-0.8.0 gate: scorecard-cell range did not exist — an older artifact carrying it is mis-versioned and must fail. Uses properties:{range:false} on each of the three delta cells (null-safe: the cells are nullable, and a not:{required} would pass vacuously on null while properties is simply ignored for null). 0.1.0/0.2.0 predate the scorecard entirely and are covered by the same forbid.",
       "if": {
         "properties": {"schema_version": {"enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0"]}},
@@ -291,8 +312,8 @@
   ],
   "properties": {
     "schema_version": {
-      "description": "Semantic version of THIS contract. 0.8.0 is current; 0.1.0..0.7.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, meta.demand_profile, meta.assignment, scorecard cell ranges, and pre-0.5.0 use the legacy single meta.scenario.change).",
-      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"]
+      "description": "Semantic version of THIS contract. 0.9.0 is current; 0.1.0..0.8.0 are accepted for back-compat reads (older artifacts simply omit the newer optional structures, the agent grounding field, meta.demand_profile, meta.assignment, scorecard cell ranges, mandate-grounded agents, and pre-0.5.0 use the legacy single meta.scenario.change).",
+      "enum": ["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"]
     },
     "meta": {
       "type": "object",
@@ -431,7 +452,7 @@
       }
     },
     "agents": {
-      "description": "OPTIONAL (v0.2.0+). Sampled stakeholder agents. NOT one per traveler — only a few sampled agents reason. A stakeholder-reaction PREVIEW, never a referendum or crash/ROI oracle. grounding (v0.3.0+) discriminates SIM-grounded agents (pinned to a simulated traveler via exactly one of vehicle_id/person_id, with a quantitative outcome + a playback trigger_t) from INFERRED agents (residents, businesses — no simulated trip, hence no pin/outcome/trigger_t). The sim/inferred field-presence invariant is enforced in the models, not this schema (schema stays loose to leave room).",
+      "description": "OPTIONAL (v0.2.0+). Sampled stakeholder agents. NOT one per traveler — only a few sampled agents reason. A stakeholder-reaction PREVIEW, never a referendum or crash/ROI oracle. grounding (v0.3.0+) discriminates SIM-grounded agents (pinned to a simulated traveler via exactly one of vehicle_id/person_id, with a quantitative outcome + a playback trigger_t) from INFERRED agents (residents, businesses — no simulated trip, hence no pin/outcome/trigger_t). v0.9.0 adds MANDATE-grounded agents (institutions: a sourced published mandate + citations of this run's code-rendered facts; no pin/outcome/trigger_t; sentiment 0 / stance neutral — institutions recite facts within mandate, never stances). The per-grounding field-presence invariants are enforced in the models, not this schema (schema stays loose to leave room).",
       "type": "array",
       "items": {
         "type": "object",
@@ -439,8 +460,35 @@
         "required": ["persona", "reaction"],
         "properties": {
           "grounding": {
-            "description": "REQUIRED for v0.3.0. \"sim\" = pinned to a simulated traveler (has one id + outcome + trigger_t); \"inferred\" = no simulated trip (no pin/outcome/trigger_t).",
-            "enum": ["sim", "inferred"]
+            "description": "REQUIRED for v0.3.0. \"sim\" = pinned to a simulated traveler (has one id + outcome + trigger_t); \"inferred\" = no simulated trip (no pin/outcome/trigger_t); \"mandate\" (v0.9.0+) = an institutional voice grounded in a sourced published mandate + citations of this run's computed facts (no pin/outcome/trigger_t; mandate + citations REQUIRED — enforced in the models).",
+            "enum": ["sim", "inferred", "mandate"]
+          },
+          "mandate": {
+            "description": "v0.9.0+. REQUIRED iff grounding=\"mandate\" (enforced in the models like the sim/inferred invariant). The institution's PUBLISHED mandate, quoted verbatim from a sourced page — never invented or reworded text; `retrieved` is the reader's freshness signal and renders wherever the mandate renders.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["institution", "mission", "source", "retrieved"],
+            "properties": {
+              "institution": {"type": "string", "minLength": 1},
+              "mission": {"type": "string", "minLength": 1},
+              "source": {"type": "string", "minLength": 1},
+              "retrieved": {"type": "string", "minLength": 1}
+            }
+          },
+          "citations": {
+            "description": "v0.9.0+. REQUIRED (non-empty) iff grounding=\"mandate\". The computed facts a mandate voice cites: key = the outcomes-sidecar fact key, text = the code-rendered fact sentence(s), notes = the verbatim honesty sentences that ride wherever the numbers render (e.g. the free-flow/lower-bound framing on the response detour).",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "text"],
+              "properties": {
+                "key": {"type": "string", "minLength": 1},
+                "text": {"type": "string", "minLength": 1},
+                "notes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+              }
+            }
           },
           "vehicle_id": {
             "description": "OPTIONAL. id of the vehicle (in vehicles[]) a sim-grounded agent is pinned to. Mutually exclusive with person_id.",

@@ -46,13 +46,13 @@ def audit_version_gate(data: dict) -> None:
     v0.5.0+: a scenario carries ``changes`` (the list authority) and NO legacy ``change``; a pre-0.5.0
     scenario carries ``change`` and no ``changes``. v0.6.0: ``meta.demand_profile`` is REQUIRED (and,
     with render_sample, forbidden before 0.6.0). v0.7.0+: ``meta.assignment`` REQUIRED (forbidden
-    before). v0.8.0: scorecard-cell ``range`` allowed (forbidden before). Baseline runs (no scenario)
-    skip the scenario check.
+    before). v0.8.0+: scorecard-cell ``range`` allowed (forbidden before). v0.9.0: mandate-grounded
+    agents allowed (forbidden before). Baseline runs (no scenario) skip the scenario check.
     Belt-and-suspenders over the schema ``if/then`` gates (and independent of them) so a mis-wrapped
     producer emission fails LOUDLY at write time. Raises ``ValueError`` on mismatch."""
     version = data.get("schema_version")
     meta = data.get("meta", {})
-    if version in ("0.6.0", "0.7.0", "0.8.0"):
+    if version in ("0.6.0", "0.7.0", "0.8.0", "0.9.0"):
         if not meta.get("demand_profile"):
             raise ValueError(f"version-gate: a {version} artifact's meta must declare demand_profile")
     elif "demand_profile" in meta or "render_sample" in meta:
@@ -60,16 +60,17 @@ def audit_version_gate(data: dict) -> None:
             f"version-gate: a {version} artifact must not carry meta.demand_profile/render_sample "
             "(v0.6.0 fields)"
         )
-    if version in ("0.7.0", "0.8.0"):
+    if version in ("0.7.0", "0.8.0", "0.9.0"):
         if not meta.get("assignment"):
             raise ValueError(f"version-gate: a {version} artifact's meta must declare assignment "
                              "(day_one vs settled)")
     elif "assignment" in meta:
         raise ValueError(f"version-gate: a {version} artifact must not carry meta.assignment "
                          "(a v0.7.0 field)")
-    # v0.8.0: scorecard-cell range is optional AT 0.8.0 but forbidden before (mirror of the schema's
-    # pre-0.8.0 gate — presence on an older version means a mis-wrapped emission).
-    if version != "0.8.0":
+    # v0.8.0+: scorecard-cell range is optional but forbidden BEFORE 0.8.0 (mirror of the schema's
+    # pre-0.8.0 gate — presence on an older version means a mis-wrapped emission). NB `not in`, never
+    # a literal `!=` against one version — the classic bump trap.
+    if version not in ("0.8.0", "0.9.0"):
         for grp in (data.get("scorecard") or {}).get("groups", []):
             for key in ("travel_time_delta", "safety_delta", "access_delta"):
                 cell = grp.get(key)
@@ -77,12 +78,20 @@ def audit_version_gate(data: dict) -> None:
                     raise ValueError(
                         f"version-gate: a {version} artifact's scorecard cell ({grp.get('group')}.{key}) "
                         "must not carry range (a v0.8.0 field)")
+    # v0.9.0: mandate grounding + mandate/citations forbidden before (mirror of the schema's
+    # pre-0.9.0 gate). `not in` tuple, never a literal `!=` — extend the tuple on the next bump.
+    if version not in ("0.9.0",):
+        for a in data.get("agents") or []:
+            if a.get("grounding") == "mandate" or "mandate" in a or "citations" in a:
+                raise ValueError(
+                    f"version-gate: a {version} artifact must not carry mandate-grounded agents "
+                    f"(v0.9.0 fields; agent persona={a.get('persona', {}).get('id')!r})")
     scenario = meta.get("scenario")
     if scenario is None:
         return
     has_change = "change" in scenario
     has_changes = "changes" in scenario
-    if version in ("0.5.0", "0.6.0", "0.7.0", "0.8.0"):
+    if version in ("0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"):
         if not has_changes or has_change:
             raise ValueError(
                 f"version-gate: a {version} artifact's scenario must carry `changes` (the list authority) "

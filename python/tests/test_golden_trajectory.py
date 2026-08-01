@@ -38,6 +38,7 @@ SAMPLE_V5_PATH = REPO_ROOT / "web" / "public" / "sample_v0_5_0.json"
 SAMPLE_V6_PATH = REPO_ROOT / "web" / "public" / "sample_v0_6_0.json"
 SAMPLE_V7_PATH = REPO_ROOT / "web" / "public" / "sample_v0_7_0.json"
 SAMPLE_V8_PATH = REPO_ROOT / "web" / "public" / "sample_v0_8_0.json"
+SAMPLE_V9_PATH = REPO_ROOT / "web" / "public" / "sample_v0_9_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -235,9 +236,9 @@ def test_multimodal_artifact_valid() -> None:
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
     # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); current producers emit
     # the current SCHEMA_VERSION — keep the accepted set open-ended forward (pin the SHAPE, not the version).
-    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0")
+    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0")
     if art.social is not None:
-        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0"), "an artifact carrying a social{} block must be v0.4.0+"
+        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"), "an artifact carrying a social{} block must be v0.4.0+"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -781,9 +782,10 @@ def test_v0_8_0_sample() -> None:
     assert biz.access_delta is not None and biz.access_delta.range is None
 
 
-def test_older_samples_validate_under_v0_8_0_schema() -> None:
+def test_older_samples_validate_under_current_schema() -> None:
+    """Every committed older sample stays loadable under the CURRENT schema — the back-compat proof."""
     for p in (SAMPLE_PATH, SAMPLE_V3_PATH, SAMPLE_V4_PATH, SAMPLE_V5_PATH, SAMPLE_V6_PATH,
-              SAMPLE_V7_PATH):
+              SAMPLE_V7_PATH, SAMPLE_V8_PATH):
         trajectory_io.validate_artifact(json.loads(p.read_text(encoding="utf-8")))
 
 
@@ -837,6 +839,130 @@ def test_v0_8_0_semantic_roundtrip() -> None:
     assert "range" in _v8_car(redumped)["travel_time_delta"], "a present range must survive the dump"
     biz = next(g for g in redumped["scorecard"]["groups"] if g["group"] == "business_owner")
     assert "range" not in biz["access_delta"], "an absent range must stay omitted (exclude_none)"
+
+
+# ---------------------------------------------------------------------------
+# v0.9.0 contract (additive over v0.8.0): agents gain the "mandate" grounding —
+# an institutional voice with a sourced published mandate{} + citations[] of this run's
+# code-rendered facts (sentiment 0 / stance neutral; no pin/outcome/trigger_t).
+# Forbidden pre-0.9.0. All older tests above run unchanged — the back-compat proof.
+# ---------------------------------------------------------------------------
+
+
+def _v9_raw() -> dict:
+    return json.loads(SAMPLE_V9_PATH.read_text(encoding="utf-8"))
+
+
+def _v9_mandate(raw: dict) -> dict:
+    return next(a for a in raw["agents"] if a.get("grounding") == "mandate")
+
+
+def test_v0_9_0_sample() -> None:
+    """The committed 0.9.0 sample validates at every layer — including audit_version_gate with a
+    RANGED scorecard cell present (the `!= "0.8.0"` literal-comparison trap regression: a 0.9.0
+    artifact must keep the 0.8.0 range feature)."""
+    assert SAMPLE_V9_PATH.is_file(), f"committed v0.9.0 sample missing: {SAMPLE_V9_PATH}"
+    raw = _v9_raw()
+    trajectory_io.validate_artifact(raw)
+    trajectory_io.audit_version_gate(raw)  # ranged cell present — the :72 trap pin
+    art = trajectory_io.load_artifact(SAMPLE_V9_PATH)
+    assert raw["schema_version"] == "0.9.0"
+    m = next(a for a in art.agents if a.grounding == "mandate")
+    assert m.mandate is not None and m.mandate.institution == "Toronto Fire Services"
+    assert m.mandate.source.startswith("https://") and m.mandate.retrieved
+    assert m.citations and m.citations[0].key == "response_detour"
+    assert m.citations[0].notes and any("not a dispatch model" in n for n in m.citations[0].notes)
+    assert m.reaction.sentiment == 0.0 and m.reaction.stance == "neutral"
+    assert m.vehicle_id is None and m.outcome is None and m.trigger_t is None
+    # 0.8.0 features carry at 0.9.0
+    car = next(g for g in art.scorecard.groups if g.group == "car_commuter")
+    assert car.travel_time_delta.range is not None
+
+
+def test_pre_0_9_0_carrying_mandate_fails() -> None:
+    """NEGATIVE both layers: a 0.8.0 artifact carrying a mandate agent is mis-versioned."""
+    raw = _v9_raw()
+    raw["schema_version"] = "0.8.0"
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_v0_9_0_mandate_semantics_fail() -> None:
+    """NEGATIVE model invariants: a mandate agent may not carry a pin/outcome/trigger_t, must carry
+    the mandate block + non-empty citations, must be sentiment-0/neutral; sim/inferred agents may
+    not carry mandate/citations."""
+    raw = _v9_raw()
+    _v9_mandate(raw)["vehicle_id"] = "v1"
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+
+    raw2 = _v9_raw()
+    del _v9_mandate(raw2)["mandate"]
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw2)
+
+    raw3 = _v9_raw()
+    _v9_mandate(raw3)["citations"] = []
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw3)  # minItems 1
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw3)
+
+    raw4 = _v9_raw()
+    _v9_mandate(raw4)["reaction"]["sentiment"] = 0.5
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw4)
+
+    raw5 = _v9_raw()
+    _v9_mandate(raw5)["reaction"]["stance"] = "supportive"
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw5)
+
+    raw6 = _v9_raw()
+    sim = next(a for a in raw6["agents"] if a.get("grounding") == "sim")
+    sim["mandate"] = _v9_mandate(raw6)["mandate"]
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw6)
+
+
+def test_v0_9_0_still_requires_prior_obligations() -> None:
+    """The existing-gate audit: 0.9.0 must not DROP an obligation — demand_profile, assignment and
+    the changes[] authority are all still required."""
+    for key in ("demand_profile", "assignment"):
+        raw = _v9_raw()
+        del raw["meta"][key]
+        with pytest.raises(SchemaValidationError):
+            trajectory_io.validate_artifact(raw)
+        with pytest.raises(ValueError):
+            trajectory_io.audit_version_gate(raw)
+    raw = _v9_raw()
+    sc = raw["meta"]["scenario"]
+    sc["change"] = sc.pop("changes")[0]
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_v0_9_0_semantic_roundtrip() -> None:
+    """Mandate + citations survive dump/load byte-equal (exclude_none keeps present blocks, omits
+    absent ones on sim/inferred agents)."""
+    src = _v9_raw()
+    art = trajectory_io.load_artifact(SAMPLE_V9_PATH)
+    out = RUNS_DIR / "_rt_v0_9_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)
+    finally:
+        out.unlink(missing_ok=True)
+    assert src == redumped, "semantic round-trip must be equal"
+    m = next(a for a in redumped["agents"] if a["grounding"] == "mandate")
+    assert "mandate" in m and "citations" in m
+    sim = next(a for a in redumped["agents"] if a["grounding"] == "sim")
+    assert "mandate" not in sim and "citations" not in sim
 
 
 def _write_golden() -> None:
