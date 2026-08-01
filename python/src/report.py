@@ -277,6 +277,17 @@ def gather_facts(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
         "sim_end": meta.sim_end,
         "scope_disclosure": build_scope_disclosure(
             changes, meta.sim_end, getattr(meta, "demand_profile", None) or "synthetic_demo"),
+        # V2.3c — mandate-grounded institutional voices (0.9.0+). Pre-0.9.0 artifacts have none and
+        # render NOTHING new (the unwindowed golden stays byte-identical); verify_facts enforces the
+        # facts-gated speaking set BOTH ways on 0.9.0 artifacts.
+        "schema_version": artifact.schema_version,
+        "institutional": [
+            {"id": a.persona.id, "label": a.persona.label,
+             "mandate": a.mandate.model_dump(),
+             "citations": [c.model_dump(exclude_none=True) for c in (a.citations or [])],
+             "comment": a.reaction.comment}
+            for a in artifact.agents if a.grounding == "mandate"
+        ],
     }
 
 
@@ -401,6 +412,67 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
     th = facts["thresholds"]
     if (th["ttc_s"], th["veh_pet_s"], th["ped_pet_s"]) != (TTC_THRESHOLD_S, VEH_PET_THRESHOLD_S, PED_PET_THRESHOLD_S):
         problems.append("thresholds != module constants")
+
+    # V2.3c — institutional voices: the facts-gated speaking set is REQUIRED-iff BOTH ways on a
+    # 0.9.0 artifact (TFS present iff response_detour; absent on a quiet run), every citation is
+    # recomputed from the SIDECAR with verify-side literals (never the composer — shared blind
+    # spots), the honesty sentences ride, and the mission is byte-identical to the roster.
+    if artifact.schema_version == "0.9.0" and artifact.agents:
+        import institutions as _inst
+
+        expected_ids = {e["id"] for e, _ in _inst.speaking_institutions(outcomes)}
+        actual = {v["id"]: v for v in facts.get("institutional") or []}
+        if set(actual) != expected_ids:
+            problems.append(f"institutional speaking set {sorted(actual)} != facts-gated expectation "
+                            f"{sorted(expected_ids)} (no facts -> no voice; facts -> a voice)")
+        roster_by_id = {e["id"]: e for e in _inst.load_roster()}
+        for iid, v in actual.items():
+            entry = roster_by_id.get(iid)
+            if entry is None:
+                problems.append(f"institutional voice {iid!r} not in the roster")
+                continue
+            if v["mandate"]["mission"] != entry["mandate"]["mission"]:
+                problems.append(f"{iid}: mandate.mission differs from the roster — the one string "
+                                "where paraphrase is misrepresentation")
+            if not v["citations"]:
+                problems.append(f"{iid}: no citations (no facts -> no voice)")
+            for c in v["citations"]:
+                if c["key"] == "response_detour":
+                    rd2 = outcomes.get("response_detour") or {}
+                    numeric = [p for p in rd2.get("probes", []) if isinstance(p.get("added_s"), (int, float))]
+                    if numeric:
+                        worst = max(p["added_s"] for p in numeric)
+                        if f"{worst:+g} s" not in c["text"]:
+                            problems.append(f"{iid}: response_detour citation missing the recomputed "
+                                            f"worst-station figure {worst:+g} s")
+                    notes = c.get("notes") or []
+                    if not any("not a dispatch model" in n for n in notes):
+                        problems.append(f"{iid}: the free-flow framing sentence must ride the citation")
+                    if not any("a lower bound" in n for n in notes):
+                        problems.append(f"{iid}: the lower-bound sentence must ride the citation")
+                elif c["key"] == "zone_facts":
+                    pv2 = (outcomes.get("zone_facts") or {}).get("ped_vehicle_conflicts") or {}
+                    if f"{pv2.get('scenario')} in the scenario vs {pv2.get('baseline')} in the baseline" not in c["text"]:
+                        problems.append(f"{iid}: zone citation pair differs from the sidecar")
+                    notes = c.get("notes") or []
+                    if not any("does not establish a direction" in n for n in notes):
+                        problems.append(f"{iid}: the zone variation note must ride the citation")
+                    if not any("not modeled schoolchildren" in n for n in notes):
+                        problems.append(f"{iid}: the zone population note must ride the citation")
+                elif c["key"] == "reroute":
+                    rr2 = outcomes.get("reroute") or {}
+                    if f"{rr2.get('cars_rerouted', 0)} of {rr2.get('cars_matched', 0)}" not in c["text"]:
+                        problems.append(f"{iid}: reroute citation differs from the sidecar")
+                elif c["key"] == "non_completions":
+                    nc2 = outcomes.get("non_completions") or {}
+                    if f": {sum(nc2.values())} (" not in c["text"]:
+                        problems.append(f"{iid}: non_completions citation total differs from the sidecar")
+                    if outcomes.get("non_completions_split") and outcomes.get("insertion_backlog"):
+                        bl2 = outcomes["insertion_backlog"]
+                        bl_b = sum(b.get("baseline", 0) for b in bl2.values())
+                        if f"insertion backlog affects baseline runs too: {bl_b}" not in c["text"]:
+                            problems.append(f"{iid}: the split renders without the backlog attribution "
+                                            "parenthetical (causal-neutrality invariant)")
 
     # v0.4.0 discourse invariants a consumer (and Section 4) assumes about artifact.social.
     if artifact.social is not None:
@@ -906,6 +978,14 @@ def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
              "body": f"{zf['population_note']}. The zone lens is spatial and temporal "
                      f"({zf['method_note']}), not demographic."},
         ]
+    # V2.3c — the impersonation caveat rides whenever institutional voices render
+    if facts.get("institutional"):
+        caveats.append(
+            {"title": "Institutional perspectives are generated, not statements",
+             "body": "Institutional perspectives are generated by this tool: each recites the named "
+                     "organization's published mandate (sourced, with its retrieval date) against this "
+                     "run's computed facts. They are not statements by, from, or on behalf of the named "
+                     "organizations, and the mandate quote is only as current as its retrieval date."})
     if has_discourse:
         caveats += [
             {"title": "Cascades are illustrative unfoldings",
@@ -1103,6 +1183,53 @@ def render_discourse_md(dfacts: dict, discourse: dict) -> list[str]:
     return L
 
 
+INSTITUTIONAL_EMPTY = (
+    "Institutions speak only when the run computes facts within their mandate; this run computed "
+    "none for: Toronto Fire Services (no response-route fact), Toronto District School Board (not a "
+    "school-zone run), City of Toronto Transportation Services (no diversions or non-completions).")
+INSTITUTIONAL_DISCLAIMER = (
+    "Generated by this tool from each organization's published mandate and this run's computed "
+    "facts — not statements by, from, or on behalf of the named organizations.")
+
+
+def build_institutional_section(facts: dict) -> dict | None:
+    """V2.3c — the code-rendered institutional section (NO LLM slots; the audit log records nothing
+    because nothing generated is rendered — verify_facts pins the content instead). None on pre-0.9.0
+    artifacts (they predate institutions and must render NOTHING — the unwindowed-golden pin); the
+    honest empty state renders only where institutions COULD have spoken."""
+    insts = facts.get("institutional") or []
+    if not insts and facts.get("schema_version") != "0.9.0":
+        return None
+    if not insts:
+        return {"voices": [], "empty_reason": INSTITUTIONAL_EMPTY,
+                "disclaimer": INSTITUTIONAL_DISCLAIMER}
+    return {"voices": insts, "empty_reason": None, "disclaimer": INSTITUTIONAL_DISCLAIMER}
+
+
+def render_institutional_md(section: dict | None) -> list[str]:
+    if section is None:
+        return []
+    L: list[str] = ["### Institutional perspectives (mandate lens)", ""]
+    L.append(f"*{section['disclaimer']}*")
+    L.append("")
+    if not section["voices"]:
+        L.append(section["empty_reason"])
+        L.append("")
+        return L
+    for v in section["voices"]:
+        md = v["mandate"]
+        L.append(f"**{v['label']}** — published mandate ([{md['source']}]({md['source']}), "
+                 f"retrieved {md['retrieved']}):")
+        L.append(f"> “{md['mission']}”")
+        L.append("")
+        for c in v["citations"]:
+            L.append(f"- {c['text']}")
+            for n in c.get("notes") or []:
+                L.append(f"  - *{n}.*")
+        L.append("")
+    return L
+
+
 def render_zone_block(facts) -> list[str]:
     """V2.2d — the school-zone block: a code-rendered PAIR with NO valence (never
     "increased"/"reduced"; the reader sees both figures), the variation sentence IMMEDIATELY after
@@ -1293,6 +1420,9 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
             L.append(f"> — {q['label']} ({tag})")
             L.append("")
 
+    # V2.3c — the institutional section (code-rendered; None on pre-0.9.0 artifacts → nothing)
+    L.extend(render_institutional_md(build_institutional_section(facts)))
+
     if dfacts is not None and discourse is not None:
         L.extend(render_discourse_md(dfacts, discourse))
 
@@ -1435,6 +1565,10 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     mode_of = {p.id: p.mode for p in personas_mod.load_personas()}
     buckets: dict[str, list] = {b: [] for b in BUCKET_ORDER}
     for a in artifact.agents:
+        if a.grounding == "mandate":
+            continue  # V2.3c: institutional voices are code-rendered — their digit-bearing comments
+            # must never enter the slot_synthesis LLM prompts, and institutions are never
+            # synthesized as "community" (they get their own code-rendered section).
         buckets[_bucket_of(a, mode_of)].append(a)
 
     audit_log: list[dict] = []
@@ -1489,6 +1623,8 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
                 "groups": [{"key": bk, "label": BUCKET_LABEL[bk], **syntheses[bk]}
                            for bk in BUCKET_ORDER if bk in syntheses],
             },
+            # V2.3c — code-rendered; None on pre-0.9.0 artifacts (the web view renders nothing)
+            "institutional": build_institutional_section(facts),
             "discourse": ({"synthesis": discourse["synthesis"], "quotes": discourse["quotes"],
                            "cascade_ids": dfacts["cascade_ids"], "reach": dfacts["reach"],
                            "dominant": dfacts["dominant"], "diverge": dfacts["diverge"],

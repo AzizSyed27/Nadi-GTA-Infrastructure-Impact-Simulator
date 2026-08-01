@@ -101,7 +101,14 @@ def build_nodes(artifact) -> list[dict]:
 
     nodes: list[dict] = []
     seen_inferred: set[str] = set()
+    mandate_excluded = 0
     for a in artifact.agents:
+        if a.grounding == "mandate":
+            # V2.3c — institutions NEVER seed cascades: their code-composed comments carry digits
+            # (the cascade audit forbids them) and institutions don't argue on social feeds. Counted
+            # so the exclusion is visible, never silent.
+            mandate_excluded += 1
+            continue
         aid = agent_id_of(a)
         if a.grounding == "inferred":
             if a.persona.id in seen_inferred:
@@ -123,6 +130,9 @@ def build_nodes(artifact) -> list[dict]:
         node["row"] = i
     ids = [n["agent_id"] for n in nodes]
     assert len(ids) == len(set(ids)), "agentId collision among graph nodes — keys must be unique"
+    if mandate_excluded:
+        print(f"[graph] {mandate_excluded} mandate-grounded institutional voice(s) excluded from "
+              "the social graph (institutions never seed cascades)")
     return nodes
 
 

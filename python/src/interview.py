@@ -140,6 +140,29 @@ INTERVIEW_CONSTITUTION = (
 )
 
 
+# V2.3c — the institutional (mandate) interview constitution: NOT role-play. These are REAL
+# organizations — the answers present a mandate-lens reading by this tool, never the institution
+# speaking. First person is forbidden (the _FIRST_PERSON guard backs this up).
+INSTITUTION_CONSTITUTION = (
+    "You are presenting how a REAL institution's PUBLISHED mandate reads against facts computed by a "
+    "city-planning preview run. You are NOT the institution and must NEVER speak as it — always third "
+    "person ('the mandate prioritizes…', 'read against the mandate, the run computed…'); the words "
+    "we/our/us are forbidden. 1-3 plain sentences. HARD RULES you must always follow:\n"
+    "  1. Say ONLY two kinds of things: what the published mandate (quoted below, with its source) "
+    "prioritizes, and what THIS run computed (the cited facts below). Nothing else exists.\n"
+    "  2. NO digits or numbers — give rough amounts in words; the exact figures are shown beside this "
+    "chat with their caveats.\n"
+    "  3. NEVER make operational claims — dispatch, deployment, staffing, coverage, or response-time "
+    "commitments. The tool computed only a FREE-FLOW route estimate (not a dispatch model, a lower "
+    "bound); if asked an operational question, refuse and name that limitation.\n"
+    "  4. NEVER say the change made things safer or more dangerous; no crash/collision/injury talk — "
+    "the run measures surrogate signals only.\n"
+    "  5. If asked what the city should do or how many support the change — that is not the mandate's "
+    "or this tool's call; say so plainly. Never a verdict, recommendation, or headcount.\n"
+    "  6. Do NOT invent specifics not provided.\n\n"
+)
+
+
 def persona_description(persona_id: str) -> str | None:
     """Re-hydrate the rich persona description (the wire trims persona to {id,label}). None on roster
     drift — the interview degrades to label-only grounding, never a 500."""
@@ -166,6 +189,25 @@ def build_grounding(agent: dict, ctx: RunContext) -> str:
             f'Earlier, reacting to this change, you said: "{reaction["comment"]}" '
             f"(your stance: {reaction.get('stance', 'neutral')}). Stay consistent with that person.\n\n"
         )
+    if agent.get("grounding") == "mandate":
+        # V2.3c — the mandate branch MUST precede the inferred fallback: the grounding is the sourced
+        # mandate + THIS agent's citations verbatim, nothing else (the leakage guarantee holds — one
+        # agent's fields only).
+        md = agent.get("mandate") or {}
+        cites = agent.get("citations") or []
+        lines = [
+            f"THE INSTITUTION: {md.get('institution', persona.get('label', ''))}.",
+            f"PUBLISHED MANDATE (source {md.get('source', 'unknown')}, retrieved "
+            f"{md.get('retrieved', 'unknown')}): \"{md.get('mission', '')}\"",
+            "",
+            "THE FACTS THIS RUN COMPUTED (the ONLY figures that exist — each with the caveats that "
+            "must ride along):",
+        ]
+        for c in cites:
+            lines.append(f"- ({c.get('key')}) {c.get('text')}")
+            for n in c.get("notes") or []:
+                lines.append(f"  - caveat: {n}.")
+        return f"{change}\n\n" + "\n".join(lines)
     if agent.get("grounding", "sim") == "sim" and agent.get("outcome"):
         basis = (
             reactions._sim_suffix(agent["outcome"])  # renders the trip minutes into the PROMPT (guard audits output only)
@@ -186,7 +228,15 @@ def build_grounding(agent: dict, ctx: RunContext) -> str:
 
 def build_system(agent: dict, ctx: RunContext) -> str:
     """System prompt: constitution + grounding + reply-shape. Invariant across an interview's turns
-    (the transcript rides the user message) → DeepSeek prefix-cache hits."""
+    (the transcript rides the user message) → DeepSeek prefix-cache hits. Mandate agents get the
+    institutional constitution (third person, mandate+facts only, operational refusal)."""
+    if agent.get("grounding") == "mandate":
+        return (
+            INSTITUTION_CONSTITUTION
+            + build_grounding(agent, ctx)
+            + "\n\n"
+            + report._json_instr('{"text": "<your answer, 1-3 plain sentences, THIRD person, NO digits>"}')
+        )
     return (
         INTERVIEW_CONSTITUTION
         + build_grounding(agent, ctx)
@@ -235,16 +285,39 @@ _VERDICT = re.compile(
 )
 
 
-def audit_interview(text: str) -> list[tuple[str, str]]:
+# V2.3c — MANDATE-interview-only rules. _OPERATIONAL = operational claims the tool didn't compute
+# (dispatch/deployment/coverage/response-time commitments — the run has only a free-flow route
+# estimate). Kept narrow (subject + modal + operational verb); false positives degrade to the
+# refusal, which is the guard-is-floor rule working. _FIRST_PERSON backs the impersonation rule:
+# mandate answers are third person ALWAYS — "we/our/us" reads as the real institution speaking.
+_OPERATIONAL = re.compile(
+    r"\b(?:we|they|the\s+(?:service|department|division|board|city)|crews?|units?|trucks?|engines?)\s+"
+    r"(?:would|will|could|can|are\s+going\s+to)\s+"
+    r"(?:dispatch|deploy|send|respond|arrive|staff|cover|reroute)\b"
+    r"|\bresponse\s+times?\s+(?:is|are|was|were|would\s+be|will\s+be)\b"
+    r"|\bwithin\s+\w+\s+minutes?\b",
+    re.I,
+)
+_FIRST_PERSON = re.compile(r"\b(?:we|our|us)\b", re.I)
+
+
+def audit_interview(text: str, grounding: str = "sim") -> list[tuple[str, str]]:
     """report.audit_prose (smuggle-proof since the clause-bounded _strip_disclaimers hoist — a
     compound sentence pairing a disclaimer with a real claim is re-checked on its remainder) + the
     interview-specific verdict rule, applied through the SAME disclaimer strip so a refusal may
-    still name the thing it refuses. Empty = clean."""
+    still name the thing it refuses. Mandate interviews additionally get the operational-claim and
+    first-person rules (keyed on the SERVER-loaded agent's grounding, never client input).
+    Empty = clean."""
     viol = report.audit_prose(text)
     for s in report._sentences(text):
         t = report._strip_disclaimers(s) if report._ALLOW.search(s) else s
         if _VERDICT.search(t):
             viol.append(("verdict", s))
+        if grounding == "mandate":
+            if _OPERATIONAL.search(t):
+                viol.append(("operational", s))
+            if _FIRST_PERSON.search(t):
+                viol.append(("first_person", s))
     seen: set[tuple[str, str]] = set()
     out: list[tuple[str, str]] = []
     for v in viol:
@@ -264,10 +337,19 @@ INFERRED_REFUSAL = (
     "I can only speak from where I stand — I wasn't one of the measured trips. "
     "Ask me what this would mean for someone like me."
 )
+# Third person, digit-free, names the free-flow limitation — the operational-question refusal.
+INSTITUTION_REFUSAL = (
+    "This tool can only speak to the institution's published mandate and the figures this run "
+    "computed — free-flow route estimates, not dispatch or operations. Operational questions "
+    "belong to the institution itself."
+)
 
 
 def refusal_for(agent: dict) -> str:
-    return SIM_REFUSAL if agent.get("grounding", "sim") == "sim" else INFERRED_REFUSAL
+    g = agent.get("grounding", "sim")
+    if g == "mandate":
+        return INSTITUTION_REFUSAL
+    return SIM_REFUSAL if g == "sim" else INFERRED_REFUSAL
 
 
 # ===================================================================================================
@@ -281,6 +363,7 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     hard-crashes: LLM exceptions return the refusal with audit.status='error'."""
     system = build_system(agent, ctx)
     user = build_user(question, transcript)
+    grounding = agent.get("grounding", "sim")  # SERVER-loaded, never client input — the guard key
     try:
         obj = await report._call(client, system, user, report._TextWire, temperature=0.8)
     except Exception as e:  # noqa: BLE001 — provider SDK errors vary
@@ -288,15 +371,17 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     text = obj["text"].strip()
     if not text:  # a degenerate empty answer must not render as a blank clean bubble
         return refusal_for(agent), {"status": "error", "detail": "empty answer"}
-    v1 = audit_interview(text)
+    v1 = audit_interview(text, grounding)
     if not v1:
         return text, {"status": "clean", "violations": []}
 
     quoted = "; ".join(f'"{s}" (rule: {r})' for r, s in v1)
+    extra = (" For an institutional answer: also no we/our/us (third person only) and no "
+             "dispatch/deployment/response-time claims." if grounding == "mandate" else "")
     retry = (
         user + "\n\nYOUR PREVIOUS ANSWER BROKE THE RULES — it contained: " + quoted + ". Rewrite it "
         "in character WITHOUT any of those: no digits, no safer/more-dangerous claims, no vote/tally "
-        "words, no crash/injury words, no telling the city what to do."
+        "words, no crash/injury words, no telling the city what to do." + extra
     )
     caught = [{"rule": r, "sentence": s} for r, s in v1]
     try:
@@ -306,7 +391,7 @@ async def answer(client, ctx: RunContext, agent: dict, question: str,
     text2 = obj["text"].strip()
     if not text2:
         return refusal_for(agent), {"status": "error", "detail": "empty answer", "violations": caught}
-    v2 = audit_interview(text2)
+    v2 = audit_interview(text2, grounding)
     if v2:
         return refusal_for(agent), {
             "status": "failed",

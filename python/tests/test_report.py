@@ -21,7 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
 import report  # noqa: E402
 from contract_models import (  # noqa: E402
-    Change, Meta, Scenario, Scorecard, ScorecardCell, ScorecardGroup, TrajectoryArtifact, Vehicle,
+    Agent, Change, Citation, Mandate, Meta, Persona, Reaction, Scenario, Scorecard, ScorecardCell,
+    ScorecardGroup, TrajectoryArtifact, Vehicle,
 )
 
 RUNS_DIR = REPO_ROOT / "contract" / "runs"
@@ -456,3 +457,127 @@ def test_spread_sample_is_bounded_and_sorted():
     sentiments = [a.reaction.sentiment for a in out]
     assert sentiments == sorted(sentiments)  # spans worst→best in order
     assert sentiments[0] == -0.9 and sentiments[-1] == 0.9  # includes the extremes
+
+
+# --------------------------------------------------------------------------------------------------
+# V2.3c — institutional voices: the facts-gated speaking set (REQUIRED-iff both ways), citation
+# recompute pins, mission byte-identity, section gating (pre-0.9.0 renders NOTHING), the caveat.
+# --------------------------------------------------------------------------------------------------
+
+def _tfs_agent():
+    import institutions
+
+    entry = next(e for e in institutions.load_roster() if e["id"] == "tfs")
+    rd = _detour_outcomes()["response_detour"]
+    cites = institutions.compose_citations(entry, {"response_detour": rd})
+    return Agent(grounding="mandate",
+                 persona=Persona(id="tfs", label="Toronto Fire Services"),
+                 reaction=institutions.compose_reaction(entry, cites),
+                 mandate=Mandate(**entry["mandate"]),
+                 citations=[Citation(**c) for c in cites])
+
+
+def _detour_outcomes() -> dict:
+    import response_probe
+
+    out = _outcomes()
+    out["response_detour"] = {
+        "framing": response_probe.FRAMING,
+        "lower_bound_note": response_probe.LOWER_BOUND_NOTE,
+        "origins_note": "probe origins are Toronto Fire Services station locations (Toronto Open "
+                        "Data, retrieved 2026-07-25); routes are computed from every station and do "
+                        "not indicate which station would respond",
+        "destination_edge": "E9", "destination_note": "n",
+        "probes": [{"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "E1",
+                    "baseline_s": 57.0, "scenario_s": 105.7, "added_s": 48.7}],
+    }
+    return out
+
+
+def _institutional_artifact() -> TrajectoryArtifact:
+    art = _artifact()
+    return TrajectoryArtifact(schema_version="0.9.0", meta=art.meta, vehicles=art.vehicles,
+                              scorecard=art.scorecard, agents=[_tfs_agent()])
+
+
+def test_institutional_verify_passes_and_required_iff_both_ways():
+    art, out = _institutional_artifact(), _detour_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    assert [v["id"] for v in facts["institutional"]] == ["tfs"]
+    report.verify_facts(facts, art, out)  # gated set matches -> must not raise
+
+    # ABSENT-when-owed: drop the voice while the sidecar still grants standing
+    facts2 = report.gather_facts(art, out, verdict=None)
+    facts2["institutional"] = []
+    with pytest.raises(AssertionError, match="speaking set"):
+        report.verify_facts(facts2, art, out)
+
+    # PRESENT-when-forbidden: a quiet sidecar (no detour fact) must silence TFS
+    out3 = _outcomes()
+    facts3 = report.gather_facts(art, out3, verdict=None)
+    with pytest.raises(AssertionError, match="speaking set"):
+        report.verify_facts(facts3, art, out3)
+
+
+def test_institutional_verify_catches_doctored_citation_and_mission():
+    art, out = _institutional_artifact(), _detour_outcomes()
+
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["institutional"][0]["citations"][0]["text"] = "worst of 1 fire stations +12.0 s added"
+    with pytest.raises(AssertionError, match="worst-station"):
+        report.verify_facts(facts, art, out)
+
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["institutional"][0]["citations"][0]["notes"] = ["only one note, nothing riding"]
+    with pytest.raises(AssertionError, match="framing sentence|lower-bound sentence"):
+        report.verify_facts(facts, art, out)
+
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["institutional"][0]["mandate"]["mission"] = "Protecting Toronto since 1874."
+    with pytest.raises(AssertionError, match="paraphrase is misrepresentation"):
+        report.verify_facts(facts, art, out)
+
+
+def test_institutional_section_gating_pre_0_9_0_renders_nothing():
+    # pre-0.9.0 facts (the unwindowed-golden shape): no section, no empty-state, no markdown lines
+    art, out = _artifact(), _outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    assert facts["institutional"] == []
+    assert report.build_institutional_section(facts) is None
+    assert report.render_institutional_md(None) == []
+
+    # a 0.9.0 run with agents but NO standing -> the honest empty state
+    art9 = TrajectoryArtifact(schema_version="0.9.0", meta=art.meta, vehicles=art.vehicles,
+                              scorecard=art.scorecard,
+                              agents=[Agent(grounding="inferred",
+                                            persona=Persona(id="taxpayer", label="Taxpayer"),
+                                            reaction=Reaction(comment="c", sentiment=0.0,
+                                                              stance="neutral"))])
+    facts9 = report.gather_facts(art9, out, verdict=None)
+    section = report.build_institutional_section(facts9)
+    assert section is not None and section["voices"] == []
+    assert "this run computed none" in section["empty_reason"]
+    md = report.render_institutional_md(section)
+    assert any("Institutional perspectives (mandate lens)" in ln for ln in md)
+    assert any("not a school-zone run" in ln for ln in md)
+
+
+def test_institutional_caveat_present_iff_voices():
+    art, out = _institutional_artifact(), _detour_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    caveats = report.build_caveats(facts)
+    assert any("not statements by, from, or on behalf" in c["body"] for c in caveats)
+    lean = report.build_caveats(report.gather_facts(_artifact(), _outcomes(), verdict=None))
+    assert not any("on behalf" in c["body"] for c in lean)
+
+
+def test_institutional_md_renders_mission_verbatim_with_retrieved_date():
+    import institutions
+
+    art, out = _institutional_artifact(), _detour_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    md = "\n".join(report.render_institutional_md(report.build_institutional_section(facts)))
+    entry = next(e for e in institutions.load_roster() if e["id"] == "tfs")
+    assert entry["mandate"]["mission"] in md  # verbatim, uncut
+    assert f"retrieved {entry['mandate']['retrieved']}" in md  # the freshness signal renders
+    assert "not a dispatch model" in md and "a lower bound" in md

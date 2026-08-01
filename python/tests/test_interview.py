@@ -277,3 +277,74 @@ def test_find_agent_index_disambiguates_sibling_inferred_voices() -> None:
     assert interview.find_agent(ctx, "missing", 1) is None
     g = interview.build_grounding(s2, ctx)
     assert "SECOND sibling comment" in g and "FIRST sibling comment" not in g
+
+
+# ===================================================================================================
+# V2.3c — mandate (institutional) interviews
+# ===================================================================================================
+
+def _mandate_agent_dict() -> dict:
+    return {
+        "grounding": "mandate",
+        "persona": {"id": "tfs", "label": "Toronto Fire Services"},
+        "reaction": {"comment": "MANDATE_COMMENT_MARKER", "sentiment": 0.0, "stance": "neutral"},
+        "mandate": {"institution": "Toronto Fire Services",
+                    "mission": "MISSION_MARKER protection against loss of life.",
+                    "source": "https://example.toronto.ca/fire", "retrieved": "2026-08-01"},
+        "citations": [{"key": "response_detour",
+                       "text": "worst of 4 fire stations +48.7 s added response-route time",
+                       "notes": ["estimated added response-route time; free-flow routing, not a "
+                                 "dispatch model",
+                                 "free-flow estimate; does not include congestion the incident "
+                                 "induces — a lower bound on added response time"]}],
+    }
+
+
+def test_mandate_grounding_is_mission_plus_citations_only() -> None:
+    a = _sim_agent("pa", "LEAK_A_LABEL", "vehA", 7777.0, 7897.0, "LEAK_MARKER_A")
+    m = _mandate_agent_dict()
+    ctx = interview.RunContext(run_id="r", mtime_ns=0, agents=[a, m], changes=CHANGES,
+                               demand_profile="synthetic_demo", tags=None)
+    system = interview.build_system(m, ctx)
+    assert "MISSION_MARKER protection against loss of life." in system  # mission verbatim
+    assert "worst of 4 fire stations +48.7 s" in system  # the citation text
+    assert "not a dispatch model" in system  # the caveat rides
+    assert "NEVER speak as it" in system  # the institutional constitution, not persona role-play
+    assert "retrieved 2026-08-01" in system  # the freshness signal
+    # leakage: the sim agent's records must not appear in the institution's grounding
+    for marker in ("LEAK_MARKER_A", "LEAK_A_LABEL", "7777"):
+        assert marker not in system
+    # and the sim agent's grounding must not carry the institution's
+    sim_system = interview.build_system(a, ctx)
+    for marker in ("MISSION_MARKER", "worst of 4 fire stations"):
+        assert marker not in sim_system
+
+
+def test_mandate_guard_trips_operational_and_first_person() -> None:
+    assert {r for r, _ in interview.audit_interview(
+        "They would dispatch crews from the nearest station.", "mandate")} >= {"operational"}
+    assert {r for r, _ in interview.audit_interview(
+        "We will send trucks right away.", "mandate")} >= {"operational", "first_person"}
+    assert {r for r, _ in interview.audit_interview(
+        "Response times would be unaffected by this closure.", "mandate")} >= {"operational"}
+    assert {r for r, _ in interview.audit_interview(
+        "Our mandate prioritizes quick arrivals.", "mandate")} == {"first_person"}
+    # the same sentences are NOT institution-audited for persona interviews
+    assert interview.audit_interview("We would love calmer mornings on our street.", "sim") == []
+    assert interview.audit_interview("We would love calmer mornings on our street.", "inferred") == []
+
+
+def test_mandate_guard_licenses_the_honesty_sentence_and_refusal() -> None:
+    # naming the limitation is licensed speech, not an operational claim
+    assert interview.audit_interview(
+        "The run computed a modest added response-route figure under free-flow routing, "
+        "not a dispatch model, and it reads as a lower bound.", "mandate") == []
+    assert interview.audit_interview(interview.INSTITUTION_REFUSAL, "mandate") == []
+    m = _mandate_agent_dict()
+    assert interview.refusal_for(m) == interview.INSTITUTION_REFUSAL
+
+
+def test_find_agent_resolves_mandate_by_persona_id() -> None:
+    m = _mandate_agent_dict()
+    ctx = _ctx([m])
+    assert interview.find_agent(ctx, "tfs") is m

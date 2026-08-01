@@ -257,3 +257,17 @@ def test_ensure_version_for_mandate() -> None:
     art9.schema_version = "0.7.0"
     reactions.ensure_version_for_mandate(art9, [{"grounding": "inferred"}])
     assert art9.schema_version == "0.7.0"  # no mandate records -> untouched
+
+
+def test_mandate_agents_never_seed_the_social_graph() -> None:
+    """V2.3c — institutions never argue on social feeds (and their digit-bearing comments would trip
+    the cascade audit): build_nodes must exclude mandate agents entirely."""
+    import propagation
+    import trajectory_io
+
+    art = trajectory_io.load_artifact(REPO / "web" / "public" / "sample_v0_9_0.json")
+    assert any(a.grounding == "mandate" for a in art.agents)
+    nodes = propagation.build_nodes(art)
+    ids = {n["persona_id"] for n in nodes}
+    assert "tfs" not in ids, "a mandate agent leaked into the social graph"
+    assert {a.persona.id for a in art.agents if a.grounding != "mandate"} == ids

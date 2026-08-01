@@ -85,6 +85,22 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
 
     # --- one doc per agent (voice): persona, group, grounding, stance, outcome summary, verbatim comment ---
     for i, a in enumerate(artifact.agents):
+        if a.grounding == "mandate":
+            # V2.3c — institutions get their OWN doc kind (never a voice__ doc): the sourced mandate,
+            # the citations with their honesty notes, and the not-a-statement disclaimer.
+            md = a.mandate
+            lines = [
+                f"Institutional perspective (mandate lens): {a.persona.label}.",
+                f"Published mandate (source {md.source}, retrieved {md.retrieved}): \"{md.mission}\"",
+            ]
+            for c in a.citations or []:
+                lines.append(f"Computed fact cited ({c.key}): {c.text}")
+                for n in c.notes or []:
+                    lines.append(f"  Note: {n}.")
+            lines.append(report.INSTITUTIONAL_DISCLAIMER)
+            docs.append(_doc(f"institution__{a.persona.id}",
+                             f"Institutional perspective — {a.persona.label}", "\n".join(lines)))
+            continue
         spec = specs.get(a.persona.id)
         group = _group_of(spec, a.grounding)
         glabel = report.GROUP_LABEL.get(group, group)
@@ -307,6 +323,8 @@ def friendly_source(handle: str) -> str:
     kind = parts[0]
     if kind == "voice" and len(parts) >= 2:
         return f"{_persona_labels().get(parts[1], parts[1])} (voice)"
+    if kind == "institution" and len(parts) >= 2:
+        return f"Institutional perspective ({parts[1]}, mandate lens)"
     if kind == "scorecard" and len(parts) >= 2:
         return f"{report.GROUP_LABEL.get(parts[1], parts[1])} scorecard row"
     if kind == "limitation" and len(parts) >= 2:
