@@ -449,6 +449,9 @@ async def smoke_test(client: LLMClient, changes: list[dict], profile: str = "syn
 async def run(instrumented_path: Path) -> Path:
     side = json.loads(instrumented_path.read_text(encoding="utf-8"))
     scenario_run_id = side["scenario_run_id"]
+    # V2.3c closeout — structural guard: this stage REWRITES the run's artifact; the pinned
+    # Playwright/report anchor must never be rewritten by accident. Refuses before any LLM spend.
+    trajectory_io.guard_pinned_enrich(scenario_run_id)
     records = side["instrumented"]
 
     scenario_art = trajectory_io.load_artifact(RUNS_DIR / f"{scenario_run_id}.json")

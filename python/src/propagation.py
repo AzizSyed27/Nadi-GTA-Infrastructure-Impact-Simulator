@@ -714,6 +714,10 @@ def main() -> None:
 
     SCRATCH.mkdir(parents=True, exist_ok=True)
     run_id = args.run_id or json.loads((WEB_PUBLIC / "latest.json").read_text(encoding="utf-8"))["meta"]["run_id"]
+    # V2.3c closeout — structural guard BEFORE the early-return paths: assemble, --recompute-reach
+    # and --reaudit ALL rewrite the artifact in place, and the default-from-latest.json resolution
+    # above is exactly how the pinned anchor could be hit by accident.
+    trajectory_io.guard_pinned_enrich(run_id)
     art_path = RUNS_DIR / f"{run_id}.json"
 
     if args.recompute_reach:

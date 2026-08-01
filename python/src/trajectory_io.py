@@ -8,6 +8,7 @@ authority. The pydantic ``TrajectoryArtifact`` is used for typed construction on
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -20,6 +21,34 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_DIR = _REPO_ROOT / "contract"
 SCHEMA_PATH = CONTRACT_DIR / "trajectory_schema.json"
 RUNS_DIR = CONTRACT_DIR / "runs"
+
+# ---------------------------------------------------------------------------------------------
+# V2.3c closeout — the PINNED-run guard. The Playwright suite + the latest-report singleton are
+# anchored to this exact run's committed 212-agent artifact; a voices or discourse enrich REWRITES
+# the artifact (0.9.0 + institutional voices / regenerated cascades) and the damage surfaces hours
+# later as unexplained spec failures with no obvious cause. The refusal is STRUCTURAL (server 403 +
+# CLI SystemExit) because a doc warning only protects agents that read it. `report` enrich stays
+# allowed — it never touches the artifact and is the documented singleton-maintenance path.
+# ---------------------------------------------------------------------------------------------
+PINNED_RUN_ID = "multimodal-scenario-20260702T044134Z"
+ALLOW_PINNED_ENV = "NADI_ALLOW_PINNED_ENRICH"
+PINNED_REASON = (
+    f"{PINNED_RUN_ID} is the PINNED Playwright/report anchor: a voices or discourse enrich "
+    "REWRITES its artifact (0.9.0 + institutional voices / regenerated cascades) and breaks the "
+    "spec suite + latest-report singleton hours later with no obvious cause. Refusing. For a "
+    f"deliberate re-pin set {ALLOW_PINNED_ENV}=1."
+)
+
+
+def pinned_enrich_blocked(run_id: str) -> bool:
+    """True when an artifact-rewriting enrich targets the pinned run (env escape hatch honored)."""
+    return run_id == PINNED_RUN_ID and not os.environ.get(ALLOW_PINNED_ENV)
+
+
+def guard_pinned_enrich(run_id: str) -> None:
+    """CLI form: refuse an artifact-rewriting enrich of the pinned run LOUDLY, before any work."""
+    if pinned_enrich_blocked(run_id):
+        raise SystemExit(PINNED_REASON)
 
 
 @lru_cache(maxsize=1)

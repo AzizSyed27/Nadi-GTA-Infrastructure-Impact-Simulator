@@ -32,6 +32,7 @@ sys.path.insert(0, str(SRC))  # bare imports work regardless of cwd
 import enrich_events  # noqa: E402
 import interview  # noqa: E402
 import llm_provider  # noqa: E402
+import trajectory_io  # noqa: E402  (the pinned-run enrich guard)
 import network_edit  # noqa: E402  (SUMO junctions + the new_road patch)
 import report  # noqa: E402
 import report_agent  # noqa: E402
@@ -718,6 +719,12 @@ _ENRICH_LABELS = {
 @app.post("/api/runs/{run_id}/enrich")
 async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     """Launch an existing enrich pipeline (voices | report | discourse) against a completed run."""
+    # V2.3c closeout — the STRUCTURAL pinned-run guard, FIRST (it must precede the no-state 404
+    # below or it's dead code): voices/discourse rewrite the artifact; report never does and stays
+    # allowed (the documented singleton-maintenance path). 403 is unused elsewhere in this handler —
+    # a distinct signal. The CLIs carry the same guard (trajectory_io.guard_pinned_enrich).
+    if req.stage in ("voices", "discourse") and trajectory_io.pinned_enrich_blocked(run_id):
+        raise HTTPException(403, trajectory_io.PINNED_REASON)
     st = run_state.read(run_id)
     if st is None:
         raise HTTPException(404, f"no such run {run_id!r}")
