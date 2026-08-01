@@ -111,7 +111,8 @@ honesty sentences riding; the roster (TFS / TDSB / Transportation Services) is F
 no voice, all-zero payloads are not standing, the section says why it's empty), voices are DETERMINISTIC
 (zero LLM calls), excluded from cascades, rendered as a pinned mandate-lens feed block + grounding cards +
 a code-rendered report subsection under verify_facts REQUIRED-iff enforcement, and interviewable third-
-person-only with operational-claim refusal. Suites: **397 pytest + 45 Playwright**. Open threads: **the
+person-only with operational-claim refusal; the pinned Playwright run is STRUCTURALLY guarded against
+artifact-rewriting enriches. Suites: **403 pytest + 45 Playwright**. Open threads: **the
 rest of V2.3 (`docs/v2.3-plan.md`: the two graphs visible side by side)**; then V2.5
 network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand, mandate re-verification).
 
@@ -625,9 +626,13 @@ deterministic; agents stay a preview and institutions are NEVER impersonated).**
   the range forbid (now `not in (…)`, regression-pinned), TS mirror + `sample_v0_9_0.json` + negatives both
   layers. Producer emits 0.9.0; **voices-enrich upgrades a 0.8.0 artifact to 0.9.0 even when NO institution
   speaks** (the honest empty-state gates on 0.9.0 and must be reachable on re-enriched runs); pre-0.8.0
-  re-enriches stay untouched (mandates on one would exit loudly). **NEVER re-enrich the pinned Playwright run
-  `multimodal-scenario-20260702T044134Z`** — any voices enrich now rewrites it at 0.9.0 with institutions and
-  breaks the spec + latest-report singleton anchoring.
+  re-enriches stay untouched (mandates on one would exit loudly). **The pinned Playwright run
+  `multimodal-scenario-20260702T044134Z` is STRUCTURALLY guarded** (V2.3c closeout): a voices/discourse enrich
+  rewrites the artifact and breaks the spec + latest-report anchoring hours later — the server 403s it (before
+  the no-state 404), and `reactions.py`/`propagation.py` SystemExit before any spend
+  (`trajectory_io.PINNED_RUN_ID` / `guard_pinned_enrich`; deliberate re-pin only via
+  `NADI_ALLOW_PINNED_ENRICH=1`, named in the refusal). `report` enrich stays allowed — it never touches the
+  artifact and is the documented singleton-maintenance path.
 - **The roster (`python/src/institutions.json` + `institutions.py`):** TFS / TDSB / City of Toronto
   Transportation Services (TTC deferred — nothing sim-grounded to stand on). Missions are VERBATIM quotes of
   the live pages (researched 2026-08-01, url + retrieval date in `_provenance`) — **byte-identity-pinned
@@ -671,6 +676,15 @@ deterministic; agents stay a preview and institutions are NEVER impersonated).**
   stayed at its version (legacy path). Live TFS interview: "how many trucks would you dispatch?" →
   third-person refusal naming the free-flow limitation, clean first pass. Streaming: 214 total ticked live,
   institutional rows in the ticker + the pinned feed block + grounding card verified in the real UI.
+- **The NONZERO station-set detour, end to end (the closeout loose end):** a windowed road_closure on
+  `-36784353#20` (station 231's own origin edge — "the doorstep"; run `…0801T180640Z`) produced the phase's
+  headline sentence on a REAL artifact: **"1 of 4 fire stations unreachable during the window; worst of the
+  reachable +29.1 s added response-route time (232 +10.2 s; 234 +29.1 s; 243 +2.7 s; unreachable: Fire
+  Station 231 (740 Markham Rd))"** with all three honesty notes riding — the first time the 2.2b number, the
+  V2.2d station set, and the institutional voice met on one run (every earlier live citation spoke honest
+  zeros from retired corridor-entry probes). The repro also caught the composer silently DROPPING unreachable
+  rows while counting them ("worst of 4" listing 3) — fixed: unreachable origins are counted honestly and
+  NAMED (mixed + all-unreachable shapes pinned; verify_facts recomputes the unreachable count verify-side).
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
@@ -745,7 +759,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (397 tests: golden spine + contract 0.6.0–0.9.0 sections +
+- **Tests:** `python -m pytest python/tests` (403 tests: golden spine + contract 0.6.0–0.9.0 sections +
   seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
   sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c institutions
   roster/gating/composition/verify sections) and `cd web && npx playwright test`
