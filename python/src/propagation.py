@@ -776,6 +776,17 @@ def main() -> None:
                                      post_count=d["post_count"]) for d in diag)
 
     assemble_stats = assemble(artifact, run_id, edges, nodes, parsed_by_cascade, trajectories, reaches)
+
+    # V2.3d — refresh the OASIS half of the graphs sidecar (soft-fail: the social{} write above
+    # already succeeded; a layout failure must not invite re-paying a ~$1.16 discourse run)
+    try:
+        import graph_export
+
+        graph_export.export_for_run(run_id, halves=("oasis",))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[propagation] graphs sidecar export FAILED ({exc}) — backfill: "
+              f"python python/src/graph_export.py --run-id {run_id}", flush=True)
+
     report(cascade_raws, client.usage, graph_stats, assemble_stats, trajectories, reach_diag, nodes)
 
     if args.cascades == 1:

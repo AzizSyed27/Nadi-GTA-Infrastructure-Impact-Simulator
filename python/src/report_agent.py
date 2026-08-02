@@ -462,6 +462,18 @@ def build_index(run_id: str | None = None, rebuild: bool = False) -> tuple[Path,
 
     asyncio.run(run())
     print(f"[report_agent] done — {len(docs)} docs indexed at {wd}")
+
+    # V2.3d — refresh the ENTITY half of the graphs sidecar from the just-built graphml (soft-fail:
+    # the index itself is complete; a layout failure must not fail the report enrich). Covers both
+    # the server report-enrich and CLI rebuilds.
+    try:
+        import graph_export
+
+        graph_export.export_for_run(artifact.meta.run_id, halves=("entity",))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[report_agent] graphs sidecar export FAILED ({exc}) — backfill: "
+              f"python python/src/graph_export.py --run-id {artifact.meta.run_id}", flush=True)
+
     return wd, len(docs)
 
 
