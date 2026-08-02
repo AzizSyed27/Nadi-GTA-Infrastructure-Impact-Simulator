@@ -18,6 +18,7 @@ import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
+import { GraphSplitView, type GraphsSidecar } from '@/components/GraphSplitView';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -152,7 +153,7 @@ export default function MapView() {
   const [showReport, setShowReport] = useState(false); // full-screen Report view (toggled from the map)
   // playback ⇄ discourse ⇄ edit ⇄ compare. `?compare=` deep-links straight into compare mode — read in
   // the initializer (hydration-safe: the pre-artifact shell renders identically whatever the mode).
-  const [mode, setMode] = useState<'playback' | 'discourse' | 'edit' | 'compare'>(() =>
+  const [mode, setMode] = useState<'playback' | 'discourse' | 'edit' | 'compare' | 'graphs'>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare')
       ? 'compare'
       : 'playback',
@@ -326,6 +327,43 @@ export default function MapView() {
       cancelled = true;
     };
   }, [artifact, networkLookup]);
+
+  // V2.3d — the graphs sidecar (positions precomputed server-side), fetched LAZILY on graphs-mode
+  // entry (the changeGeom pattern: runId-tagged state + cancelled guard + error flag). A 404 is the
+  // honest "no layouts exported for this run yet" state — GraphSplitView renders it labeled.
+  const [graphsSidecar, setGraphsSidecar] = useState<{
+    runId: string;
+    data: GraphsSidecar | null;
+    loading: boolean;
+    error: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (mode !== 'graphs' || !artifact) return;
+    const runId = artifact.meta.run_id;
+    if (graphsSidecar?.runId === runId && !graphsSidecar.loading) return; // already fetched for this run
+    let cancelled = false;
+    setGraphsSidecar({ runId, data: null, loading: true, error: false });
+    (async () => {
+      try {
+        const r = await fetch(`/${runId}-graphs.json`, { cache: 'no-store' });
+        if (!r.ok) {
+          if (!cancelled) setGraphsSidecar({ runId, data: null, loading: false, error: true });
+          return;
+        }
+        const data = (await r.json()) as GraphsSidecar;
+        if (!cancelled) {
+          // stale-pick guard: only accept the sidecar for the run it claims
+          setGraphsSidecar({ runId, data: data.run_id === runId ? data : null, loading: false, error: data.run_id !== runId });
+        }
+      } catch {
+        if (!cancelled) setGraphsSidecar({ runId, data: null, loading: false, error: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, artifact?.meta.run_id]);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
@@ -1025,6 +1063,8 @@ export default function MapView() {
 
   // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
   const effectiveMode = mode === 'discourse' && socialIds.length === 0 ? 'playback' : mode;
+  // V2.3d — the two full-sheet modes occlude the map, so the map chrome hides for both
+  const sheetMode = effectiveMode === 'compare' || effectiveMode === 'graphs';
 
   // 5.3 CHANGE-VISIBILITY overlay (persistent, ALL modes) — the loaded run's change LOCATION so rerouting cars
   // don't appear to drive through empty space. Derived from the artifact (via the geometry fetch), NOT draw-state.
@@ -1187,13 +1227,13 @@ export default function MapView() {
         />
       </Map>
 
-      {/* Map chrome (header / sample note / change legend) belongs to the MAP — hidden while the
-          compare sheet covers it (the sheet carries its own per-side provenance instead). */}
-      {effectiveMode !== 'compare' && <ScenarioHeader scenario={meta.scenario} />}
+      {/* Map chrome (header / sample note / change legend) belongs to the MAP — hidden while a
+          full SHEET covers it (compare and the V2.3d graph split-view both occlude the map). */}
+      {!sheetMode && <ScenarioHeader scenario={meta.scenario} />}
 
       {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
           fewer dots than the simulated population must never read as the population itself. */}
-      {effectiveMode !== 'compare' && meta.render_sample && (
+      {!sheetMode && meta.render_sample && (
         <div style={renderSampleNote} data-testid="render-sample-note">
           rendering {meta.render_sample.rendered_vehicles.toLocaleString()} of{' '}
           {meta.render_sample.total_vehicles.toLocaleString()} vehicles ·{' '}
@@ -1206,7 +1246,7 @@ export default function MapView() {
 
       {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
           v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
-      {effectiveMode !== 'compare' && changeGeom?.runId === meta.run_id && (
+      {!sheetMode && changeGeom?.runId === meta.run_id && (
         overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
             {overlayItems.length === 1 && CAPACITY_TYPES.has(overlayItems[0].type) ? (
@@ -1282,6 +1322,15 @@ export default function MapView() {
           data-testid="mode-compare"
         >
           ⇄ Compare
+        </button>
+        {/* V2.3d — NEVER disabled (unlike discourse): the split-view degrades per panel with
+            honest empty states, so it is enterable on any loaded run. */}
+        <button
+          style={{ ...modeBtn, ...(effectiveMode === 'graphs' ? modeBtnActive : null) }}
+          onClick={() => setMode('graphs')}
+          data-testid="mode-graphs"
+        >
+          🕸 Graphs
         </button>
       </div>
 
@@ -1391,6 +1440,13 @@ export default function MapView() {
             vehicleCount={artifact.vehicles.length}
           />
         </>
+      ) : effectiveMode === 'graphs' ? (
+        // V2.3d — the two graphs, visibly two graphs (a full sheet; Timeline unmounted → rAF stops)
+        <GraphSplitView
+          graphs={graphsSidecar?.runId === meta.run_id ? graphsSidecar.data : null}
+          loading={graphsSidecar?.runId === meta.run_id ? graphsSidecar.loading : true}
+          error={graphsSidecar?.runId === meta.run_id ? graphsSidecar.error : false}
+        />
       ) : effectiveMode === 'compare' ? (
         // V2.1d part ii — the sheet occludes the (static) map; Timeline is unmounted so playback's
         // rAF loop stops for free. Picks live in MapView state and survive mode switches.
