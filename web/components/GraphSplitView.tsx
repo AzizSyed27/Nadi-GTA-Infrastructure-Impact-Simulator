@@ -142,7 +142,9 @@ function DeckPanel({
       canvas,
       views: new OrthographicView({ flipY: true }),
       controller: true,
-      initialViewState: { target: [bounds.cx, bounds.cy, 0], zoom: Math.max(-6, Math.min(6, zoom)) },
+      // clamp [-8, 10]: the OASIS spring layout lives in [-1, 1] (fit zoom ≈ 8) while the entity
+      // shelf-pack spans thousands of units (fit ≈ 0) — a [-6, 6] clamp blob-ified the OASIS panel
+      initialViewState: { target: [bounds.cx, bounds.cy, 0], zoom: Math.max(-8, Math.min(10, zoom)) },
       layers,
     });
     deckRef.current = deck;
