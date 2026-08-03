@@ -112,9 +112,19 @@ no voice, all-zero payloads are not standing, the section says why it's empty), 
 (zero LLM calls), excluded from cascades, rendered as a pinned mandate-lens feed block + grounding cards +
 a code-rendered report subsection under verify_facts REQUIRED-iff enforcement, and interviewable third-
 person-only with operational-claim refusal; the pinned Playwright run is STRUCTURALLY guarded against
-artifact-rewriting enriches. Suites: **403 pytest + 45 Playwright**. Open threads: **the
-rest of V2.3 (`docs/v2.3-plan.md`: the two graphs visible side by side)**; then V2.5
-network styling + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand, mandate re-verification).
+artifact-rewriting enriches. **V2.3d (the graph split-view) is COMPLETE — V2.3 IS CLOSED**: 🕸 Graphs
+renders the project's two graphs side by side, visibly two graphs (OASIS "who influences whom" vs
+GraphRAG "what the report's chat agent knows"; the one-liner says they differ on purpose) — positions
+precomputed server-side (`graph_export.py`, read-only by design, networkx spring seed 42, per-component
+shelf packing), sidecar `contract/runs/graphs-<ts>.json` + `web/public/<run_id>-graphs.json` refreshed
+half-wise by the discourse/report enriches (soft-fail → backfill CLI), influence connectors DASHED and
+separate from follow edges (only ~6% coincide — the exposure note says so), exclusion rings surface
+withheld-posts METADATA (rules on hover, never content), entity staleness legible three ways
+(fresh / stale note / unknowable), referendum guard extended (uniform node size, group-not-stance
+colors, GRAPHS_BANNED), per-panel labeled degradation naming enrich + backfill, and the coverage gap
+attributed honestly (institutional exclusion ≠ sibling-dedup). Suites: **419 pytest + 53 Playwright**.
+Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand,
+mandate re-verification).
 
 **Phase 1 — COMPLETE.** On top of the Phase-0 spine: a two-run baseline-vs-scenario harness (apply a
 parameterized change, e.g. a speed limit, to one corridor edge), a per-vehicle outcome join, a sampler
@@ -686,6 +696,61 @@ deterministic; agents stay a preview and institutions are NEVER impersonated).**
   rows while counting them ("worst of 4" listing 3) — fixed: unreachable origins are counted honestly and
   NAMED (mixed + all-unreachable shapes pinned; verify_facts recomputes the unreachable count verify-side).
 
+**V2.3 Step d — the GRAPH SPLIT-VIEW — COMPLETE (V2.3 closed; no contract change — the sidecar is
+off-contract like the report JSON).**
+- **Exporter (`python/src/graph_export.py`, READ-ONLY by design — no pinned guard because it never
+  touches the artifact; byte-pin test proves it):** OASIS half from `propagation.build_nodes` (SUMO-free;
+  NEVER import build_graph) + the wire `social.graph.edges` + influence pairs from `influenced_by`
+  (nodes-only) + per-agent exclusion METADATA `{count, rules}` (content never read into any output) +
+  `nx.spring_layout(seed=42)`; entity half from the SERVED chat index's graphml (98 components / 64
+  isolates → per-component spring + shelf packing with the honest "packed side by side, not force-laid
+  into false adjacency" note; `<SEP>`-multivalued `file_path` split/dedup → `sources[:3]` +
+  `source_count`). Sidecar naming `graphs-<ts>.json` NEVER matches the three `multimodal-scenario-*`
+  artifact-discovery globs (fnmatch-pinned); web copy needs the `.gitignore` NEGATION for the pinned run
+  (verified with plain `git check-ignore` exit 1 — `-v` prints negated matches and reads ambiguous).
+  MERGE semantics: each enrich refreshes its half, preserving the other. IDEMPOTENT writes: identical
+  content preserves `generated_at` (byte-identical), so pinned-run index maintenance never dirties the
+  tree. Coverage carries `mandate_excluded` so the agents-vs-nodes gap is attributed honestly
+  (institutions never enter cascades ≠ sibling-dedup — review-caught misattribution). Entity staleness
+  legible THREE ways (unit-pinned): fresh (no note) / graphml predates the artifact (verbatim stale
+  note) / mtime missing-or-nonsensical (`index_built_at: null` + the unknowable note — a clobbered
+  mtime must never silently render "fresh").
+- **Producer wiring (soft-fail both sites):** `propagation.main` after `assemble` refreshes oasis;
+  `report_agent.build_index` after indexing refreshes entity; failures print the backfill CLI
+  (`python python/src/graph_export.py --run-id <id>`, EXPLICIT id — no newest-run default), never
+  re-invite a paid enrich. Deferred imports keep graph_export's dependencies acyclic.
+- **Frontend (`GraphSplitView.tsx`; MapView mode `'graphs'`, 🕸 NEVER disabled):** two standalone
+  imperative Decks under `OrthographicView({flipY: true})` on plain canvases (construct-once per
+  bounds + `setProps`; a `position:relative` sized wrapper is REQUIRED — Deck repositions raw
+  canvases; fit zoom = log2(min(w/bw, h/bh)) clamped **[-8, 10]** — the OASIS spring domain is
+  [-1, 1] (fit ≈ 8) vs the entity shelf-pack's thousands of units (fit ≈ 0); a [-6, 6] clamp
+  blob-ified OASIS, caught only by the live screenshot walk — seam counts can't see zoom).
+  HONESTY RAILS: uniform node radius (degree sizing = a visual centrality leaderboard), group/type
+  colors never stance, influence = dashed PathLayer + PathStyleExtension DISTINCT from follow-edge
+  LineLayer, exclusion rings + hover "{n} post(s) withheld by the honesty audit: {rules}" (never
+  content), `sheetMode = compare || graphs` hides map chrome, per-panel empty states name BOTH
+  recovery paths, `stale_note` renders prominently + `index_built_at` always. Lazy sidecar fetch
+  with functional-setter acceptance (an effect-cleanup `cancelled` flag would suppress the refetch
+  its own rerun triggers); `loadRun` clears the cache so a just-enriched run refetches instead of
+  keeping a sticky 404; `activeCascade` membership-checks against the loaded data. Seams
+  `__nadiGraphs` (counts mirror) + `__nadiGraphsHover` (calls the REAL handlers).
+- **Tests:** `test_graph_export.py` ×13 (determinism, read-only byte pin, sentinel-leak, merge both
+  orders, packing disjointness, `<SEP>`/truncate, three-branch staleness, naming fnmatch, GRAPHS_BANNED
+  over the sidecar text, mandate excluded-and-counted, idempotent byte-equality, phantom-edge filter) +
+  `test_graphs_fixture.py` ×3 (OASIS half recompute-EQUALS the committed sidecar from the committed
+  pinned artifact; entity presence+sanity only — the index lives outside the repo; excluded-content
+  sweep) + `graphs.spec.ts` ×8 (headers/one-liner verbatim, cascade switch changes connectors while
+  follow edges stay, exclusion hover rules + sentinel absent, empty states ×3 naming both paths,
+  BANNED/STANCE_TALLY/GRAPHS_BANNED sweep, canvas===2, and the pinned NO-ROUTES smoke asserting the
+  committed sidecar's EXACT node count read at runtime — the silent-never-landed catcher).
+- **Accepted live (pinned run):** both graphs rendered (OASIS 205 nodes / 724 follow edges / 42
+  exclusion-marked; entity 1328 nodes / 2378 edges, index fresh); cascade c1→c2 flipped connectors
+  491→554 with follow edges constant; exclusion tooltip gave rules only; fresh no-sidecar run showed
+  the labeled missing state verbatim. The entity-only mixed state is spec-only for now: every
+  non-pinned index is ARCHIVED (the newest-index alignment practice), and an archived index is
+  correctly NOT "the currently served chat index" — the exporter's absent-entity verdict on run
+  `…0725T030121Z` was the honest behavior, not a gap.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -759,12 +824,13 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (403 tests: golden spine + contract 0.6.0–0.9.0 sections +
+- **Tests:** `python -m pytest python/tests` (419 tests: golden spine + contract 0.6.0–0.9.0 sections +
   seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
   sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c institutions
-  roster/gating/composition/verify sections) and `cd web && npx playwright test`
-  (45 tests across 13 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview, institutions). **Dev-only Playwright
+  roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections) and
+  `cd web && npx playwright test`
+  (53 tests across 14 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions, graphs). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
