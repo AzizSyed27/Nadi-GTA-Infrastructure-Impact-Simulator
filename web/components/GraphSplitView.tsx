@@ -38,7 +38,7 @@ export interface GraphsOasis {
   nodes: GraphsOasisNode[];
   edges: { from: string; to: string; kind: string }[];
   influence: { cascade_id: string | null; from: string; to: string; shifted: boolean }[];
-  coverage: { agents: number; nodes: number; with_edges: number };
+  coverage: { agents: number; nodes: number; with_edges: number; mandate_excluded?: number };
   exposure_note: string;
 }
 export interface GraphsEntityNode {
@@ -136,7 +136,7 @@ function DeckPanel({
   useEffect(() => {
     const canvas = canvasRef.current;
     const box = boxRef.current;
-    if (!canvas || !box) return;
+    if (!canvas || !box || nodes.length === 0) return; // empty half never constructs a deck (NaN bounds)
     const zoom = Math.log2(Math.min(box.clientWidth / bounds.w, box.clientHeight / bounds.h)) - 0.15;
     const deck = new Deck<OrthographicView>({
       canvas,
@@ -188,7 +188,9 @@ export function GraphSplitView({
     [oasis],
   );
   const [cascade, setCascade] = useState<string | null>(null);
-  const activeCascade = cascade ?? cascadeIds[0] ?? null;
+  // membership check (review-caught): if the loaded run swaps under us (enrich done-edge reload),
+  // a selection the new data doesn't have must fall back, never silently filter to zero connectors
+  const activeCascade = cascade && cascadeIds.includes(cascade) ? cascade : (cascadeIds[0] ?? null);
   const [oasisHover, setOasisHover] = useState<Hover | null>(null);
   const [entityHover, setEntityHover] = useState<Hover | null>(null);
 
@@ -395,8 +397,15 @@ export function GraphSplitView({
               <>
                 <div style={metaLine} data-testid="oasis-meta">
                   {oasis.coverage.with_edges} of {oasis.coverage.agents} voices have follow edges
-                  {oasis.coverage.nodes < oasis.coverage.agents ? ' · sibling voices share a node' : ''} ·{' '}
-                  {oasis.nodes.filter((n) => n.excluded).length} voice(s) had posts withheld by the honesty audit
+                  {/* attribute the agents-vs-nodes gap to its ACTUAL causes (review-caught):
+                      institutional exclusion first, sibling-dedup only for the remainder */}
+                  {(oasis.coverage.mandate_excluded ?? 0) > 0
+                    ? ` · ${oasis.coverage.mandate_excluded} institutional voice(s) speak in the feed, not the graph`
+                    : ''}
+                  {oasis.coverage.nodes < oasis.coverage.agents - (oasis.coverage.mandate_excluded ?? 0)
+                    ? ' · sibling voices share a node'
+                    : ''}{' '}
+                  · {oasis.nodes.filter((n) => n.excluded).length} voice(s) had posts withheld by the honesty audit
                 </div>
                 <div style={noteLine}>{oasis.exposure_note}.</div>
                 {cascadeIds.length > 0 && activeCascade && (

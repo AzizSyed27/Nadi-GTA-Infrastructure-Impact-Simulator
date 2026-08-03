@@ -15442,7 +15442,8 @@
   "coverage": {
    "agents": 212,
    "nodes": 205,
-   "with_edges": 202
+   "with_edges": 202,
+   "mandate_excluded": 0
   },
   "exposure_note": "influence connectors are drawn from opinion trajectories, separately from follow edges — in this mechanism most influence travels by ambient surfacing, not by following"
  },
@@ -41258,5 +41259,5 @@
   "components": 98,
   "isolates": 64
  },
- "generated_at": "2026-08-02T04:41:37+00:00"
+ "generated_at": "2026-08-02T05:54:02+00:00"
 }

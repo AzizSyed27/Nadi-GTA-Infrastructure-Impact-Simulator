@@ -63,7 +63,7 @@ function syntheticSidecar(): Record<string, unknown> {
         { cascade_id: 'cascade_1', from: 'a2', to: 'a_excl', shifted: false },
         { cascade_id: 'cascade_2', from: 'a2', to: 'a1', shifted: false },
       ],
-      coverage: { agents: 5, nodes: 4, with_edges: 3 },
+      coverage: { agents: 6, nodes: 4, with_edges: 3, mandate_excluded: 1 },
       exposure_note:
         'most influence arrived via ambient feed surfacing rather than follow edges — the dashed connectors are drawn separately from the follow graph for that reason',
     },
@@ -186,7 +186,10 @@ test('split view: both panels render with the framing headers + one-liner verbat
   expect(await page.locator('[data-testid="graph-split-view"] canvas').count()).toBe(2);
 
   // coverage + exposure + packing lines render FROM SIDECAR FIELDS (spot the composed meta lines)
-  await expect(page.getByTestId('oasis-meta')).toContainText('3 of 5 voices have follow edges');
+  await expect(page.getByTestId('oasis-meta')).toContainText('3 of 6 voices have follow edges');
+  // gap attribution (review-caught): institutional exclusion named FIRST, sibling-dedup only for
+  // the remainder (nodes 4 < agents 6 - mandate 1 = 5, so both render here)
+  await expect(page.getByTestId('oasis-meta')).toContainText('1 institutional voice(s) speak in the feed, not the graph');
   await expect(page.getByTestId('oasis-meta')).toContainText('sibling voices share a node');
   await expect(page.getByTestId('oasis-meta')).toContainText('1 voice(s) had posts withheld by the honesty audit');
   await expect(page.getByTestId('entity-meta')).toContainText('index built 2026-01-01T00:00:00Z');

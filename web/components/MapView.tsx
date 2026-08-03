@@ -329,8 +329,11 @@ export default function MapView() {
   }, [artifact, networkLookup]);
 
   // V2.3d — the graphs sidecar (positions precomputed server-side), fetched LAZILY on graphs-mode
-  // entry (the changeGeom pattern: runId-tagged state + cancelled guard + error flag). A 404 is the
-  // honest "no layouts exported for this run yet" state — GraphSplitView renders it labeled.
+  // entry. A 404 is the honest "no layouts exported for this run yet" state — GraphSplitView
+  // renders it labeled. Cache invalidation is loadRun's setGraphsSidecar(null) (an enrich may have
+  // just exported fresh layouts for the SAME run_id). Acceptance goes through a FUNCTIONAL setter
+  // (only the still-pending fetch for this run may land) instead of an effect-cleanup `cancelled`
+  // flag — cleanup would also fire on the guarded reruns this effect's own setState causes.
   const [graphsSidecar, setGraphsSidecar] = useState<{
     runId: string;
     data: GraphsSidecar | null;
@@ -340,30 +343,25 @@ export default function MapView() {
   useEffect(() => {
     if (mode !== 'graphs' || !artifact) return;
     const runId = artifact.meta.run_id;
-    if (graphsSidecar?.runId === runId && !graphsSidecar.loading) return; // already fetched for this run
-    let cancelled = false;
+    if (graphsSidecar?.runId === runId) return; // fetched, fetching, or errored — loadRun clears to refresh
     setGraphsSidecar({ runId, data: null, loading: true, error: false });
+    const settle = (next: { runId: string; data: GraphsSidecar | null; loading: boolean; error: boolean }) =>
+      setGraphsSidecar((cur) => (cur?.runId === runId && cur.loading ? next : cur));
     (async () => {
       try {
         const r = await fetch(`/${runId}-graphs.json`, { cache: 'no-store' });
         if (!r.ok) {
-          if (!cancelled) setGraphsSidecar({ runId, data: null, loading: false, error: true });
+          settle({ runId, data: null, loading: false, error: true });
           return;
         }
         const data = (await r.json()) as GraphsSidecar;
-        if (!cancelled) {
-          // stale-pick guard: only accept the sidecar for the run it claims
-          setGraphsSidecar({ runId, data: data.run_id === runId ? data : null, loading: false, error: data.run_id !== runId });
-        }
+        // stale-pick guard: only accept the sidecar for the run it claims
+        settle({ runId, data: data.run_id === runId ? data : null, loading: false, error: data.run_id !== runId });
       } catch {
-        if (!cancelled) setGraphsSidecar({ runId, data: null, loading: false, error: true });
+        settle({ runId, data: null, loading: false, error: true });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, artifact?.meta.run_id]);
+  }, [mode, artifact, graphsSidecar]);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
@@ -569,6 +567,9 @@ export default function MapView() {
     setInterviewee(null);
     interviews.current = {};
     setInstitution(null); // V2.3c: the grounding card is per-run too
+    // V2.3d: an enrich may have just exported fresh graph layouts for this same run_id — drop the
+    // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
+    setGraphsSidecar(null);
     try {
       const r = await fetch(`/${id}.json`, { cache: 'no-store' });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress

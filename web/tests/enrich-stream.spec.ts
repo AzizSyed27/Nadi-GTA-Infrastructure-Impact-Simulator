@@ -225,7 +225,10 @@ test('a re-enrich of the same run streams a fresh voice set (dedup resets, no pi
   // waiting for it to end — a bare toBeHidden right after the click passes instantly in the window
   // before the first status poll commits "Enriching…", and the panel assertion then runs mid-enrich.
   await page.getByTestId('enrich-voices').click();
-  await expect(page.getByTestId('enrich-running')).toBeVisible();
+  // explicit 15 s on both enrich-running gates: under full-suite dev-server load the FIRST status
+  // poll can exceed the default 5 s (observed twice in V2.3d suite runs; 5x green when quiet) —
+  // the gate-order property is unchanged, only the budget
+  await expect(page.getByTestId('enrich-running')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('voice-stream-row')).toHaveCount(5, { timeout: 10_000 });
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
@@ -234,7 +237,7 @@ test('a re-enrich of the same run streams a fresh voice set (dedup resets, no pi
   // them all — live-smoke-caught) and the ticker must RESET to the new set's count, never pile onto
   // the previous enrich's voices. (The exact-count-in-playback no-duplicates property is test 1's job.)
   await page.getByTestId('enrich-voices').click();
-  await expect(page.getByTestId('enrich-running')).toBeVisible();
+  await expect(page.getByTestId('enrich-running')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('voice-stream-row')).toHaveCount(5, { timeout: 10_000 });
   await expect(page.getByTestId('voice-stream-panel')).toContainText('5 so far');
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });

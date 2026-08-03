@@ -21,9 +21,9 @@ sys.path.insert(0, str(REPO / "python" / "src"))
 import graph_export  # noqa: E402
 import trajectory_io  # noqa: E402
 from contract_models import (  # noqa: E402
-    Agent, Assignment, Cascade, CascadeStep, Meta, Outcome, Persona, Reaction, Scenario, Social,
-    SocialEdge, SocialEvent, SocialGraph, OpinionTrajectory, TrajectoryArtifact, TrajectoryPoint,
-    Vehicle, Change,
+    Agent, Assignment, Cascade, CascadeStep, Citation, Mandate, Meta, Outcome, Persona, Reaction,
+    Scenario, Social, SocialEdge, SocialEvent, SocialGraph, OpinionTrajectory, TrajectoryArtifact,
+    TrajectoryPoint, Vehicle, Change,
 )
 
 GRAPHS_BANNED = re.compile(
@@ -54,7 +54,10 @@ def _artifact() -> TrajectoryArtifact:
     social = Social(
         mechanism="neighbor_pass",
         graph=SocialGraph(edges=[SocialEdge(**{"from": "vehA", "to": "vehB", "kind": "homophily"}),
-                                 SocialEdge(**{"from": "pi", "to": "vehA", "kind": "cross"})]),
+                                 SocialEdge(**{"from": "pi", "to": "vehA", "kind": "cross"}),
+                                 # a phantom endpoint — must be FILTERED from the sidecar, never
+                                 # inflate `connected`/`with_edges` while the frontend drops it
+                                 SocialEdge(**{"from": "vehA", "to": "ghost-not-a-node", "kind": "geography"})]),
         cascades=[Cascade(cascade_id="c1", steps=[CascadeStep(step=0, events=[
             SocialEvent(agent="vehA", action="post", content="clean words", audit_status="clean"),
             SocialEvent(agent="vehB", action="comment", content=SENTINEL, audit_status="excluded",
@@ -131,9 +134,44 @@ def test_oasis_half_coverage_and_dedupe(env) -> None:
     assert sorted(ids) == ["pi", "pz", "vehA", "vehB"]  # siblings deduped; both sims; zero-edge kept
     by_id = {n["id"]: n for n in o["nodes"]}
     assert by_id["pz"]["connected"] is False and by_id["vehA"]["connected"] is True
-    assert o["coverage"] == {"agents": 5, "nodes": 4, "with_edges": 3}
+    assert o["coverage"] == {"agents": 5, "nodes": 4, "with_edges": 3, "mandate_excluded": 0}
     assert all(isinstance(n["x"], float) and isinstance(n["y"], float) for n in o["nodes"])
     assert o["exposure_note"] == graph_export.EXPOSURE_NOTE
+    # the phantom-endpoint edge was filtered: layout, wire list, and coverage describe ONE graph
+    assert len(o["edges"]) == 2
+    assert all("ghost-not-a-node" not in (e["from"], e["to"]) for e in o["edges"])
+
+
+def test_mandate_agents_excluded_and_counted(env) -> None:
+    """Institutions never enter the social graph (V2.3c) — the exporter must COUNT them so the
+    frontend can attribute the agents-vs-nodes gap honestly (never captioned as sibling-dedup)."""
+    art = _artifact()
+    art.agents.append(Agent(
+        grounding="mandate",
+        persona=Persona(id="inst_tfs", label="Toronto Fire Services — mandate lens"),
+        reaction=Reaction(comment="Within its mandate, the service notes the computed detour fact.",
+                          sentiment=0.0, stance="neutral"),
+        mandate=Mandate(institution="Toronto Fire Services", mission="quoted mission text",
+                        source="https://example.org/tfs", retrieved="2026-08-01"),
+        citations=[Citation(key="response_detour", text="a computed fact line", notes=[])]))
+    run_id = "multimodal-scenario-19990102T000000Z"
+    art.meta.run_id = run_id
+    trajectory_io.dump_artifact(art, env["runs"] / f"{run_id}.json")
+
+    o = graph_export.export_for_run(run_id, halves=("oasis",))["oasis"]
+    assert "inst_tfs" not in [n["id"] for n in o["nodes"]]
+    assert o["coverage"] == {"agents": 6, "nodes": 4, "with_edges": 3, "mandate_excluded": 1}
+
+
+def test_idempotent_rewrite_preserves_generated_at(env) -> None:
+    """Routine index maintenance re-exports identical content — the bytes must stay identical so
+    the committed pinned sidecar never dirties the tree over a no-op (review-caught churn)."""
+    graph_export.export_for_run(env["run_id"], halves=("oasis",))
+    _, web_path = graph_export.sidecar_paths(env["run_id"])
+    before = web_path.read_bytes()
+    time.sleep(1.1)  # generated_at has 1 s resolution — prove preservation, not a fast clock
+    graph_export.export_for_run(env["run_id"], halves=("oasis",))
+    assert web_path.read_bytes() == before
 
 
 def test_excluded_content_never_leaks_metadata_only(env) -> None:

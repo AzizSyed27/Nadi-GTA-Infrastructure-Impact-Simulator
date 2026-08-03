@@ -76,15 +76,19 @@ def export_oasis(artifact) -> dict | None:
     from propagation import build_nodes  # SUMO-free (build_graph is NOT — never import it here)
 
     nodes = build_nodes(artifact)
+    node_id_set = {n["agent_id"] for n in nodes}
+    # emit ONLY edges both of whose endpoints are laid-out nodes — the layout, the wire list, and
+    # the coverage numbers must describe the same graph (review-caught: an unfiltered list would
+    # let a phantom edge inflate `connected` while the frontend silently drops it from render)
     edges = [{"from": e.from_, "to": e.to, "kind": e.kind}
-             for e in (social.graph.edges if social.graph else [])]
+             for e in (social.graph.edges if social.graph else [])
+             if e.from_ in node_id_set and e.to in node_id_set]
 
     g = nx.Graph()
     for n in nodes:
         g.add_node(n["agent_id"])
     for e in edges:
-        if e["from"] in g and e["to"] in g:
-            g.add_edge(e["from"], e["to"])
+        g.add_edge(e["from"], e["to"])
     pos = nx.spring_layout(g, seed=LAYOUT_SEED)  # zero-edge nodes STAY in the layout (dimmed later)
 
     connected = {v for e in edges for v in (e["from"], e["to"])}
@@ -126,8 +130,12 @@ def export_oasis(artifact) -> dict | None:
         "nodes": out_nodes,
         "edges": edges,
         "influence": influence,
+        # mandate_excluded rides the numbers so the frontend can attribute the agents-vs-nodes gap
+        # honestly: institutional voices never enter cascades (V2.3c) — a gap they cause must not
+        # be captioned as sibling-dedup (review-caught misattribution)
         "coverage": {"agents": len(artifact.agents), "nodes": len(out_nodes),
-                     "with_edges": len(connected)},
+                     "with_edges": len(connected),
+                     "mandate_excluded": sum(1 for a in artifact.agents if a.grounding == "mandate")},
         "exposure_note": EXPOSURE_NOTE,
     }
 
@@ -297,7 +305,18 @@ def export_for_run(run_id: str, halves: tuple[str, ...] = ("oasis", "entity")) -
     if "entity" in halves:
         payload["entity"] = export_entity(ts, artifact_path)
 
+    # IDEMPOTENT write (review-caught churn): routine index maintenance (e.g. a pinned-run
+    # report_agent rebuild) re-exports identical content — preserve the prior generated_at so the
+    # bytes stay identical and the committed pinned sidecar never dirties the tree over a no-op.
     payload["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if web_path.is_file():
+        try:
+            prev = json.loads(web_path.read_text(encoding="utf-8"))
+            if {k: v for k, v in prev.items() if k != "generated_at"} == \
+               {k: v for k, v in payload.items() if k != "generated_at"} and prev.get("generated_at"):
+                payload["generated_at"] = prev["generated_at"]
+        except Exception:  # noqa: BLE001 — a corrupt web copy just loses the no-op optimization
+            pass
     text = json.dumps(payload, ensure_ascii=False, indent=1)
     runs_path.write_text(text, encoding="utf-8")
     web_path.write_text(text, encoding="utf-8")
