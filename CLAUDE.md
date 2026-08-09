@@ -127,9 +127,14 @@ separate from follow edges (only ~6% coincide — the exposure note says so), ex
 withheld-posts METADATA (rules on hover, never content), entity staleness legible three ways
 (fresh / stale note / unknowable), referendum guard extended (uniform node size, group-not-stance
 colors, GRAPHS_BANNED), per-panel labeled degradation naming enrich + backfill, and the coverage gap
-attributed honestly (institutional exclusion ≠ sibling-dedup). Suites: **419 pytest + 53 Playwright**.
-Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, rung-2 detour, student demand,
-mandate re-verification).
+attributed honestly (institutional exclusion ≠ sibling-dedup). **V2.4a (the draft basket) is
+COMPLETE**: apply INVERTS to add-then-run — every palette apply + the zone macro ADD members to a
+session-only draft, DraftPanel lists them with draft-time blockers (client mirror of the shared
+reason strings, D2's stable set only), one Run submits (1 member no-tag = today's exact wire shape,
+regression-pinned); mixed multi-member drafts 400 verbatim until V2.4b lifts the server restriction.
+Suites: **419 pytest + 67 Playwright**. Open threads: **V2.4b–d** (mixed composites through the
+pipeline, clone-and-tweak, closeout) + **V2.5 network styling** + `BACKLOG.md` (bbox expansion,
+rung-2 detour, student demand, mandate re-verification).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -533,6 +538,58 @@ off-contract like the report JSON).**
   correctly NOT "the currently served chat index" — the exporter's absent-entity verdict on run
   `…0725T030121Z` was the honest behavior, not a gap.
 
+**V2.4 Step a — the DRAFT BASKET — COMPLETE (frontend-only; no contract change; docs/v2.4-plan.md
+D1–D2 ratified: apply INVERTS to add-then-run).**
+- **The basket (MapView, session-only):** every palette apply + the new_road draw ADD a member
+  `{id, change, valid, origin?, path?}` — the `change` object is BYTE-IDENTICAL to what the old
+  fire-on-apply built (descriptions on speed/bike/new_road, none on closures/incidents), stored and
+  later submitted BY REFERENCE. The zone flow is a MACRO adding N windowed speed_limit members with
+  `origin:'zone'`; the school_zone tag DERIVES from origins (removing every zone member honestly
+  drops it). Run wire rule: tag present → composite POST even 1-member (the server reads tags only
+  there); else 1 member → today's EXACT `{change}` (deep-equal regression pin), N → `{changes}`.
+  Success clears the draft; failure renders the 400/409 VERBATIM in `draft-error`, draft retained
+  for edit-and-retry. Until V2.4b lifts REASON_COMPOSITE_MEMBER, a mixed multi-member draft 400s —
+  the ratified interim (transitional rules `REASON_COMPOSITE_MEMBER`/`REASON_COMPOSITE_SETTLED` are
+  deliberately NOT mirrored client-side; when b lifts them nothing needs un-mirroring). The draft
+  survives run-switches/draw-another BY DESIGN (session state, visible for review before Run).
+- **Blockers (`web/lib/draftBlockers.ts` — D2's STABLE set only, user-ratified):** client copies of
+  `REASON_SETTLED_SEVERED` (severs(): road_closure always; lane_closure iff it closes EVERY car
+  lane; missing eligibility → conservative false) + a line-faithful TS port of
+  `lifo_conflict_reason` (phase constants 0/1, revert-before-apply at equal t, unwindowed members
+  invisible). **The boundary is pinned on BOTH sides of the language boundary at the Python pin's
+  own numbers** (A[100,500]+B[500,800] @ t=499/500/501): touching end==start is LEGAL — a >=-for->
+  port typo would make a FALSE blocker the server backstop can NEVER catch (the draft never
+  submits). `deriveBlockers` takes the EFFECTIVE assignment (post-D1-lock). `windowLocked` = the
+  live palette signal OR any windowed MEMBER — the member term is why the palettes' unmount cleanup
+  no longer drops a lock the draft owns. StrictMode catch: member ids mint OUTSIDE setState
+  updaters (an impure ++ref inside one double-increments → d2/d4/d6).
+- **DraftPanel (EditPanel rail, mounted last):** mechanical member summaries (RunCard chip
+  conventions + `fmtWindowRange`, user-ratified over server-prose ports), per-member remove (clears
+  matching hover + stale error), row hover → the map draft-overlay highlight in DARK slate — the
+  review's screenshot caught the white highlight VANISHING on the near-white positron basemap
+  (seam asserts can't see pixels); blockers render verbatim; Run disabled ONLY while a blocker
+  exists / submitting. The draft overlay resolves `target_edge` via networkLookup (zero fetches;
+  new_road members carry junction coords captured at add time), always active in edit mode.
+- **Seams:** `__nadiDraftOverlay` {count, zoneTagged, hoveredId, items} — a SIBLING of
+  `__nadiChangeOverlay` (whose count semantics stay untouched); `__nadiEligEdges` (the
+  `__nadiNetworkEdges` convention) — flake-caught race: an edge pick before `/api/edges` lands
+  snapshots `car_lane_indices: []` into the KEYED palette (no re-merge on late arrival) and the
+  lane picker renders empty; specs gate picks on the seam.
+- **Tests (`draft-basket.spec.ts` = 8 function pins + 6 e2e):** strings pinned as LITERALS (never
+  constant-vs-constant — a tautological pin can't catch drift); mixed 3-member draft (draft-level
+  D1 lock after the palette closes, hover seam, remove, composite POST membership `.sort()`ed);
+  single-change deep-equal pin; settled+severed toggles (incl. the all-car-lanes lane_closure
+  variant); LIFO crossing blocked + nested/touching legal (UI half at minute granularity, the
+  second-sharp half as page-less function tests); zone macro = NO POST until Run; 400-verbatim +
+  draft survives. The 4 apply-driving specs (closure-palette, edit, seeds, school-zone) each gained
+  ONE `draft-run` click with body assertions byte-identical — that IS the pin; closure-palette's
+  400 assertion moved `palette-error` → `draft-error`. Suites: **419 pytest (untouched) + 67
+  Playwright**. Known pre-existing (NOT this step): 2 eslint react-hooks errors in MapView
+  (graphsSidecar effect setState, interviewee IIFE ref read) exist on HEAD — plugin drift in
+  V2.3-era code.
+- **Dormant for V2.4b:** `submitError` is now permanently null into the palettes/DrawForm (every
+  Run error routes through `draft-error`) — strip the dead plumbing when b touches these files.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -630,8 +687,8 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c institutions
   roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections) and
   `cd web && npx playwright test`
-  (53 tests across 14 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview, institutions, graphs). **Dev-only Playwright
+  (67 tests across 15 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions, graphs, draft-basket). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
