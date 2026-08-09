@@ -142,7 +142,7 @@ type DraftSeam = {
   items: { id: string; type: string; windowed: boolean }[];
 };
 
-async function mockBackend(page: Page, opts: { reject400?: string } = {}) {
+async function mockBackend(page: Page, opts: { reject?: { status: number; detail: string } } = {}) {
   let lastBody: Record<string, unknown> | null = null;
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) =>
@@ -166,7 +166,7 @@ async function mockBackend(page: Page, opts: { reject400?: string } = {}) {
     }));
   await page.route('**/api/simulate', (route) => {
     lastBody = route.request().postDataJSON();
-    if (opts.reject400) return route.fulfill({ status: 400, json: { detail: opts.reject400 } });
+    if (opts.reject) return route.fulfill({ status: opts.reject.status, json: { detail: opts.reject.detail } });
     return route.fulfill({ json: { run_id: RUN_ID } });
   });
   await page.route('**/api/runs', (route) => route.fulfill({ json: { runs: [] } }));
@@ -393,10 +393,15 @@ test('zone macro lands N members + tag in the draft; ONE POST only on Run', asyn
   }
 });
 
-test('a server 400 renders verbatim in draft-error and the draft survives for edit-and-retry', async ({ page }) => {
-  // the transitional V2.4b-interim rejection — deliberately NOT mirrored as a client blocker
-  const reason = 'change 1: composite scenarios support speed_limit members only in this step';
-  const getBody = await mockBackend(page, { reject400: reason });
+test('a server rejection (the one-job 409) renders verbatim in draft-error and the draft survives', async ({ page }) => {
+  // Mocked-error tests verify RENDERING, not server reality — so pin only PERMANENT error shapes.
+  // This detail is the real one-job-lock template (server.py `a job is already running
+  // ({run_state.active()}); one job at a time`), producible forever. The first version of this
+  // test mocked REASON_COMPOSITE_MEMBER — a transitional 400 V2.4b deletes — and, being mocked,
+  // would have stayed green while pinning a rejection the server can no longer produce
+  // (review-caught).
+  const reason = 'a job is already running (multimodal-scenario-20260101T000000Z); one job at a time';
+  const getBody = await mockBackend(page, { reject: { status: 409, detail: reason } });
   await openEdit(page);
   await pickEdge(page, 'E_A');
   await page.getByTestId('palette-speed').fill('8');
