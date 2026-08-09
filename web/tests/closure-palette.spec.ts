@@ -56,6 +56,7 @@ test('lane picker renders the real car-lane indices and posts a lane_closure bod
   await page.getByTestId('lane-check-1').check();
   await expect(page.getByTestId('apply-lane-closure')).toBeEnabled();
   await page.getByTestId('apply-lane-closure').click();
+  await page.getByTestId('draft-run').click(); // V2.4a: apply adds to the draft; Run submits it
   await expect(page.getByTestId('run-card')).toBeVisible();
   const body = getBody() as { change: Record<string, unknown>; assignment?: string } | null;
   expect(body?.change).toMatchObject({ type: 'lane_closure', target_edge: E.id, target_lanes: [1] });
@@ -106,6 +107,8 @@ test('incident locks immediately, gates on effect+window, posts effect/window/la
   await page.getByTestId('incident-slowdown').selectOption('50');
   await expect(page.getByTestId('apply-incident')).toBeEnabled();
   await page.getByTestId('apply-incident').click();
+  await page.getByTestId('draft-run').click(); // V2.4a: apply adds to the draft; Run submits it
+  await expect(page.getByTestId('run-card')).toBeVisible(); // sync barrier before reading the body
   const body = getBody() as { change: Record<string, unknown>; assignment?: string } | null;
   expect(body?.change).toMatchObject({
     type: 'incident', target_edge: E.id, target_lanes: [1],
@@ -115,7 +118,7 @@ test('incident locks immediately, gates on effect+window, posts effect/window/la
   expect(body?.assignment ?? 'day_one').toBe('day_one'); // belt-and-braces under the lock
 });
 
-test('road_closure posts a windowed body; a server 400 renders verbatim in palette-error', async ({ page }) => {
+test('road_closure posts a windowed body; a server 400 renders verbatim in draft-error', async ({ page }) => {
   const reason = "target_lanes [9] are not car lanes on edge 'E_CAP' (car lanes: [1, 2]) — lane_closure only closes car lanes; use road_closure to close the road";
   const getBody = await mockBackend(page, { reject400: reason });
   await openPalette(page);
@@ -123,7 +126,8 @@ test('road_closure posts a windowed body; a server 400 renders verbatim in palet
   await page.getByTestId('window-start').fill('5');
   await page.getByTestId('window-duration').fill('15');
   await page.getByTestId('apply-road-closure').click();
-  await expect(page.getByTestId('palette-error')).toHaveText(reason); // the backend's words, verbatim
+  await page.getByTestId('draft-run').click(); // V2.4a: the POST (and its 400) happens on Run
+  await expect(page.getByTestId('draft-error')).toHaveText(reason); // the backend's words, verbatim
   const body = getBody() as { change: Record<string, unknown> } | null;
   expect(body?.change).toMatchObject({ type: 'road_closure', target_edge: E.id, window: { start_s: 300, end_s: 1200 } });
 });

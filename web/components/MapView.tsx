@@ -15,6 +15,8 @@ import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
 import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
+import { type DraftMember } from '@/components/DraftPanel';
+import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
 import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
@@ -176,8 +178,7 @@ export default function MapView() {
   const [hoverCoord, setHoverCoord] = useState<LonLat | null>(null); // rubber-band endpoint while drawing
   const [drawHint, setDrawHint] = useState<string | null>(null); // transient "click nearer a junction"
   const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false); // V2.4a: true only while runDraft's POST is in flight
   // V2.1d part ii — compare mode: two SLIM sides ({meta, scorecard} only; the 74MB bulk is never
   // retained). Side A defaults to the loaded artifact; both re-pickable. Picks survive mode switches.
   const [compareA, setCompareA] = useState<CompareSide | null>(null);
@@ -538,6 +539,10 @@ export default function MapView() {
         const map: Record<string, EdgeEligibility> = {};
         for (const e of res.value.edges) map[e.id] = e;
         setEligById(map);
+        // V2.4a deterministic seam (the __nadiNetworkEdges convention): specs gate edge picks on
+        // eligibility having landed — a pick before this merges car_lane_indices: [] into the
+        // palette's keyed snapshot, so the lane picker renders empty (a real race, spec-caught).
+        (window as unknown as { __nadiEligEdges?: number }).__nadiEligEdges = res.value.edges.length;
       }
     })();
     const m = mapRef.current?.getMap();
@@ -671,21 +676,25 @@ export default function MapView() {
     runOptionsRef.current = runOptions;
   }, [runOptions]);
 
-  // Submit any edit → POST /api/simulate. On success the run card takes over (it polls + loads on done).
-  const submitChange = useCallback(async (change: SimChange) => {
-    setSubmitting(true);
-    setSubmitError(null);
-    // V2.2c belt-and-braces under the UI lock: a windowed change (incident is always windowed)
-    // ships with day_one — the server 400 with the shared D1 reason stays the visible backstop.
-    const windowed = 'window' in change && change.window != null;
-    const opts = windowed ? { ...runOptionsRef.current, assignment: 'day_one' as const } : runOptionsRef.current;
-    const res = await postSimulate(change, opts);
-    setSubmitting(false);
-    if (!res.ok) {
-      setSubmitError(res.error); // includes the 409 lock message + the bike-lane ineligibility reason
-      return;
-    }
-    setActiveRunId(res.value.run_id); // run card polls this; loadRun fires on the done edge
+  // V2.4a — the DRAFT BASKET: apply ADDS a member (session-only React state); one Run button
+  // submits the whole draft. The member's `change` is the EXACT wire object the palette callbacks
+  // always built — runDraft submits these references untouched (the single-change regression pin).
+  const [draft, setDraft] = useState<DraftMember[]>([]);
+  const [hoveredDraftId, setHoveredDraftId] = useState<string | null>(null); // DraftPanel row hover → overlay highlight
+  const [draftError, setDraftError] = useState<string | null>(null); // Run failures, verbatim (400/409)
+  const draftSeq = useRef(0); // monotonic member ids ('d1', …) — incremented in event handlers only (StrictMode-safe)
+  const draftRef = useRef<DraftMember[]>([]);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  const addToDraft = useCallback((change: SimChange, extra?: Pick<DraftMember, 'origin' | 'path'>) => {
+    // mint the id OUTSIDE the updater — StrictMode double-invokes updaters, and an impure
+    // ++ref inside one skips every other id (d2, d4, …)
+    const id = `d${++draftSeq.current}`;
+    setDraft((d) => [...d, { id, change, valid: true, ...extra }]);
+    setDraftError(null);
+    // close the contributing tool — the same clears the old submit-on-apply did on success
     setPtA(null);
     setPtB(null);
     setHoverCoord(null);
@@ -693,35 +702,73 @@ export default function MapView() {
     setSelectedEdge(null);
   }, []);
 
+  const onDraftRemove = useCallback((id: string) => {
+    setDraft((d) => d.filter((m) => m.id !== id));
+    setHoveredDraftId((cur) => (cur === id ? null : cur));
+    setDraftError(null); // a stale 400 must not describe a draft that no longer exists
+  }, []);
+
+  // Run the draft → ONE POST. Wire rule: a zone-macro tag forces the composite path (the server
+  // only reads tags there); else 1 member → today's EXACT single shape via postSimulate; N members
+  // → changes[]. V2.2c belt-and-braces under the UI lock: a windowed draft ships day_one — the
+  // server 400 with the shared D1 reason stays the visible backstop. Until V2.4b lifts the
+  // speed_limit-only composite restriction, a mixed multi-member draft 400s — rendered verbatim.
+  const runDraft = useCallback(async () => {
+    const members = draftRef.current;
+    if (members.length === 0) return;
+    const changes = members.map((m) => m.change);
+    setSubmitting(true);
+    setDraftError(null);
+    const windowed = hasWindowedMember(changes);
+    const opts = windowed ? { ...runOptionsRef.current, assignment: 'day_one' as const } : runOptionsRef.current;
+    const tags = members.some((m) => m.origin === 'zone') ? ['school_zone'] : undefined;
+    const res =
+      tags || changes.length > 1
+        ? await postSimulateComposite(changes, tags, opts)
+        : await postSimulate(changes[0], opts);
+    setSubmitting(false);
+    if (!res.ok) {
+      setDraftError(res.error); // the backend's words verbatim (409 lock / 400 reasons) — draft retained
+      return;
+    }
+    setActiveRunId(res.value.run_id); // run card polls this; loadRun fires on the done edge
+    setDraft([]);
+    setHoveredDraftId(null);
+  }, []);
+
   const onSubmitDraw = useCallback(
     (p: DrawParams) => {
       if (!ptA || !ptB) return;
-      submitChange({
-        type: 'new_road',
-        from_junction: ptA.id,
-        to_junction: ptB.id,
-        lanes: p.lanes,
-        speed_mps: p.speed_mps,
-        bidirectional: p.bidirectional,
-        description: `New road ${ptA.id}->${ptB.id}`,
-      });
+      addToDraft(
+        {
+          type: 'new_road',
+          from_junction: ptA.id,
+          to_junction: ptB.id,
+          lanes: p.lanes,
+          speed_mps: p.speed_mps,
+          bidirectional: p.bidirectional,
+          description: `New road ${ptA.id}->${ptB.id}`,
+        },
+        // a minted road is absent from the canonical net — capture its overlay geometry now
+        { path: [[ptA.lon, ptA.lat], [ptB.lon, ptB.lat]] },
+      );
     },
-    [ptA, ptB, submitChange],
+    [ptA, ptB, addToDraft],
   );
 
   const onEdgeSpeed = useCallback(
     (valueMps: number) => {
       if (!selectedEdge) return;
-      submitChange({ type: 'speed_limit', target_edge: selectedEdge.id, value_mps: valueMps,
+      addToDraft({ type: 'speed_limit', target_edge: selectedEdge.id, value_mps: valueMps,
         description: `Speed limit on ${selectedEdge.id} -> ${valueMps} m/s` });
     },
-    [selectedEdge, submitChange],
+    [selectedEdge, addToDraft],
   );
 
   const onEdgeBike = useCallback(() => {
     if (!selectedEdge) return;
-    submitChange({ type: 'bike_lane', target_edge: selectedEdge.id, description: `Bike lane on ${selectedEdge.id}` });
-  }, [selectedEdge, submitChange]);
+    addToDraft({ type: 'bike_lane', target_edge: selectedEdge.id, description: `Bike lane on ${selectedEdge.id}` });
+  }, [selectedEdge, addToDraft]);
 
   // V2.2c — temporary events. NO client description: the server composes the canonical
   // clock-time description (fmt_window; single source with the report/chips).
@@ -729,56 +776,70 @@ export default function MapView() {
   const onEdgeLaneClosure = useCallback(
     (lanes: number[], window: ChangeWindow | null) => {
       if (!selectedEdge) return;
-      submitChange({ type: 'lane_closure', target_edge: selectedEdge.id, target_lanes: lanes,
+      addToDraft({ type: 'lane_closure', target_edge: selectedEdge.id, target_lanes: lanes,
         ...(window ? { window } : {}) });
     },
-    [selectedEdge, submitChange],
+    [selectedEdge, addToDraft],
   );
   const onEdgeRoadClosure = useCallback(
     (window: ChangeWindow | null) => {
       if (!selectedEdge) return;
-      submitChange({ type: 'road_closure', target_edge: selectedEdge.id, ...(window ? { window } : {}) });
+      addToDraft({ type: 'road_closure', target_edge: selectedEdge.id, ...(window ? { window } : {}) });
     },
-    [selectedEdge, submitChange],
+    [selectedEdge, addToDraft],
   );
   const onEdgeIncident = useCallback(
     (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => {
       if (!selectedEdge) return;
-      submitChange({
+      addToDraft({
         type: 'incident', target_edge: selectedEdge.id, window: p.window,
         effect: { ...(p.lanes.length ? { blocked: true } : {}),
                   ...(p.speedFactor != null ? { speed_factor: p.speedFactor } : {}) },
         ...(p.lanes.length ? { target_lanes: p.lanes } : {}),
       });
     },
-    [selectedEdge, submitChange],
+    [selectedEdge, addToDraft],
   );
-  // While a windowed draft is pending, force the NEXT run's assignment to day_one (the toggle is
+
+  // V2.4a — the draft's derived truths. `draftWindowed` stays the LIVE palette signal (its unmount
+  // cleanup clears only the palette's contribution); the members-derived term holds the D1 lock
+  // independently, so adding a windowed member keeps the lock after the palette closes.
+  const draftChanges = useMemo(() => draft.map((m) => m.change), [draft]);
+  const draftTags = useMemo(
+    () => (draft.some((m) => m.origin === 'zone') ? ['school_zone'] : []),
+    [draft], // derived, never stored — removing every zone member honestly drops the tag
+  );
+  const draftHasWindowed = useMemo(() => hasWindowedMember(draftChanges), [draftChanges]);
+  const windowLocked = draftWindowed || draftHasWindowed;
+  // Blockers over the EFFECTIVE assignment (post-lock): D2's stable predicate set only — the
+  // shared reason strings verbatim, never client phrasing (web/lib/draftBlockers.ts).
+  const draftBlockers = useMemo(
+    () => deriveBlockers(draftChanges, windowLocked ? 'day_one' : (runOptions.assignment ?? 'day_one'), eligById),
+    [draftChanges, windowLocked, runOptions.assignment, eligById],
+  );
+  // While the draft (or an open palette) is windowed, force assignment to day_one (the toggle is
   // disabled with the D1 reason in the options block).
   useEffect(() => {
-    if (draftWindowed && runOptionsRef.current.assignment === 'settled') {
+    if (windowLocked && runOptionsRef.current.assignment === 'settled') {
       setRunOptions((o) => ({ ...o, assignment: 'day_one' }));
     }
-  }, [draftWindowed]);
+  }, [windowLocked]);
 
-  // V2.2d — submit the school zone as ONE composite: N windowed speed_limit primitives + the
-  // school_zone tag. Windowed by design → day_one on the wire (the server 400 stays the backstop).
+  // V2.4a — the zone flow is a MACRO over the basket: apply adds N windowed speed_limit members
+  // tagged by origin (the derived school_zone tag rides the draft), no POST until Run.
   const onZoneSubmit = useCallback(
-    async (valueMps: number, window: ChangeWindow) => {
+    (valueMps: number, window: ChangeWindow) => {
       if (zoneEdges.length === 0) return;
-      setSubmitting(true);
-      setSubmitError(null);
-      const members: SimChange[] = zoneEdges.map((id) => ({
-        type: 'speed_limit', target_edge: id, value_mps: valueMps, window,
+      const base = draftSeq.current;
+      draftSeq.current += zoneEdges.length;
+      const members: DraftMember[] = zoneEdges.map((id, i) => ({
+        id: `d${base + i + 1}`,
+        change: { type: 'speed_limit', target_edge: id, value_mps: valueMps, window },
+        valid: true,
+        origin: 'zone',
       }));
-      const res = await postSimulateComposite(members, ['school_zone'],
-        { ...runOptionsRef.current, assignment: 'day_one' as const });
-      setSubmitting(false);
-      if (!res.ok) {
-        setSubmitError(res.error);
-        return;
-      }
-      setActiveRunId(res.value.run_id);
+      setDraft((d) => [...d, ...members]);
+      setDraftError(null);
       setZoneMode(false);
       setZoneEdges([]);
     },
@@ -791,12 +852,12 @@ export default function MapView() {
     setPtB(null);
     setHoverCoord(null);
     setDrawHint(null);
-    setSubmitError(null);
+    setDraftError(null);
   }, []);
   const onZoneCancel = useCallback(() => {
     setZoneMode(false);
     setZoneEdges([]);
-    setSubmitError(null);
+    setDraftError(null);
   }, []);
   const onZoneRemove = useCallback((id: string) => {
     setZoneEdges((cur) => cur.filter((e) => e !== id));
@@ -807,7 +868,7 @@ export default function MapView() {
     setPtB(null);
     setHoverCoord(null);
     setDrawHint(null);
-    setSubmitError(null);
+    setDraftError(null);
     setSelectedEdge(null);
   }, []);
 
@@ -879,6 +940,17 @@ export default function MapView() {
   }, [changeGeom, artifact, currentTime, mode, socialIds]);
   // (No __nadiSeek seam: a raw setState seek loses races against the Timeline's rAF loop —
   // specs scrub the Timeline slider instead, the app's own pause-and-seek path.)
+
+  // V2.4a test seam — a SIBLING of __nadiChangeOverlay (whose count semantics stay untouched):
+  // mirrors the DRAFT members + the hovered row so specs assert basket state without pixel reads.
+  useEffect(() => {
+    (window as unknown as { __nadiDraftOverlay?: unknown }).__nadiDraftOverlay = {
+      count: draft.length,
+      zoneTagged: draftTags.includes('school_zone'),
+      hoveredId: hoveredDraftId,
+      items: draft.map((m) => ({ id: m.id, type: m.change.type, windowed: memberWindow(m.change) !== null })),
+    };
+  }, [draft, draftTags, hoveredDraftId]);
 
   if (!artifact) {
     return <div style={loading}>Loading scenario…</div>;
@@ -1036,6 +1108,35 @@ export default function MapView() {
     },
   });
 
+  // V2.4a — the DRAFT overlay: basket members rendered on the map before any run exists. Zero
+  // fetches by construction — a member's target_edge resolves through the already-loaded network
+  // map; a new_road member carries its two junction coords captured at add time. Always active
+  // (edit mode has no playback clock); a hovered DraftPanel row highlights its member here.
+  type DraftOverlayItem = { id: string; type: string; path: LonLat[] };
+  const draftOverlayItems: DraftOverlayItem[] = draft.flatMap((m) => {
+    const path =
+      m.path ??
+      ('target_edge' in m.change && m.change.target_edge ? networkLookup[m.change.target_edge]?.geometry : undefined);
+    return path ? [{ id: m.id, type: m.change.type, path }] : [];
+  });
+  const draftOverlay = new PathLayer<DraftOverlayItem>({
+    id: 'draft-overlay',
+    data: draftOverlayItems,
+    getPath: (d) => d.path,
+    getColor: (d) =>
+      d.id === hoveredDraftId
+        ? [40, 45, 55, 250] // hovered row → dark slate (the ROAD_CASING family) — a WHITE highlight
+        : // vanishes into the near-white positron basemap (review-caught via screenshot; seams can't see it)
+          (CAP_DASH_COLOR[d.type] ??
+          (d.type === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230])), // teal minted road / amber edit
+    getWidth: (d) => (d.id === hoveredDraftId ? 9 : 6),
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+    // deck caches accessor results — without these triggers the hover highlight silently sticks
+    updateTriggers: { getColor: [hoveredDraftId], getWidth: [hoveredDraftId] },
+  });
+
   // Junction snap targets + the rubber-band preview line. Only added when drawing.
   const snapTargets = new ScatterplotLayer<Junction>({
     id: 'snap-targets',
@@ -1187,7 +1288,7 @@ export default function MapView() {
     incidentMarkerDot,
     incidentMarkerGlyph,
     windowBadge,
-    ...(mode === 'edit' ? [editEdges, snapTargets, drawPreview] : []),
+    ...(mode === 'edit' ? [editEdges, draftOverlay, snapTargets, drawPreview] : []),
   ];
   const editing = effectiveMode === 'edit';
   // Draw interactions are live only while actually drawing — NOT while a run card is shown (else background
@@ -1342,7 +1443,7 @@ export default function MapView() {
           hint={drawHint}
           junctionsDown={junctionsDown}
           submitting={submitting}
-          submitError={submitError}
+          submitError={null} // V2.4a: applies ADD to the draft (no POST) — Run errors render in the DraftPanel
           onSubmit={onSubmitDraw}
           onReset={resetDraw}
           runOptions={runOptions}
@@ -1366,13 +1467,20 @@ export default function MapView() {
           onEdgeRoadClosure={onEdgeRoadClosure}
           onEdgeIncident={onEdgeIncident}
           onWindowedDraft={setDraftWindowed}
-          windowLocked={draftWindowed}
+          windowLocked={windowLocked}
           zoneMode={zoneMode}
           zoneEdges={zoneEdges}
           onZoneToggle={onZoneToggle}
           onZoneRemove={onZoneRemove}
           onZoneSubmit={onZoneSubmit}
           onZoneCancel={onZoneCancel}
+          draftMembers={draft}
+          draftTags={draftTags}
+          draftBlockers={draftBlockers}
+          draftError={draftError}
+          onDraftRemove={onDraftRemove}
+          onDraftRun={runDraft}
+          onDraftHover={setHoveredDraftId}
         />
       ) : effectiveMode === 'playback' ? (
         <>

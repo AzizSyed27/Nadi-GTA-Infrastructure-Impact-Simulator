@@ -68,6 +68,7 @@ test('the seeds option posts n_seeds=3 and the run shows the seeds chip with pro
   await page.evaluate((eid) => (window as unknown as { __nadiEditEdge: (x: string) => void }).__nadiEditEdge(eid), E_ELIG.id);
   await expect(page.getByTestId('edge-palette')).toBeVisible();
   await page.getByTestId('apply-bike-lane').click();
+  await page.getByTestId('draft-run').click(); // V2.4a: apply adds to the draft; Run submits it
   await expect(page.getByTestId('run-card')).toBeVisible();
   expect(getBody()?.n_seeds).toBe(3);
 

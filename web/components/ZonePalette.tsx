@@ -117,7 +117,7 @@ export function ZonePalette({
         onClick={() => window && onSubmit(speedKmh / 3.6, window)}
         data-testid="apply-school-zone"
       >
-        Simulate school zone ({edges.length} street{edges.length === 1 ? '' : 's'})
+        Add to draft ({edges.length} street{edges.length === 1 ? '' : 's'})
       </button>
 
       <button style={linkBtn} onClick={onCancel} disabled={submitting} data-testid="zone-cancel">

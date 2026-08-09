@@ -9,6 +9,7 @@ import { RunSwitcher } from '@/components/RunSwitcher';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { EdgePalette } from '@/components/EdgePalette';
 import { ZonePalette } from '@/components/ZonePalette';
+import { DraftPanel, type DraftMember } from '@/components/DraftPanel';
 
 export interface DrawParams {
   lanes: number;
@@ -59,6 +60,14 @@ interface EditPanelProps {
   onZoneRemove: (id: string) => void;
   onZoneSubmit: (valueMps: number, window: ChangeWindow) => void;
   onZoneCancel: () => void;
+  // V2.4a — the draft basket (applies ADD members; one Run submits the whole draft)
+  draftMembers: DraftMember[];
+  draftTags: string[];
+  draftBlockers: string[]; // shared reason strings, verbatim — rendered as-is
+  draftError: string | null; // Run failures (400/409), verbatim
+  onDraftRemove: (id: string) => void;
+  onDraftRun: () => void;
+  onDraftHover: (id: string | null) => void; // row hover → map overlay highlight
 }
 
 // RATIFIED phase-5 road defaults — a two-way, two-lane, ~50 km/h street (what a planner usually draws, and
@@ -128,7 +137,7 @@ function DrawForm({
           onClick={() => onSubmit(params)}
           data-testid="simulate-btn"
         >
-          {submitting ? 'Submitting…' : 'Simulate'}
+          {submitting ? 'Submitting…' : 'Add to draft'}
         </button>
         <button style={linkBtn} onClick={onReset} disabled={submitting} data-testid="params-cancel">
           cancel
@@ -348,6 +357,20 @@ export function EditPanel(props: EditPanelProps) {
             />
           )}
         </div>
+      )}
+      {/* V2.4a — the draft basket, LAST in the rail (palette/draw-card positions stay stable). */}
+      {!activeRunId && props.draftMembers.length > 0 && (
+        <DraftPanel
+          members={props.draftMembers}
+          tags={props.draftTags}
+          blockers={props.draftBlockers}
+          demandProfile={props.runOptions.demand_profile ?? 'synthetic_demo'}
+          submitting={submitting}
+          error={props.draftError}
+          onRemove={props.onDraftRemove}
+          onRun={props.onDraftRun}
+          onHover={props.onDraftHover}
+        />
       )}
     </div>
   );

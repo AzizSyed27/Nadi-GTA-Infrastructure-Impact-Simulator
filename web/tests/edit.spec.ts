@@ -116,8 +116,10 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
   await expect(page.getByTestId('param-speed')).toHaveValue('13.9');
   await expect(page.getByTestId('param-bidirectional')).toBeChecked();
 
-  // Simulate → the run card appears and advances through the staged rail.
+  // Add to draft, then Run (V2.4a: apply adds a basket member; one Run submits it) → the run card
+  // appears and advances through the staged rail. The POSTed body is unchanged (the pin).
   await page.getByTestId('simulate-btn').click();
+  await page.getByTestId('draft-run').click();
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('run-stages')).toContainText('Baseline run');
 
@@ -209,6 +211,7 @@ test('a speed_limit submit walks the regen-free stages and reads 0-reroute as de
   await seamEdge(page, E_ELIG.id);
   await page.getByTestId('palette-speed').fill('8');
   await page.getByTestId('apply-speed').click();
+  await page.getByTestId('draft-run').click(); // V2.4a: apply adds to the draft; Run submits it
 
   await expect(page.getByTestId('run-card')).toBeVisible();
   // Runtime change → the rail has Baseline but NO regen stage.

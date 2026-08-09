@@ -116,6 +116,7 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
   await expect(page.getByTestId('zone-window-label')).toContainText('10–20 min');
   await expect(page.getByTestId('apply-school-zone')).toBeEnabled();
   await page.getByTestId('apply-school-zone').click();
+  await page.getByTestId('draft-run').click(); // V2.4a: the zone macro adds members; Run submits
   await expect(page.getByTestId('run-card')).toBeVisible();
 
   const body = lastBody as {
