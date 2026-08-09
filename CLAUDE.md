@@ -584,9 +584,12 @@ D1–D2 ratified: apply INVERTS to add-then-run).**
   draft survives. The 4 apply-driving specs (closure-palette, edit, seeds, school-zone) each gained
   ONE `draft-run` click with body assertions byte-identical — that IS the pin; closure-palette's
   400 assertion moved `palette-error` → `draft-error`. Suites: **419 pytest (untouched) + 67
-  Playwright**. Known pre-existing (NOT this step): 2 eslint react-hooks errors in MapView
-  (graphsSidecar effect setState, interviewee IIFE ref read) exist on HEAD — plugin drift in
-  V2.3-era code.
+  Playwright**. Follow-up (user-directed, landed): the error-verbatim case pins the PERMANENT
+  one-job 409 template, not the transitional REASON_COMPOSITE_MEMBER (a mocked error stays green
+  after its server string dies — pin only permanent shapes); the 2 inherited eslint react-hooks
+  errors were CLASSIFIED and resolved (graphsSidecar kick-off setState → queueMicrotask, the
+  in-file `?compare=` precedent; the interview transcript ref+tick hack → a plain state record —
+  the manual re-render tick was papering over a render-time ref read). `npm run lint` exits 0.
 - **Dormant for V2.4b:** `submitError` is now permanently null into the palettes/DrawForm (every
   Run error routes through `draft-error`) — strip the dead plumbing when b touches these files.
 

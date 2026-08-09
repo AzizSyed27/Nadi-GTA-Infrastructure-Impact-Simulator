@@ -140,14 +140,13 @@ export default function MapView() {
   const [currentTime, setCurrentTime] = useState(0);
   const [selected, setSelected] = useState<PinnedSimAgent | null>(null);
   // V2.3b — the interview drawer: which voice is being interviewed + per-agent SESSION transcripts
-  // (a ref record keyed by agentId — NB `Map` here is the react-map-gl component — never persisted
-  // anywhere; a tick re-renders on update).
+  // (a state record keyed by agentId — never persisted anywhere; cleared on run swap).
   const [interviewee, setInterviewee] = useState<Agent | null>(null);
-  const interviews = useRef<Record<string, InterviewMsg[]>>({});
-  const [, setInterviewTick] = useState(0);
+  // Plain STATE, not a ref+tick: the drawer's messages prop reads this during render, and a ref
+  // read there is a react-hooks/refs violation the old manual re-render tick only papered over.
+  const [interviews, setInterviews] = useState<Record<string, InterviewMsg[]>>({});
   const onInterviewMsgs = useCallback((id: string, msgs: InterviewMsg[]) => {
-    interviews.current[id] = msgs;
-    setInterviewTick((n) => n + 1);
+    setInterviews((cur) => ({ ...cur, [id]: msgs }));
   }, []);
   const [showAllConflicts, setShowAllConflicts] = useState(true);
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
@@ -345,7 +344,10 @@ export default function MapView() {
     if (mode !== 'graphs' || !artifact) return;
     const runId = artifact.meta.run_id;
     if (graphsSidecar?.runId === runId) return; // fetched, fetching, or errored — loadRun clears to refresh
-    setGraphsSidecar({ runId, data: null, loading: true, error: false });
+    // queueMicrotask: the loading-state flip must not run synchronously inside the effect body
+    // (react-hooks/set-state-in-effect — the ?compare= pick precedent above); it still fires before
+    // any network macrotask, so `settle`'s loading guard sees it.
+    queueMicrotask(() => setGraphsSidecar({ runId, data: null, loading: true, error: false }));
     const settle = (next: { runId: string; data: GraphsSidecar | null; loading: boolean; error: boolean }) =>
       setGraphsSidecar((cur) => (cur?.runId === runId && cur.loading ? next : cur));
     (async () => {
@@ -570,7 +572,7 @@ export default function MapView() {
     setStreamedAgents([]); // authoritative swap (or run switch) — the live ticker's job is over
     // V2.3b: interviews are per-run sessions — a run swap ends them (ephemeral by construction)
     setInterviewee(null);
-    interviews.current = {};
+    setInterviews({});
     setInstitution(null); // V2.3c: the grounding card is per-run too
     // V2.3d: an enrich may have just exported fresh graph layouts for this same run_id — drop the
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
@@ -1528,7 +1530,7 @@ export default function MapView() {
                     agentIndex={idx}
                     runId={meta.run_id}
                     sessionKey={sessionKey}
-                    messages={interviews.current[sessionKey] ?? []}
+                    messages={interviews[sessionKey] ?? []}
                     onMessages={onInterviewMsgs}
                     onClose={() => setInterviewee(null)}
                   />
