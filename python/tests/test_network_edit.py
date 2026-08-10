@@ -71,7 +71,8 @@ def test_scorecard_composite_access_is_honest_null() -> None:
     )
     cell = {x.group: x for x in sc.groups}["car_commuter"].access_delta
     assert cell.value is None, "composite must NOT silently sum overlapping heuristics"
-    assert "composite scenario (2 changes)" in cell.note, "...and must say WHY (honest null-with-note)"
+    assert "composite scenario — 2 of 2 changes affect this group's access" in cell.note, \
+        "...and must say WHY (honest null-with-note, contributors vs scenario size)"
 
 
 def test_patch_gauntlet_canonical_untouched_and_additive() -> None:

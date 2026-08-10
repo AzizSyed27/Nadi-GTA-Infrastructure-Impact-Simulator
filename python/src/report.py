@@ -352,6 +352,20 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                     and pr.get("baseline_s") is not None:
                 if abs(pr["added_s"] - round(pr["scenario_s"] - pr["baseline_s"], 1)) > 0.05:
                     problems.append(f"response probe {pr.get('label')!r}: added_s mismatch")
+        # V2.4b: the logged exclusion set + anchor must match the artifact's change list, and the
+        # anchor's order-dependence note is REQUIRED verbatim on composites (conditional on the
+        # keys' presence — pre-V2.4b sidecars legitimately lack them).
+        _rd_changes = changes_of(artifact)
+        if rd.get("modified_edges") is not None and \
+                rd["modified_edges"] != sorted({c.target_edge for c in _rd_changes if c.target_edge}):
+            problems.append("response_detour modified_edges != union of the change list's target edges")
+        if rd.get("destination_anchor") is not None:
+            if rd["destination_anchor"] != _rd_changes[0].target_edge:
+                problems.append("response_detour destination_anchor != changes[0].target_edge")
+            expected_anchor_note = ("destination anchored to the first change; with multiple modified "
+                                    "edges this choice is arbitrary and affects the estimate")
+            if len(_rd_changes) > 1 and rd.get("anchor_note") != expected_anchor_note:
+                problems.append("response_detour anchor_note altered or missing on a composite")
 
     # V2.2d — the zone lens pair may never render doctored, or without its honesty notes. The pair
     # bypasses the scorecard's CellRange/sign_stable machinery, so the variation caveat is a

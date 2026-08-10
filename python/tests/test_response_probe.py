@@ -209,6 +209,46 @@ def test_speed_guard_fails_production_when_attr_vanishes(nets, monkeypatch) -> N
         rp.apply_to_net(scen, _incident(speed_factor=0.5))
 
 
+def _speed_limit(edge: str = KINGSTON, mps: float = 8.33) -> Change:
+    return Change(type="speed_limit", target_edge=edge, value_mps=mps, description="test limit")
+
+
+def test_speed_limit_member_shapes_the_scenario_net(nets) -> None:
+    # V2.4b: a mixed composite's speed_limit member must reach the during-window net — its edge
+    # already enters the exclusion set, so an unapplied slowdown would under-report added_s.
+    base, scen = nets
+    undo = rp.apply_to_net(scen, _speed_limit(mps=5.0))
+    try:
+        assert scen.getEdge(KINGSTON).getSpeed() == pytest.approx(5.0)
+    finally:
+        undo()
+    assert scen.getEdge(KINGSTON).getSpeed() == pytest.approx(base.getEdge(KINGSTON).getSpeed())
+
+
+def test_speed_limit_guard_fails_loudly_when_attr_vanishes(nets, monkeypatch) -> None:
+    _, scen = nets
+    monkeypatch.delattr(scen.getEdge(KINGSTON), "_speed")
+    with pytest.raises(RuntimeError, match="SUMO 1.27|version"):
+        rp.apply_to_net(scen, _speed_limit())
+
+
+def test_main_acceptance_shape_zero_note_branch(nets) -> None:
+    """V2.4b pre-acceptance gate: for the acceptance draft's shape (road_closure + speed_limit +
+    factor-only incident) ``blocked_only`` is FALSE — an honest zero must speak the
+    route-avoidance sentence, never 'stays passable at unchanged free-flow speed' (which would
+    be false with a speed_limit member composing)."""
+    base, _ = nets
+    d_single, _ = rp.destination_edge(base, KINGSTON, modified={KINGSTON})
+    changes = [_road_closure(), _speed_limit(edge=d_single), _incident(speed_factor=0.5)]
+    out = rp.compute_response_detour(changes)
+    for pr in out["probes"]:
+        note = pr.get("note") or ""
+        assert "stays passable at unchanged free-flow speed" not in note
+        if pr.get("added_s") == 0.0:
+            assert note == ("the fastest route from this origin does not use the changed road "
+                            "under free-flow conditions")
+
+
 def test_compute_response_detour_end_to_end_payload() -> None:
     out = rp.compute_response_detour([_incident(blocked_lanes=[1, 2])])
     assert out["framing"] == rp.FRAMING and out["lower_bound_note"] == rp.LOWER_BOUND_NOTE
@@ -239,3 +279,13 @@ def test_multi_member_modified_exclusion_and_anchor(nets) -> None:
     out = rp.compute_response_detour(changes)
     assert out["destination_edge"] == d_multi  # changes[0] anchor, union exclusion
     assert len(out["probes"]) == 4
+    # V2.4b: the exclusion set + anchor are logged in the payload, and the anchor's
+    # order-dependence carries its note VERBATIM whenever >1 member composes.
+    assert out["modified_edges"] == sorted({KINGSTON, d_single})
+    assert out["destination_anchor"] == KINGSTON
+    assert out["anchor_note"] == ("destination anchored to the first change; with multiple "
+                                  "modified edges this choice is arbitrary and affects the estimate")
+    single = rp.compute_response_detour([_road_closure()])
+    assert single["modified_edges"] == [KINGSTON]
+    assert single["destination_anchor"] == KINGSTON
+    assert "anchor_note" not in single  # a single modified edge has no arbitrary choice to disclose

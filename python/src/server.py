@@ -474,9 +474,10 @@ def _build_composite_cmd(spec_path: Path, ts: str, demand_profile: str = "synthe
 
 
 async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
-    """V2.2d — the composite POST path: per-member validation (speed_limit-only this step; shared
-    reason strings), server-filled member descriptions (Change.description is contract-required),
-    a spec-file handoff, and run-state that carries changes + tags for the RunCard."""
+    """V2.2d/V2.4b — the composite POST path: per-member validation over the four WINDOWABLE
+    member types (shared reason strings, `change {i}: ` prefixed), server-filled member
+    descriptions (Change.description is contract-required), a spec-file handoff, and run-state
+    that carries changes + tags for the RunCard. Settled composites stay rejected wholesale."""
     import change_scheduler
     from demand_profiles import fmt_window
 
@@ -487,22 +488,65 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
     edges = _edges_by_id()
     members: list[dict] = []
     for i, ch in enumerate(req.changes):
-        if ch.type != "speed_limit":
+        # V2.4b: composite members are exactly the WINDOWABLE runtime types; bike_lane and
+        # new_road stay single-change scenarios (the single-source reason names why).
+        if ch.type not in change_scheduler.WINDOWABLE_TYPES:
             raise HTTPException(400, f"change {i}: {change_scheduler.REASON_COMPOSITE_MEMBER}")
-        if not (ch.target_edge and ch.value_mps):
-            raise HTTPException(400, f"change {i}: speed_limit requires target_edge and value_mps")
+        if not ch.target_edge:
+            raise HTTPException(400, f"change {i}: {ch.type} requires target_edge")
         if ch.target_edge not in edges:
             raise HTTPException(400, f"change {i}: edge {ch.target_edge!r} is not in the network")
+        edge = edges[ch.target_edge]
+        if ch.type == "speed_limit":
+            if not ch.value_mps:
+                raise HTTPException(400, f"change {i}: speed_limit requires target_edge and value_mps")
+            base_desc = f"Reduced max speed on edge {ch.target_edge} to {ch.value_mps * 3.6:.0f} km/h"
+        elif ch.type == "lane_closure":
+            reason = change_scheduler.validate_target_lanes(ch.target_lanes, edge["car_lane_indices"],
+                                                            ch.target_edge)
+            if reason is not None:
+                raise HTTPException(400, f"change {i}: {reason}")
+            base_desc = (f"Closed {len(ch.target_lanes)} of {len(edge['car_lane_indices'])} car lanes "
+                         f"on edge {ch.target_edge}")
+        elif ch.type == "road_closure":
+            base_desc = f"Closed edge {ch.target_edge} (all lanes)"
+        else:  # incident
+            if ch.window is None:
+                raise HTTPException(400, f"change {i}: incident requires a window (a temporary event; "
+                                         "start_s/end_s in sim-seconds)")
+            blocked = ch.effect.blocked if ch.effect else None
+            speed_factor = ch.effect.speed_factor if ch.effect else None
+            reason = change_scheduler.incident_rejection_reason(
+                blocked, speed_factor, ch.target_lanes, edge["car_lane_indices"], ch.target_edge)
+            if reason is not None:
+                raise HTTPException(400, f"change {i}: {reason}")
+            base_desc = change_scheduler.incident_base_desc(
+                ch.target_lanes if blocked else None, speed_factor, ch.target_edge)
         if ch.window is not None and ch.window.end_s <= ch.window.start_s:
             raise HTTPException(400, f"change {i}: window.end_s ({ch.window.end_s:g}) must be > "
                                      f"window.start_s ({ch.window.start_s:g})")
+        # (assignment_rejection_reason is deliberately NOT replicated per member: the settled 400
+        # above precedes this loop, so every composite is day_one by the time members validate.)
         desc = ch.description or (
-            f"Reduced max speed on edge {ch.target_edge} to {ch.value_mps * 3.6:.0f} km/h"
-            + (f" {fmt_window(ch.window, req.demand_profile)}" if ch.window is not None else ""))
-        members.append({"type": "speed_limit", "target_edge": ch.target_edge, "value_mps": ch.value_mps,
-                        **({"window": {"start_s": ch.window.start_s, "end_s": ch.window.end_s}}
-                           if ch.window is not None else {}),
-                        "description": desc})
+            base_desc + (f" {fmt_window(ch.window, req.demand_profile)}" if ch.window is not None else ""))
+        # Serialize by per-type ALLOWLIST — SimChange carries non-None new_road DEFAULTS
+        # (lanes=1 / speed_mps=13.9 / bidirectional=False) that a model_dump(exclude_none=True)
+        # would leak into every member; the spec must carry each member's defining fields only.
+        m: dict = {"type": ch.type, "target_edge": ch.target_edge}
+        if ch.type == "speed_limit":
+            m["value_mps"] = ch.value_mps
+        if ch.type == "lane_closure" or (ch.type == "incident" and ch.target_lanes):
+            m["target_lanes"] = ch.target_lanes
+        if ch.type == "incident":
+            m["effect"] = {k: v for k, v in
+                           {"blocked": ch.effect.blocked, "speed_factor": ch.effect.speed_factor}.items()
+                           if v is not None}
+            if ch.position_m is not None:
+                m["position_m"] = ch.position_m
+        if ch.window is not None:
+            m["window"] = {"start_s": ch.window.start_s, "end_s": ch.window.end_s}
+        m["description"] = desc
+        members.append(m)
 
     # same-edge members must be LIFO-revertible (disjoint or nested windows) — reject HERE, not as
     # a raw scheduler ValueError mid-SUMO-run (review-caught; same pure rule the scheduler enforces).
@@ -520,16 +564,19 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
 
     # the run description: the school-zone flow gets its own mechanical label; other composites a count
     n = len(members)
-    speeds = {m["value_mps"] for m in members}
+    speeds = {m["value_mps"] for m in members if m["type"] == "speed_limit"}
     windows = [m["window"] for m in members if m.get("window")]
     span_txt = ""
     if windows:
         span = {"start_s": min(w["start_s"] for w in windows), "end_s": max(w["end_s"] for w in windows)}
         span_txt = f", {fmt_window(span, req.demand_profile)}"
-    if req.tags and "school_zone" in req.tags and len(speeds) == 1:
+    all_speed = all(m["type"] == "speed_limit" for m in members)
+    if req.tags and "school_zone" in req.tags and all_speed and len(speeds) == 1:
         desc = f"School zone: {next(iter(speeds)) * 3.6:.0f} km/h on {n} street{'s' if n != 1 else ''}{span_txt}"
-    else:
+    elif all_speed:
         desc = f"{n} speed-limit changes on the corridor{span_txt}"
+    else:
+        desc = f"{n} changes on the corridor{span_txt}"  # V2.4b mixed members (matches the report title convention)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"

@@ -156,8 +156,13 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
                 note += "; applies during the closure window"
             return ScorecardCell(value=_ACCESS_HEURISTIC[c["type"]][group], confidence="low", note=note)
         if len(contrib_changes) > 1:  # honest: don't silently sum overlapping heuristics across composed changes
+            # V2.4b: name BOTH counts — on a mixed composite the contributor count and the scenario
+            # size differ, and "(3 changes)" would overclaim which members were unsummable.
             return ScorecardCell(value=None, confidence="low",
-                                 note=f"composite scenario ({len(changes)} changes) — per-group access not separable yet")
+                                 note=f"composite scenario — {len(contrib_changes)} of {len(changes)} "
+                                      f"changes affect this group's access; not separable yet")
+        # Order-dependent BY DESIGN: on a mixed zero-contributor composite the FIRST member with a
+        # _NULL_WITH_NOTE type supplies the note (documented + pinned, not redesigned this step).
         for c in changes:  # null magnitude WITH a per-type note, not silently-absent
             if c.get("type") in _NULL_WITH_NOTE:
                 return ScorecardCell(value=None, confidence="low", note=_NULL_WITH_NOTE[c["type"]])

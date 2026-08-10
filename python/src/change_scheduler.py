@@ -40,10 +40,16 @@ REASON_SETTLED_SEVERED = (
     "closures can strand trips that start or end on the closed road; equilibrium assignment "
     "cannot honestly settle a severed network — use day-one response"
 )
-# V2.2d composites — same single-source convention. Members are speed_limit-only this step
-# (bike_lane is structurally non-composable: no per-member target_lane on the wire), and the
-# settled runtime path expresses a change TWICE (netconvert patch + TraCI) for exactly one change.
-REASON_COMPOSITE_MEMBER = "composite scenarios support speed_limit members only in this step"
+# V2.4b composites — same single-source convention. Members are exactly the WINDOWABLE runtime
+# types (the four the ChangeScheduler can apply AND revert). bike_lane does not compose: ONE
+# target_lane threads the whole pipeline (run_quant_runtime -> apply_change), so two members would
+# fight over the same scalar. new_road does not compose: it regenerates the network (run_quant,
+# never a runtime apply). Settled composites stay rejected — the settled runtime path expresses a
+# change TWICE (netconvert patch + TraCI) for exactly one change (the len==1 assert in the harness).
+REASON_COMPOSITE_MEMBER = (
+    "composite members may be speed_limit, lane_closure, road_closure, or incident — "
+    "bike_lane (one shared target_lane, not per-member) and new_road (a regenerated "
+    "network, not a runtime change) do not compose")
 REASON_COMPOSITE_SETTLED = ("composite scenarios preview the day-one response only in this step; "
                             "settled assignment supports a single change")
 

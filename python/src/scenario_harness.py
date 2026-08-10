@@ -1828,9 +1828,11 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
                         demand_profile=profile, wall_clock_s=ids["wall_clock_s"],
                         assignment=assignment, settle_stats=ids["settle_stats"] or None,
                         **closure_extras,
-                        # composite/tagged runs only — single-change run-state stays byte-identical
+                        # composite/tagged runs only — single-change run-state stays byte-identical.
+                        # V2.4b: tags alone also keep `changes` (a 1-member TAGGED composite was
+                        # losing it at done, killing the RunCard zone chip on completion).
                         **({"changes": [c.model_dump(exclude_none=True) for c in changes]}
-                           if len(changes) > 1 else {}),
+                           if len(changes) > 1 or tags else {}),
                         **({"tags": tags} if tags else {}),
                         **({"n_seeds": n_seeds} if n_seeds > 1 else {}))
     print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
@@ -1839,10 +1841,26 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
             "car_affected_share": car_share, "buckets": buckets, "severed": sorted(severed or [])}
 
 
+def _spec_net():
+    """One cached canonical-net read for composite-spec validation (readNet costs seconds; the
+    loader runs at CLI start and repeatedly in tests). functools.lru_cache via a module attr."""
+    global _SPEC_NET_CACHE
+    try:
+        return _SPEC_NET_CACHE
+    except NameError:
+        pass
+    _SPEC_NET_CACHE = sumolib.net.readNet(str(run_sim.NET))
+    return _SPEC_NET_CACHE
+
+
 def load_composite_spec(path: Path) -> tuple[list[Change], list[str] | None]:
-    """V2.2d: read + validate the server's composite spec file. Every rejection is a SystemExit with
-    the SAME single-source reason strings POST /api/simulate uses (change_scheduler) — the harness
-    re-validates rather than trusting the handoff."""
+    """V2.2d/V2.4b: read + validate the server's composite spec file. Every rejection is a
+    SystemExit with the SAME single-source reason strings POST /api/simulate uses
+    (change_scheduler) — the harness re-validates rather than trusting the handoff. V2.4b adds
+    net-grounded member validation (edge existence, car-lane subsets, incident effects): a bad
+    member must die as a clean CLI message here, never a KeyError mid-run."""
+    import network_edit
+
     try:
         spec = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
@@ -1850,14 +1868,30 @@ def load_composite_spec(path: Path) -> tuple[list[Change], list[str] | None]:
     raw = spec.get("changes") or []
     if not raw:
         raise SystemExit("composite spec has no changes")
+    net = _spec_net()
+    known = {e.getID() for e in net.getEdges()}
     changes: list[Change] = []
     for i, cd in enumerate(raw):
         try:
             c = Change.model_validate(cd)
         except Exception as e:  # noqa: BLE001 — a clean CLI message, not a pydantic stack trace
             raise SystemExit(f"composite change {i} invalid: {e}") from e
-        if c.type != "speed_limit":
+        if c.type not in change_scheduler.WINDOWABLE_TYPES:
             raise SystemExit(f"composite change {i}: {change_scheduler.REASON_COMPOSITE_MEMBER}")
+        if c.target_edge not in known:
+            raise SystemExit(f"composite change {i}: edge {c.target_edge!r} is not in the network")
+        if c.type == "lane_closure":
+            reason = change_scheduler.validate_target_lanes(
+                c.target_lanes, network_edit._car_lane_indices_static(net, c.target_edge), c.target_edge)
+            if reason is not None:
+                raise SystemExit(f"composite change {i}: {reason}")
+        elif c.type == "incident":
+            reason = change_scheduler.incident_rejection_reason(
+                c.effect.blocked if c.effect else None,
+                c.effect.speed_factor if c.effect else None,
+                c.target_lanes, network_edit._car_lane_indices_static(net, c.target_edge), c.target_edge)
+            if reason is not None:
+                raise SystemExit(f"composite change {i}: {reason}")
         changes.append(c)
     reason = change_scheduler.lifo_conflict_reason(changes)  # same rule the POST + scheduler enforce
     if reason is not None:
@@ -1955,8 +1989,9 @@ def main() -> None:
     ap.add_argument("--bidirectional", action="store_true", help="new_road: build both directions")
     ap.add_argument("--description", default=None)
     ap.add_argument("--composite", default=None,
-                    help="V2.2d: path to a composite spec file ({changes:[...], tags:[...]}) — the server's "
-                         "multi-change handoff; overrides --change-type (speed_limit members only this step)")
+                    help="V2.2d/V2.4b: path to a composite spec file ({changes:[...], tags:[...]}) — the "
+                         "server's multi-change handoff; overrides --change-type (members may be any of "
+                         "the four windowable runtime types)")
     ap.add_argument("--run-ts", default=None, help="use this timestamp as the run id (the job runner passes it)")
     ap.add_argument("--demand-profile", choices=["synthetic_demo", "calibrated_am_peak"],
                     default="synthetic_demo",

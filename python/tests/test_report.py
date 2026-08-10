@@ -375,6 +375,26 @@ def test_scope_disclosure_differing_windows_use_spanning_window_and_say_so():
     assert "members carry differing windows; these figures use the spanning window" in got
 
 
+def test_scope_disclosure_mixed_types_differing_windows_the_acceptance_shape():
+    # V2.4b acceptance shape: road_closure 600-1200 + speed_limit 900-1500 + factor-only incident
+    # 600-1800 — all windowed, windows DIFFER → spanning window + the span note, subject "the
+    # changes were"; span end == sim ceiling so only the before-flank dilutes.
+    import zone_lens
+    from contract_models import Effect, Window
+    changes = [Change(type="road_closure", target_edge="E1",
+                      window=Window(start_s=600.0, end_s=1200.0), description="closed E1"),
+               Change(type="speed_limit", target_edge="E2", value_mps=8.33,
+                      window=Window(start_s=900.0, end_s=1500.0), description="30 km/h on E2"),
+               Change(type="incident", target_edge="E3",
+                      window=Window(start_s=600.0, end_s=1800.0),
+                      effect=Effect(speed_factor=0.5), description="incident on E3")]
+    got = report.build_scope_disclosure(changes, 1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the changes were active from t=600 s to t=1800 s of it "
+                   f"({zone_lens.span_note('these figures')}). Effects during the "
+                   "active window are diluted by the period before it.")
+
+
 def test_scope_disclosure_mixed_set_never_claims_the_permanent_member_was_temporary():
     # fixture-only today (no palette composes windowed + unwindowed members), but the future
     # multi-change closure flow (BACKLOG) will make it reachable — THIS TEST is what keeps the

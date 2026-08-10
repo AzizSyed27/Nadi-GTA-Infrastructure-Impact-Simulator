@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))  # sibling test helpers (FakeConn
 
 import change_scheduler as cs  # noqa: E402
 from contract_models import Change, Effect, Window  # noqa: E402
-from test_change_scheduler import make_conn, run_to, speed_limit  # noqa: E402
+from test_change_scheduler import incident, lane_closure, make_conn, road_closure, run_to, speed_limit  # noqa: E402
 
 
 def _closure() -> Change:
@@ -61,6 +61,42 @@ def test_any_capacity_event_folds_with_any() -> None:
 
 
 # ------------------------------------------------------------------ composite scheduler run
+
+
+def test_composite_member_reason_names_the_windowable_types() -> None:
+    # Anti-drift: the prose reason and WINDOWABLE_TYPES are separate strings — if the tuple ever
+    # changes, the reason must change with it.
+    for t in cs.WINDOWABLE_TYPES:
+        assert t in cs.REASON_COMPOSITE_MEMBER
+    for banned in ("bike_lane", "new_road"):
+        assert banned in cs.REASON_COMPOSITE_MEMBER  # named as non-composable, with the why
+
+
+def test_scheduler_composite_mixed_members_one_scheduler_per_member_proofs() -> None:
+    # V2.4b: a MIXED windowed membership (road_closure + speed_limit + speed-only incident) rides
+    # ONE scheduler; nested same-edge windows are legal; every member gets its own revert proof.
+    import pytest
+
+    conn = make_conn()
+    before_e, before_f = conn.state_of("E"), conn.state_of("F")
+    changes = [road_closure("F", 100.0, 500.0),
+               speed_limit("E", 8.33, 200.0, 600.0),
+               incident("E", 250.0, 550.0, speed_factor=0.5)]  # nested inside the speed window
+    sched = cs.ChangeScheduler(conn, changes, max_t=3600.0)
+    sched.start()
+    run_to(sched, 300.0)
+    assert "passenger" in conn.lane.getDisallowed("F_0")  # road closed
+    assert conn.lane.getMaxSpeed("E_1") == pytest.approx(8.33 * 0.5)  # limit applied, then scaled
+    run_to(sched, 700.0)
+    assert conn.state_of("E") == before_e and conn.state_of("F") == before_f
+    events = sched.finalize(700.0)
+    assert [e["change_idx"] for e in events] == [0, 1, 2]  # changes[] order preserved
+    assert [(e["type"], e["applied_t"], e["reverted_t"]) for e in events] == [
+        ("road_closure", 100.0, 500.0), ("speed_limit", 200.0, 600.0), ("incident", 250.0, 550.0)]
+    assert all(e["restored_ok"] is True for e in events)
+    # the folds see the same mixed membership the scheduler ran
+    assert cs.any_invalidates_routes(changes) is True   # the road_closure member
+    assert cs.any_capacity_event(changes) is True
 
 
 def test_scheduler_composite_two_windowed_speed_limits_two_edges() -> None:
@@ -140,30 +176,48 @@ def test_build_artifact_single_change_wraps_and_omits_tags(tmp_path) -> None:
 # ------------------------------------------------------------------ the composite spec handoff
 
 
+def _real_edges(n: int, min_car_lanes: int = 1) -> list[str]:
+    """Canonical-net edge ids for spec tests — the V2.4b spec loader validates against the net."""
+    import network_edit
+    import scenario_harness as sh
+
+    net = sh._spec_net()
+    out: list[str] = []
+    for e in net.getEdges():
+        if len(network_edit._car_lane_indices_static(net, e.getID())) >= min_car_lanes:
+            out.append(e.getID())
+            if len(out) == n:
+                return out
+    raise AssertionError(f"canonical net lacks {n} edges with >= {min_car_lanes} car lanes")
+
+
 def test_load_composite_spec_round_trip(tmp_path) -> None:
     import scenario_harness as sh
 
+    e1, e2 = _real_edges(2)
     spec = {"changes": [
-        {"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33,
-         "window": {"start_s": 600.0, "end_s": 1200.0}, "description": "zone limit on E1"},
-        {"type": "speed_limit", "target_edge": "E2", "value_mps": 8.33,
-         "window": {"start_s": 600.0, "end_s": 1200.0}, "description": "zone limit on E2"},
+        {"type": "speed_limit", "target_edge": e1, "value_mps": 8.33,
+         "window": {"start_s": 600.0, "end_s": 1200.0}, "description": f"zone limit on {e1}"},
+        {"type": "speed_limit", "target_edge": e2, "value_mps": 8.33,
+         "window": {"start_s": 600.0, "end_s": 1200.0}, "description": f"zone limit on {e2}"},
     ], "tags": ["school_zone"]}
     p = tmp_path / "spec.json"
     p.write_text(json.dumps(spec), encoding="utf-8")
     changes, tags = sh.load_composite_spec(p)
-    assert [c.target_edge for c in changes] == ["E1", "E2"]
+    assert [c.target_edge for c in changes] == [e1, e2]
     assert all(c.window is not None for c in changes)
     assert tags == ["school_zone"]
 
 
-def test_load_composite_spec_rejects_non_speed_limit_with_shared_reason(tmp_path) -> None:
+def test_load_composite_spec_rejects_non_composable_types_with_shared_reason(tmp_path) -> None:
+    # V2.4b: the member gate is WINDOWABLE_TYPES; bike_lane and new_road stay single-change.
     import pytest
     import scenario_harness as sh
 
+    e1, e2 = _real_edges(2)
     spec = {"changes": [
-        {"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33, "description": "ok"},
-        {"type": "lane_closure", "target_edge": "E2", "target_lanes": [1], "description": "nope"},
+        {"type": "speed_limit", "target_edge": e1, "value_mps": 8.33, "description": "ok"},
+        {"type": "bike_lane", "target_edge": e2, "description": "nope"},
     ]}
     p = tmp_path / "spec.json"
     p.write_text(json.dumps(spec), encoding="utf-8")
@@ -171,6 +225,30 @@ def test_load_composite_spec_rejects_non_speed_limit_with_shared_reason(tmp_path
         sh.load_composite_spec(p)
     assert "composite change 1" in str(ei.value)
     assert cs.REASON_COMPOSITE_MEMBER in str(ei.value)
+
+
+def test_load_composite_spec_net_validation_names_index(tmp_path) -> None:
+    # V2.4b: the spec loader reads the net — bad lane indices and unknown edges die as clean
+    # SystemExits naming the member (previously a raw KeyError deep in the run).
+    import pytest
+    import scenario_harness as sh
+
+    (e1,) = _real_edges(1, min_car_lanes=1)
+    bad_lanes = {"changes": [
+        {"type": "lane_closure", "target_edge": e1, "target_lanes": [99], "description": "bad"}]}
+    p = tmp_path / "s1.json"
+    p.write_text(json.dumps(bad_lanes), encoding="utf-8")
+    with pytest.raises(SystemExit) as ei:
+        sh.load_composite_spec(p)
+    assert str(ei.value).startswith("composite change 0: ") and "not car lanes" in str(ei.value)
+
+    unknown = {"changes": [
+        {"type": "road_closure", "target_edge": "no_such_edge_xyz", "description": "x"}]}
+    p2 = tmp_path / "s2.json"
+    p2.write_text(json.dumps(unknown), encoding="utf-8")
+    with pytest.raises(SystemExit) as ei2:
+        sh.load_composite_spec(p2)
+    assert "composite change 0" in str(ei2.value) and "is not in the network" in str(ei2.value)
 
 
 def test_load_composite_spec_rejects_empty_and_invalid(tmp_path) -> None:
@@ -193,9 +271,10 @@ def test_run_composite_settled_rejected_with_shared_reason(tmp_path) -> None:
     import pytest
     import scenario_harness as sh
 
+    (e1,) = _real_edges(1)
     spec = tmp_path / "spec.json"
     spec.write_text(json.dumps({"changes": [
-        {"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33, "description": "ok"}]}),
+        {"type": "speed_limit", "target_edge": e1, "value_mps": 8.33, "description": "ok"}]}),
         encoding="utf-8")
     args = argparse.Namespace(composite=str(spec), assignment="settled", run_ts=None,
                               demand_profile="synthetic_demo", n_seeds=1)
@@ -220,9 +299,48 @@ def test_composite_access_semantics() -> None:
     sc = scorecard.compute_scorecard(buckets, [], [], two_bike)
     car = next(g for g in sc.groups if g.group == "car_commuter")
     assert car.access_delta is not None and car.access_delta.value is None
-    assert car.access_delta.note == "composite scenario (2 changes) — per-group access not separable yet"
+    assert car.access_delta.note == \
+        "composite scenario — 2 of 2 changes affect this group's access; not separable yet"
 
     zone = [{"type": "speed_limit", "target_edge": e, "value_mps": 8.33,
              "window": {"start_s": 600.0, "end_s": 1200.0}} for e in ("E1", "E2", "E3")]
     sc2 = scorecard.compute_scorecard(buckets, [], [], zone)
     assert all(g.access_delta is None for g in sc2.groups)  # same as a single speed_limit run
+
+
+def test_composite_access_mixed_membership_branches() -> None:
+    """V2.4b — the branches mixed composites make reachable: (1) exactly ONE contributing member
+    renders a REAL ordinal ('rule-based estimate'; '; applies during the closure window' when the
+    closure is windowed); (2) the composite-null note counts CONTRIBUTORS vs SCENARIO size when they
+    differ; (3) zero contributors + several _NULL_WITH_NOTE types → the FIRST member's note wins
+    (documented order-dependence)."""
+    import scorecard
+
+    buckets = {m: {"counts": {"total_demand": 10}, "outcomes": [{"delta_seconds": 1.0}]}
+               for m in ("car", "bicycle", "pedestrian")}
+
+    one_contrib = [{"type": "speed_limit", "target_edge": "E1", "value_mps": 8.33},
+                   {"type": "speed_limit", "target_edge": "E2", "value_mps": 8.33},
+                   {"type": "lane_closure", "target_edge": "E3", "target_lanes": [1],
+                    "window": {"start_s": 600.0, "end_s": 1200.0}}]
+    sc = scorecard.compute_scorecard(buckets, [], [], one_contrib)
+    car = next(g for g in sc.groups if g.group == "car_commuter")
+    assert car.access_delta.value == 0.5
+    assert car.access_delta.note == "rule-based estimate; applies during the closure window"
+
+    counts_differ = [{"type": "bike_lane", "target_edge": "E1"},
+                     {"type": "bike_lane", "target_edge": "E2"},
+                     {"type": "speed_limit", "target_edge": "E3", "value_mps": 8.33}]
+    sc2 = scorecard.compute_scorecard(buckets, [], [], counts_differ)
+    car2 = next(g for g in sc2.groups if g.group == "car_commuter")
+    assert car2.access_delta.value is None
+    assert car2.access_delta.note == \
+        "composite scenario — 2 of 3 changes affect this group's access; not separable yet"
+
+    order_dep = [{"type": "incident", "target_edge": "E1", "effect": {"speed_factor": 0.5},
+                  "window": {"start_s": 600.0, "end_s": 1200.0}},
+                 {"type": "road_closure", "target_edge": "E2"}]
+    sc3 = scorecard.compute_scorecard(buckets, [], [], order_dep)
+    cyc = next(g for g in sc3.groups if g.group == "cyclist")
+    assert cyc.access_delta.value is None
+    assert cyc.access_delta.note == "temporary incident — access heuristic not meaningful"

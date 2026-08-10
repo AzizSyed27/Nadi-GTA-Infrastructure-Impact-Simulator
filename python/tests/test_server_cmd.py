@@ -290,16 +290,92 @@ def test_post_change_xor_changes() -> None:
     assert ei2.value.status_code == 400
 
 
-def test_post_composite_member_must_be_speed_limit_names_index() -> None:
+def _mixed_members() -> list[dict]:
+    """V2.4b: one member of each composable capacity shape + a road closure — REAL edges with >=2
+    car lanes (the lane_closure member closes a strict subset). Windows deliberately DIFFER."""
+    edges = [e for e in server._edges_by_id().values() if len(e["car_lane_indices"]) >= 2][:3]
+    assert len(edges) == 3
+    return [
+        {"type": "road_closure", "target_edge": edges[0]["id"],
+         "window": {"start_s": 600.0, "end_s": 1200.0}},
+        {"type": "lane_closure", "target_edge": edges[1]["id"],
+         "target_lanes": [edges[1]["car_lane_indices"][0]],
+         "window": {"start_s": 900.0, "end_s": 1500.0}},
+        {"type": "incident", "target_edge": edges[2]["id"],
+         "effect": {"speed_factor": 0.5}, "window": {"start_s": 600.0, "end_s": 1800.0}},
+    ]
+
+
+def test_post_composite_member_type_gate_names_index() -> None:
+    # V2.4b: the member gate is WINDOWABLE_TYPES — bike_lane and new_road stay out, with the
+    # single-source reason naming why.
     from fastapi import HTTPException
 
     import change_scheduler as cs
     members = _three_zone_members()
-    members[1] = {"type": "lane_closure", "target_edge": members[1]["target_edge"], "target_lanes": [0]}
+    members[1] = {"type": "bike_lane", "target_edge": members[1]["target_edge"]}
     with pytest.raises(HTTPException) as ei:
         _post_composite(members)
     assert ei.value.status_code == 400
     assert "change 1" in ei.value.detail and cs.REASON_COMPOSITE_MEMBER in ei.value.detail
+    members2 = _three_zone_members()
+    members2[0] = {"type": "new_road", "from_junction": "J1", "to_junction": "J2"}
+    with pytest.raises(HTTPException) as ei2:
+        _post_composite(members2)
+    assert ei2.value.status_code == 400
+    assert "change 0" in ei2.value.detail and cs.REASON_COMPOSITE_MEMBER in ei2.value.detail
+
+
+def test_post_composite_mixed_members_spec_carries_per_type_truth() -> None:
+    # V2.4b: the serializer must carry each member's defining fields (the old one hardcoded the
+    # speed_limit shape and silently DROPPED target_lanes/effect) — and must not leak SimChange's
+    # non-None new_road defaults (lanes/speed_mps/bidirectional) into members.
+    import json as _json
+
+    import run_state
+    members = _mixed_members()
+    try:
+        out, bg = _post_composite(members)
+        run_id = out["run_id"]
+        spec_path = run_state.STATE_DIR / f"{run_id}.composite.json"
+        spec = _json.loads(spec_path.read_text(encoding="utf-8"))
+        rc, lc, inc = spec["changes"]
+        assert rc["type"] == "road_closure" and rc["window"] == {"start_s": 600.0, "end_s": 1200.0}
+        assert rc["description"].startswith("Closed edge ") and "(all lanes)" in rc["description"]
+        assert lc["type"] == "lane_closure" and lc["target_lanes"] == members[1]["target_lanes"]
+        assert lc["description"].startswith("Closed 1 of ")
+        assert inc["type"] == "incident" and inc["effect"] == {"speed_factor": 0.5}
+        assert inc["window"] == {"start_s": 600.0, "end_s": 1800.0}
+        assert "(incident)" in inc["description"]
+        for c in spec["changes"]:
+            for leaked in ("value_mps", "lanes", "speed_mps", "bidirectional", "from_junction"):
+                assert leaked not in c, (c["type"], leaked)
+        st = run_state.read(run_id)
+        assert st["description"].startswith("3 changes on the corridor")
+        assert len(st["changes"]) == 3
+        for p in (spec_path, run_state.STATE_DIR / f"{run_id}.json"):
+            p.unlink(missing_ok=True)
+    finally:
+        run_state.release()
+
+
+def test_post_composite_member_matrix_prefixes_index() -> None:
+    # V2.4b: the per-member rejection matrix speaks the shared strings with the change index.
+    from fastapi import HTTPException
+
+    members = _mixed_members()
+    members[1]["target_lanes"] = [99]
+    with pytest.raises(HTTPException) as ei:
+        _post_composite(members)
+    assert ei.value.status_code == 400
+    assert ei.value.detail.startswith("change 1: ") and "not car lanes" in ei.value.detail
+
+    members2 = _mixed_members()
+    del members2[2]["window"]
+    with pytest.raises(HTTPException) as ei2:
+        _post_composite(members2)
+    assert ei2.value.status_code == 400
+    assert ei2.value.detail.startswith("change 2: ") and "incident requires a window" in ei2.value.detail
 
 
 def test_post_composite_settled_rejected_with_exact_reason() -> None:

@@ -137,6 +137,19 @@ def apply_to_net(net, change: Change):
     for i in closed:
         lanes[i].setPermissions(())  # live: Edge.allows recomputes per call (no routing cache)
 
+    if change.type == "speed_limit" and change.value_mps:
+        # V2.4b: a mixed composite's speed_limit member must shape the during-window net — its
+        # edge already enters the exclusion set, so leaving its slowdown invisible to routing
+        # would under-report added_s. Same pinned SUMO 1.27 internal as the factor poke below.
+        if not hasattr(edge, "_speed"):
+            raise RuntimeError(
+                "sumolib Edge has no `_speed` — this poke is pinned to SUMO 1.27 internals (no "
+                "public speed setter exists); the SUMO version changed — re-verify and re-pin "
+                "before trusting speed_limit detours (a silent no-op here would quietly "
+                "under-report response delay)."
+            )
+        edge._speed = change.value_mps
+
     factor = change.effect.speed_factor if (change.type == "incident" and change.effect) else None
     if factor is not None:
         if not hasattr(edge, "_speed"):
@@ -173,6 +186,14 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
     dest_id, dest_note = destination_edge(base_net, changes[0].target_edge, modified)
     out: dict = {"framing": FRAMING, "lower_bound_note": LOWER_BOUND_NOTE,
                  "destination_edge": dest_id, "destination_note": dest_note, "probes": []}
+    # V2.4b: the exclusion set and the anchor are FACTS about the estimate — logged where the
+    # number lives. The anchor choice is ORDER-DEPENDENT on composites (changes[0]); the note
+    # says so out loud rather than leaving two same-edges-different-order runs unexplained.
+    out["modified_edges"] = sorted(modified)
+    out["destination_anchor"] = changes[0].target_edge
+    if len(changes) > 1:
+        out["anchor_note"] = ("destination anchored to the first change; with multiple modified "
+                              "edges this choice is arbitrary and affects the estimate")
     note = origins_note()
     if note:
         out["origins_note"] = note
@@ -229,6 +250,8 @@ def compute_response_detour(changes: list[Change], net_path: Path = None,
     base_net = sumolib.net.readNet(str(net_path))
     scen_net = sumolib.net.readNet(str(net_path))
     for c in changes:
-        if c.type in ("lane_closure", "road_closure", "incident"):
-            apply_to_net(scen_net, c)
+        # V2.4b: EVERY member shapes the during-window net (a speed_limit member's slowdown is
+        # real free-flow routing input); the gate for computing the fact at all stays
+        # any_capacity_event upstream.
+        apply_to_net(scen_net, c)
     return detour_from_nets(base_net, scen_net, changes, probes)
