@@ -5,9 +5,12 @@ import { getRuns, type RunSummary } from '@/lib/api';
 
 /** Short, human label for a run row: its description if present, else the timestamp tail of the id. */
 function runLabel(r: RunSummary): string {
+  // V2.4c: the user NAME takes precedence over the mechanical description (truncated for the
+  // 260px select); name-less output stays BYTE-IDENTICAL to pre-c labels (spec-pinned surfaces).
   const tail = r.id.replace('multimodal-scenario-', '');
-  const desc = r.description?.trim();
-  return `${desc ? desc + ' · ' : ''}${tail}${r.status && r.status !== 'done' ? ` (${r.status})` : ''}`;
+  const name = r.name?.trim();
+  const head = name ? (name.length > 40 ? `${name.slice(0, 39)}…` : name) : r.description?.trim();
+  return `${head ? head + ' · ' : ''}${tail}${r.status && r.status !== 'done' ? ` (${r.status})` : ''}`;
 }
 
 /**

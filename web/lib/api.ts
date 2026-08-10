@@ -105,6 +105,7 @@ export interface RunSummary {
   status: string | null;
   stage: string | null;
   started_at: number | null;
+  name?: string; // V2.4c — the user-supplied run name (identity sidecar), present only when set
 }
 
 /** The run-state JSON from GET /api/runs/<id>/status (superset; fields depend on stage reached). */
@@ -113,6 +114,9 @@ export interface RunStatus {
   stage: string;
   status: string;
   detail?: string;
+  // V2.4c — the user identity (sidecar-stored, merged server-side; NEVER in the artifact)
+  name?: string;
+  note?: string;
   started_at?: number;
   updated_at?: number;
   description?: string;
@@ -243,6 +247,20 @@ export function postSimulateComposite(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ changes, ...(tags?.length ? { tags } : {}), ...options }),
+  });
+}
+
+/** V2.4c — POST /api/runs/<id>/identity. FULL-REPLACE: send both fields every save; empty clears.
+ * 403 on the pinned run (reason verbatim), 400 over the server caps (name 60 / note 500 — the
+ * client maxLength attrs are convenience only). */
+export function postIdentity(
+  runId: string,
+  identity: { name: string; note: string },
+): Promise<ApiResult<{ name?: string; note?: string }>> {
+  return req(`/api/runs/${encodeURIComponent(runId)}/identity`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(identity),
   });
 }
 

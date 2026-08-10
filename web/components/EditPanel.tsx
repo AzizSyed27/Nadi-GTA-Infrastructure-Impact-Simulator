@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { ChangeWindow, Junction, Edge, RunOptions } from '@/lib/api';
+import type { ChangeWindow, Junction, Edge, RunOptions, RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
 import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
@@ -60,6 +60,8 @@ interface EditPanelProps {
   onZoneRemove: (id: string) => void;
   onZoneSubmit: (valueMps: number, window: ChangeWindow) => void;
   onZoneCancel: () => void;
+  // V2.4c — clone a finished run's changes[] into a fresh draft (RunCard button)
+  onClone: (st: RunStatus) => void;
   // V2.4a — the draft basket (applies ADD members; one Run submits the whole draft)
   draftMembers: DraftMember[];
   draftTags: string[];
@@ -228,7 +230,8 @@ export function EditPanel(props: EditPanelProps) {
 
       {activeRunId ? (
         <>
-          <RunCard key={activeRunId} runId={activeRunId} onLoaded={props.onLoaded} onVoice={props.onVoice} />
+          <RunCard key={activeRunId} runId={activeRunId} onLoaded={props.onLoaded} onVoice={props.onVoice}
+                   onClone={props.onClone} />
           {props.streamedVoices.length > 0 && (
             <div style={card} data-testid="voice-stream-panel">
               <div style={contains}>

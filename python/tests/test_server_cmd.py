@@ -461,10 +461,15 @@ def test_run_state_list_all_skips_composite_specs_and_junk(tmp_path, monkeypatch
     run_state.set_stage("run-a", "done", "ok")
     (tmp_path / "run-b.composite.json").write_text(_json.dumps({"changes": [], "tags": []}), encoding="utf-8")
     (tmp_path / "junk.json").write_text(_json.dumps({"not": "state"}), encoding="utf-8")
+    # V2.4c: the THIRD file class under the same glob — the identity sidecar (user fold-in: every
+    # new file class in this dir re-proves coexistence, since the composite spec 500'd live once)
+    run_state.set_identity("run-a", name="My run")
     rows = run_state.list_all()
     assert [r["run_id"] for r in rows] == ["run-a"]  # never crashes, never lists non-state files
+    assert "name" not in rows[0]  # list_all stays identity-free (the server merges)
     assert run_state.read("junk") is None
     assert run_state.read("run-b.composite") is None
+    assert run_state.read("run-a.identity") is None  # the sidecar can never masquerade as state
 
 
 def test_post_composite_then_api_runs_still_serves(tmp_path) -> None:

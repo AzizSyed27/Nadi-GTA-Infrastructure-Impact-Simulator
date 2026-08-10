@@ -17,7 +17,7 @@ import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
-import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { GraphSplitView, type GraphsSidecar } from '@/components/GraphSplitView';
@@ -890,6 +890,41 @@ export default function MapView() {
     resetDraw();
   }, [resetDraw]);
 
+  // V2.4c — clone a finished run's changes into a FRESH draft (D4: iterate by adjusting the run
+  // that almost worked; REPLACE, never merge; name/note are never copied — a new scenario earns
+  // its own). Members come from run-state (single-change runs carry only `change`); origin:'zone'
+  // reconstructs the school_zone tag through runDraft's existing derivation — without it a cloned
+  // zone run would silently drop the tag (description branch + zone lens). Disclosed limits:
+  // cloned new_road members get no draft overlay (the path is captured at ADD time only), and a
+  // new_road inside a multi-member draft 400s verbatim on Run (the existing convention).
+  const cloneToDraft = useCallback(
+    (st: RunStatus) => {
+      const changes = (st.changes ?? (st.change ? [st.change] : [])) as SimChange[];
+      if (changes.length === 0) return;
+      const zone = st.tags?.includes('school_zone') ?? false;
+      const base = draftSeq.current; // bulk mint OUTSIDE setState (StrictMode-safe, the zone-macro idiom)
+      draftSeq.current += changes.length;
+      setDraft(
+        changes.map((c, i) => ({
+          id: `d${base + i + 1}`,
+          change: c,
+          valid: true,
+          ...(zone ? { origin: 'zone' as const } : {}),
+        })),
+      );
+      setHoveredDraftId(null);
+      setDraftError(null);
+      setRunOptions({
+        ...(st.demand_profile ? { demand_profile: st.demand_profile as RunOptions['demand_profile'] } : {}),
+        ...(st.assignment ? { assignment: st.assignment as RunOptions['assignment'] } : {}),
+        ...(st.n_seeds ? { n_seeds: st.n_seeds as RunOptions['n_seeds'] } : {}),
+      });
+      setActiveRunId(null); // the DraftPanel is gated on !activeRunId — without this the clone is invisible
+      resetDraw();
+    },
+    [resetDraw],
+  );
+
   // Test seam (Playwright): inject a map click / hover at [lon,lat] so the real snap→preview→form→submit path
   // runs without fighting the WebGL canvas hit-test. Present only while in edit mode; inert in production.
   useEffect(() => {
@@ -1494,6 +1529,7 @@ export default function MapView() {
           onDraftRemove={onDraftRemove}
           onDraftRun={runDraft}
           onDraftHover={setHoveredDraftId}
+          onClone={cloneToDraft}
         />
       ) : effectiveMode === 'playback' ? (
         <>

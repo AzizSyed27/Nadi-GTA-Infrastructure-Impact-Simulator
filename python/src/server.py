@@ -715,8 +715,15 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
 
 @app.get("/api/runs")
 async def runs():
-    return {"runs": [{"id": s["run_id"], "description": s.get("description", ""), "status": s.get("status"),
-                      "stage": s.get("stage"), "started_at": s.get("started_at")} for s in run_state.list_all()]}
+    out = []
+    for s in run_state.list_all():
+        # V2.4c: the user name merges from the identity SIDECAR here (list_all stays identity-free
+        # so state consumers never see workspace metadata); present only when set.
+        ident = run_state.identity(s["run_id"])
+        out.append({"id": s["run_id"], "description": s.get("description", ""), "status": s.get("status"),
+                    "stage": s.get("stage"), "started_at": s.get("started_at"),
+                    **({"name": ident["name"]} if ident.get("name") else {})})
+    return {"runs": out}
 
 
 def _enrich_progress(run_id: str) -> dict | None:
@@ -751,7 +758,36 @@ async def run_status(run_id: str):
         prog = _enrich_progress(run_id)
         if prog:
             st["enrich_progress"] = prog
+    st.update(run_state.identity(run_id))  # V2.4c: name/note merge (keys can't collide with state)
     return st
+
+
+class IdentityReq(BaseModel):
+    """V2.4c — user name/note for a run. FULL-REPLACE semantics: the UI sends both fields on
+    every save; empty/omitted clears."""
+    name: str | None = None
+    note: str | None = None
+
+
+@app.post("/api/runs/{run_id}/identity")
+async def set_run_identity(run_id: str, req: IdentityReq):
+    """V2.4c — write the run's identity SIDECAR (contract/runs/state/<id>.identity.json — never
+    the artifact or the state file; run-ids stay canonical in APIs/sidecars/reports). No job lock:
+    identity is not a job, and the sidecar's single-writer design makes it race-free. The server
+    caps are the ENFORCEMENT (client maxLength is convenience); markup is stored VERBATIM — inert
+    RENDERING is the single deliberate defense layer (web-spec-pinned end to end)."""
+    # the pinned guard FIRST (the enrich precedent: after the 404 it would be dead code)
+    if trajectory_io.pinned_identity_blocked(run_id):
+        raise HTTPException(403, trajectory_io.PINNED_IDENTITY_REASON)
+    if run_state.read(run_id) is None:
+        raise HTTPException(404, f"no such run {run_id!r}")
+    name = (req.name or "").strip()
+    note = (req.note or "").strip()
+    if len(name) > 60:
+        raise HTTPException(400, f"name too long ({len(name)} > 60 chars)")
+    if len(note) > 500:
+        raise HTTPException(400, f"note too long ({len(note)} > 500 chars)")
+    return run_state.set_identity(run_id, name, note)
 
 
 # Human labels for the enrich sub-commands — these ride cmd_start events and render live in the UI

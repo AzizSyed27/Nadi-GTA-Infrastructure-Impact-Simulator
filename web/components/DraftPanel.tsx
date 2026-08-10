@@ -43,7 +43,9 @@ function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_
       base = `Bike lane · ${c.target_edge}`;
       break;
     case 'lane_closure':
-      base = `${c.target_lanes.length} lane(s) closed · ${c.target_edge}`;
+      // optional-chained like the incident case: cloned members arrive through a loose status-dict
+      // cast, and a malformed one must render a wrong count, never crash the panel
+      base = `${c.target_lanes?.length ?? 0} lane(s) closed · ${c.target_edge}`;
       break;
     case 'road_closure':
       base = `Road closed · ${c.target_edge}`;

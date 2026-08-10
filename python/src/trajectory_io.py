@@ -51,6 +51,23 @@ def guard_pinned_enrich(run_id: str) -> None:
         raise SystemExit(PINNED_REASON)
 
 
+# V2.4c — the sibling guard for IDENTITY writes (user name/note). A name on the pinned run changes
+# the runLabel output on every spec-pinned run-picker surface — the same breaks-hours-later class
+# the enrich guard exists for. No CLI twin: only the identity endpoint writes the sidecar.
+PINNED_IDENTITY_REASON = (
+    f"{PINNED_RUN_ID} is the PINNED Playwright/report anchor: a name or note on it changes the "
+    "runLabel output on every spec-pinned run-picker surface (the edit rail + both compare "
+    "pickers) and breaks the spec suite hours later with no obvious cause. Refusing the identity "
+    f"write (clone-to-draft stays open — it only reads). For a deliberate re-pin set "
+    f"{ALLOW_PINNED_ENV}=1."
+)
+
+
+def pinned_identity_blocked(run_id: str) -> bool:
+    """True when an identity (name/note) write targets the pinned run (env escape hatch honored)."""
+    return run_id == PINNED_RUN_ID and not os.environ.get(ALLOW_PINNED_ENV)
+
+
 @lru_cache(maxsize=1)
 def load_schema() -> dict:
     """Load and cache the canonical JSON Schema."""

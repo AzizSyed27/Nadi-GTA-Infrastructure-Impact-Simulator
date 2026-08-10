@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getRunStatus, postEnrich, type EnrichStage, type RunStatus } from '@/lib/api';
+import { getRunStatus, postEnrich, postIdentity, type EnrichStage, type RunStatus } from '@/lib/api';
 import { openEnrichStream, type VoiceEvent } from '@/lib/enrichStream';
 import { signedMinutes } from '@/lib/viz';
 import { fmtWindowRange } from '@/lib/simTime';
@@ -50,15 +50,23 @@ export function RunCard({
   runId,
   onLoaded,
   onVoice,
+  onClone,
 }: {
   runId: string;
   onLoaded: (runId: string) => void;
   onVoice?: (runId: string, v: VoiceEvent) => void;
+  onClone?: (st: RunStatus) => void; // V2.4c — clone this run's changes[] into a fresh draft
 }) {
   const [status, setStatus] = useState<RunStatus | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [enrichBusy, setEnrichBusy] = useState<EnrichStage | null>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
+  // V2.4c — the identity (name/note) edit affordance
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [noteInput, setNoteInput] = useState('');
+  const [identityBusy, setIdentityBusy] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0); // bump to restart polling after launching an enrich
   const [streamProgress, setStreamProgress] = useState<{ done?: number; total?: number; label?: string } | null>(null);
   const [streamDegraded, setStreamDegraded] = useState(false);
@@ -335,10 +343,84 @@ export function RunCard({
         : rd.destination_note ?? 'response detour not computable — see the report'
     : null;
 
+  // V2.4c — save the identity; on success MERGE the response into local status (the poll loop has
+  // STOPPED on a terminal run and would never repaint the name otherwise). Errors render verbatim
+  // (the pinned 403 reason included). All name/note rendering is React text nodes — injection-inert.
+  const saveIdentity = async () => {
+    setIdentityBusy(true);
+    setIdentityError(null);
+    const res = await postIdentity(runId, { name: nameInput, note: noteInput });
+    setIdentityBusy(false);
+    if (!res.ok) {
+      setIdentityError(res.error);
+      return;
+    }
+    setStatus((s) => (s ? { ...s, name: res.value.name, note: res.value.note } : s));
+    setEditingIdentity(false);
+  };
+
   return (
     <div style={card} data-testid="run-card">
       <div style={title}>{done ? 'Run complete' : failed ? 'Run failed' : 'Running…'}</div>
+      {status?.name && !editingIdentity && (
+        <div style={{ ...title, fontSize: 13, color: '#1f4e9c' }} data-testid="run-name">
+          {status.name}
+        </div>
+      )}
       <div style={sub}>{status?.description || runId}</div>
+      {status?.note && !editingIdentity && (
+        <div style={{ ...sub, opacity: 0.85, whiteSpace: 'pre-wrap' }} data-testid="run-note">
+          {status.note}
+        </div>
+      )}
+      {status && !editingIdentity && (
+        <button
+          style={renameLink}
+          data-testid="rename-toggle"
+          onClick={() => {
+            setNameInput(status.name ?? '');
+            setNoteInput(status.note ?? '');
+            setIdentityError(null);
+            setEditingIdentity(true);
+          }}
+        >
+          {status.name || status.note ? 'rename' : 'name this run'}
+        </button>
+      )}
+      {editingIdentity && (
+        <div data-testid="identity-form" style={{ marginBottom: 8 }}>
+          <input
+            style={identityInput}
+            value={nameInput}
+            maxLength={60}
+            placeholder="name (optional)"
+            onChange={(e) => setNameInput(e.target.value)}
+            data-testid="name-input"
+          />
+          <textarea
+            style={{ ...identityInput, resize: 'vertical' }}
+            value={noteInput}
+            maxLength={500}
+            rows={2}
+            placeholder="note (optional)"
+            onChange={(e) => setNoteInput(e.target.value)}
+            data-testid="note-input"
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button style={enrichBtn} disabled={identityBusy} onClick={saveIdentity} data-testid="identity-save">
+              Save
+            </button>
+            <button style={renameLink} onClick={() => setEditingIdentity(false)} data-testid="identity-cancel">
+              cancel
+            </button>
+          </div>
+          {identityError && (
+            <div style={errText} data-testid="identity-error">
+              {identityError}
+            </div>
+          )}
+        </div>
+      )}
       {demandChip && (
         <div style={{ ...sub, opacity: 0.8 }} data-testid="demand-chip">
           demand: {demandChip}
@@ -437,6 +519,17 @@ export function RunCard({
             ))}
           </div>
           {enrichError && <div style={errText} data-testid="enrich-error">{enrichError}</div>}
+          {/* V2.4c — clone this run's changes[] into a fresh draft (D4: iterate by adjusting the
+              thing that almost worked; name/note never copied — a new scenario earns its own) */}
+          {members.length > 0 && onClone && status && (
+            <button
+              style={{ ...enrichBtn, marginTop: 8 }}
+              onClick={() => onClone(status)}
+              data-testid="clone-to-draft"
+            >
+              ⧉ Clone to draft
+            </button>
+          )}
         </>
       )}
     </div>
@@ -456,6 +549,16 @@ const card: React.CSSProperties = {
 };
 const title: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 2 };
 const sub: React.CSSProperties = { fontSize: 11, color: '#8a9099', marginBottom: 10, wordBreak: 'break-all' };
+// V2.4c — the identity affordance
+const renameLink: React.CSSProperties = {
+  border: 'none', background: 'transparent', color: '#8a9099', fontSize: 11,
+  cursor: 'pointer', textDecoration: 'underline', padding: 0, marginBottom: 8,
+};
+const identityInput: React.CSSProperties = {
+  display: 'block', width: '100%', boxSizing: 'border-box', border: '1px solid #cbd3dc',
+  borderRadius: 8, padding: '6px 8px', fontSize: 12, color: '#374151', marginBottom: 6,
+  fontFamily: 'system-ui, sans-serif',
+};
 const rail: React.CSSProperties = { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 5 };
 const stageRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9aa0a8' };
 const stageActive: React.CSSProperties = { color: '#1f4e9c', fontWeight: 600 };
