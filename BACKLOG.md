@@ -91,6 +91,14 @@ so the understatement has not yet rendered on a real run; the refinement (per-me
 "active intermittently" form, never a silent span widening) is now a live duty rather than an
 API-only hypothetical — schedule it before any workflow that composes far-apart windows.
 
+## V2.4c — clone from FAILED runs (cheap future extension)
+Clone-to-draft renders in the RunCard's done-block only. A FAILED run's members are exactly the
+draft a planner wants to fix ("it crashed on the third member — clone, drop it, rerun"), and the
+status dict already carries `changes` from the queued/baseline writes; the extension is moving the
+button out of the `done &&` gate + a spec case. Deferred: failed-run states can be partial
+(pre-baseline failures may carry only the queued members), so the clone's provenance needs a
+glance-able "cloned from a FAILED run" cue before this ships.
+
 ## V2.3c — institutional mandate sources: periodic re-verification (staleness)
 `python/src/institutions.json` quotes each institution's published mission VERBATIM with a source
 URL + retrieval date (`_provenance`). The quote is honest at capture but organizations revise their

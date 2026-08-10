@@ -137,10 +137,16 @@ dormant honesty paths are PRODUCTION-EXERCISED — the scorecard composite-null 
 wording) fired on a live 2-lane_closure run, and the detour's multi-member exclusion ran CLEAN on a
 live 3-member mixed run (doorstep station unreachable, worst reachable +29.1 s; `modified_edges` +
 `destination_anchor` + the arbitrariness `anchor_note` logged + verify-pinned; TFS spoke the
-composite citation). Suites: **429 pytest + 69 Playwright**. Open threads: **V2.4c–d**
-(clone-and-tweak + run identity, closeout) + **V2.5 network styling** + `BACKLOG.md` (bbox
-expansion, rung-2 detour — now with a live datapoint, student demand, mandate re-verification,
-disjoint-window span honesty — now UI-reachable).
+composite citation). **V2.4c (clone-and-tweak + run identity) is COMPLETE**: ⧉ Clone-to-draft on
+the RunCard loads any run's changes[] into a fresh draft (cross-version, zone-tag reconstructed via
+member origins, name/note never copied); runs carry an optional user name+note in an IDENTITY
+SIDECAR (`state/<id>.identity.json`, endpoint-only writer — race-free against the harness's
+unlocked set_stage by construction), names render on RunCards + every runLabel picker (ids stay
+canonical elsewhere), server caps are the enforcement, markup stored verbatim + pinned inert on
+both render surfaces, and the pinned run refuses identity writes with the sibling guard reason.
+Suites: **439 pytest + 73 Playwright**. Open threads: **V2.4d** (closeout) + **V2.5 network
+styling** + `BACKLOG.md` (bbox expansion, rung-2 detour — now with a live datapoint, student
+demand, mandate re-verification, disjoint-window span honesty — now UI-reachable).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -653,6 +659,49 @@ honesty paths production-exercised; docs/v2.4-plan.md D2/D3 landed).**
   practice). Screenshots: `docs-assets/v24b-*.png`. Suites: **429 pytest (+10; 1 pre-existing
   environmental skip) + 69 Playwright (+2)**.
 
+**V2.4 Step c — CLONE-AND-TWEAK + RUN IDENTITY — COMPLETE (no contract change; the artifact stays
+the simulation record, the workspace lives in a sidecar).**
+- **Clone-to-draft (`RunCard` ⧉ → `MapView.cloneToDraft`):** any finished run's `changes[]`
+  (`status.changes ?? [status.change]` — single-change runs carry only the singular) REPLACES the
+  draft as fresh members (bulk id-mint outside setState — the zone-macro StrictMode idiom);
+  `origin:'zone'` is reconstructed on every member iff the run is school_zone-tagged (without it
+  runDraft's tag derivation silently drops the tag → description branch + zone lens change);
+  runOptions (demand/assignment/seeds) restore; `setActiveRunId(null)` is LOAD-BEARING (the
+  DraftPanel is gated on !activeRunId). Name/note are NEVER copied (D4: a new scenario earns its
+  own). Cross-version pinned against the REAL 0.8.0 school-zone fixture. Disclosed limits: cloned
+  new_road members get no draft overlay (path captured at add-time only) and 400 verbatim inside a
+  multi-member draft.
+- **Identity (`state/<run_id>.identity.json` — the THIRD file class under list_all's one glob,
+  coexistence-pinned):** `run_state.identity/set_identity` — FULL-REPLACE, trim, both-empty
+  DELETES the sidecar; exactly ONE writer (`POST /api/runs/<id>/identity`) so it is race-free
+  against the harness's unlocked read-merge-write `set_stage` BY CONSTRUCTION (rename works
+  mid-run; state-file purity pinned: set_stage never carries name/note, the sidecar survives state
+  rewrites). STATE_DIR reader audit (user fold-in): list_all is the ONLY glob reader; every other
+  access is exact-path — checked, not assumed. Server: pinned 403 FIRST (sibling
+  `PINNED_IDENTITY_REASON`/`pinned_identity_blocked`, same env override, byte-pinned across
+  python + the Playwright copy) → 404 → caps on TRIMMED values (`name too long (N > 60 chars)` /
+  `note too long (N > 500 chars)`) — the SERVER caps are the enforcement (client maxLength is
+  convenience); markup stored VERBATIM — inert RENDERING is the single deliberate defense,
+  pinned end-to-end on BOTH surfaces (RunCard `run-name` + the picker `<option>`) so any future
+  name-rendering surface inherits a failing test.
+- **Render surfaces:** `runLabel` (RunSwitcher — the one label function for the edit rail + both
+  compare pickers) gives the name precedence over the mechanical description, 40-char-truncated;
+  name-LESS output is BYTE-IDENTICAL (zero ripple, proven by running school-zone/edit/draft-basket
+  unmodified). RunCard: `run-name`/`run-note` + the rename affordance (`rename-toggle` →
+  name/note inputs → save merges the response into LOCAL status — the poll has stopped on
+  terminal runs and would never repaint otherwise); errors verbatim incl. the pinned 403.
+  CompareView's ProvenanceStrip stays id-canonical (it reads the artifact).
+- **Tests:** `test_run_identity.py` ×8 (sidecar semantics, list purity + state purity, guard
+  matrix + reason surfaces, endpoint round-trip/clear/caps-exact/markup-verbatim/403-before-404)
+  + the three-file-classes glob regression widened; `run-identity.spec.ts` ×4 (cross-version
+  clone → edited POST differs with the tag surviving; rename card+picker+reload; pinned refusal
+  verbatim — byte-compared against the python constant; injection inert on both surfaces). Live
+  smoke: renamed the V2.4b acceptance run (sidecar appeared, list+status merged, state file
+  clean), pinned rename 403'd. Review fixes folded in: `identity()` guards non-dict JSON (the
+  read() bug class — one damaged sidecar 500'd the whole list, four shapes pinned), the mid-run
+  rename claim is TEST-pinned (200 while try_acquire holds), UI clear/note-only cases pinned,
+  DraftPanel's lane summary optional-chained. Suites: **439 pytest + 73 Playwright**.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -746,14 +795,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (429 tests + 1 environmental skip: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (439 tests + 1 environmental skip: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
-  V2.4b composite-matrix/probe/scorecard sections) and
+  V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections) and
   `cd web && npx playwright test`
-  (69 tests across 16 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview, institutions, graphs, draft-basket, composite-runcard). **Dev-only Playwright
+  (73 tests across 17 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions, graphs, draft-basket, composite-runcard, run-identity). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
