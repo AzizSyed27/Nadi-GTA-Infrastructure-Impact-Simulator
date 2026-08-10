@@ -230,9 +230,10 @@ export function postSimulate(change: SimChange, options?: RunOptions): Promise<A
   });
 }
 
-/** V2.2d — POST /api/simulate with a COMPOSITE scenario (the school-zone flow: N windowed
- * speed_limit primitives + tags=["school_zone"]). Members are speed_limit-only this step; the
- * server rejects settled composites (day-one preview only). */
+/** V2.2d/V2.4b — POST /api/simulate with a COMPOSITE scenario ({changes:[...], tags?}). Members
+ * may be any of the four windowable runtime types (speed_limit / lane_closure / road_closure /
+ * incident); bike_lane + new_road stay single-change. The server still rejects settled composites
+ * (day-one preview only). */
 export function postSimulateComposite(
   changes: SimChange[],
   tags: string[] | undefined,

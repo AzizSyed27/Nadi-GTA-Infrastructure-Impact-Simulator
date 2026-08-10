@@ -79,9 +79,10 @@ test('the windowed lane_closure run card shows the chip + THE numbers with neutr
   // THE numbers: diverted + the split (causally-NEUTRAL "not inserted") + response access
   await expect(page.getByTestId('reroute-number')).toContainText('935');
   // per-MODE and skip-zero (mirrors report.py) — never hardcoded to cars: a closure whose whole
-  // impact lands on pedestrians must not render "0 cars did not complete".
+  // impact lands on pedestrians must not render "0 cars did not complete". V2.4b: the split never
+  // renders without the backlog-attribution parenthetical, on ANY surface (the chip exemption ended).
   await expect(page.getByTestId('non-completions')).toHaveText(
-    '962 travelers did not complete — car: 812 stranded en route, 145 not inserted; bicycle: 1 stranded en route; pedestrian: 4 stranded en route');
+    '962 travelers did not complete — car: 812 stranded en route, 145 not inserted; bicycle: 1 stranded en route; pedestrian: 4 stranded en route (insertion backlog affects baseline too: 45500 baseline vs 45700 scenario)');
   const chip = page.getByTestId('response-access-chip');
   await expect(chip).toBeVisible();
   await expect(chip).toContainText('worst of 2 stations: +0 s'); // the labeled MAX

@@ -47,9 +47,28 @@ test('windowed run: the scorecard scope line renders with the window range', asy
   await warmOpen(page);
 
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
-  // fixture members all share window 600–1200 on synthetic demand → the sim-second range form
+  // fixture members all share window 600–1200 on synthetic demand → the sim-second range form.
+  // V2.4b: the subject pluralizes mechanically (3 windowed members → "changes"), no span clause
+  // (identical windows are not "differing").
   await expect(page.getByTestId('scorecard-scope-note')).toHaveText(
-    'measures cover the full run; change active t=600–1200 s',
+    'measures cover the full run; changes active t=600–1200 s',
+  );
+});
+
+test('differing member windows: the scope line uses the spanning window and says so', async ({ page }) => {
+  // V2.4b — the mixed-window composite the draft basket can now produce: the client line must
+  // carry the SAME span-note clause the report's disclosure sentence does (zone_lens.span_note
+  // lockstep), never silently present a spanning range as if all members shared it.
+  const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
+  art.meta.scenario.changes[1].window = { start_s: 900, end_s: 1500 }; // one member shifts
+  await mockLoadedRun(page, JSON.stringify(art));
+  await page.goto(`/?run=${RUN_ID}`);
+  await warmOpen(page);
+
+  await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('scorecard-scope-note')).toHaveText(
+    'measures cover the full run; changes active t=600–1500 s ' +
+      '(members carry differing windows; these figures use the spanning window)',
   );
 });
 

@@ -22,10 +22,17 @@ interface ScorecardPanelProps {
   onSelectGroup: (group: string) => void;
   /** V2.1b: meta.demand_profile — calibrated runs surface the comparison-validity line in the header. */
   demandProfile?: string;
-  /** V2.2 closeout: the spanning window of the run's windowed change(s) — null/absent when none is
-   * windowed. Scorecard measures are RUN-scoped; this one-liner says the change was only active for
-   * part of it (the report carries the full disclosure sentence). */
-  changeWindow?: { start_s: number; end_s: number } | null;
+  /** V2.2 closeout / V2.4b: the windowed-scope summary — null/absent when nothing is windowed.
+   * Scorecard measures are RUN-scoped; this one-liner says the change(s) were only active for part
+   * of it. `differing` appends the span-note clause and the counts drive the mechanical subject —
+   * lockstep with report.build_scope_disclosure + zone_lens.span_note (the report carries the full
+   * disclosure sentence). */
+  scope?: {
+    span: { start_s: number; end_s: number };
+    differing: boolean;
+    windowedCount: number;
+    total: number;
+  } | null;
 }
 
 export function ScorecardPanel({
@@ -33,7 +40,7 @@ export function ScorecardPanel({
   activeGroup,
   onSelectGroup,
   demandProfile,
-  changeWindow,
+  scope,
 }: ScorecardPanelProps) {
   const [open, setOpen] = useState(true);
   if (!scorecard || !scorecard.groups?.length) return null;
@@ -60,9 +67,22 @@ export function ScorecardPanel({
               calibrated demand: absolute volumes approximate · scenario-vs-baseline is like-for-like
             </div>
           )}
-          {changeWindow && (
+          {scope && (
             <div style={{ ...legend, opacity: 0.9 }} data-testid="scorecard-scope-note">
-              measures cover the full run; change active {fmtWindowRange(changeWindow, demandProfile)}
+              measures cover the full run;{' '}
+              {scope.windowedCount < scope.total
+                ? scope.windowedCount === 1
+                  ? 'windowed change'
+                  : 'windowed changes'
+                : scope.total === 1
+                  ? 'change'
+                  : 'changes'}{' '}
+              active {fmtWindowRange(scope.span, demandProfile)}
+              {scope.differing
+                ? // client copy of zone_lens.span_note("these figures") (python/src/zone_lens.py:31-34) —
+                  // the report's disclosure sentence carries the same clause; keep in lockstep.
+                  ' (members carry differing windows; these figures use the spanning window)'
+                : ''}
             </div>
           )}
           <div style={legend}>

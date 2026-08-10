@@ -83,20 +83,31 @@ const BADGE_CHARSET = Array.from('0123456789:–t=s min-'); // ascii '-' too: ne
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
-// V2.2 closeout: the spanning window of the run's windowed change(s), or null when none is windowed.
-// Windowed members only — a permanent member neither narrows nor widens the span — and DISPLAY
-// bounds clamp to [0, sim_end] (a window may legally end past the sim ceiling; the line must never
-// claim activity outside the run). Lockstep with the Python convention: report.build_scope_disclosure
-// over zone_lens.resolve_window. Drives the ScorecardPanel scope line.
-function windowedSpan(
+// V2.2 closeout / V2.4b: the windowed-scope summary for the ScorecardPanel note, or null when
+// nothing is windowed. Windowed members only — a permanent member neither narrows nor widens the
+// span — and DISPLAY bounds clamp to [0, sim_end] (a window may legally end past the sim ceiling;
+// the line must never claim activity outside the run). `differing` (>1 distinct window pair) and
+// the windowed-vs-total counts drive the note's span clause + mechanical subject. Lockstep with
+// the Python convention: report.build_scope_disclosure over zone_lens.resolve_window.
+function windowedScope(
   changes: { window?: { start_s: number; end_s: number } | null }[],
   simEnd: number,
-): { start_s: number; end_s: number } | null {
+): {
+  span: { start_s: number; end_s: number };
+  differing: boolean;
+  windowedCount: number;
+  total: number;
+} | null {
   const ws = changes.flatMap((c) => (c.window ? [c.window] : []));
   if (!ws.length) return null;
   return {
-    start_s: Math.max(Math.min(...ws.map((w) => w.start_s)), 0),
-    end_s: Math.min(Math.max(...ws.map((w) => w.end_s)), simEnd),
+    span: {
+      start_s: Math.max(Math.min(...ws.map((w) => w.start_s)), 0),
+      end_s: Math.min(Math.max(...ws.map((w) => w.end_s)), simEnd),
+    },
+    differing: new Set(ws.map((w) => `${w.start_s}:${w.end_s}`)).size > 1,
+    windowedCount: ws.length,
+    total: changes.length,
   };
 }
 
@@ -713,8 +724,8 @@ export default function MapView() {
   // Run the draft → ONE POST. Wire rule: a zone-macro tag forces the composite path (the server
   // only reads tags there); else 1 member → today's EXACT single shape via postSimulate; N members
   // → changes[]. V2.2c belt-and-braces under the UI lock: a windowed draft ships day_one — the
-  // server 400 with the shared D1 reason stays the visible backstop. Until V2.4b lifts the
-  // speed_limit-only composite restriction, a mixed multi-member draft 400s — rendered verbatim.
+  // server 400 with the shared D1 reason stays the visible backstop. V2.4b: mixed member types run
+  // for real (the four windowable types); settled composites still 400 — rendered verbatim.
   const runDraft = useCallback(async () => {
     const members = draftRef.current;
     if (members.length === 0) return;
@@ -1508,7 +1519,7 @@ export default function MapView() {
               activeGroup={feedGroup}
               onSelectGroup={(g) => setFeedGroup((cur) => (cur === g ? null : g))}
               demandProfile={meta.demand_profile}
-              changeWindow={windowedSpan(changesOf(artifact), meta.sim_end)}
+              scope={windowedScope(changesOf(artifact), meta.sim_end)}
             />
             <AgentPanel agent={selected} onClose={() => setSelected(null)} onInterview={setInterviewee} />
             <InstitutionPanel

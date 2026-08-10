@@ -178,7 +178,10 @@ export function RunCard({
   const stage = status?.stage ?? 'queued';
   const failed = status?.status === 'failed';
   const done = status?.stage === 'done';
-  const isNewRoad = status?.change?.type === 'new_road';
+  // V2.4b: composites carry `changes` (plural) in run-state; the singular `change` (= members[0],
+  // the back-compat field) is only trustworthy alone on single-change runs.
+  const members = status?.changes ?? (status?.change ? [status.change] : []);
+  const isNewRoad = members[0]?.type === 'new_road';
 
   // V2.3a — live enrich progress: stream counts while it's up; the polled derivation once degraded.
   // Counts ("47/212") beat the sub-command label; the label alone covers report/discourse.
@@ -234,12 +237,13 @@ export function RunCard({
     : null;
 
   // V2.2c — the windowed-change chip ("2 lane(s) closed 07:15–09:00"), mechanical from the change
-  // dict + the run's demand profile (clock times on calibrated, t=0 == 07:00).
-  const chWindow = status?.change?.window as { start_s: number; end_s: number } | undefined;
-  const chType = status?.change?.type;
-  const chLanes = (status?.change?.target_lanes as number[] | undefined)?.length ?? 0;
-  const chEffect = status?.change?.effect as { blocked?: boolean; speed_factor?: number } | undefined;
-  const windowChip = chWindow
+  // dict + the run's demand profile (clock times on calibrated, t=0 == 07:00). V2.4b: SINGLE-change
+  // runs only — describing an N-member composite by member 0 silently misrepresented the run.
+  const chWindow = members[0]?.window as { start_s: number; end_s: number } | undefined;
+  const chType = members[0]?.type;
+  const chLanes = (members[0]?.target_lanes as number[] | undefined)?.length ?? 0;
+  const chEffect = members[0]?.effect as { blocked?: boolean; speed_factor?: number } | undefined;
+  const windowChip = members.length === 1 && chWindow
     ? chType === 'lane_closure'
       ? `${chLanes} lane(s) closed ${fmtWindowRange(chWindow, status?.demand_profile)}`
       : chType === 'road_closure'
@@ -249,10 +253,29 @@ export function RunCard({
           : `active ${fmtWindowRange(chWindow, status?.demand_profile)}`
     : null;
 
+  // V2.4b — the untagged-composite chip: member count + the SPANNING active window. Mechanical;
+  // the per-member truth lives in the report/ScenarioHeader. Zone-tagged runs keep their zone chip.
+  const memberWindows = members
+    .map((c) => c.window as { start_s: number; end_s: number } | undefined)
+    .filter((w): w is { start_s: number; end_s: number } => w != null);
+  const compositeChip =
+    members.length > 1
+      ? `${members.length} changes${
+          memberWindows.length
+            ? ` · active ${fmtWindowRange(
+                { start_s: Math.min(...memberWindows.map((w) => w.start_s)),
+                  end_s: Math.max(...memberWindows.map((w) => w.end_s)) },
+                status?.demand_profile,
+              )}`
+            : ''
+        }`
+      : null;
+
   // V2.2c — non-completions as a first-class number for capacity runs; the split's labels are
-  // causally NEUTRAL ("not inserted" — the report carries the backlog attribution context).
-  // Per-MODE and skip-zero (mirrors report.py): never hardcode cars — a closure whose whole
-  // impact lands on pedestrians must not read "0 cars did not complete".
+  // causally NEUTRAL ("not inserted"). Per-MODE and skip-zero (mirrors report.py): never hardcode
+  // cars — a closure whose whole impact lands on pedestrians must not read "0 cars did not
+  // complete". V2.4b: the backlog-attribution parenthetical now rides HERE too (user-ratified —
+  // the V2.2c chip exemption ends; the split never renders without the attribution, any surface).
   const ncTotal = status?.non_completions
     ? Object.values(status.non_completions).reduce((a, b) => a + b, 0)
     : null;
@@ -268,10 +291,19 @@ export function RunCard({
           return `${m}: ${bits.join(', ')}`;
         })
     : [];
+  const bl = status?.insertion_backlog;
+  const blSums = bl
+    ? Object.values(bl).reduce<[number, number]>(
+        (acc, b) => [acc[0] + b.baseline, acc[1] + b.scenario], [0, 0])
+    : null;
   const nonCompletionsLine =
     ncTotal != null && ncTotal > 0
       ? splitParts.length
-        ? `${ncTotal} travelers did not complete — ${splitParts.join('; ')}`
+        ? `${ncTotal} travelers did not complete — ${splitParts.join('; ')}${
+            blSums
+              ? ` (insertion backlog affects baseline too: ${blSums[0]} baseline vs ${blSums[1]} scenario)`
+              : ''
+          }`
         : `${ncTotal} travelers did not complete under the change`
       : null;
 
@@ -323,8 +355,13 @@ export function RunCard({
           {zoneChip}
         </div>
       )}
-      {/* the zone chip already carries the composite's window range — the single-change window
-          chip (built from change=changes[0]) would duplicate it */}
+      {/* the zone chip already carries the composite's window range — the untagged composite
+          chip and the single-change window chip each cover their own shape */}
+      {compositeChip && !zoneChip && (
+        <div style={{ ...sub, opacity: 0.8 }} data-testid="composite-chip">
+          {compositeChip}
+        </div>
+      )}
       {windowChip && !zoneChip && (
         <div style={{ ...sub, opacity: 0.8 }} data-testid="window-chip">
           {windowChip}
