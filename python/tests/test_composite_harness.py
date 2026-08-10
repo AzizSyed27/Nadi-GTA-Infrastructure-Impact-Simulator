@@ -250,6 +250,16 @@ def test_load_composite_spec_net_validation_names_index(tmp_path) -> None:
         sh.load_composite_spec(p2)
     assert "composite change 0" in str(ei2.value) and "is not in the network" in str(ei2.value)
 
+    # review-caught: the contract model leaves value_mps OPTIONAL, so a hand-written spec missing
+    # it must die HERE (clean CLI message), not as a silent probe no-op + a TraCI crash mid-run.
+    missing_v = {"changes": [
+        {"type": "speed_limit", "target_edge": e1, "description": "no value"}]}
+    p3 = tmp_path / "s3.json"
+    p3.write_text(json.dumps(missing_v), encoding="utf-8")
+    with pytest.raises(SystemExit) as ei3:
+        sh.load_composite_spec(p3)
+    assert str(ei3.value) == "composite change 0: speed_limit requires target_edge and value_mps"
+
 
 def test_load_composite_spec_rejects_empty_and_invalid(tmp_path) -> None:
     import pytest

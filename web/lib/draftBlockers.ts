@@ -6,11 +6,11 @@ import type { ChangeWindow, EdgeEligibility, SimChange } from '@/lib/api';
  * Every string here is a client copy of a shared constant (the EditPanel D1-sentence convention:
  * comment naming the Python source, Playwright-pinned verbatim); the server 400 with the same
  * words stays the backstop. The mirror covers ONLY D2's stable predicate set. V2.4b lifted the
- * member-TYPE restriction (mixed composites run for real); the remaining transitional rules
- * (REASON_COMPOSITE_MEMBER for bike_lane/new_road members, REASON_COMPOSITE_SETTLED for settled
- * composites) stay deliberately UNMIRRORED — the palettes can't produce those drafts through
- * normal flows, and a hand-reached one submits and renders the server's 400 verbatim in the
- * DraftPanel (the detail-verbatim convention).
+ * member-TYPE restriction (mixed composites run for real); the remaining rules
+ * (REASON_COMPOSITE_MEMBER for bike_lane/new_road members — palette-reachable by adding a bike
+ * lane to a multi-member basket — and REASON_COMPOSITE_SETTLED) stay deliberately UNMIRRORED:
+ * the plan-sanctioned fallback (D2: prefer submit-and-render-400 over reimplementation) renders
+ * the server's 400 verbatim in the DraftPanel.
  */
 
 // client copy of change_scheduler.REASON_SETTLED_SEVERED (python/src/change_scheduler.py:39-42)

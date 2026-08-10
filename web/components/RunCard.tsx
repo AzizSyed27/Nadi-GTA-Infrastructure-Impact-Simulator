@@ -291,10 +291,15 @@ export function RunCard({
           return `${m}: ${bits.join(', ')}`;
         })
     : [];
+  // Backlog sums SCOPED to the modes the split actually names (review-caught: an all-modes sum
+  // could silently include a mode whose split is zero — the report's per-mode discipline).
+  const namedModes = new Set(
+    ncSplit ? Object.entries(ncSplit).filter(([, b]) => b.entered_not_finished + b.not_inserted > 0).map(([m]) => m) : [],
+  );
   const bl = status?.insertion_backlog;
-  const blSums = bl
-    ? Object.values(bl).reduce<[number, number]>(
-        (acc, b) => [acc[0] + b.baseline, acc[1] + b.scenario], [0, 0])
+  const blEntries = bl ? Object.entries(bl).filter(([m]) => namedModes.has(m)) : [];
+  const blSums = blEntries.length
+    ? blEntries.reduce<[number, number]>((acc, [, b]) => [acc[0] + b.baseline, acc[1] + b.scenario], [0, 0])
     : null;
   const nonCompletionsLine =
     ncTotal != null && ncTotal > 0

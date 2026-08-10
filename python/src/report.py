@@ -1384,6 +1384,11 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         # read as "the response time" / "the nearest station responds")
         if rd.get("origins_note"):
             L.append(f"- *{rd['origins_note']}.*")
+        # V2.4b review fold-in: the anchor's ORDER-DEPENDENCE renders where the number renders —
+        # a reader comparing two same-edges-different-order runs must see why the estimates differ
+        # (payload-only logging left the report's headline number unexplained).
+        if rd.get("anchor_note"):
+            L.append(f"- *{rd['anchor_note']}.*")
         L.append(f"- *{rd.get('framing')}; {rd.get('lower_bound_note')}.*")
     # V2.2d — the school-zone lens block (tag-gated; empty list for every untagged run).
     L.extend(render_zone_block(facts))

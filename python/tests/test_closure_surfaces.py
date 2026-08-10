@@ -166,6 +166,24 @@ def test_report_response_access_block_renders_with_both_sentences() -> None:
     assert "do not indicate which station would respond" in md
 
 
+def test_report_response_access_anchor_note_renders_when_present() -> None:
+    # V2.4b review fold-in: the anchor's ORDER-DEPENDENCE renders where the number renders — a
+    # payload-only note left the report's headline figure unexplained across member reorderings.
+    import report
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    out["response_detour"] = _detour_payload()
+    facts = report.gather_facts(art, out, verdict=None)
+    facts["response_detour"]["anchor_note"] = (
+        "destination anchored to the first change; with multiple modified edges this choice "
+        "is arbitrary and affects the estimate")
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "destination anchored to the first change" in md
+    assert "arbitrary and affects the estimate" in md
+
+
 def test_report_response_access_uncomputable_is_labeled_not_silent() -> None:
     # destination_edge None -> probes [] must render the destination_note as a labeled absence
     # (the labeled-degradation rule), never a floating disclaimer with no explanation.

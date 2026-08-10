@@ -1880,6 +1880,11 @@ def load_composite_spec(path: Path) -> tuple[list[Change], list[str] | None]:
             raise SystemExit(f"composite change {i}: {change_scheduler.REASON_COMPOSITE_MEMBER}")
         if c.target_edge not in known:
             raise SystemExit(f"composite change {i}: edge {c.target_edge!r} is not in the network")
+        if c.type == "speed_limit" and not c.value_mps:
+            # review-caught: the contract model leaves value_mps optional, and a hand-written spec
+            # missing it would silently skip the probe's speed poke then crash deep in TraCI —
+            # exactly the failure this pass exists to make a clean CLI message.
+            raise SystemExit(f"composite change {i}: speed_limit requires target_edge and value_mps")
         if c.type == "lane_closure":
             reason = change_scheduler.validate_target_lanes(
                 c.target_lanes, network_edit._car_lane_indices_static(net, c.target_edge), c.target_edge)
