@@ -46,17 +46,26 @@ when one end is reachable and the other isn't; what "honest zero" means for this
 replaces or accompanies the current one. Natural companion to **`position_m`** (accepted-but-unused in
 the contract since 0.5.0) — along-edge probing is the same rung.
 
-**Do NOT design this before V2.2d**: d's composite is the first multi-member modified-edge exclusion
-set and will stress the CURRENT rule — change one variable at a time.
-
-**V2.2d outcome — the multi-member exclusion is production-UNEXERCISED (a coverage gap, not a
-defect).** The response detour only fires on capacity events; the school zone is a speed_limit
-composite, so d shipped the multi-member `modified` union UNIT-verified only (the detour fact
-correctly does not compute on a zone run). The real exercise needs a **multi-change CLOSURE
-scenario, which NO palette flow currently produces** (composites are speed_limit-only in d).
-Written down here rather than assumed-closed by the unit test — when composite members widen to
-closures, the first such run exercises this path for real (and rung 2 above becomes urgent: with
-several closed segments the "reachable another way" bias compounds).
+**V2.4b outcome — the multi-member exclusion is production-EXERCISED; the observation feeding this
+design (run `multimodal-scenario-20260810T200300Z`, road_closure `-36784353#20` 600–1200 + permanent
+speed_limit `-1288863201` + factor-only incident `-1288863202#6` 600–1680, via the basket):** the
+destination rule ran **CLEAN on its first real 3-edge exclusion set** — the PRIMARY branch fired
+("first outgoing passenger edge at the first downstream junction with an alternate approach
+(0 hop(s) past the changed road)" → `-36784307#3`); **no fallback, no uncomputable note**. Payload
+now logs `modified_edges` (the 3-edge union), `destination_anchor` (`-36784353#20` = changes[0])
+and the ORDER-DEPENDENCE note ("destination anchored to the first change; with multiple modified
+edges this choice is arbitrary and affects the estimate") — the same three-member draft reordered
+would anchor differently, which is exactly the rung-2 pressure. Result shape: doorstep Station 231
+honestly UNREACHABLE during the window; 232 +10.2 s / 234 +29.1 s / 243 +2.7 s. Rung-2 remains a
+design decision, now with a live datapoint instead of a unit fixture; the wording wrinkle observed:
+the honest-zero sentences say "the changed road" (SINGULAR) on multi-edge composites — awkward,
+not false (with every member applied to the during-window net, added_s == 0 does imply the route
+avoids all of them) — fold a plural form into the rung-2 rewrite. Second observation (review-caught):
+`compute_response_detour` applies ALL members to one during-window net regardless of whether their
+windows actually COINCIDE — on the acceptance run the closure [600,1200] and incident [600,1680]
+only fully overlap on [600,1200], so the measured worst-case state existed for part of the span.
+Conservative direction (over-, never under-reports added time) but currently undisclosed in the
+payload — fold a coincidence note (or per-window probing) into the rung-2 design.
 
 ## V2.2d — student demand segment: DEFERRED (data fights back)
 The school-zone lens counts what the demand actually contains, and says so (`zone_facts.
@@ -75,10 +84,12 @@ The windowed-scope disclosure uses the ratified spanning-window convention (`zon
 + the span note) for differing member windows. For DISJOINT windows (e.g. [0,300] and [1500,1800] on an
 1800 s run) the span covers ~the whole period, so the dilution sentence is suppressed while two-thirds
 of the run had no active change — the span note fires ("members carry differing windows; these figures
-use the spanning window") but understates the gap. No palette can compose disjoint member windows today
-(the 🏫 zone palette assigns ONE shared window); reachable only by hand-POSTing a composite. If a
-multi-window composite flow ever lands, refine the sentence for gapped spans (e.g. per-member windows
-or an "active intermittently" form) rather than widening the span convention silently.
+use the spanning window") but understates the gap. **V2.4b: now UI-REACHABLE** — the draft basket
+assigns per-member windows (closures/incidents each carry their own), so a planner CAN compose
+disjoint windows from the palette. The V2.4b acceptance run's windows overlap (600–1200 / 600–1680),
+so the understatement has not yet rendered on a real run; the refinement (per-member windows or an
+"active intermittently" form, never a silent span widening) is now a live duty rather than an
+API-only hypothetical — schedule it before any workflow that composes far-apart windows.
 
 ## V2.3c — institutional mandate sources: periodic re-verification (staleness)
 `python/src/institutions.json` quotes each institution's published mission VERBATIM with a source

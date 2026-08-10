@@ -131,10 +131,16 @@ attributed honestly (institutional exclusion ≠ sibling-dedup). **V2.4a (the dr
 COMPLETE**: apply INVERTS to add-then-run — every palette apply + the zone macro ADD members to a
 session-only draft, DraftPanel lists them with draft-time blockers (client mirror of the shared
 reason strings, D2's stable set only), one Run submits (1 member no-tag = today's exact wire shape,
-regression-pinned); mixed multi-member drafts 400 verbatim until V2.4b lifts the server restriction.
-Suites: **419 pytest + 67 Playwright**. Open threads: **V2.4b–d** (mixed composites through the
-pipeline, clone-and-tweak, closeout) + **V2.5 network styling** + `BACKLOG.md` (bbox expansion,
-rung-2 detour, student demand, mandate re-verification).
+regression-pinned). **V2.4b (the closure composite) is COMPLETE**: composite members = the four
+windowable types (per-member rejection matrix both layers; allowlist serializer), and the two
+dormant honesty paths are PRODUCTION-EXERCISED — the scorecard composite-null note (both-counts
+wording) fired on a live 2-lane_closure run, and the detour's multi-member exclusion ran CLEAN on a
+live 3-member mixed run (doorstep station unreachable, worst reachable +29.1 s; `modified_edges` +
+`destination_anchor` + the arbitrariness `anchor_note` logged + verify-pinned; TFS spoke the
+composite citation). Suites: **429 pytest + 69 Playwright**. Open threads: **V2.4c–d**
+(clone-and-tweak + run identity, closeout) + **V2.5 network styling** + `BACKLOG.md` (bbox
+expansion, rung-2 detour — now with a live datapoint, student demand, mandate re-verification,
+disjoint-window span honesty — now UI-reachable).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -593,6 +599,60 @@ D1–D2 ratified: apply INVERTS to add-then-run).**
 - **Dormant for V2.4b:** `submitError` is now permanently null into the palettes/DrawForm (every
   Run error routes through `draft-error`) — strip the dead plumbing when b touches these files.
 
+**V2.4 Step b — the CLOSURE COMPOSITE runs for real — COMPLETE (no contract change; both dormant
+honesty paths production-exercised; docs/v2.4-plan.md D2/D3 landed).**
+- **The lift:** composite members = `WINDOWABLE_TYPES` exactly — the REPLACED single-source
+  `REASON_COMPOSITE_MEMBER` names bike_lane (one shared target_lane threads the whole pipeline) and
+  new_road (regenerated network) as non-composable, anti-drift-pinned against the tuple;
+  `REASON_COMPOSITE_SETTLED` STAYS (the settle path hard-asserts len==1). Per-member rejection
+  matrix at BOTH layers with the shared strings (`change {i}: ` at POST, `composite change {i}: `
+  at spec-load, which now reads the net — cached `_spec_net()` — for edge existence/car-lane
+  subsets/incident effects; a bad member dies as a clean SystemExit, never a mid-run KeyError).
+  **The serializer is a per-type ALLOWLIST** — `model_dump(exclude_none=True)` would leak
+  SimChange's non-None new_road defaults into every member, and the old serializer hardcoded the
+  speed_limit shape (silently DROPPED target_lanes/effect) — mixed-handoff-pinned. Mixed run
+  description: `"N changes on the corridor"`; the school-zone label gains an all-speed_limit guard.
+- **Dormant path 1 (scorecard composite-null), production-first:** the note names BOTH counts —
+  `"composite scenario — {contributors} of {changes} changes affect this group's access; not
+  separable yet"` (user-ratified; "(3 changes)" would overclaim which members were unsummable) —
+  and FIRED live on run `…20260810T201735Z` (2 unwindowed lane_closures via the basket; scorecard +
+  report; audit 5 clean). Newly-reachable branches pinned: exactly-one-contributor renders the real
+  ordinal + "rule-based estimate"; zero-contributor mixed composites take the FIRST
+  `_NULL_WITH_NOTE` member's note (order-dependent BY DESIGN, commented + pinned).
+- **Dormant path 2 (detour multi-member exclusion), production-first:** run `…20260810T200300Z`
+  (basket draft: road_closure `-36784353#20` 600–1200 + permanent speed_limit `-1288863201` +
+  factor-only incident `-1288863202#6` 600–1680) — the destination rule ran CLEAN on its first
+  real 3-edge exclusion (primary branch, 0 hops; no fallback, no uncomputable note); doorstep
+  Station 231 honestly UNREACHABLE during the window, 232 +10.2 / 234 +29.1 / 243 +2.7 s. The
+  payload now LOGS the estimate's shape: `modified_edges` (sorted union), `destination_anchor`
+  (changes[0]) and — iff multi-member — the ORDER-DEPENDENCE note (`"destination anchored to the
+  first change; with multiple modified edges this choice is arbitrary and affects the estimate"`),
+  all verify_facts-pinned (conditional on key presence — old sidecars legitimately lack them).
+  **speed_limit members now shape the during-window net** (same hasattr-guarded SUMO-1.27 `_speed`
+  poke; an unapplied slowdown under-reported added_s while its edge sat in the exclusion set);
+  `compute_response_detour` applies ALL members. Zero-note PRE-READ verdict held (the user gate):
+  the acceptance shape's `blocked_only` is False → the route-avoidance sentence, TRUE post-fix;
+  the singular "the changed road" on multi-edge composites is awkward-not-false → BACKLOG rung-2.
+- **Span + chips:** `build_scope_disclosure` needed NO change (differing windows + the
+  windowed-subset subject were ready); the CLIENT reached lockstep — `windowedScope` feeds the
+  ScorecardPanel note the differing-windows clause (client copy of `zone_lens.span_note`) + the
+  mechanical subject, live: *"measures cover the full run; windowed changes active t=600–1680 s
+  (members carry differing windows; these figures use the spanning window)"*. RunCard chips are
+  `status.changes`-driven: the window chip is SINGLE-change-only (member-0 chips misdescribed
+  composites), untagged multi-member runs get the mechanical composite chip (`"N changes · active
+  {span}"`), zone-chip precedence kept; **the split's backlog-attribution parenthetical now rides
+  the RunCard too** (the V2.2c chip exemption ENDED, user-ratified — the invariant holds on every
+  surface). Done-stage run-state keeps `changes` when tags are present (the 1-member tagged
+  composite's zone chip died at done — fixed in passing).
+- **Acceptance notes:** the ratified draft's "windowed speed limit" was adjusted to PERMANENT —
+  the EdgePalette's speed_limit is unwindowed BY DESIGN (windowed speed limits are the zone
+  macro's tagged shape); the windowed-subset subject rule got exercised instead (disclosed, richer
+  coverage). TFS's mixed-composite citation: "1 of 4 fire stations unreachable during the window;
+  worst of the reachable +29.1 s…" (214 agents, ops on 5 diversions, TDSB absent). Reports
+  regenerated with explicit --run-id; the latest-report singleton RESTORED after each (V2.1
+  practice). Screenshots: `docs-assets/v24b-*.png`. Suites: **429 pytest (+10; 1 pre-existing
+  environmental skip) + 69 Playwright (+2)**.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -614,7 +674,8 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings.
   **V2.2d composites (the 🏫 school-zone palette flow):** `POST /api/simulate {changes:[...], tags:["school_zone"]}`
   → the server writes `contract/runs/state/<run_id>.composite.json` and hands off via `--composite=<spec>`
-  (speed_limit-only members this step; settled+composite rejected; the harness re-validates). Zone-edge
+  (V2.4b: members may be any of the four windowable types; settled+composite rejected; the harness
+  re-validates against the net). Zone-edge
   selection for the exemplar: `python python/src/school_zone_select.py` → `data/schools/`. Compare two finished
   runs at `http://localhost:3000/?run=<A>&compare=<B>` (or the ⇄ Compare toggle) — pure frontend, only needs
   `/api/runs` for the pickers.
@@ -685,13 +746,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (419 tests: golden spine + contract 0.6.0–0.9.0 sections +
-  seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a enrich-events/builder/SSE
-  sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c institutions
-  roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections) and
+- **Tests:** `python -m pytest python/tests` (429 tests + 1 environmental skip: golden spine + contract
+  0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
+  enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
+  institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
+  V2.4b composite-matrix/probe/scorecard sections) and
   `cd web && npx playwright test`
-  (67 tests across 15 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview, institutions, graphs, draft-basket). **Dev-only Playwright
+  (69 tests across 16 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions, graphs, draft-basket, composite-runcard). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
