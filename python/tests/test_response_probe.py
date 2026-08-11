@@ -263,9 +263,10 @@ def test_compute_response_detour_end_to_end_payload() -> None:
 
 def test_multi_member_modified_exclusion_and_anchor(nets) -> None:
     """V2.2d: the modified-edge EXCLUSION SET is the union over ALL composite members, and the
-    destination stays anchored on changes[0]. UNIT-level by design — a speed-limit composite (the
-    school zone) is correctly NOT a capacity event, so no production run exercises this yet
-    (recorded as a coverage gap in BACKLOG, not assumed closed)."""
+    destination stays anchored on changes[0]. PRODUCTION SIBLING since V2.4b: run
+    multimodal-scenario-20260810T200300Z (road_closure + speed_limit + incident via the basket) —
+    the 3-edge exclusion ran CLEAN on the primary destination branch (0 hops, no fallback, no
+    uncomputable note); doorstep Station 231 unreachable, worst reachable +29.1 s."""
     base, _ = nets
     d_single, _ = rp.destination_edge(base, KINGSTON, modified={KINGSTON})
     # a second member claiming the single-member anchor forces a DIFFERENT pick — the union is honored

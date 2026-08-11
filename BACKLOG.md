@@ -91,6 +91,16 @@ so the understatement has not yet rendered on a real run; the refinement (per-me
 "active intermittently" form, never a silent span widening) is now a live duty rather than an
 API-only hypothetical — schedule it before any workflow that composes far-apart windows.
 
+## V2.4d — calibrated windowed-closure composite: FUTURE EXEMPLAR CANDIDATE (deferred, ratified)
+The V2.4b acceptance ran SYNTHETIC and exercised every honesty path (composite-null, multi-member
+exclusion, span disclosure, revert proofs, TFS); a calibrated sibling adds REALISM (saturation
+behavior under composed closures at real AM-peak demand), not coverage — deferred on that basis.
+When it runs: shape = 3 windowed members incl. ≥1 closure, calibrated AM peak, the BOUNDED hour
+(`NADI_MAX_T_OVERRIDE=3600`). Duties attached: **probe-first** (a calibrated closure COMPOSITE is
+an unmeasured shape — sample sim-pace from the tripinfo tail before trusting any ETA), the
+bounded-launch HARD-GATE (WMI check that the live sumo cmdline carries `--end`), keep-awake, and
+override-restore STRUCTURALLY FIRST on return (the V2.2d ops lessons, hoisted to Run commands).
+
 ## V2.4c — clone from FAILED runs (cheap future extension)
 Clone-to-draft renders in the RunCard's done-block only. A FAILED run's members are exactly the
 draft a planner wants to fix ("it crashed on the third member — clone, drop it, rerun"), and the

@@ -298,9 +298,11 @@ def test_run_composite_settled_rejected_with_shared_reason(tmp_path) -> None:
 
 def test_composite_access_semantics() -> None:
     """Two facts pinned: (1) the composite-null note FIRES when >1 change contributes a heuristic
-    to the same group (never silently summed); (2) a SPEED-LIMIT composite (the school zone) has
-    no access heuristic at all — access renders absent exactly like a single speed_limit run
-    (the zone lens, not the access column, carries the zone's story)."""
+    to the same group (never silently summed) — PRODUCTION SIBLING since V2.4b: run
+    multimodal-scenario-20260810T201735Z (2 lane_closures via the basket → the both-counts note in
+    scorecard + report); (2) a SPEED-LIMIT composite (the school zone) has no access heuristic at
+    all — access renders absent exactly like a single speed_limit run (the zone lens, not the
+    access column, carries the zone's story)."""
     import scorecard
 
     buckets = {m: {"counts": {"total_demand": 10}, "outcomes": [{"delta_seconds": 1.0}]}

@@ -88,6 +88,9 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   OASIS scratch (profile CSV + sqlite DB) lives under `%LOCALAPPDATA%\nadi-oasis-spike\`, NOT the OneDrive tree
   (same atomic-write hazard); (4) `cairocffi`'s native libcairo is absent on this box but is viz-only — `import
   oasis` and a full run work without it.
+- **V2.4: the DRAFT BASKET is the editing model** (apply ADDS a member, one Run submits; clone-to-
+  draft iterates) and **composites are MIXED-TYPE** (members = the four windowable runtime types;
+  settled composites stay rejected) — details in the V2.4 blocks below.
 - Use Plan Mode for any non-trivial change: present the plan + files to touch, wait for approval.
 - Small commits.
 
@@ -127,26 +130,29 @@ separate from follow edges (only ~6% coincide — the exposure note says so), ex
 withheld-posts METADATA (rules on hover, never content), entity staleness legible three ways
 (fresh / stale note / unknowable), referendum guard extended (uniform node size, group-not-stance
 colors, GRAPHS_BANNED), per-panel labeled degradation naming enrich + backfill, and the coverage gap
-attributed honestly (institutional exclusion ≠ sibling-dedup). **V2.4a (the draft basket) is
-COMPLETE**: apply INVERTS to add-then-run — every palette apply + the zone macro ADD members to a
-session-only draft, DraftPanel lists them with draft-time blockers (client mirror of the shared
-reason strings, D2's stable set only), one Run submits (1 member no-tag = today's exact wire shape,
-regression-pinned). **V2.4b (the closure composite) is COMPLETE**: composite members = the four
-windowable types (per-member rejection matrix both layers; allowlist serializer), and the two
-dormant honesty paths are PRODUCTION-EXERCISED — the scorecard composite-null note (both-counts
-wording) fired on a live 2-lane_closure run, and the detour's multi-member exclusion ran CLEAN on a
-live 3-member mixed run (doorstep station unreachable, worst reachable +29.1 s; `modified_edges` +
-`destination_anchor` + the arbitrariness `anchor_note` logged + verify-pinned; TFS spoke the
-composite citation). **V2.4c (clone-and-tweak + run identity) is COMPLETE**: ⧉ Clone-to-draft on
-the RunCard loads any run's changes[] into a fresh draft (cross-version, zone-tag reconstructed via
-member origins, name/note never copied); runs carry an optional user name+note in an IDENTITY
-SIDECAR (`state/<id>.identity.json`, endpoint-only writer — race-free against the harness's
-unlocked set_stage by construction), names render on RunCards + every runLabel picker (ids stay
-canonical elsewhere), server caps are the enforcement, markup stored verbatim + pinned inert on
-both render surfaces, and the pinned run refuses identity writes with the sibling guard reason.
-Suites: **439 pytest + 73 Playwright**. Open threads: **V2.4d** (closeout) + **V2.5 network
-styling** + `BACKLOG.md` (bbox expansion, rung-2 detour — now with a live datapoint, student
-demand, mandate re-verification, disjoint-window span honesty — now UI-reachable).
+attributed honestly (institutional exclusion ≠ sibling-dedup). **V2.4 IS CLOSED and TAGGED
+`v2.4` (scenario composition — no contract change all phase):** the DRAFT BASKET is THE editing
+model — every palette apply + the zone macro ADD members to a session-only draft, one Run submits
+(single-change wire shape regression-pinned; draft-time blockers mirror the shared reason strings,
+the LIFO port boundary-pinned at the Python pin's own t=499/500/501 numbers), and ⧉ clone-to-draft
+iterates any past run (cross-version, zone-tag reconstructed, name/note never copied). COMPOSITES
+ARE MIXED-TYPE: members = the four windowable runtime types, per-member rejection matrix at POST +
+net-grounded spec-load, a per-type allowlist serializer; settled composites stay rejected. Both
+V2.2d-era dormant honesty paths have PRODUCTION SIBLINGS: composite-null (unit pins
+test_composite_harness/test_network_edit ↔ live run `…20260810T201735Z`, the both-counts note in
+scorecard + report) and the detour's multi-member exclusion (unit pin test_response_probe ↔ live
+run `…20260810T200300Z` — clean primary-branch destination on the 3-edge union, doorstep Station
+231 unreachable, worst reachable +29.1 s; `modified_edges` + `destination_anchor` + the
+arbitrariness `anchor_note` logged, rendered in the report, verify-pinned; TFS spoke the composite
+citation). Runs carry an optional user name/note in the IDENTITY SIDECAR
+(`state/<id>.identity.json`, endpoint-only writer — race-free vs the harness's unlocked set_stage
+BY CONSTRUCTION, rename-mid-run test-pinned) with the pinned-run guard extended to identity writes
+and injection inertness pinned end-to-end; names render on RunCards + every runLabel picker, ids
+stay canonical everywhere else. The calibrated windowed-closure composite is a DEFERRED exemplar
+candidate (BACKLOG — synthetic acceptance stands). Suites: **439 pytest + 73 Playwright**.
+Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, rung-2 detour — now with a
+live datapoint, student demand, mandate re-verification, disjoint-window span honesty — now
+UI-reachable, the calibrated composite exemplar).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -602,8 +608,9 @@ D1–D2 ratified: apply INVERTS to add-then-run).**
   errors were CLASSIFIED and resolved (graphsSidecar kick-off setState → queueMicrotask, the
   in-file `?compare=` precedent; the interview transcript ref+tick hack → a plain state record —
   the manual re-render tick was papering over a render-time ref read). `npm run lint` exits 0.
-- **Dormant for V2.4b:** `submitError` is now permanently null into the palettes/DrawForm (every
-  Run error routes through `draft-error`) — strip the dead plumbing when b touches these files.
+- **Dormant plumbing (still standing at V2.4 close):** `submitError` is permanently null into the
+  palettes/DrawForm (every Run error routes through `draft-error`) — strip whenever these files
+  are next touched.
 
 **V2.4 Step b — the CLOSURE COMPOSITE runs for real — COMPLETE (no contract change; both dormant
 honesty paths production-exercised; docs/v2.4-plan.md D2/D3 landed).**
