@@ -91,6 +91,22 @@ so the understatement has not yet rendered on a real run; the refinement (per-me
 "active intermittently" form, never a silent span widening) is now a live duty rather than an
 API-only hypothetical — schedule it before any workflow that composes far-apart windows.
 
+## V2.4 follow-on — new_road members in composites (regen-then-runtime; USER-HIT gap)
+A real drafting attempt composed a 3-segment new-road CHAIN plus a 29-street school zone in one
+basket and hit the member-type refusal (`REASON_COMPOSITE_MEMBER`) — exactly the "build the
+connecting road AND zone the area around it" scenario a planner wants. Today one run is EITHER a
+regenerated-network new_road (netconvert patch → `run_quant`) OR a runtime composite
+(`run_quant_runtime` on the live net); the two paths never meet, and sequential runs don't stack
+either — every run patches from the CANONICAL net, so a prior run's minted road is absent from the
+next run's network. The capability: regen FIRST (patch ALL new_road members into one scenario net —
+the existing sumolib gauntlet + load-probe per segment, which also gives multi-segment chains for
+free), then apply the runtime members to the PATCHED net (`run_pair_multimodal` already accepts a
+`scenario_net_path`; today that branch REPLACES the change list with None — it would instead need
+to carry the runtime members through `simulate_multimodal` against the patched net). Design care:
+revert proofs, the response-detour probe, and `network_export`/overlays must all read the patched
+net; the composite member gate then narrows to bike_lane-only. Until this lands the honest UI story
+stays: new roads run as single-member drafts; the zone/closure composite runs separately.
+
 ## V2.4d — calibrated windowed-closure composite: FUTURE EXEMPLAR CANDIDATE (deferred, ratified)
 The V2.4b acceptance ran SYNTHETIC and exercised every honesty path (composite-null, multi-member
 exclusion, span disclosure, revert proofs, TFS); a calibrated sibling adds REALISM (saturation
