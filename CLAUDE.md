@@ -598,8 +598,9 @@ D1–D2 ratified: apply INVERTS to add-then-run).**
   D1 lock after the palette closes, hover seam, remove, composite POST membership `.sort()`ed);
   single-change deep-equal pin; settled+severed toggles (incl. the all-car-lanes lane_closure
   variant); LIFO crossing blocked + nested/touching legal (UI half at minute granularity, the
-  second-sharp half as page-less function tests); zone macro = NO POST until Run; 400-verbatim +
-  draft survives. The 4 apply-driving specs (closure-palette, edit, seeds, school-zone) each gained
+  second-sharp half as page-less function tests); zone macro = NO POST until Run; error-verbatim +
+  draft survives (re-pinned to the PERMANENT one-job 409 in the follow-up — a mocked transitional
+  400 would have stayed green after V2.4b deleted its string). The 4 apply-driving specs (closure-palette, edit, seeds, school-zone) each gained
   ONE `draft-run` click with body assertions byte-identical — that IS the pin; closure-palette's
   400 assertion moved `palette-error` → `draft-error`. Suites: **419 pytest (untouched) + 67
   Playwright**. Follow-up (user-directed, landed): the error-verbatim case pins the PERMANENT
@@ -713,13 +714,16 @@ the simulation record, the workspace lives in a sidecar).**
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
   ```bash
-  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream] /api/report /api/chat /api/interview
+  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream|/identity] /api/report /api/chat /api/interview
   cd web && npm run dev                            # http://localhost:3000 → open the ✏️ Edit toggle
   python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
   ```
   The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then, on enrich,
   `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend loads
   `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
+  Run identity (user name/note) lives in the `contract/runs/state/<run_id>.identity.json` SIDECAR —
+  endpoint-only writer, never the state file or the artifact; three file classes coexist under
+  `run_state.list_all`'s glob (state / `.composite.json` / `.identity.json` — see the V2.4c block).
 - **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
   {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
   for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a/b/c closures + incidents

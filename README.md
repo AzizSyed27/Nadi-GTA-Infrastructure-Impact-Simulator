@@ -4,13 +4,16 @@
 > lane/road closure, incident, or school zone — on a Toronto corridor **before** public consultation.
 > Nadi couples a SUMO traffic microsimulation with an LLM-driven stakeholder-reaction layer, shown as
 > moving dots on a map with a per-stakeholder scorecard, a credibility-first report you can query, a
-> simulated public-discourse view — and now interviewable voices, mandate-grounded institutional
-> perspectives, and the tool's two graphs rendered side by side.
+> simulated public-discourse view — plus interviewable voices, mandate-grounded institutional
+> perspectives, the tool's two graphs rendered side by side, and now full **scenario composition**:
+> draft several changes of mixed types, preview the blockers, run them as one composite, clone the
+> run that almost worked, and name what you keep.
 
 ![The calibrated AM-peak corridor loaded in the editor](docs-assets/calibrated-run-loaded.png)
 
-**Status:** Phases 0–5 and V2.0–**V2.3** complete (tags `v2.2`, `v2.3a`, `v2.3`) · Trajectory contract
-**v0.9.0** · Suites **419 pytest + 53 Playwright (14 specs)** · Study corridor: **Scarborough /
+**Status:** Phases 0–5 and V2.0–**V2.4** complete (tags `v2.2`, `v2.3a`, `v2.3`, `v2.4`) · Trajectory
+contract **v0.9.0** (unchanged through all of V2.4 — `changes[]` + tags have carried composition since
+v0.5.0) · Suites **439 pytest + 73 Playwright (17 specs)** · Study corridor: **Scarborough /
 Pickering / Ajax** · The *simulation* is bounded to one corridor/neighborhood, even though the framing
 is "the GTA."
 
@@ -21,27 +24,39 @@ as an **anticipation**, never a verdict.
 
 ## What it does
 
-Open the map, hit **✏️ Edit**, and draw the change: a new road between two junctions, a speed limit or
-bike lane on an existing street, a lane or road closure, a timed incident, or a **🏫 school zone** —
-several streets dropped to 30 km/h during school hours as one composite scenario. The server runs the
-whole pipeline as a staged job and the map fills in as results land.
+Open the map, hit **✏️ Edit**, and *compose* the scenario: every palette action — a new road between
+two junctions, a speed limit or bike lane, a lane or road closure, a timed incident — **adds a member
+to a draft** rather than firing a run. Mix types freely, window each member independently, and watch
+the draft's **blockers** surface *before* you run (the server's own rejection reasons, verbatim — a
+settled request against a severing closure, same-edge crossing windows). One **Run** submits the whole
+draft as a composite; the **🏫 school zone** is a macro that drops several streets to 30 km/h through
+the same basket. Afterwards, **⧉ clone** any past run into a fresh draft, adjust the one member that
+mattered, and rerun — and give runs a **name and note** so the picker reads like a workspace, not a
+timestamp list. The server runs each submission as a staged job and the map fills in as results land.
+
+![A 3-member mixed draft — road closure, speed limit, and incident — ready to run](docs-assets/v24b-draft-3member.png)
 
 The pipeline, end to end:
 
 1. **Simulate** — SUMO runs **all** traffic (cars, bikes, pedestrians) as cheap physics — no LLM per
    vehicle. Demand is either the synthetic demo set or a **count-calibrated AM peak** (~67k travelers
    anchored to Toronto's traffic-count open data, t=0 == 07:00). Windowed changes apply at their start
-   time and revert at their end *inside* the run, with a capture/restore proof log.
+   time and revert at their end *inside* the run, with a capture/restore proof log — **per member** on
+   a composite, all riding one scheduler.
 2. **Compare** — a baseline-vs-scenario pair with identical demand and seeds; outcomes joined
    per traveler (Δ travel time, Δ delay, non-completions with causally-neutral accounting). Optional:
    **settled assignment** (iterated routes — "after drivers adapt") and **1–3 seeds**, with per-cell
    ranges so a sign that flips across seeds is never rendered as a direction.
 3. **Score** — a per-stakeholder **scorecard** (7 groups × travel time / safety / access) with honesty
    metadata on every cell: measured vs low-confidence, safety as ±magnitude only (direction never
-   claimed), notes that ride the artifact. Safety comes from **surrogate near-miss measures**
+   claimed), notes that ride the artifact. On a composite, overlapping access heuristics are never
+   silently summed — the cell refuses with a both-counts note ("N of M changes affect this group's
+   access; not separable yet"). Safety comes from **surrogate near-miss measures**
    (TTC/PET/hard-braking + a pedestrian-crossing pass) — never crash prediction. Capacity changes add
    first-class facts: diverted counts, non-completions, and a free-flow **emergency-response detour**
-   estimate from four real Toronto Fire Services stations (labeled as routing, never dispatch).
+   estimate from four real Toronto Fire Services stations (labeled as routing, never dispatch) — on
+   composites the payload logs its multi-member exclusion set and says out loud that the destination
+   anchor is order-dependent ("this choice is arbitrary and affects the estimate"), in the report too.
 4. **React** — ~212 persona **voices**: vehicle- and pedestrian-pinned agents react to *their own
    measured trip*, plus inferred community voices (business owners, residents) with no trajectory —
    each an individual anticipated reaction, never a poll. Voices **stream in as they generate**
@@ -115,7 +130,7 @@ These are locked decisions — they're what keep the tool honest:
 └──────────────┬───────────────┘                                                   │
                │        FastAPI job-runner (server.py, :8000)                      │
                └─  /api/simulate · /api/runs · /api/runs/<id>/enrich/stream ·  ────┘
-                  /api/report · /api/chat · /api/interview
+                  /api/runs/<id>/identity · /api/report · /api/chat · /api/interview
 ```
 
 - **`python/`** — simulation + agents: SUMO via TraCI, the staged harness, scorecard, the
@@ -135,6 +150,7 @@ python/src/
   scenario_harness.py     # staged baseline+scenario pairs, outcome join, seed probes, CLI
   server.py               # FastAPI job-runner: /api/simulate /runs /edges /report /chat /interview
   change_scheduler.py     # windowed changes: apply/revert in-sim + proof log; closures; incidents
+  run_state.py            # staged run-state + the V2.4c identity sidecar (user name/note)
   scorecard.py            # 7-group scorecard + honesty metadata + cross-seed ranges
   sampler.py / personas.py / reactions.py   # pin travelers → voice them (provider-agnostic LLM)
   report.py / report_agent.py               # audited 5-section report + per-run LightRAG chat
@@ -150,11 +166,12 @@ python/src/
 contract/                 # trajectory_schema.json (v0.9.0) + gitignored runs/
 data/                     # counts / demand / schools — open-data provenance + calibration records
 web/
-  components/             # MapView, EditPanel+palettes, ScorecardPanel, CompareView,
+  components/             # MapView, EditPanel+palettes, DraftPanel, ScorecardPanel, CompareView,
                           # GraphSplitView, InstitutionPanel, InterviewDrawer, …
-  lib/                    # types, loaders, compare logic, sim-time formatting, enrich stream
-  tests/                  # 53 Playwright tests across 14 specs
-python/tests/             # 419 pytest tests (golden spine, contract gates, honesty invariants)
+  lib/                    # types, loaders, compare logic, sim-time formatting, enrich stream,
+                          # draftBlockers (the client mirror of the shared rejection predicates)
+  tests/                  # 73 Playwright tests across 17 specs
+python/tests/             # 439 pytest tests (golden spine, contract gates, honesty invariants)
 ```
 
 ## Quickstart
@@ -180,16 +197,18 @@ cd python/src && uvicorn server:app --port 8000           # the job-runner API
 cd web && npm run dev                                     # → http://localhost:3000 → ✏️ Edit
 ```
 
-Draw a change, pick run options (demand profile, day-one vs settled, seeds), Simulate — the RunCard
-tracks the staged run; then enrich with voices / report / discourse from the same card (voices tick
-in live). Compare two finished runs via ⇄ Compare or `/?run=<A>&compare=<B>`; open 🕸 Graphs on any
-enriched run; click 🎤 on a voice to interview it.
+Add changes to the draft (mix types; each windowed independently), review the members and any
+blockers in the DraftPanel, pick run options (demand profile, day-one vs settled, seeds), **Run** —
+the RunCard tracks the staged run; then enrich with voices / report / discourse from the same card
+(voices tick in live). **⧉ Clone** a finished run back into a fresh draft to iterate, and **name**
+the runs you keep. Compare two finished runs via ⇄ Compare or `/?run=<A>&compare=<B>`; open 🕸
+Graphs on any enriched run; click 🎤 on a voice to interview it.
 
 **Tests**
 
 ```bash
-python -m pytest python/tests        # 419 tests
-cd web && npx playwright test        # 53 tests, 14 specs
+python -m pytest python/tests        # 439 tests
+cd web && npx playwright test        # 73 tests, 17 specs
 ```
 
 ## Roadmap
@@ -213,11 +232,24 @@ cd web && npx playwright test        # 53 tests, 14 specs
   facts-gated, deterministic; the fire service speaking a real computed detour was the phase's
   headline), and the **graph split-view** — the OASIS social graph and the report's GraphRAG entity
   graph side by side, exclusions visible with their audit rules, no influence leaderboard.
+- **V2.4 — ✅ (tagged `v2.4`)** Scenario composition: the **draft basket** becomes the editing model
+  (apply adds a member, one Run submits; draft-time blockers speak the server's own rejection
+  strings, with the LIFO window rule's boundary semantics pinned on both sides of the language
+  boundary), **mixed-type composites** run for real (the four windowable types, per-member
+  rejection matrix, per-type serializer), and both honesty paths that sat unit-pinned since V2.2d
+  finally executed **in production** — the composite scorecard's refuse-to-sum access note on a
+  live 2-closure run, and the response detour's multi-member exclusion on a live 3-member run
+  (clean primary-branch destination; the doorstep fire station honestly unreachable, worst
+  reachable +29.1 s; the exclusion set and the anchor's order-dependence logged *and* rendered).
+  Plus **⧉ clone-to-draft** (cross-version — old artifacts clone cleanly) and **run identity**:
+  a user name/note in an endpoint-only identity sidecar, injection-inert end to end, with the
+  pinned-run guard extended to identity writes.
 - **Next — V2.5** network styling over the functional-plain base layer.
 - **Further** — `BACKLOG.md`: the bbox-expansion + signal-plan rebuild (the pace probe measured the
   boundary-clipped corridor **saturating** under calibrated AM peak — inflow > outflow all window,
   72% of demand delivered by 09:00 — a larger net is what changes that), the rung-2 along-edge
-  detour refinement, a real student-demand segment, periodic mandate re-verification.
+  detour refinement (now with a live multi-member datapoint), a calibrated windowed-closure
+  composite as a future exemplar, a real student-demand segment, periodic mandate re-verification.
 
 ## Tech stack
 
