@@ -259,6 +259,8 @@ for reactions; Gemini/OpenAI-compatible adapters) · LightRAG + local MiniLM emb
 Two graphs, kept distinct: the OASIS social graph (opinion propagation) and GraphRAG (the report
 agent's memory).
 
+
+
 ---
 
 *Nadi is a stakeholder-reaction **preview**: it anticipates who wins, who loses, and the texture of
