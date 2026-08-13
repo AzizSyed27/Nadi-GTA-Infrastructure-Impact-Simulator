@@ -726,9 +726,16 @@ sidecar/off-contract and every sentence lives in existing free-form fields).**
   DELIBERATELY fires (the two windows alone overstate constraint; pinned with its own case so the
   choice is explicit). Rides the payload → report Section-1 (after anchor_note), LIFTS into TFS
   citation notes (framing stays `notes[0]` — compose_comment rides it), reaches the chat-corpus
-  `response_access` doc. verify_facts: recompute-and-compare REQUIRED-iff (the scope-disclosure
-  enforcement shape, gated with the V2.4b keys — pre-V2.4b sidecars skip) + the citation-riding
-  check ("must ride the citation"). Keyless payloads render NOTHING new anywhere (golden safe).
+  `response_access` doc. verify_facts: recompute-and-compare, ALTERED-or-SPURIOUS fails, ABSENCE
+  TOLERATED — review-caught BLOCKER fixed: the gate key `destination_anchor` is unconditional
+  since V2.4b, so a V2.4b-vintage sidecar (the acceptance run `…20260810T200300Z`!) enters the
+  gate while legitimately lacking the new key, and a full REQUIRED-iff made its report
+  unregenerable; with no same-vintage marker to gate on, the producer pin (the note is emitted
+  unconditionally when owed) owns the "missing" direction. Vintage shape verify-passes,
+  test-pinned; + the citation-riding check ("must ride the citation"). Keyless payloads render
+  NOTHING new anywhere (golden safe). LESSON (joins the anchor_note precedent): a REQUIRED-iff
+  gate must key on a marker of the SAME VINTAGE as the required key — an older sibling admits
+  every run between the sibling's birth and the key's.
 - **Item 2 — the honest-zero note PLURALIZES from the edge union:** noun+verb from
   `len(modified_edges)`, never `len(changes)` — two members can share one edge and the sentence is
   about roads; the divergence shape (2 members, 1 shared edge → singular) has its own pin,

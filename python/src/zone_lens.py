@@ -54,6 +54,8 @@ def windows_disjoint(changes: list[Change]) -> bool:
             return True
         end = max(end, e)
     return False
+
+
 _POPULATION_BY_PROFILE = {
     "calibrated_am_peak": "pedestrian entities from the TMC-anchored calibrated demand",
     "synthetic_demo": "pedestrian entities from the synthetic demo demand",

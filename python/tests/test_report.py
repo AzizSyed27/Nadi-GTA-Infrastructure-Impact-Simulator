@@ -522,20 +522,23 @@ def _wc_detour_payload(note: bool) -> dict:
     return rd
 
 
-def test_fact_check_requires_the_window_coincidence_note_iff_windows_differ():
-    # V2.5a — the scope-disclosure enforcement level: recompute from the change list, one
-    # equality → missing, doctored, and spurious all fail. Nested windows keep the pair LIFO-legal.
+def test_fact_check_window_coincidence_note_altered_or_spurious_fails_absence_tolerated():
+    # V2.5a — ALTERED or SPURIOUS fails via recompute-and-compare; ABSENCE is TOLERATED
+    # (review-caught blocker: `destination_anchor` is unconditional since V2.4b, so a
+    # V2.4b-vintage sidecar carries the gate key while legitimately lacking this one — with no
+    # same-vintage marker to gate on, a required-absence check made the V2.4b acceptance run's
+    # report unregenerable. The producer emits the note unconditionally when owed, pinned in
+    # test_response_probe — that owns the "missing" direction.) Nested windows keep LIFO-legal.
     differing = [_win_change(600.0, 1800.0), _win_change(900.0, 1200.0)]
     art, out = _win_artifact(differing), _win_outcomes()
     out["response_detour"] = _wc_detour_payload(note=True)
     facts = report.gather_facts(art, out, verdict=None)
     report.verify_facts(facts, art, out)  # consistent → must not raise
-    # missing on a differing-windows composite → fail
+    # V2.4b-VINTAGE shape: differing windows, anchor keys present, note ABSENT → must PASS
     out2 = _win_outcomes()
     out2["response_detour"] = _wc_detour_payload(note=False)
     facts2 = report.gather_facts(art, out2, verdict=None)
-    with pytest.raises(AssertionError, match="window_coincidence"):
-        report.verify_facts(facts2, art, out2)
+    report.verify_facts(facts2, art, out2)  # tolerated — vintage, not doctored
     # doctored wording → fail
     out3 = _win_outcomes()
     out3["response_detour"] = _wc_detour_payload(note=True)

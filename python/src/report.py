@@ -366,12 +366,16 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                                     "edges this choice is arbitrary and affects the estimate")
             if len(_rd_changes) > 1 and rd.get("anchor_note") != expected_anchor_note:
                 problems.append("response_detour anchor_note altered or missing on a composite")
-            # V2.5a: the window-coincidence disclosure is REQUIRED iff member windows differ —
-            # recompute from the change list (the scope-disclosure enforcement shape: one equality
-            # covers missing, altered, and spurious). Gated with the other V2.4b+ keys above.
-            if rd.get("window_coincidence_note") != response_probe.window_coincidence_note(_rd_changes):
-                problems.append("response_detour window_coincidence_note altered, missing, or spurious "
-                                "(REQUIRED iff member windows differ)")
+            # V2.5a: the window-coincidence disclosure — ALTERED or SPURIOUS fails (recompute-and-
+            # compare); ABSENCE is TOLERATED. Review-caught: `destination_anchor` is unconditional
+            # since V2.4b, so a V2.4b-vintage sidecar enters this gate while legitimately lacking
+            # the key, and absence is indistinguishable from vintage (no same-vintage marker
+            # exists). The producer emits the note unconditionally when owed (test-pinned in
+            # test_response_probe) — that owns the "missing" direction.
+            if rd.get("window_coincidence_note") is not None and \
+                    rd["window_coincidence_note"] != response_probe.window_coincidence_note(_rd_changes):
+                problems.append("response_detour window_coincidence_note altered or spurious "
+                                "(owed only where member windows differ)")
 
     # V2.2d — the zone lens pair may never render doctored, or without its honesty notes. The pair
     # bypasses the scorecard's CellRange/sign_stable machinery, so the variation caveat is a

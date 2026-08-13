@@ -253,9 +253,9 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
                 # around the changed stretch entirely — a bare 0 would read as "no impact found")
                 row["note"] = (
                     f"{noun} {verb} passable at unchanged free-flow speed on this route — "
-                    f"no added time under free-flow routing" if blocked_only else
+                    "no added time under free-flow routing" if blocked_only else
                     f"the fastest route from this origin does not use {noun} under "
-                    f"free-flow conditions")
+                    "free-flow conditions")
         elif scen_s is None and base_s is not None:
             row["note"] = "destination unreachable from this origin during the window"
         elif base_s is None:
