@@ -241,12 +241,26 @@ def test_main_acceptance_shape_zero_note_branch(nets) -> None:
     d_single, _ = rp.destination_edge(base, KINGSTON, modified={KINGSTON})
     changes = [_road_closure(), _speed_limit(edge=d_single), _incident(speed_factor=0.5)]
     out = rp.compute_response_detour(changes)
+    # V2.5a: two modified edges ({KINGSTON, d_single}) → the note pluralizes
     for pr in out["probes"]:
         note = pr.get("note") or ""
         assert "stays passable at unchanged free-flow speed" not in note
         if pr.get("added_s") == 0.0:
-            assert note == ("the fastest route from this origin does not use the changed road "
+            assert note == ("the fastest route from this origin does not use the changed roads "
                             "under free-flow conditions")
+
+
+def test_zero_note_stays_singular_when_members_share_one_edge() -> None:
+    """V2.5a divergence pin: two members, ONE shared edge — len(changes)=2 but len(modified)=1.
+    The sentence is about ROADS, not changes, so it must stay singular here; a len(changes)-driven
+    pluralization would look right on every other shape and be wrong on exactly this one."""
+    out = rp.compute_response_detour([_road_closure(), _incident(speed_factor=0.5)])
+    assert out["modified_edges"] == [KINGSTON]  # the union collapsed to one edge
+    zeros = [pr for pr in out["probes"] if pr.get("added_s") == 0.0]
+    assert zeros, "shape assumption broken: no honest zero among the station probes"
+    for pr in zeros:
+        assert pr["note"] == ("the fastest route from this origin does not use the changed road "
+                              "under free-flow conditions")
 
 
 def test_compute_response_detour_end_to_end_payload() -> None:

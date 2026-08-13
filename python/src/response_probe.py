@@ -203,6 +203,10 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
         (c.type in ("lane_closure",) or (c.type == "incident" and c.effect and c.effect.blocked))
         and not (c.type == "incident" and c.effect and c.effect.speed_factor is not None)
         for c in changes)
+    # noun count follows the EDGE union, never the member count — two members can share one edge,
+    # and the zero-note sentence is about roads
+    noun, verb = (("the changed road", "stays") if len(modified) == 1
+                  else ("the changed roads", "stay"))
     for p in probes:
         o_base = origin_edge(base_net, p["lon"], p["lat"])
         represents = p.get("represents")
@@ -228,10 +232,10 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
                 # an honest zero always carries its explanation (station origins commonly route
                 # around the changed stretch entirely — a bare 0 would read as "no impact found")
                 row["note"] = (
-                    "the changed road stays passable at unchanged free-flow speed on this route — "
-                    "no added time under free-flow routing" if blocked_only else
-                    "the fastest route from this origin does not use the changed road under "
-                    "free-flow conditions")
+                    f"{noun} {verb} passable at unchanged free-flow speed on this route — "
+                    f"no added time under free-flow routing" if blocked_only else
+                    f"the fastest route from this origin does not use {noun} under "
+                    f"free-flow conditions")
         elif scen_s is None and base_s is not None:
             row["note"] = "destination unreachable from this origin during the window"
         elif base_s is None:
