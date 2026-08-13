@@ -926,7 +926,13 @@ def build_scope_disclosure(changes: list, sim_end: float, profile: str) -> str |
          f"({fmt_sim_time(0.0, profile)}–{fmt_sim_time(sim_end, profile)}); "
          f"{subject} active {fmt_window(span, profile)} of it")
     if differing:
-        s += f" ({zone_lens.span_note('these figures')})"
+        clause = zone_lens.span_note("these figures")
+        # V2.5a: DISJOINT member windows make the span absorb dead time (worst when the span
+        # covers the whole run and the dilution sentence below is suppressed) — say so. A mixed
+        # set never gets the clause: a permanent member fills every gap (zone_lens gates it).
+        if zone_lens.windows_disjoint(changes):
+            clause += f"; {zone_lens.DISJOINT_SPAN_CLAUSE}"
+        s += f" ({clause})"
     s += "."
     before, after = span["start_s"] > 0.0, span["end_s"] < sim_end
     if before or after:

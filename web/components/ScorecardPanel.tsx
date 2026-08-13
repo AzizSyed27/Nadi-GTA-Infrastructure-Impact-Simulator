@@ -30,6 +30,8 @@ interface ScorecardPanelProps {
   scope?: {
     span: { start_s: number; end_s: number };
     differing: boolean;
+    /** V2.5a: all members windowed AND the merged windows leave a gap — the span absorbs dead time. */
+    disjoint: boolean;
     windowedCount: number;
     total: number;
   } | null;
@@ -79,9 +81,14 @@ export function ScorecardPanel({
                   : 'changes'}{' '}
               active {fmtWindowRange(scope.span, demandProfile)}
               {scope.differing
-                ? // client copy of zone_lens.span_note("these figures") (python/src/zone_lens.py:31-34) —
-                  // the report's disclosure sentence carries the same clause; keep in lockstep.
-                  ' (members carry differing windows; these figures use the spanning window)'
+                ? // client copy of zone_lens.span_note("these figures") + (iff disjoint)
+                  // zone_lens.DISJOINT_SPAN_CLAUSE (python/src/zone_lens.py) — the report's
+                  // disclosure sentence carries the same clauses; keep in lockstep.
+                  ' (members carry differing windows; these figures use the spanning window' +
+                  (scope.disjoint
+                    ? '; the spanning window includes periods where no change was active'
+                    : '') +
+                  ')'
                 : ''}
             </div>
           )}

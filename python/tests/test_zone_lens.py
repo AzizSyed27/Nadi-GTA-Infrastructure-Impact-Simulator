@@ -116,6 +116,36 @@ def test_no_windowed_member_covers_full_run_with_note() -> None:
     assert facts["ped_vehicle_conflicts"]["baseline"] == 2
 
 
+# ------------------------------------------------------------------ V2.5a disjointness
+
+
+def _perm(edge: str = "E9") -> Change:
+    return Change(type="speed_limit", target_edge=edge, value_mps=8.33,
+                  description="permanent limit")
+
+
+def test_windows_disjoint_predicate_matrix() -> None:
+    """V2.5a: True iff ALL members are windowed AND the merged union leaves a gap strictly
+    inside the span. A permanent member fills every gap (the clause would be false). Touching
+    windows (end == start) are contiguous — the LIFO boundary convention."""
+    # disjoint pair → True
+    assert zl.windows_disjoint([_chg("E1", 300.0, 600.0), _chg("E2", 1500.0, 1800.0)]) is True
+    # overlapping → False
+    assert zl.windows_disjoint([_chg("E1", 600.0, 1200.0), _chg("E2", 900.0, 1800.0)]) is False
+    # nested → False
+    assert zl.windows_disjoint([_chg("E1", 600.0, 1800.0), _chg("E2", 900.0, 1200.0)]) is False
+    # touching (end == start) → contiguous, False
+    assert zl.windows_disjoint([_chg("E1", 300.0, 600.0), _chg("E2", 600.0, 900.0)]) is False
+    # ANY permanent member fills the gap → False even with disjoint windowed siblings
+    assert zl.windows_disjoint([_chg("E1", 300.0, 600.0), _chg("E2", 1500.0, 1800.0), _perm()]) is False
+    # single / empty → False
+    assert zl.windows_disjoint([_chg("E1")]) is False
+    assert zl.windows_disjoint([]) is False
+    # three members where only the sorted-adjacent gap exists past a bridging window → False
+    assert zl.windows_disjoint([_chg("E1", 300.0, 600.0), _chg("E2", 500.0, 1500.0),
+                                _chg("E3", 1400.0, 1800.0)]) is False
+
+
 # ------------------------------------------------------------------ the honesty notes
 
 

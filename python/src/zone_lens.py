@@ -35,6 +35,25 @@ def span_note(subject: str) -> str:
 
 
 SPAN_WINDOW_NOTE = span_note("zone facts")
+DISJOINT_SPAN_CLAUSE = "the spanning window includes periods where no change was active"
+
+
+def windows_disjoint(changes: list[Change]) -> bool:
+    """V2.5a: True iff ALL members are windowed AND the merged union leaves a gap strictly
+    inside the span — the shape where the spanning window absorbs dead time and the disclosure
+    clause is owed. A permanent member fills every gap (the clause would be FALSE — the
+    mixed-set subject rule already says which members were windowed). Touching windows
+    (end == start) are contiguous, matching the LIFO boundary convention."""
+    windows = [c.window for c in changes]
+    if len(windows) < 2 or any(w is None for w in windows):
+        return False
+    ivs = sorted((w.start_s, w.end_s) for w in windows)
+    end = ivs[0][1]
+    for s, e in ivs[1:]:
+        if s > end:
+            return True
+        end = max(end, e)
+    return False
 _POPULATION_BY_PROFILE = {
     "calibrated_am_peak": "pedestrian entities from the TMC-anchored calibrated demand",
     "synthetic_demo": "pedestrian entities from the synthetic demo demand",

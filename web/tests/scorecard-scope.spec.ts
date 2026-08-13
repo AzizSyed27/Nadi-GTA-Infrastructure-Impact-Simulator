@@ -72,6 +72,44 @@ test('differing member windows: the scope line uses the spanning window and says
   );
 });
 
+test('disjoint member windows: the scope line names the dead time', async ({ page }) => {
+  // V2.5a — all members windowed, merged windows leave a gap: the spanning range absorbs dead
+  // time, so the clause must ride (client copy of zone_lens.DISJOINT_SPAN_CLAUSE, lockstep with
+  // the report's disclosure sentence).
+  const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
+  art.meta.scenario.changes[0].window = { start_s: 300, end_s: 600 };
+  art.meta.scenario.changes[1].window = { start_s: 1500, end_s: 1800 };
+  art.meta.scenario.changes[2].window = { start_s: 600, end_s: 900 }; // touching #0 — contiguous
+  await mockLoadedRun(page, JSON.stringify(art));
+  await page.goto(`/?run=${RUN_ID}`);
+  await warmOpen(page);
+
+  await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('scorecard-scope-note')).toHaveText(
+    'measures cover the full run; changes active t=300–1800 s ' +
+      '(members carry differing windows; these figures use the spanning window; ' +
+      'the spanning window includes periods where no change was active)',
+  );
+});
+
+test('disjoint windowed members + a permanent member: no dead-time clause', async ({ page }) => {
+  // V2.5a — a permanent member fills the gap; "no change was active" would be false. The
+  // differing clause stays, the mechanical subject names the windowed members.
+  const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
+  art.meta.scenario.changes[0].window = { start_s: 300, end_s: 600 };
+  art.meta.scenario.changes[1].window = { start_s: 1500, end_s: 1800 };
+  delete art.meta.scenario.changes[2].window; // permanent — bridges the gap
+  await mockLoadedRun(page, JSON.stringify(art));
+  await page.goto(`/?run=${RUN_ID}`);
+  await warmOpen(page);
+
+  await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('scorecard-scope-note')).toHaveText(
+    'measures cover the full run; windowed changes active t=300–1800 s ' +
+      '(members carry differing windows; these figures use the spanning window)',
+  );
+});
+
 test('unwindowed run: no scope line (nothing new renders)', async ({ page }) => {
   const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
   for (const c of art.meta.scenario.changes) delete c.window; // permanent limits, same composite

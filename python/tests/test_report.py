@@ -421,6 +421,50 @@ def test_scope_disclosure_clamps_display_to_the_simulated_period():
     assert "t=2000" not in got
 
 
+def test_scope_disclosure_disjoint_windows_name_the_dead_time():
+    """V2.5a: disjoint member windows make the span absorb dead time — worst at the exact
+    understatement shape ([0,300]+[1500,1800] on 1800 s: the clamped span covers the whole run,
+    the dilution sentence is SUPPRESSED, and the line read as 'active the entire run'). The
+    clause rides inside the differing parenthetical, after the pinned span_note substring."""
+    import zone_lens
+    got = report.build_scope_disclosure([_win_change(0.0, 300.0), _win_change(1500.0, 1800.0)],
+                                        1800.0, "synthetic_demo")
+    assert got == ("Scorecard measures cover the full simulated period (t=0 s–t=1800 s); "
+                   "the changes were active from t=0 s to t=1800 s of it "
+                   "(members carry differing windows; these figures use the spanning window; "
+                   "the spanning window includes periods where no change was active).")
+    # interior disjoint pair: the clause and the dilution sentence coexist
+    got2 = report.build_scope_disclosure([_win_change(300.0, 600.0), _win_change(1200.0, 1500.0)],
+                                         1800.0, "synthetic_demo")
+    assert zone_lens.DISJOINT_SPAN_CLAUSE in got2
+    assert "diluted by the periods before and after it" in got2
+
+
+def test_scope_disclosure_disjoint_clause_suppressed_by_a_permanent_member():
+    # a permanent member fills the gap — "no change was active" would be FALSE there; the
+    # differing parenthetical still renders and the mixed-set subject rule is untouched
+    import zone_lens
+    perm = Change(type="speed_limit", target_edge="E2", value_mps=8.33, description="permanent")
+    got = report.build_scope_disclosure(
+        [_win_change(0.0, 300.0), _win_change(1500.0, 1800.0), perm], 1800.0, "synthetic_demo")
+    assert f"({zone_lens.span_note('these figures')})" in got
+    assert zone_lens.DISJOINT_SPAN_CLAUSE not in got
+    assert "the windowed changes were" in got
+
+
+def test_fact_check_catches_a_stripped_disjoint_clause():
+    # the scope_disclosure equality recompute covers the clause automatically — prove it
+    import zone_lens
+    art = _win_artifact([_win_change(0.0, 300.0), _win_change(1500.0, 1800.0)])
+    out = _win_outcomes()
+    facts = report.gather_facts(art, out, verdict=None)
+    assert zone_lens.DISJOINT_SPAN_CLAUSE in facts["scope_disclosure"]
+    facts["scope_disclosure"] = facts["scope_disclosure"].replace(
+        f"; {zone_lens.DISJOINT_SPAN_CLAUSE}", "")
+    with pytest.raises(AssertionError, match="scope_disclosure"):
+        report.verify_facts(facts, art, out)
+
+
 def test_scope_disclosure_absent_for_unwindowed_runs():
     change = Change(type="speed_limit", target_edge="E1", value_mps=11.11, description="40 km/h")
     assert report.build_scope_disclosure([change], 1800.0, "synthetic_demo") is None
