@@ -149,10 +149,16 @@ citation). Runs carry an optional user name/note in the IDENTITY SIDECAR
 BY CONSTRUCTION, rename-mid-run test-pinned) with the pinned-run guard extended to identity writes
 and injection inertness pinned end-to-end; names render on RunCards + every runLabel picker, ids
 stay canonical everywhere else. The calibrated windowed-closure composite is a DEFERRED exemplar
-candidate (BACKLOG — synthetic acceptance stands). Suites: **439 pytest + 73 Playwright**.
+candidate (BACKLOG — synthetic acceptance stands). **V2.5a IS CLOSED (the disclosure batch):**
+window-coincidence disclosure on the detour (single-sourced, REQUIRED-iff, riding report + TFS
+citations + corpus), the honest-zero note pluralizes from the edge union, the disjoint-span clause
+rides the scope disclosure both sides, the institutional chat index PROVEN LIVE (+ the
+singleton-drift forensic finding — see the V2.5a block), the producer-real 0.9.0 institutions
+fixture retired the drifted hand-mock, and the prettier hook leg is REMOVED (hazard closed).
+Suites: **457 pytest + 75 Playwright**.
 Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, rung-2 detour — now with a
-live datapoint, student demand, mandate re-verification, disjoint-window span honesty — now
-UI-reachable, the calibrated composite exemplar).
+live datapoint and both V2.5a wording observations paid at rung 1, student demand, mandate
+re-verification, the calibrated composite exemplar).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -711,8 +717,52 @@ the simulation record, the workspace lives in a sidecar).**
   rename claim is TEST-pinned (200 while try_acquire holds), UI clear/note-only cases pinned,
   DraftPanel's lane summary optional-chained. Suites: **439 pytest + 73 Playwright**.
 
-**V2.5 Step a — disclosure and wording debts — IN PROGRESS (items land as small commits; this
-block is completed at closeout).**
+**V2.5 Step a — disclosure and wording debts — COMPLETE (no contract change; every payload key is
+sidecar/off-contract and every sentence lives in existing free-form fields).**
+- **Item 1 — the WINDOW-COINCIDENCE DISCLOSURE:** `response_probe.WINDOW_COINCIDENCE_NOTE` +
+  `window_coincidence_note(changes)` (single source, `str | None`): fires iff >1 member AND >1
+  distinct window among WINDOWED members — one windowed member + permanents is EXACT (every member
+  genuinely active during the one window), while two distinct windows + a permanent member
+  DELIBERATELY fires (the two windows alone overstate constraint; pinned with its own case so the
+  choice is explicit). Rides the payload → report Section-1 (after anchor_note), LIFTS into TFS
+  citation notes (framing stays `notes[0]` — compose_comment rides it), reaches the chat-corpus
+  `response_access` doc. verify_facts: recompute-and-compare REQUIRED-iff (the scope-disclosure
+  enforcement shape, gated with the V2.4b keys — pre-V2.4b sidecars skip) + the citation-riding
+  check ("must ride the citation"). Keyless payloads render NOTHING new anywhere (golden safe).
+- **Item 2 — the honest-zero note PLURALIZES from the edge union:** noun+verb from
+  `len(modified_edges)`, never `len(changes)` — two members can share one edge and the sentence is
+  about roads; the divergence shape (2 members, 1 shared edge → singular) has its own pin,
+  mutation-checked against a member-count-driven variant. `destination_note` strings untouched
+  (rung-2's problem, BACKLOG).
+- **Item 3 — the DISJOINT-SPAN CLAUSE:** `zone_lens.DISJOINT_SPAN_CLAUSE` ("the spanning window
+  includes periods where no change was active") + `windows_disjoint(changes)` — ALL members
+  windowed AND the merged union leaves a gap; a permanent member fills gaps (mixed sets never get
+  the clause — it would be false); touching windows contiguous (the LIFO boundary convention).
+  Rides INSIDE the differing parenthetical after the pinned span_note substring, so the
+  scope-disclosure equality recompute covers it with zero new verify code (stripped-clause leg
+  pinned); client lockstep = `windowedScope.disjoint` (line-faithful port) → ScorecardPanel.
+  Pinned on the exact understatement shape ([0,300]+[1500,1800]: span covers the run, dilution
+  sentence suppressed). Span convention unchanged; `resolve_window`/zone_facts `window_note`
+  deliberately NOT extended (stated non-goal — disjoint zone runs only craftable via clone-edit).
+- **Item 5 — the PRODUCER-REAL 0.9.0 FIXTURE (hand-mock retired):** the spec's hand-mocked mandate
+  agent had ALREADY drifted (its report-section disclaimer matched neither producer string,
+  surviving on a shared substring — the predicted failure mode, found paid). Committed
+  `institutions-run.json` = genuine 0.9.0 via the real deterministic chain
+  (build_multimodal_artifact + compute_scorecard + speaking_institutions →
+  compose_citations/compose_reaction → reactions.build_agent; sim/inferred PROSE stubbed —
+  structure producer-real, said in the docstring), change set = the SYNERGY shape (2-member
+  all-windowed DISJOINT composite whose detour payload carries the item-1 note) so ONE fixture
+  exercises items 1+3+5 in the real UI. Companion `institutions-report-section.json` =
+  `build_institutional_section` output verbatim; `test_institutions_fixture.py` is the school-zone
+  regen-pin convention (recompute-equals incl. AGENTS — every reaction deterministic; roster
+  byte-pin; the synergy invariant; companion recompute; regen via
+  `python python/tests/test_institutions_fixture.py`). institutions.spec.ts is fixture-driven:
+  empty state = a mechanical mandate filter, report splice = the companion.
+- **Item 6 — the PRETTIER HOOK LEG is REMOVED (hazard closed):** verified armed-but-configless
+  (no config/dep anywhere, prettier absent from the npx cache — inert by cache state only); the
+  leg deleted per "prettier is deliberately unconfigured", eslint keeps the TS leg, both hazard
+  notes rewritten. Hook edits activate on session reload — first post-reload web edit confirms.
+- Suites: **457 pytest (+18) + 75 Playwright (+2)**; unwindowed golden byte-identical throughout.
 - **Item 4 — the institutional chat index PROVEN LIVE (2026-08-13, the V2.3c deferral paid):**
   built the 235-doc LightRAG index for the V2.4b closure composite
   `multimodal-scenario-20260810T200300Z` and proved chat draws on an `institution__` doc end to

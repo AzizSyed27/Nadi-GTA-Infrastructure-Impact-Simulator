@@ -57,15 +57,14 @@ and the ORDER-DEPENDENCE note ("destination anchored to the first change; with m
 edges this choice is arbitrary and affects the estimate") — the same three-member draft reordered
 would anchor differently, which is exactly the rung-2 pressure. Result shape: doorstep Station 231
 honestly UNREACHABLE during the window; 232 +10.2 s / 234 +29.1 s / 243 +2.7 s. Rung-2 remains a
-design decision, now with a live datapoint instead of a unit fixture; the wording wrinkle observed:
-the honest-zero sentences say "the changed road" (SINGULAR) on multi-edge composites — awkward,
-not false (with every member applied to the during-window net, added_s == 0 does imply the route
-avoids all of them) — fold a plural form into the rung-2 rewrite. Second observation (review-caught):
-`compute_response_detour` applies ALL members to one during-window net regardless of whether their
-windows actually COINCIDE — on the acceptance run the closure [600,1200] and incident [600,1680]
-only fully overlap on [600,1200], so the measured worst-case state existed for part of the span.
-Conservative direction (over-, never under-reports added time) but currently undisclosed in the
-payload — fold a coincidence note (or per-window probing) into the rung-2 design.
+design decision, now with a live datapoint instead of a unit fixture. **V2.5a paid the two wording
+observations at rung 1:** the honest-ZERO sentences now pluralize from `len(modified_edges)`
+("the changed road/roads", divergence-shape-pinned — the `destination_note` strings stay singular,
+still the rung-2 rewrite's problem), and the window-coincidence conservatism is DISCLOSED
+(`response_probe.WINDOW_COINCIDENCE_NOTE`, fires iff >1 distinct member window, REQUIRED-iff
+verify-pinned, riding report + TFS citations + chat corpus). Per-window probing — computing the
+detour against each window's actual net state instead of the most-constrained union — remains
+rung-2 design space.
 
 ## V2.2d — student demand segment: DEFERRED (data fights back)
 The school-zone lens counts what the demand actually contains, and says so (`zone_facts.
@@ -79,17 +78,18 @@ Until a segment lands, zone facts must keep NAMING their population ("pedestrian
 Toronto Open Data) and are used as siting context only — walk-Y-signs / crossing-guard posts would
 be adjacent context, never measured children.
 
-## V2.2 closeout — disjoint-window span honesty (review-flagged, API-reachable only)
-The windowed-scope disclosure uses the ratified spanning-window convention (`zone_lens.resolve_window`
-+ the span note) for differing member windows. For DISJOINT windows (e.g. [0,300] and [1500,1800] on an
-1800 s run) the span covers ~the whole period, so the dilution sentence is suppressed while two-thirds
-of the run had no active change — the span note fires ("members carry differing windows; these figures
-use the spanning window") but understates the gap. **V2.4b: now UI-REACHABLE** — the draft basket
-assigns per-member windows (closures/incidents each carry their own), so a planner CAN compose
-disjoint windows from the palette. The V2.4b acceptance run's windows overlap (600–1200 / 600–1680),
-so the understatement has not yet rendered on a real run; the refinement (per-member windows or an
-"active intermittently" form, never a silent span widening) is now a live duty rather than an
-API-only hypothetical — schedule it before any workflow that composes far-apart windows.
+## V2.2 closeout — disjoint-window span honesty — PAID in V2.5a
+The understatement (span covers ~the whole period, dilution sentence suppressed, two-thirds of the
+run with no active change) is now DISCLOSED: `zone_lens.DISJOINT_SPAN_CLAUSE` ("the spanning window
+includes periods where no change was active") rides inside the differing parenthetical iff ALL
+members are windowed AND the merged union leaves a gap (a permanent member fills gaps — mixed sets
+never get the clause; touching windows are contiguous, the LIFO boundary convention). Wired through
+`build_scope_disclosure` (report line + caveat + chat corpus + the verify_facts equality recompute)
+and the client mirror (`windowedScope.disjoint` → ScorecardPanel), pinned both sides incl. the
+exact [0,300]+[1500,1800] shape. The SPAN CONVENTION ITSELF is unchanged (ratified: no redesign);
+an "active intermittently" per-member form remains possible future work, no longer a live honesty
+duty. zone_facts `window_note` deliberately NOT extended (the zone macro assigns identical windows;
+a disjoint zone run is only craftable via clone-edit) — extend it there if that ever changes.
 
 ## V2.4 follow-on — new_road members in composites (regen-then-runtime; USER-HIT gap)
 A real drafting attempt composed a 3-segment new-road CHAIN plus a 29-street school zone in one
