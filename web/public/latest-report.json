@@ -1,20 +1,22 @@
 {
   "report_version": "3.1",
-  "generated_at": "2026-08-11T20:48:07.279052+00:00",
+  "generated_at": "2026-08-13T05:00:57.058349+00:00",
   "provider": "deepseek",
   "model": "deepseek-v4-flash",
   "usage": {
-    "prompt_cache_hit_tokens": 4096,
-    "prompt_cache_miss_tokens": 3803,
-    "completion_tokens": 724,
+    "prompt_cache_hit_tokens": 3584,
+    "prompt_cache_miss_tokens": 4220,
+    "completion_tokens": 626,
     "calls": 10
   },
   "run": {
-    "scenario_run_id": "multimodal-scenario-V22AACCEPT",
-    "baseline_run_id": "multimodal-baseline-V22AACCEPT",
+    "scenario_run_id": "multimodal-scenario-20260702T044134Z",
+    "baseline_run_id": "multimodal-baseline-20260702T044134Z",
     "network": "corridor.net.xml",
     "seeds": [
-      42
+      42,
+      43,
+      44
     ],
     "thresholds": {
       "ttc_s": 3.0,
@@ -23,29 +25,23 @@
       "materiality_s": 30
     },
     "demand": {
-      "car": 67329,
-      "bicycle": 479,
-      "pedestrian": 5077
+      "car": 300,
+      "bicycle": 82,
+      "pedestrian": 129
     },
-    "cars_rerouted": 999,
+    "cars_rerouted": 0,
     "severed_edges": []
   },
   "scenario_change": {
-    "type": "lane_closure",
-    "target_edge": "42140001",
-    "target_lane": null,
-    "target_lanes": [
-      1,
-      2
-    ],
+    "type": "bike_lane",
+    "target_edge": "660176957#0",
+    "target_lane": 1,
+    "target_lanes": null,
     "value_mps": null,
-    "window": {
-      "start_s": 600.0,
-      "end_s": 2400.0
-    },
+    "window": null,
     "effect": null,
     "position_m": null,
-    "description": "Closed 2 of 3 car lanes on edge 42140001 from 07:10 to 07:40",
+    "description": "Converted lane 1 of edge 660176957#0 to a bicycle-only lane",
     "from_junction": null,
     "to_junction": null,
     "lanes": null,
@@ -59,19 +55,19 @@
         "grounding": "sim",
         "travel_time_delta": {
           "value": 0.0,
-          "affected_share": 0.161,
+          "affected_share": 0.033,
           "confidence": "measured",
           "note": "affected_share = fraction of this group's travelers >30s slower"
         },
         "safety_delta": {
-          "value": 376.814,
+          "value": 6.579,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 199848 observed events"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
         },
         "access_delta": {
-          "value": 0.5,
+          "value": 0.33,
           "confidence": "low",
-          "note": "rule-based estimate; applies during the closure window"
+          "note": "rule-based estimate"
         }
       },
       {
@@ -79,14 +75,19 @@
         "grounding": "sim",
         "travel_time_delta": {
           "value": 0.0,
-          "affected_share": 0.154,
+          "affected_share": 0.0,
           "confidence": "measured",
           "note": "affected_share = fraction of this group's travelers >30s slower"
         },
         "safety_delta": {
-          "value": 11.618,
+          "value": 6.855,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 199848 observed events"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        },
+        "access_delta": {
+          "value": -1.0,
+          "confidence": "low",
+          "note": "rule-based estimate"
         }
       },
       {
@@ -94,28 +95,38 @@
         "grounding": "sim",
         "travel_time_delta": {
           "value": 0.0,
-          "affected_share": 0.036,
+          "affected_share": 0.0,
           "confidence": "measured",
           "note": "affected_share = fraction of this group's travelers >30s slower"
         },
         "safety_delta": {
-          "value": -34.854,
+          "value": 0.188,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 199848 observed events"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        },
+        "access_delta": {
+          "value": -0.1,
+          "confidence": "low",
+          "note": "rule-based estimate"
         }
       },
       {
         "group": "local_resident",
         "grounding": "inferred",
         "safety_delta": {
-          "value": 375.065,
+          "value": 7.349,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 199848 observed events"
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
         }
       },
       {
         "group": "business_owner",
-        "grounding": "inferred"
+        "grounding": "inferred",
+        "access_delta": {
+          "value": 0.5,
+          "confidence": "low",
+          "note": "rule-based estimate"
+        }
       },
       {
         "group": "accessibility",
@@ -129,14 +140,50 @@
   },
   "car_tail": {
     "median_s": 0.0,
-    "share_gt30_pct": 16.1,
-    "cross_seed": null,
-    "cross_seed_available": false,
-    "sentence": "This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail with the vast majority of cars unaffected (exact cross-seed range not available for this run)."
+    "share_gt30_pct": 3.3,
+    "cross_seed": {
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "materiality_s": 30,
+      "per_seed": [
+        {
+          "seed": 42,
+          "matched_cars": 300,
+          "share_gt30": 0.03333,
+          "share_gt60": 0.02333
+        },
+        {
+          "seed": 43,
+          "matched_cars": 300,
+          "share_gt30": 0.03,
+          "share_gt60": 0.02667
+        },
+        {
+          "seed": 44,
+          "matched_cars": 300,
+          "share_gt30": 0.02333,
+          "share_gt60": 0.02
+        }
+      ],
+      "range_gt30": [
+        0.02333,
+        0.03333
+      ],
+      "range_gt60": [
+        0.02,
+        0.02667
+      ],
+      "verdict": "across seeds 42/43/44 the car >30 s share sits in [2.3%, 3.3%] — a small hard-hit tail with the vast majority unaffected. The SHAPE (concentrated cost, not broad) is STABLE across seeds, even though the safety-delta SIGN is not."
+    },
+    "cross_seed_available": true,
+    "sentence": "Across seeds 42/43/44 this share stays in [2.3%, 3.3%] — a small hard-hit tail, with the vast majority of cars unaffected."
   },
   "sections": {
     "what_tested": {
-      "framing": "This report previews a proposed change on one Toronto corridor where two car lanes would be closed during a short morning window, leaving the road open in the remaining lane(s). The text anticipates how different people—drivers, transit users, nearby residents—might be affected by that temporary lane closure, without judging whether the change is good or bad."
+      "framing": "This report previews a proposed change on one Toronto corridor where a general-traffic lane would be converted into a bicycle-only lane. The text anticipates how people might react and what the change could mean for different road users, without offering a verdict or prediction."
     },
     "who_affected": {
       "group_order": [
@@ -158,11 +205,11 @@
         "transit_riders": "Transit riders"
       },
       "glosses": {
-        "car_commuter": "Most car commuters see no change in their typical travel time, but a small group is markedly slower, and access is slightly worse.",
-        "cyclist": "Most cyclists see no change in their typical travel time, but a small group experiences a marked slowdown, while the safety signal is present but its direction is not claimed.",
-        "pedestrian": "Most pedestrians see no change in typical travel time, but a small group is markedly slower, while the safety signal remains directionally unclaimed.",
+        "car_commuter": "Most car commuters see no change in typical travel time, but a small group is markedly slower, and access is slightly worse.",
+        "cyclist": "Cyclists see slightly better access, though the safety signal is not directionally reliable and typical travel time holds steady.",
+        "pedestrian": "Pedestrians see slightly better access, though the safety signal is not directionally reliable, and typical travel time is unchanged.",
         "local_resident": "For this group, a near-miss magnitude is present, but its direction is not claimed (not seed-stable) — the table shows the magnitude only.",
-        "business_owner": "There isn't enough measurable signal in this run to characterize how this change affects business owners.",
+        "business_owner": "Access is estimated to be slightly worse for this group, from a low-confidence rule-based estimate.",
         "accessibility": "There isn't enough measurable signal in this run to characterize how this change affects accessibility.",
         "transit_riders": "There isn't enough measurable signal in this run to characterize how this change affects transit riders."
       }
@@ -172,16 +219,16 @@
         {
           "key": "drivers",
           "label": "Drivers",
-          "synthesis": "Reactions split between those who see added delay as a real cost to their routine or earnings and those who find the change negligible or even beneficial. A recurring hope is that calmer traffic near the school justifies the trade-off, while some remain wary of disruption despite personal gains. The tension centers on whether modest personal losses are worth broader street calm.",
+          "synthesis": "Drivers in this group are primarily concerned with preserving their travel time and income, with many expressing relief that the change does not slow them down. Some worry about the principle of removing a car lane, while others welcome potential calmer streets and improved conditions near the school. The tension lies between those who see the change as an unnecessary inconvenience and those who view it as a worthwhile trade-off for community benefits.",
           "quotes": [
             {
-              "label": "Time-pressed commuter",
-              "comment": "This throws my whole morning off — 35 extra minutes is brutal when I've got a school drop-off and a shift to make. I can't just absorb that kind of delay.",
+              "label": "Rideshare / delivery driver",
+              "comment": "That extra 1.8 minutes might not sound like much, but for me it's less trips per hour and more angry passengers. This lane change is just going to slow me down and cost me money.",
               "grounding": "sim"
             },
             {
               "label": "Safety-conscious driver-parent",
-              "comment": "An extra minute and a half is a small price to pay if it means calmer traffic and safer streets for the kids near the school.",
+              "comment": "I'm glad the travel time stays the same—that means the street can be safer for my kids crossing near the school without making my drive worse.",
               "grounding": "sim"
             }
           ],
@@ -190,16 +237,16 @@
         {
           "key": "cyclists",
           "label": "Cyclists",
-          "synthesis": "The reactions show a clear trade-off between travel time and comfort, with many riders willing to accept small delays if it means less traffic squeezing past them. Some express frustration over longer commutes, while others see time savings as a benefit, especially those paid per delivery. A recurring theme is the desire for a calmer, less stressful ride, even if it costs a few extra minutes.",
+          "synthesis": "Cyclists overwhelmingly welcome the protected lane, citing reduced stress from cars passing closely and a greater sense of personal security. A recurring hope is that the lane will encourage more regular use of the corridor, especially among newer or more cautious riders. The consistent theme is that maintaining travel time while gaining separation from traffic is a clear win.",
           "quotes": [
             {
-              "label": "Daily bike commuter",
-              "comment": "This is brutal for my commute — adding 12 minutes to an already long ride, and I’m guessing I’ll be squeezed even worse in the remaining lane. I need a safe route, but this delay makes me wonder if it’s worth it.",
+              "label": "Cautious newer rider",
+              "comment": "I'm thrilled about the protected bike lane—I'd feel much safer biking here and might actually start using this corridor regularly instead of avoiding it.",
               "grounding": "sim"
             },
             {
-              "label": "Bicycle delivery courier",
-              "comment": "Saving 3.3 minutes on my run means I can fit in another delivery, and if the lane change cuts down on close calls, even better for my nerves.",
+              "label": "Cautious newer rider",
+              "comment": "I've been too nervous to bike here before, but a protected lane would make me feel safe enough to actually try it. My trip time stays the same, so that's great.",
               "grounding": "sim"
             }
           ],
@@ -208,16 +255,16 @@
         {
           "key": "pedestrians",
           "label": "Pedestrians",
-          "synthesis": "The reactions center on a trade-off between minor travel time changes and the perceived quality of the walking and crossing experience. Many are willing to accept a few extra seconds if it means calmer traffic and a more comfortable crossing, especially for those with children. Others focus on the convenience of catching the bus more easily, while a few simply hope the changes don't make crossing feel more rushed. The shared texture is a pragmatic acceptance of small time shifts in exchange for a more pleasant and less stressful pedestrian environment.",
+          "synthesis": "Many travelers see little impact on their own walking or transit time and are neutral or mildly supportive. A recurring hope is that slower, calmer traffic will make street crossings feel less stressful, especially for those walking with children. Some are willing to accept a small delay in exchange for that perceived benefit.",
           "quotes": [
             {
-              "label": "School-run parent on foot",
-              "comment": "A bit slower, but I'm on foot with the kids—slower traffic sounds safer at the crossings, so I'm okay with it.",
+              "label": "Walk-to-transit commuter",
+              "comment": "As a walk-to-transit commuter, my walk to the bus stop doesn't change much, so I'm neutral about this lane conversion.",
               "grounding": "sim"
             },
             {
-              "label": "Walk-to-transit commuter",
-              "comment": "Two minutes shaved off my trip is a welcome surprise—less time waiting around means I can catch my bus with a bit more breathing room. As long as the walk to the stop stays safe, this works for me.",
+              "label": "School-run parent on foot",
+              "comment": "I'm happy about this change—any move that calms traffic and makes crossings safer for my kids is a win in my book, even if my walk time stays the same.",
               "grounding": "sim"
             }
           ],
@@ -226,16 +273,16 @@
         {
           "key": "community",
           "label": "Community voices",
-          "synthesis": "Shop owners and delivery-dependent voices worry about access, parking, and congestion during the morning rush, while long-time residents hope for calmer streets and a more neighborhood feel. Some transit riders are cautiously open if it helps buses, and accessibility advocates stress the need for clear cues and extra crossing time. The tension is between commercial and commuter flow on one side and quality-of-life and accessibility on the other.",
+          "synthesis": "The reactions reveal a deep split between those who fear losing curb access and parking for customers and those who long for calmer, more neighborhood-like streets. Some worry about accessibility at intersections and the impact on bus reliability, while others see the change as a chance to reclaim the street from speeding traffic. The tension centers on whether the corridor should prioritize through-traffic and parking or transform into a more human-scale space.",
           "quotes": [
             {
               "label": "Small business owner",
-              "comment": "Closing a lane during my morning rush is going to make it even harder for customers to get here and find parking—my shop depends on that curb access, and this could really hurt my business.",
+              "comment": "I'm worried this bike lane will take away parking spots my customers need to stop and shop—my business depends on that curb access.",
               "grounding": "inferred"
             },
             {
               "label": "Long-time corridor resident",
-              "comment": "I've lived here for years, and any move that slows down traffic and makes the street feel more like a neighborhood is a win. The morning rush is a constant noise and safety worry, so closing a couple lanes for half an hour sounds like a step in the right direction.",
+              "comment": "I've lived here for 30 years and I'm all for anything that slows down traffic and makes the street feel more like home. Fewer cars racing by will be a welcome change.",
               "grounding": "inferred"
             }
           ],
@@ -243,42 +290,174 @@
         }
       ]
     },
-    "institutional": {
-      "voices": [
+    "institutional": null,
+    "discourse": {
+      "synthesis": "The conversation might unfold as a tug-of-war between drivers who see every extra second as lost income and pedestrians, cyclists, and parents who welcome any slowdown near schools. A middle ground could emerge around the idea that the delay is negligible compared to the comfort and peace of mind for vulnerable road users, with some drivers acknowledging the trade-off is acceptable.",
+      "quotes": [
         {
-          "id": "transport_ops",
-          "label": "City of Toronto Transportation Services",
-          "mandate": {
-            "institution": "City of Toronto Transportation Services",
-            "mission": "to provide a safe, efficient, and effective transportation system that serves our residents, businesses, and visitors in an environmentally, socially and economically sustainable manner.",
-            "source": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/transportation-services/",
-            "retrieved": "2026-08-01"
-          },
-          "citations": [
-            {
-              "key": "reroute",
-              "text": "999 of 19829 matched car trips diverted onto other streets during the run.",
-              "notes": []
-            },
-            {
-              "key": "non_completions",
-              "text": "Trips that completed in the baseline but not this scenario: 744 (car 734, bicycle 1, pedestrian 9).",
-              "notes": []
-            }
-          ],
-          "comment": "City of Toronto Transportation Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes a safe, efficient, and effective transportation system. Read against that mandate, this run computed: 999 of 19829 matched car trips diverted onto other streets during the run."
+          "label": "Daily bike commuter",
+          "comment": "0.1 minute for not getting squeezed by passing cars? I'll take that trade every single time. I ride this corridor daily and I'm tired of feeling the whoosh of traffic inches from my elbow. A protected lane means I can actually breathe on my commute."
+        },
+        {
+          "label": "Safety-conscious driver-parent",
+          "comment": "Absolutely this. I drive past the school every morning and I'll gladly take an extra minute if it means I don't have to hold my breath every time a kid darts between parked cars. Speed isn't everything."
         }
       ],
-      "empty_reason": null,
-      "disclaimer": "Generated by this tool from each organization's published mandate and this run's computed facts — not statements by, from, or on behalf of the named organizations."
+      "cascade_ids": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "reach": {
+        "c1": [
+          {
+            "argument": "parking / curb",
+            "reached": 3,
+            "post_count": 3,
+            "per_post": 1.0
+          },
+          {
+            "argument": "delay / slower",
+            "reached": 131,
+            "post_count": 69,
+            "per_post": 1.9
+          },
+          {
+            "argument": "protected lane",
+            "reached": 157,
+            "post_count": 85,
+            "per_post": 1.85
+          },
+          {
+            "argument": "calmer / quieter",
+            "reached": 85,
+            "post_count": 24,
+            "per_post": 3.54
+          },
+          {
+            "argument": "cost / tax",
+            "reached": 13,
+            "post_count": 4,
+            "per_post": 3.25
+          }
+        ],
+        "c2": [
+          {
+            "argument": "parking / curb",
+            "reached": 7,
+            "post_count": 3,
+            "per_post": 2.33
+          },
+          {
+            "argument": "delay / slower",
+            "reached": 146,
+            "post_count": 72,
+            "per_post": 2.03
+          },
+          {
+            "argument": "protected lane",
+            "reached": 139,
+            "post_count": 86,
+            "per_post": 1.62
+          },
+          {
+            "argument": "calmer / quieter",
+            "reached": 77,
+            "post_count": 25,
+            "per_post": 3.08
+          },
+          {
+            "argument": "cost / tax",
+            "reached": 6,
+            "post_count": 5,
+            "per_post": 1.2
+          }
+        ],
+        "c3": [
+          {
+            "argument": "parking / curb",
+            "reached": 4,
+            "post_count": 4,
+            "per_post": 1.0
+          },
+          {
+            "argument": "delay / slower",
+            "reached": 162,
+            "post_count": 69,
+            "per_post": 2.35
+          },
+          {
+            "argument": "protected lane",
+            "reached": 145,
+            "post_count": 86,
+            "per_post": 1.69
+          },
+          {
+            "argument": "calmer / quieter",
+            "reached": 99,
+            "post_count": 24,
+            "per_post": 4.12
+          },
+          {
+            "argument": "cost / tax",
+            "reached": 12,
+            "post_count": 4,
+            "per_post": 3.0
+          }
+        ]
+      },
+      "dominant": {
+        "c1": "protected lane",
+        "c2": "delay / slower",
+        "c3": "delay / slower"
+      },
+      "diverge": true,
+      "shifts": {
+        "c1": {
+          "movers": 63,
+          "by_group": {
+            "car_commuter": 52,
+            "pedestrian": 10,
+            "transit_riders": 1
+          },
+          "hardened": 38,
+          "warmed": 25
+        },
+        "c2": {
+          "movers": 58,
+          "by_group": {
+            "car_commuter": 53,
+            "pedestrian": 5
+          },
+          "hardened": 39,
+          "warmed": 19
+        },
+        "c3": {
+          "movers": 66,
+          "by_group": {
+            "car_commuter": 54,
+            "pedestrian": 10,
+            "transit_riders": 1,
+            "accessibility": 1
+          },
+          "hardened": 37,
+          "warmed": 29
+        }
+      },
+      "excluded_count": 57,
+      "excluded_by": {
+        "immutability": 45,
+        "tally": 1,
+        "safety_direction": 3,
+        "crash": 8
+      }
     },
-    "discourse": null,
     "cannot_tell": {
       "intro": "The following limits bound what this preview can and cannot claim, and should be read alongside the findings.",
       "caveats": [
         {
           "title": "Safety direction is not established",
-          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported. At peak density, safety surrogates are dominated by queue interactions; raw conflict counts are not comparable across demand profiles, and pedestrian conflicts are proportionally under-represented relative to vehicle car-following events. Conflict stream in the artifact is a severity-stratified sample of 199848 observed events”. Do not read the safety column as 'the change made things safer or more dangerous'."
+          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported”. Do not read the safety column as 'the change made things safer or more dangerous'."
         },
         {
           "title": "Surrogate measures are not crash predictions",
@@ -286,11 +465,11 @@
         },
         {
           "title": "One corridor, one demand level",
-          "body": "The simulation is bounded to a single corridor at a single modelled demand (67329 cars, 479 bicycles, 5077 pedestrians). It does not model the wider network, other times of day, or induced demand."
+          "body": "The simulation is bounded to a single corridor at a single modelled demand (300 cars, 82 bicycles, 129 pedestrians). It does not model the wider network, other times of day, or induced demand."
         },
         {
           "title": "In-run adaptation is not settled equilibrium",
-          "body": "Travelers do not re-plan across days here: 999 cars rerouted within the run. Real corridors reach a new equilibrium over weeks as people adjust routes, modes, and times — this preview shows the immediate response, not that settled state."
+          "body": "Travelers do not re-plan across days here: 0 cars rerouted within the run. Real corridors reach a new equilibrium over weeks as people adjust routes, modes, and times — this preview shows the immediate response, not that settled state."
         },
         {
           "title": "A stratified sample, not a census",
@@ -301,24 +480,20 @@
           "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), labelled low-confidence — an estimate to reason about, not a measurement."
         },
         {
-          "title": "A windowed change: scorecard measures cover the whole run",
-          "body": "Scorecard measures cover the full simulated period (07:00–08:00); the change was active from 07:10 to 07:40 of it. Effects during the active window are diluted by the periods before and after it."
+          "title": "Cascades are illustrative unfoldings",
+          "body": "The discourse section shows independent simulated cascades over the same seeded reactions. They are illustrative, not forecasts — the same opinions cascaded differently across runs (who engages and who shifts varies run to run), so read them as texture, never as what the community will decide."
         },
         {
-          "title": "A temporary event, previewed as the day-one response only",
-          "body": "The closure or incident applies and is lifted within the simulated period. Temporary events have no settled equilibrium, so no iterated-assignment claim is made — what you see is how travelers respond within the run (diverting, queueing, or not completing), not how the corridor would adapt to a permanent change."
-        },
-        {
-          "title": "Institutional perspectives are generated, not statements",
-          "body": "Institutional perspectives are generated by this tool: each recites the named organization's published mandate (sourced, with its retrieval date) against this run's computed facts. They are not statements by, from, or on behalf of the named organizations, and the mandate quote is only as current as its retrieval date."
+          "title": "Argument spread is response volume under neutral surfacing",
+          "body": "The recommender that decides which posts agents see is a neutral random-surfacing stand-in (the interest-based recommender is unavailable at this scale), so an argument's engagement partly reflects how much it was posted, not only its pull. Exposure-based reach saturates under random surfacing and is not reported; the engaged figures are 'drew the most response', shown with a per-post normalization."
         }
       ]
     }
   },
   "audit": {
     "passed": true,
-    "slots_checked": 13,
-    "summary": "passed — 13 slots (9 LLM-audited: 8 clean, 1 corrected on retry, 0 unresolved; 4 code-rendered).",
+    "slots_checked": 14,
+    "summary": "passed — 14 slots (10 LLM-audited: 10 clean, 0 corrected on retry, 0 unresolved; 4 code-rendered).",
     "log": [
       {
         "slot": "framing",
@@ -377,13 +552,13 @@
       },
       {
         "slot": "synthesis:community",
-        "status": "resolved_on_retry",
-        "violations": [
-          {
-            "rule": "safety_direction",
-            "sentence": "Shop owners and delivery-dependent voices worry about access, parking, and congestion during the morning rush, while long-time residents hope for calmer streets and safer crossings."
-          }
-        ]
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "discourse",
+        "status": "clean",
+        "violations": []
       },
       {
         "slot": "caveat_intro",
@@ -393,8 +568,9 @@
     ]
   },
   "sources": [
-    "multimodal-scenario-V22AACCEPT.json",
-    "outcomes-V22AACCEPT.json",
-    "conflicts-baseline-V22AACCEPT.json"
+    "multimodal-scenario-20260702T044134Z.json",
+    "outcomes-20260702T044134Z.json",
+    "conflicts-baseline-20260702T044134Z.json",
+    "robustness-verdict-20260702T044134Z.json"
   ]
 }

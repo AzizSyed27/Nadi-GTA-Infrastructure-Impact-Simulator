@@ -710,6 +710,36 @@ the simulation record, the workspace lives in a sidecar).**
   rename claim is TEST-pinned (200 while try_acquire holds), UI clear/note-only cases pinned,
   DraftPanel's lane summary optional-chained. Suites: **439 pytest + 73 Playwright**.
 
+**V2.5 Step a — disclosure and wording debts — IN PROGRESS (items land as small commits; this
+block is completed at closeout).**
+- **Item 4 — the institutional chat index PROVEN LIVE (2026-08-13, the V2.3c deferral paid):**
+  built the 235-doc LightRAG index for the V2.4b closure composite
+  `multimodal-scenario-20260810T200300Z` and proved chat draws on an `institution__` doc end to
+  end: *"what does the fire service's mandate say about this closure?"* → the answer recited the
+  mandate substance + the unreachable-station fact + "free-flow estimates and not a dispatch
+  model", digit-free, audit CLEAN, `sources[0] = "Institutional perspective (tfs, mandate lens)"`;
+  the retrieved `institution__tfs` chunk (read-only `aquery_data` dump) carried the VERBATIM
+  mission, the +29.1 s citation naming unreachable Station 231, both honesty notes, and the
+  impersonation disclaimer. NB the FIRST ask deflected honestly ("This run doesn't answer that,"
+  correct sources, audit clean) — retrieval-grounding is solid, generation is conservative; the
+  retry produced the substantive answer. Acceptance was RESTATED before running (the original
+  "answer cites the mandate + facts with the disclaimer" is unachievable by construction: chat
+  prose is digit-free and the disclaimer lives in the retrieved doc, never injected into prose).
+  Index re-archived after the proof; the pinned run's index restored as the only live one.
+- **FORENSIC FINDING (user-directed, its own record):** the committed latest-report singleton
+  belonged to `multimodal-scenario-V22AACCEPT` from commit `0bead19` ("feat: demo run",
+  2026-08-11) until today — `discourse.spec` was RED ~2 days and nobody noticed, because the
+  divergence landed AFTER the V2.4 closeout's 73-green claim (`953ab00`, honest when made) and no
+  full suite ran in between (only a README edit). Same failure mode as 2026-07-13 (`a366328`
+  "regenerate the stale latest-report.json so discourse.spec goes green"). LESSON: green-suite
+  claims age only as long as the two singletons (committed `latest-report.*`, served index) stay
+  put — any demo/regen touching either must re-run `discourse.spec` before landing. Fixed by
+  regenerating the singleton for the pinned run (audit 10 clean / 0 corrected / 0 unresolved — no
+  drift flag); `discourse.spec` 4/4 green.
+- **CORRECTION:** `newest_index()` is a LEXICOGRAPHIC name sort, not newest-timestamp —
+  `index-V22AACCEPT` outsorts every `index-<ts>` name (`'V' > '2'`), which is exactly why the live
+  proof required archiving BOTH previously-live indexes first (Run-commands note fixed).
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -785,9 +815,10 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   **must be generated FOR that run** or `discourse.spec`'s `report-discourse` assertion fails (report view ↔ pinned
   artifact diverge — a later run's report silently overwrites it). Regenerate with the EXPLICIT run-id — never let
   `_resolve` pick the newest: `python python/src/report.py --run-id multimodal-scenario-20260702T044134Z`.
-  `report_agent.newest_index()` likewise picks the **newest-timestamp** index (not the report's run); with several
-  runs' indexes under `%LOCALAPPDATA%\nadi-report-agent\`, the server may serve a different run's chat than the
-  report view (it warns "index run != report run") — rebuild/keep only the pinned run's index to align the chat.
+  `report_agent.newest_index()` likewise picks the **lexicographically last-NAMED** index (a plain name sort,
+  NOT newest-timestamp — `index-V22AACCEPT` outsorts every `index-<ts>` name because `'V' > '2'`; V2.5a-corrected);
+  with several runs' indexes under `%LOCALAPPDATA%\nadi-report-agent\`, the server may serve a different run's chat
+  than the report view (it warns "index run != report run") — keep only the intended run's index live to align the chat.
   V2.1 practice: non-pinned indexes are ARCHIVED (reversibly) at `%LOCALAPPDATA%\nadi-report-agent\archive\`, and
   after any verification report-regen, restore the singleton via `git checkout -- web/public/latest-report.*`.
 - **Graphs sidecar backfill (V2.3d):**
