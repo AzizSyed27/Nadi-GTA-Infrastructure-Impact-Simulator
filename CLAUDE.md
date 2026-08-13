@@ -45,9 +45,9 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - Python: base miniconda (3.13), ruff (format + lint), pyright (types), pytest. Windows-native dev.
   OASIS alone runs in the separate `oasis` conda env (3.11) — see the OASIS gotchas below.
 - TS: eslint, tsc (types), Playwright e2e. NO vitest; prettier is deliberately unconfigured — the
-  format hook's prettier leg is armed-but-configless (V2.3a ops note): seeding the npx cache makes
-  it rewrite edited web files to prettier defaults. Keep prettier out of the npx cache or land a
-  real config first.
+  format hook's prettier leg was REMOVED in V2.5a (hazard CLOSED: it was armed-but-configless and
+  one npx-cache seeding away from rewriting edited web files to prettier defaults). eslint owns
+  the TS leg. Don't re-add a prettier leg without landing a real config first.
 - Before writing code against any external/fast-moving library (libsumo, deck.gl, MapLibre,
   OASIS, LightRAG, FastAPI features), use the docs-researcher subagent / Context7 FIRST to
   confirm the CURRENT API. Do not write integration code from memory.
@@ -375,9 +375,10 @@ TAGGED `v2.2` (no contract change).**
   check): mid-enrich 404 on the stream route + reload → real Chrome EventSource gave up (CLOSED) → verbatim note →
   POLLED counts advanced 79→201/212 → poll finished the job → note cleared, voices ✓. Report/discourse live labels
   ride the same `cmd_start` plumbing (voices-proven; no live report enrich — the latest-report singleton + cost).
-- **Ops note:** `.claude/hooks/format.py`'s prettier leg is ARMED-BUT-CONFIGLESS — any `npx prettier` run seeds the
-  npx cache and the PostToolUse hook then rewrites edited web files to prettier DEFAULTS (no repo config exists;
-  cost a 231-line accidental reformat, reverted). Keep prettier out of the npx cache, or land a real config.
+- **Ops note (hazard CLOSED in V2.5a):** `.claude/hooks/format.py`'s prettier leg was ARMED-BUT-CONFIGLESS — any
+  `npx prettier` run seeded the npx cache and the PostToolUse hook then rewrote edited web files to prettier
+  DEFAULTS (no repo config exists; cost a 231-line accidental reformat, reverted). The leg is REMOVED (eslint
+  stays); hook edits activate on session reload, so the first post-reload web edit is the live confirmation.
 
 **V2.3 Step b — PERSONA INTERVIEWS — COMPLETE (ephemeral; no contract change; agents stay a preview).**
 - **`POST /api/interview {run_id, agent_id, agent_index?, question, transcript}`** → an in-character answer

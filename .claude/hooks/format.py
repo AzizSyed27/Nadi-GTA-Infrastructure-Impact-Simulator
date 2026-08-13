@@ -3,7 +3,10 @@
 
 Formats + lints the file that was just written:
   - .py                     -> ruff format, then ruff check --fix
-  - .ts/.tsx/.js/.jsx       -> prettier --write, then eslint --fix (via local npx)
+  - .ts/.tsx/.js/.jsx       -> eslint --fix (via local npx; prettier leg REMOVED in V2.5a —
+                               prettier is deliberately unconfigured in this repo, and an
+                               armed-but-configless leg rewrites files to prettier defaults
+                               the moment the npx cache gains a prettier entry)
 
 ALWAYS exits 0 -- a missing tool or a formatter failure must never block the
 session. Tools are resolved with shutil.which (so npx -> npx.cmd resolves on
@@ -63,7 +66,6 @@ def main():
         run(["ruff", "check", "--fix", file_path])
     elif ext in JS_EXT:
         cwd = nearest_package_dir(file_path)
-        run(["npx", "--no-install", "prettier", "--write", file_path], cwd=cwd)
         run(["npx", "--no-install", "eslint", "--fix", file_path], cwd=cwd)
 
 
