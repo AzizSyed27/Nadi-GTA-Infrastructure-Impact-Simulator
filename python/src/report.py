@@ -366,6 +366,12 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                                     "edges this choice is arbitrary and affects the estimate")
             if len(_rd_changes) > 1 and rd.get("anchor_note") != expected_anchor_note:
                 problems.append("response_detour anchor_note altered or missing on a composite")
+            # V2.5a: the window-coincidence disclosure is REQUIRED iff member windows differ —
+            # recompute from the change list (the scope-disclosure enforcement shape: one equality
+            # covers missing, altered, and spurious). Gated with the other V2.4b+ keys above.
+            if rd.get("window_coincidence_note") != response_probe.window_coincidence_note(_rd_changes):
+                problems.append("response_detour window_coincidence_note altered, missing, or spurious "
+                                "(REQUIRED iff member windows differ)")
 
     # V2.2d — the zone lens pair may never render doctored, or without its honesty notes. The pair
     # bypasses the scorecard's CellRange/sign_stable machinery, so the variation caveat is a
@@ -475,6 +481,11 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                         problems.append(f"{iid}: the free-flow framing sentence must ride the citation")
                     if not any("a lower bound" in n for n in notes):
                         problems.append(f"{iid}: the lower-bound sentence must ride the citation")
+                    # V2.5a: when the payload discloses window coincidence, a voice may not cite
+                    # the figure while dropping the most-constrained-moment caveat
+                    if rd2.get("window_coincidence_note") and \
+                            not any("most-constrained moment" in n for n in notes):
+                        problems.append(f"{iid}: the window-coincidence sentence must ride the citation")
                 elif c["key"] == "zone_facts":
                     pv2 = (outcomes.get("zone_facts") or {}).get("ped_vehicle_conflicts") or {}
                     if f"{pv2.get('scenario')} in the scenario vs {pv2.get('baseline')} in the baseline" not in c["text"]:
@@ -1389,6 +1400,10 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         # (payload-only logging left the report's headline number unexplained).
         if rd.get("anchor_note"):
             L.append(f"- *{rd['anchor_note']}.*")
+        # V2.5a: differing member windows — the during-window net applies every member at once,
+        # so the figure reflects the most-constrained moment; said where the number renders.
+        if rd.get("window_coincidence_note"):
+            L.append(f"- *{rd['window_coincidence_note']}.*")
         L.append(f"- *{rd.get('framing')}; {rd.get('lower_bound_note')}.*")
     # V2.2d — the school-zone lens block (tag-gated; empty list for every untagged run).
     L.extend(render_zone_block(facts))

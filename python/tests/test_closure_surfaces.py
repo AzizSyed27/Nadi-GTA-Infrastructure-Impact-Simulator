@@ -184,6 +184,26 @@ def test_report_response_access_anchor_note_renders_when_present() -> None:
     assert "arbitrary and affects the estimate" in md
 
 
+def test_report_response_access_window_coincidence_note_renders_when_present() -> None:
+    # V2.5a: the most-constrained-moment disclosure renders where the number renders (the
+    # anchor_note convention) — and renders NOTHING when the payload lacks the key.
+    import report
+    import response_probe as rp
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    out["response_detour"] = _detour_payload()
+    facts = report.gather_facts(art, out, verdict=None)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "most-constrained moment" not in md  # keyless payload renders nothing new
+
+    facts["response_detour"]["window_coincidence_note"] = rp.WINDOW_COINCIDENCE_NOTE
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "applies every change simultaneously" in md
+    assert "most-constrained moment" in md
+
+
 def test_report_response_access_uncomputable_is_labeled_not_silent() -> None:
     # destination_edge None -> probes [] must render the destination_note as a labeled absence
     # (the labeled-degradation rule), never a floating disclaimer with no explanation.

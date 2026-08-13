@@ -304,3 +304,41 @@ def test_multi_member_modified_exclusion_and_anchor(nets) -> None:
     assert single["modified_edges"] == [KINGSTON]
     assert single["destination_anchor"] == KINGSTON
     assert "anchor_note" not in single  # a single modified edge has no arbitrary choice to disclose
+    # V2.5a: both composites here are all-PERMANENT — every member is active at every moment, so
+    # the simultaneous application IS the reality and no coincidence disclosure is owed.
+    assert "window_coincidence_note" not in out
+    assert "window_coincidence_note" not in single
+
+
+def _windowed_road_closure(start: float, end: float) -> Change:
+    return Change(type="road_closure", target_edge=KINGSTON,
+                  window=Window(start_s=start, end_s=end), description="windowed closure")
+
+
+def test_window_coincidence_note_fires_iff_windows_differ() -> None:
+    """V2.5a: the during-window net applies EVERY member; the disclosure is owed exactly when
+    the applied set overstates constraint at some moment of the described period — i.e. when
+    the windowed members carry >1 distinct window."""
+    w_a, w_b = _windowed_road_closure(600.0, 1200.0), _windowed_road_closure(600.0, 1800.0)
+    permanent = _road_closure()
+    # single change → nothing to coincide
+    assert rp.window_coincidence_note([w_a]) is None
+    # multi, all permanent → all active always: simultaneous application is exact
+    assert rp.window_coincidence_note([permanent, permanent]) is None
+    # one windowed + permanent → every member genuinely active during the one window: exact
+    assert rp.window_coincidence_note([w_a, permanent]) is None
+    # identical windows → all active together throughout the window: exact
+    assert rp.window_coincidence_note([w_a, _windowed_road_closure(600.0, 1200.0)]) is None
+    # two distinct windows → moments inside the described period where the set overstates
+    assert rp.window_coincidence_note([w_a, w_b]) == rp.WINDOW_COINCIDENCE_NOTE
+    # DELIBERATE firing shape: two distinct windows + a permanent member → still fires. The
+    # permanent member is active throughout, but the two distinct windows alone overstate
+    # constraint relative to either one — explicit choice, not an incidental predicate artifact.
+    assert rp.window_coincidence_note([w_a, w_b, permanent]) == rp.WINDOW_COINCIDENCE_NOTE
+
+
+def test_payload_carries_window_coincidence_note_on_differing_windows(nets) -> None:
+    base, scen = nets
+    changes = [_windowed_road_closure(600.0, 1200.0), _incident(speed_factor=0.5)]  # 600–1800
+    out = rp.detour_from_nets(base, scen, changes, rp.load_probes())
+    assert out["window_coincidence_note"] == rp.WINDOW_COINCIDENCE_NOTE

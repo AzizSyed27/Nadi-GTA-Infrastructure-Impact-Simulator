@@ -250,8 +250,10 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
             else:
                 lines.append(f"From {pr['label']}: {pr.get('note') or 'not computable'}.")
         origins = f" {rd['origins_note']}." if rd.get("origins_note") else ""
+        # V2.5a: differing member windows — the coincidence disclosure rides the numbers here too
+        wc = f" {rd['window_coincidence_note']}." if rd.get("window_coincidence_note") else ""
         docs.append(_doc("response_access", "Emergency response access (free-flow estimate)",
-                         " ".join(lines) + origins
+                         " ".join(lines) + origins + wc
                          + f" {rd.get('framing')}. {rd.get('lower_bound_note')}."))
 
     # V2.2d — the school-zone lens pair as its own retrievable doc, with ALL its honesty notes

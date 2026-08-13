@@ -130,7 +130,8 @@ def _cite_response_detour(rd: dict) -> dict:
                 "for any station in this run.")
     # the honesty sentences are LIFTED from the payload (single source; report.verify_facts pins
     # the payload strings against the response_probe constants) — framing first, it rides inline
-    notes = [n for n in (rd.get("framing"), rd.get("lower_bound_note"), rd.get("origins_note")) if n]
+    notes = [n for n in (rd.get("framing"), rd.get("lower_bound_note"),
+                         rd.get("window_coincidence_note"), rd.get("origins_note")) if n]
     return {"key": "response_detour", "text": text, "notes": notes}
 
 

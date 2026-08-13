@@ -463,6 +463,52 @@ def test_fact_check_requires_the_scope_disclosure_iff_windowed():
         report.verify_facts(facts0, art0, out0)
 
 
+def _wc_detour_payload(note: bool) -> dict:
+    """A V2.4b-shaped consistent payload for a 2-member same-edge composite (anchor keys present
+    so the verify sub-block gates in; pre-V2.4b sidecars lack them and skip it)."""
+    import response_probe
+
+    rd = {"framing": response_probe.FRAMING, "lower_bound_note": response_probe.LOWER_BOUND_NOTE,
+          "destination_edge": "E9", "destination_note": "n", "probes": [],
+          "modified_edges": ["E1"], "destination_anchor": "E1",
+          "anchor_note": ("destination anchored to the first change; with multiple modified "
+                          "edges this choice is arbitrary and affects the estimate")}
+    if note:
+        rd["window_coincidence_note"] = response_probe.WINDOW_COINCIDENCE_NOTE
+    return rd
+
+
+def test_fact_check_requires_the_window_coincidence_note_iff_windows_differ():
+    # V2.5a — the scope-disclosure enforcement level: recompute from the change list, one
+    # equality → missing, doctored, and spurious all fail. Nested windows keep the pair LIFO-legal.
+    differing = [_win_change(600.0, 1800.0), _win_change(900.0, 1200.0)]
+    art, out = _win_artifact(differing), _win_outcomes()
+    out["response_detour"] = _wc_detour_payload(note=True)
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)  # consistent → must not raise
+    # missing on a differing-windows composite → fail
+    out2 = _win_outcomes()
+    out2["response_detour"] = _wc_detour_payload(note=False)
+    facts2 = report.gather_facts(art, out2, verdict=None)
+    with pytest.raises(AssertionError, match="window_coincidence"):
+        report.verify_facts(facts2, art, out2)
+    # doctored wording → fail
+    out3 = _win_outcomes()
+    out3["response_detour"] = _wc_detour_payload(note=True)
+    out3["response_detour"]["window_coincidence_note"] = \
+        out3["response_detour"]["window_coincidence_note"].replace("most-constrained", "typical")
+    facts3 = report.gather_facts(art, out3, verdict=None)
+    with pytest.raises(AssertionError, match="window_coincidence"):
+        report.verify_facts(facts3, art, out3)
+    # spurious on identical windows → fail (the shared-window shape owes no disclosure)
+    shared = [_win_change(600.0, 1200.0), _win_change(600.0, 1200.0)]
+    art4, out4 = _win_artifact(shared), _win_outcomes()
+    out4["response_detour"] = _wc_detour_payload(note=True)
+    facts4 = report.gather_facts(art4, out4, verdict=None)
+    with pytest.raises(AssertionError, match="window_coincidence"):
+        report.verify_facts(facts4, art4, out4)
+
+
 # --------------------------------------------------------------------------------------------------
 # Section-3 bucketing + bounded sentiment-spread sample.
 # --------------------------------------------------------------------------------------------------
@@ -537,6 +583,34 @@ def test_institutional_verify_passes_and_required_iff_both_ways():
     facts3 = report.gather_facts(art, out3, verdict=None)
     with pytest.raises(AssertionError, match="speaking set"):
         report.verify_facts(facts3, art, out3)
+
+
+def test_institutional_verify_requires_the_window_coincidence_sentence_to_ride():
+    """V2.5a defense-in-depth (the framing/lower-bound riding shape): whenever the payload
+    carries the window-coincidence note, the TFS citation must carry it too — a voice must
+    never cite the figure while dropping its most-constrained-moment caveat."""
+    import institutions
+    import response_probe
+
+    # citation composed BEFORE the payload gained the note → the sentence does not ride → fail
+    art, out = _institutional_artifact(), _detour_outcomes()
+    out["response_detour"]["window_coincidence_note"] = response_probe.WINDOW_COINCIDENCE_NOTE
+    facts = report.gather_facts(art, out, verdict=None)
+    with pytest.raises(AssertionError, match="window-coincidence sentence must ride"):
+        report.verify_facts(facts, art, out)
+
+    # the compose path LIFTS it → rides → passes
+    entry = next(e for e in institutions.load_roster() if e["id"] == "tfs")
+    cites = institutions.compose_citations(entry, {"response_detour": out["response_detour"]})
+    agent = Agent(grounding="mandate", persona=Persona(id="tfs", label="Toronto Fire Services"),
+                  reaction=institutions.compose_reaction(entry, cites),
+                  mandate=Mandate(**entry["mandate"]),
+                  citations=[Citation(**c) for c in cites])
+    base = _artifact()
+    art2 = TrajectoryArtifact(schema_version="0.9.0", meta=base.meta, vehicles=base.vehicles,
+                              scorecard=base.scorecard, agents=[agent])
+    facts2 = report.gather_facts(art2, out, verdict=None)
+    report.verify_facts(facts2, art2, out)  # must not raise
 
 
 def test_institutional_verify_catches_doctored_citation_and_mission():

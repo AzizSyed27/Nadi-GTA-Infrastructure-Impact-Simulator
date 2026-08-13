@@ -35,6 +35,23 @@ from contract_models import Change
 FRAMING = "estimated added response-route time; free-flow routing, not a dispatch model"
 LOWER_BOUND_NOTE = ("free-flow estimate; does not include congestion the incident induces — "
                     "a lower bound on added response time")
+WINDOW_COINCIDENCE_NOTE = (
+    "the during-window estimate applies every change simultaneously; where change windows "
+    "differ, the figure reflects the most-constrained moment")
+
+
+def window_coincidence_note(changes: list[Change]) -> str | None:
+    """V2.5a: the during-window net applies EVERY member (compute_response_detour), which
+    overstates constraint whenever some member is inactive at a moment inside the described
+    period — exactly when the WINDOWED members carry >1 distinct window (the
+    build_scope_disclosure ``differing`` shape). One windowed member + permanents is EXACT:
+    every member is genuinely active during the one window. Conservative in the safe
+    direction either way; this sentence says so out loud."""
+    if len(changes) <= 1:
+        return None
+    distinct = {(c.window.start_s, c.window.end_s) for c in changes if c.window is not None}
+    return WINDOW_COINCIDENCE_NOTE if len(distinct) > 1 else None
+
 
 PROBES_PATH = Path(__file__).parent / "response_probes.json"
 ORIGIN_MATCH_RADIUS_M = 150.0
@@ -194,6 +211,9 @@ def detour_from_nets(base_net, scen_net, changes: list[Change], probes: list[dic
     if len(changes) > 1:
         out["anchor_note"] = ("destination anchored to the first change; with multiple modified "
                               "edges this choice is arbitrary and affects the estimate")
+    wc = window_coincidence_note(changes)
+    if wc:
+        out["window_coincidence_note"] = wc
     note = origins_note()
     if note:
         out["origins_note"] = note

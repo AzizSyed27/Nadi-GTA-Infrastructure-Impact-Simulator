@@ -142,6 +142,19 @@ def test_tfs_citation_carries_both_honesty_sentences_verbatim() -> None:
     assert institutions.compose_citations(_entry("tfs"), facts) == cites
 
 
+def test_tfs_citation_lifts_the_window_coincidence_note_when_present() -> None:
+    """V2.5a: the most-constrained-moment disclosure rides the citation whenever the payload
+    carries it (LIFTED, never re-typed); framing stays notes[0] — compose_comment rides it
+    inline. A keyless (pre-V2.5a) payload lifts nothing new."""
+    rd = dict(RESPONSE_DETOUR)
+    rd["window_coincidence_note"] = response_probe.WINDOW_COINCIDENCE_NOTE
+    notes = institutions.compose_citations(_entry("tfs"), {"response_detour": rd})[0]["notes"]
+    assert response_probe.WINDOW_COINCIDENCE_NOTE in notes
+    assert notes[0] == response_probe.FRAMING
+    base = institutions.compose_citations(_entry("tfs"), {"response_detour": RESPONSE_DETOUR})[0]["notes"]
+    assert response_probe.WINDOW_COINCIDENCE_NOTE not in base
+
+
 def test_tfs_citation_names_unreachable_stations_with_an_honest_count() -> None:
     """Doorstep-closure-caught: the count said 'worst of 4' while the list showed 3 and the
     UNREACHABLE station — the single most consequential fact — was silently dropped. Mixed payloads

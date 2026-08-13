@@ -110,6 +110,29 @@ def test_corpus_split_sentence_carries_attribution_parenthetical():
     assert "0 pedestrian non-completions" not in change_doc
 
 
+def test_corpus_response_doc_carries_the_window_coincidence_note_when_present():
+    """V2.5a: the most-constrained-moment disclosure reaches the chat corpus beside the numbers
+    it scopes; a keyless (pre-V2.5a) payload renders nothing new."""
+    import response_probe
+
+    out = _outcomes()
+    out["response_detour"] = {
+        "framing": response_probe.FRAMING,
+        "lower_bound_note": response_probe.LOWER_BOUND_NOTE,
+        "destination_edge": "D1",
+        "window_coincidence_note": response_probe.WINDOW_COINCIDENCE_NOTE,
+        "probes": [{"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "O1",
+                    "baseline_s": 57.0, "scenario_s": 105.7, "added_s": 48.7}],
+    }
+    docs = {d["source"]: d["text"] for d in report_agent.build_corpus(_artifact(), out, verdict=None)}
+    assert response_probe.WINDOW_COINCIDENCE_NOTE in docs["response_access"]
+    out2 = _outcomes()
+    out2["response_detour"] = {k: v for k, v in out["response_detour"].items()
+                              if k != "window_coincidence_note"}
+    docs2 = {d["source"]: d["text"] for d in report_agent.build_corpus(_artifact(), out2, verdict=None)}
+    assert "most-constrained moment" not in docs2["response_access"]
+
+
 def test_corpus_zone_doc_carries_pair_and_all_notes():
     """V2.2d — the school-zone lens doc: the pair rides with the variation caveat (ALWAYS — it
     bypasses the scorecard's range machinery) and the population lock (never schoolchildren)."""
