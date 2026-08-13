@@ -2,66 +2,29 @@ import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-// V2.3c — mandate-grounded institutional voices in the frontend. The fixture artifact is stamped
-// 0.9.0 with a TFS mandate agent appended (the client ajv-validates against the REAL contract
-// schema, so these mocks also prove the TS-side 0.9.0 acceptance). StrictMode conventions apply
-// (~500 ms fixture delay + warm reload).
+// V2.3c — mandate-grounded institutional voices in the frontend. V2.5a: the fixture is
+// PRODUCER-REAL (institutions-run.json, regen-pinned by python/tests/test_institutions_fixture.py
+// — the old hand-mocked mandate agent had already drifted from the producer's disclaimer and
+// survived on a shared substring). The artifact is genuine 0.9.0 with a TFS mandate agent built
+// by the real deterministic chain; the client ajv-validates it against the REAL contract schema.
+// Its change set is the V2.5a synergy shape (2-member all-windowed DISJOINT composite whose
+// detour payload carries the window-coincidence note), so this spec also pins the item-1 sentence
+// and the item-3 clause in the real UI. StrictMode conventions apply (~500 ms delay + warm reload).
 
-const FIXTURE = path.join(__dirname, 'fixtures', 'school-zone-run.json');
+const FIXTURE = path.join(__dirname, 'fixtures', 'institutions-run.json');
+const SECTION_FIXTURE = path.join(__dirname, 'fixtures', 'institutions-report-section.json');
 
 const MISSION =
   'Fire Services provides Toronto residents, visitors and businesses with protection against loss of life, ' +
   'property and the environment from the effects of fire, illness, accidents and all other hazards through ' +
   'preparedness, prevention, public education and emergency response, with an emphasis on quality services, ' +
   'efficiency, effectiveness and safety.';
-const FRAMING = 'estimated added response-route time; free-flow routing, not a dispatch model';
-const LOWER_BOUND =
-  'free-flow estimate; does not include congestion the incident induces — a lower bound on added response time';
 
-const SIM_VOICE = {
-  persona: { id: 'time_pressed', label: 'Devi, commuter' },
-  reaction: { comment: 'My drive took a couple of minutes longer this morning.', sentiment: -0.5, stance: 'opposed' },
-  grounding: 'sim',
-  vehicle_id: 'veh0',
-  outcome: { baseline_duration: 240.0, scenario_duration: 360.0, delta_seconds: 120.0, baseline_timeloss: 20.0, scenario_timeloss: 100.0 },
-  trigger_t: 300.0,
-};
-const INFERRED_VOICE = {
-  persona: { id: 'local_resident', label: 'Rana, resident' },
-  reaction: { comment: 'Slower cars past my street sounds calmer to me.', sentiment: 0.6, stance: 'supportive' },
-  grounding: 'inferred',
-};
-const TFS_VOICE = {
-  grounding: 'mandate',
-  persona: { id: 'tfs', label: 'Toronto Fire Services' },
-  mandate: {
-    institution: 'Toronto Fire Services',
-    mission: MISSION,
-    source:
-      'https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/fire-services/',
-    retrieved: '2026-08-01',
-  },
-  citations: [
-    {
-      key: 'response_detour',
-      text: 'Response access (free-flow estimate): worst of 4 fire stations +48.7 s added response-route time (Fire Station 231 (740 Markham Rd): +48.7 s).',
-      notes: [FRAMING, LOWER_BOUND],
-    },
-  ],
-  reaction: {
-    comment:
-      "Toronto Fire Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes protection against loss of life, property and the environment. Read against that mandate, this run computed: worst of 4 fire stations +48.7 s added response-route time (estimated added response-route time; free-flow routing, not a dispatch model).",
-    sentiment: 0.0,
-    stance: 'neutral',
-  },
-};
-
-/** Serve the fixture at /latest.json with the given agents at 0.9.0 (+ minimal API mocks). */
-async function mockArtifact(page: Page, agents: unknown[]) {
-  const base = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
-  base.schema_version = '0.9.0';
-  base.agents = agents;
-  const body = JSON.stringify(base);
+/** Serve the producer-real fixture at /latest.json (+ minimal API mocks); `mutate` for variants. */
+async function mockArtifact(page: Page, mutate?: (art: { agents: { grounding: string }[] }) => void) {
+  const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
+  if (mutate) mutate(art);
+  const body = JSON.stringify(art);
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));
   await page.route('**/api/runs', (route) => route.fulfill({ json: { runs: [] } }));
@@ -79,7 +42,7 @@ async function openPlayback(page: Page) {
 }
 
 test('a mandate voice renders pinned in the feed and opens the grounding card', async ({ page }) => {
-  await mockArtifact(page, [SIM_VOICE, INFERRED_VOICE, TFS_VOICE]);
+  await mockArtifact(page);
   await openPlayback(page);
 
   // PINNED — visible at t=0 with no scrub (a mandate reading is not a traveler moment)
@@ -93,10 +56,19 @@ test('a mandate voice renders pinned in the feed and opens the grounding card', 
   await expect(panel).toBeVisible();
   await expect(page.getByTestId('institution-mandate')).toContainText(MISSION); // verbatim, uncut
   await expect(page.getByTestId('institution-mandate')).toContainText('retrieved 2026-08-01');
-  await expect(page.getByTestId('institution-citation')).toContainText('worst of 4 fire stations');
+  await expect(page.getByTestId('institution-citation')).toContainText('worst of 2 fire stations');
   await expect(page.getByTestId('institution-citation')).toContainText('not a dispatch model');
   await expect(page.getByTestId('institution-citation')).toContainText('a lower bound');
+  // V2.5a item 1 — the window-coincidence sentence rides the citation notes in the real UI
+  await expect(page.getByTestId('institution-citation')).toContainText('most-constrained moment');
   await expect(page.getByTestId('institution-disclaimer')).toContainText('not a statement by, from, or on behalf of');
+
+  // V2.5a item 3 — the fixture's disjoint windows surface the dead-time clause on the scope note
+  await expect(page.getByTestId('scorecard-scope-note')).toHaveText(
+    'measures cover the full run; changes active t=300–1800 s ' +
+      '(members carry differing windows; these figures use the spanning window; ' +
+      'the spanning window includes periods where no change was active)',
+  );
 
   // the interview opens with the institutional grounding line (mandate-lens, not persona role-play)
   await page.getByTestId('interview-open-institution').click();
@@ -105,7 +77,10 @@ test('a mandate voice renders pinned in the feed and opens the grounding card', 
 });
 
 test('a 0.9.0 run with voices but no institutional facts shows the honest empty state', async ({ page }) => {
-  await mockArtifact(page, [SIM_VOICE, INFERRED_VOICE]);
+  // mechanical filter of the real fixture — no hand-authored agents anywhere in this spec
+  await mockArtifact(page, (art) => {
+    art.agents = art.agents.filter((a) => a.grounding !== 'mandate');
+  });
   await openPlayback(page);
   await expect(page.getByTestId('institution-empty')).toBeVisible();
   await expect(page.getByTestId('institution-empty')).toContainText(
@@ -114,14 +89,18 @@ test('a 0.9.0 run with voices but no institutional facts shows the honest empty 
   await expect(page.getByTestId('institution-row')).toHaveCount(0);
 });
 
-test('the report view renders the institutional section (and the empty variant)', async ({ page }) => {
-  await mockArtifact(page, [SIM_VOICE, INFERRED_VOICE, TFS_VOICE]);
+test('the report view renders the institutional section (producer-real fixture)', async ({ page }) => {
+  await mockArtifact(page);
+  // sections.institutional comes VERBATIM from the committed companion —
+  // build_institutional_section output, recompute-pinned python-side (no hand-authored
+  // disclaimer literal to drift).
+  const institutional = JSON.parse(fs.readFileSync(SECTION_FIXTURE, 'utf-8'));
   const report = {
     generated_at: 'now',
     provider: 'x',
     model: 'y',
     run: {
-      scenario_run_id: 'school-zone-fixture', baseline_run_id: 'b', network: 'n', seeds: [42],
+      scenario_run_id: 'institutions-fixture', baseline_run_id: 'b', network: 'n', seeds: [42],
       thresholds: { ttc_s: 1.5, veh_pet_s: 2.0, ped_pet_s: 3.0, materiality_s: 30 },
       demand: { car: 1, bicycle: 1, pedestrian: 1 }, cars_rerouted: 0,
     },
@@ -132,19 +111,7 @@ test('the report view renders the institutional section (and the empty variant)'
       what_tested: { framing: 'framing text' },
       who_affected: { glosses: {} },
       what_they_say: { groups: [] },
-      institutional: {
-        voices: [
-          {
-            id: 'tfs', label: 'Toronto Fire Services',
-            mandate: TFS_VOICE.mandate,
-            citations: TFS_VOICE.citations,
-            comment: TFS_VOICE.reaction.comment,
-          },
-        ],
-        empty_reason: null,
-        disclaimer:
-          'Institutional perspectives are generated by this tool: each recites the named organization’s published mandate (sourced) against this run’s computed facts. They are not statements by, from, or on behalf of the named organizations.',
-      },
+      institutional,
       discourse: null,
       cannot_tell: { intro: 'intro', caveats: [] },
     },
@@ -153,7 +120,7 @@ test('the report view renders the institutional section (and the empty variant)'
   };
   // ReportPanel reads /latest-report.json DIRECTLY (the report JSON, unwrapped); only /api/report wraps.
   await page.route('**/latest-report.json', (route) => route.fulfill({ json: report }));
-  await page.route('**/api/report', (route) => route.fulfill({ json: { report, run_id: 'school-zone-fixture' } }));
+  await page.route('**/api/report', (route) => route.fulfill({ json: { report, run_id: 'institutions-fixture' } }));
   await openPlayback(page);
   await page.getByTestId('open-report').click();
 
@@ -163,5 +130,6 @@ test('the report view renders the institutional section (and the empty variant)'
   await expect(section).toContainText(MISSION);
   await expect(section).toContainText('retrieved 2026-08-01');
   await expect(section).toContainText('not a dispatch model');
+  await expect(section).toContainText('most-constrained moment'); // V2.5a item 1 in the report section
   await expect(section).toContainText('not statements by, from, or on behalf of');
 });
