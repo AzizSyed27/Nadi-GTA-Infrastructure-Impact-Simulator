@@ -1461,7 +1461,13 @@ def _render_response_members(rd: dict, profile: str) -> list[str]:
                 L.append(f"  - from the {e['label']}: not reachable from any station even in "
                          f"baseline{' (' + extra + ')' if extra else ''}.")
             else:
-                L.append(f"  - from the {e['label']}: unreachable from all {len(rows)} stations "
+                # review-caught: only finite-baseline rows are WINDOW-caused — a baseline-null/
+                # unmatched row must never inflate the "during the window" count (its own cause
+                # rides the parenthetical; the capstone/citation recomputes use the same filter)
+                caused = [r for r in rows if r.get("baseline_s") is not None]
+                subject = (f"all {len(caused)} stations" if len(caused) == len(rows)
+                           else f"all {len(caused)} stations with a baseline route")
+                L.append(f"  - from the {e['label']}: unreachable from {subject} "
                          f"during the window{' (' + extra + ')' if extra else ''}.")
     for key in ("origins_note", "probed_members_note", "end_method_note",
                 "window_coincidence_note"):

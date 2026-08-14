@@ -161,7 +161,7 @@ states verify-RECOMPUTED (origin-closed / window-unreachable / baseline-unreacha
 no-approach / honest-zero), aggregated citations + the ends-counting chip, legacy sidecars
 byte-identical via shape-keyed branches, the vocabulary split pinning the cross-vintage
 incomparability, accepted live on the doorstep-composite rerun (east end +1.7 s vs west end
-+29.1 s — the direction answer; 231's origin-closed CAUSE). Suites: **469 pytest + 77 Playwright**.
++29.1 s — the direction answer; 231's origin-closed CAUSE). Suites: **470 pytest + 77 Playwright**.
 Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
 probing at rung 3).
@@ -864,7 +864,16 @@ implementation).**
   routing volume a non-issue). Screenshots `docs-assets/v25b-*.png` — the feed instBlock FITS
   (the citation-length acceptance check; fallback lever recorded: worst-end-only per member);
   chip wraps mid-word via the pre-existing `wordBreak: break-all` card style (V2.7 UI territory).
-- Suites: **469 pytest + 77 Playwright** (+2 chip cases; producer tests rewritten with probed
+- **Review catch (fixed + pinned):** the members render's no-reachable branch counted
+  baseline-null/unmatched rows into "unreachable from all N stations DURING THE WINDOW" — a
+  false causal count on mixed ends (reachable via the origin-unmatched path; the live acceptance
+  payload happened not to ship it). The count now uses the same finite-baseline filter the
+  capstone/citation recomputes already used ("all K stations with a baseline route" when the
+  counts diverge); the citation's "u of n unreachable" and the chip's end counts are
+  DELIBERATELY cause-neutral (no "during the window" claim — the report carries causes), and the
+  citation dispatcher's truthy members gate is deliberately stricter than the renderers'
+  `is not None` (empty members → ValueError, commented).
+- Suites: **470 pytest + 77 Playwright** (+2 chip cases; producer tests rewritten with probed
   real-net literals — compass labels, the shape-split end, the reverse partner, a real
   no-approach stub edge, the doorstep origin-closed case).
 

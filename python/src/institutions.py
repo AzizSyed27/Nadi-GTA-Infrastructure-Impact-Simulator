@@ -166,7 +166,10 @@ def _cite_response_members(rd: dict) -> dict:
 
 def _cite_response_detour(rd: dict) -> dict:
     # V2.5b shape dispatch — a payload with NEITHER key must raise, never fall through to the
-    # legacy "could not be computed" degradation (TFS speaking a falsehood with all guards green)
+    # legacy "could not be computed" degradation (TFS speaking a falsehood with all guards green).
+    # DELIBERATELY truthy (stricter than the renderers' `is not None`): an EMPTY members list is
+    # unreachable by construction (the fact computes only under any_capacity_event), and if one
+    # ever appears, raising beats composing a degenerate empty citation.
     if rd.get("members"):
         return _cite_response_members(rd)
     if rd.get("probes") is None:

@@ -269,6 +269,32 @@ def test_report_renders_members_shape_per_end_with_causes_and_new_metric_phrase(
     assert "added time to reach" in md
 
 
+def test_members_render_never_counts_baseline_null_rows_as_window_caused() -> None:
+    """V2.5b review catch: a mixed end (one window-unreachable row + one baseline-unreachable/
+    unmatched row) must not claim 'unreachable from all N stations DURING THE WINDOW' for the
+    whole N — the baseline-null row is not window-caused. The count excludes it and the sentence
+    says so; each cause still rides the parenthetical."""
+    import report
+    import response_probe as rp
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    payload = _members_payload()
+    payload["members"][0]["ends"][1]["probes"] = [
+        {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": None,
+         "scenario_s": None, "added_s": None, "note": rp.END_BASELINE_UNREACHABLE_NOTE},
+        {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 90.0,
+         "scenario_s": None, "added_s": None, "note": rp.END_UNREACHABLE_NOTE},
+    ]
+    out["response_detour"] = payload
+    facts = report.gather_facts(art, out, verdict=None)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    assert "unreachable from all 2 stations during the window" not in md  # the false causal count
+    assert "unreachable from all 1 stations with a baseline route during the window" in md
+    assert rp.END_BASELINE_UNREACHABLE_NOTE in md  # the non-window cause still rides
+
+
 def test_report_response_access_uncomputable_is_labeled_not_silent() -> None:
     # destination_edge None -> probes [] must render the destination_note as a labeled absence
     # (the labeled-degradation rule), never a floating disclaimer with no explanation.
