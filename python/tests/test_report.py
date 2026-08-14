@@ -21,8 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "python" / "src"))
 import report  # noqa: E402
 from contract_models import (  # noqa: E402
-    Agent, Change, Citation, Mandate, Meta, Persona, Reaction, Scenario, Scorecard, ScorecardCell,
-    ScorecardGroup, TrajectoryArtifact, Vehicle,
+    Agent, Change, Citation, Effect, Mandate, Meta, Persona, Reaction, Scenario, Scorecard,
+    ScorecardCell, ScorecardGroup, TrajectoryArtifact, Vehicle,
 )
 
 RUNS_DIR = REPO_ROOT / "contract" / "runs"
@@ -463,6 +463,131 @@ def test_fact_check_catches_a_stripped_disjoint_clause():
         f"; {zone_lens.DISJOINT_SPAN_CLAUSE}", "")
     with pytest.raises(AssertionError, match="scope_disclosure"):
         report.verify_facts(facts, art, out)
+
+
+def _rb_changes():
+    """V2.5b verify-matrix change set: road_closure + incident (capacity, differing windows) +
+    a permanent speed_limit (fails the member gate → probed_members_note owed)."""
+    from contract_models import Window
+    return [
+        Change(type="road_closure", target_edge="E1",
+               window=Window(start_s=600.0, end_s=1200.0), description="closure"),
+        Change(type="incident", target_edge="E2",
+               window=Window(start_s=900.0, end_s=1500.0),
+               effect=Effect(speed_factor=0.5), description="incident"),
+        Change(type="speed_limit", target_edge="E3", value_mps=8.33, description="permanent"),
+    ]
+
+
+def _members_detour_payload() -> dict:
+    """Aligned with _rb_changes: members [E1, E2]; origin S1 sits ON the closed E1 (origin-closed);
+    covers every state label (origin-closed / window-unreachable / baseline-unreachable /
+    honest-zero / numeric / no_approach)."""
+    import response_probe as rp
+
+    oc, wu = rp.ORIGIN_CLOSED_NOTE, rp.END_UNREACHABLE_NOTE
+    bu, hz = rp.END_BASELINE_UNREACHABLE_NOTE, rp.HONEST_ZERO_END_NOTE
+    return {
+        "framing": rp.FRAMING, "lower_bound_note": rp.LOWER_BOUND_NOTE,
+        "end_method_note": rp.END_METHOD_NOTE,
+        "window_coincidence_note": rp.WINDOW_COINCIDENCE_NOTE,
+        "probed_members_note": rp.PROBED_MEMBERS_NOTE,
+        "modified_edges": ["E1", "E2", "E3"],
+        "origins": [
+            {"label": "S1", "represents": "fire_station", "origin_edge": "E1", "note": oc},
+            {"label": "S2", "represents": "fire_station", "origin_edge": "O2"},
+        ],
+        "members": [
+            {"edge": "E1", "type": "road_closure", "window": {"start_s": 600.0, "end_s": 1200.0},
+             "ends": [
+                 {"node": "J1", "label": "east end", "probes": [
+                     {"label": "S1", "baseline_s": 40.0, "scenario_s": None, "added_s": None, "note": oc},
+                     {"label": "S2", "baseline_s": 88.1, "scenario_s": 100.4, "added_s": 12.3}]},
+                 {"node": "J2", "label": "west end", "probes": [
+                     {"label": "S1", "baseline_s": 40.0, "scenario_s": None, "added_s": None, "note": oc},
+                     {"label": "S2", "baseline_s": 90.0, "scenario_s": 90.0, "added_s": 0.0, "note": hz}]},
+             ]},
+            {"edge": "E2", "type": "incident", "window": {"start_s": 900.0, "end_s": 1500.0},
+             "ends": [
+                 {"node": "J3", "label": "north end", "probes": [
+                     {"label": "S1", "baseline_s": None, "scenario_s": None, "added_s": None, "note": bu},
+                     {"label": "S2", "baseline_s": 70.0, "scenario_s": None, "added_s": None, "note": wu}]},
+                 {"node": "J4", "label": "south end", "status": "no_approach",
+                  "note": rp.NO_APPROACH_NOTE},
+             ]},
+        ],
+    }
+
+
+def _rb_verify(mutate=None):
+    art, out = _win_artifact(_rb_changes()), _win_outcomes()
+    out["response_detour"] = _members_detour_payload()
+    if mutate:
+        mutate(out["response_detour"])
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)
+
+
+def test_members_verify_passes_on_consistent_payload():
+    _rb_verify()  # must not raise
+
+
+def test_members_verify_catches_member_set_and_note_tampering():
+    # member set drifts from the capacity gate → fail
+    with pytest.raises(AssertionError, match="members"):
+        _rb_verify(lambda rd: rd["members"].pop(1))
+    # PROMOTED REQUIRED-iffs: the members key is a same-vintage marker — absence FAILS here
+    # (contrast the legacy branch, where V2.5a's absence tolerance stands)
+    with pytest.raises(AssertionError, match="end_method_note"):
+        _rb_verify(lambda rd: rd.pop("end_method_note"))
+    with pytest.raises(AssertionError, match="window_coincidence"):
+        _rb_verify(lambda rd: rd.pop("window_coincidence_note"))
+    with pytest.raises(AssertionError, match="probed_members_note"):
+        _rb_verify(lambda rd: rd.pop("probed_members_note"))
+    # doctored arithmetic → fail
+    def _doctor(rd):
+        rd["members"][0]["ends"][0]["probes"][1]["added_s"] = 3.0
+    with pytest.raises(AssertionError, match="added_s"):
+        _rb_verify(_doctor)
+
+
+def test_members_verify_recomputes_state_labels_not_just_numbers():
+    """V2.5b fold-in (user-directed): a mislabeled state renders a WRONG CAUSAL EXPLANATION
+    beside correct numbers — the label is the fact. All four legs against verify-side literals."""
+    import response_probe as rp
+
+    # origin-closed row relabeled as bare window-unreachable → the cause is lost → FAIL
+    def _strip_cause(rd):
+        rd["members"][0]["ends"][0]["probes"][0]["note"] = rp.END_UNREACHABLE_NOTE
+    with pytest.raises(AssertionError, match="origin-closed"):
+        _rb_verify(_strip_cause)
+    # honest-zero note stripped → a bare 0 reads as "no impact found" → FAIL
+    def _strip_zero(rd):
+        del rd["members"][0]["ends"][1]["probes"][1]["note"]
+    with pytest.raises(AssertionError, match="state note"):
+        _rb_verify(_strip_zero)
+    # baseline-unreachable mislabeled as window-caused → FAIL
+    def _mislabel_baseline(rd):
+        rd["members"][1]["ends"][0]["probes"][0]["note"] = rp.END_UNREACHABLE_NOTE
+    with pytest.raises(AssertionError, match="baseline"):
+        _rb_verify(_mislabel_baseline)
+    # spurious origin-closed on an origin that is on no road_closure target → FAIL
+    def _spurious_oc(rd):
+        rd["origins"][1]["note"] = rp.ORIGIN_CLOSED_NOTE
+        rd["origins"][1]["origin_edge"] = "O2"
+    with pytest.raises(AssertionError, match="origin-closed|unmodified"):
+        _rb_verify(_spurious_oc)
+    # an origin sitting on a road_closure target MUST carry the origin-closed label → FAIL
+    def _missing_oc(rd):
+        del rd["origins"][0]["note"]
+    with pytest.raises(AssertionError, match="origin-closed"):
+        _rb_verify(_missing_oc)
+    # no_approach consistency: probes on a no_approach end → FAIL
+    def _na_probes(rd):
+        rd["members"][1]["ends"][1]["probes"] = [
+            {"label": "S1", "baseline_s": 1.0, "scenario_s": 1.0, "added_s": 0.0}]
+    with pytest.raises(AssertionError, match="no_approach"):
+        _rb_verify(_na_probes)
 
 
 def test_scope_disclosure_absent_for_unwindowed_runs():

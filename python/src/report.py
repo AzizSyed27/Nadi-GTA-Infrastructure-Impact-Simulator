@@ -376,6 +376,85 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                     rd["window_coincidence_note"] != response_probe.window_coincidence_note(_rd_changes):
                 problems.append("response_detour window_coincidence_note altered or spurious "
                                 "(owed only where member windows differ)")
+        # ===========================================================================================
+        # V2.5b — the MEMBERS shape (end-node reachability). The `members` key is a same-vintage
+        # marker BY CONSTRUCTION (the V2.5a lesson made structural), so every note here is a full
+        # REQUIRED-iff: absence FAILS — no vintage ambiguity exists. State labels are recomputed
+        # against VERIFY-SIDE LITERALS (never the imported constants — recompute-shares-blind-spots):
+        # a mislabeled state renders a wrong causal explanation beside correct numbers.
+        # ===========================================================================================
+        if rd.get("members") is not None:
+            import change_scheduler
+            _oc = ("this station's origin street is closed during the window — no route from "
+                   "it is computable")
+            _wu = "unreachable from this origin during the window"
+            _bu = "this end is not reachable from this origin even in baseline"
+            _hz = ("no added time under free-flow routing — the fastest approach to this end is "
+                   "unaffected during the window")
+            _na = ("no passenger-road approach exists at this end of the segment — reachability "
+                   "not probeable")
+            _um = "no car-permitted road within the match radius of this probe point"
+            expected_m = [c for c in _rd_changes if change_scheduler.capacity_event(c.type)]
+            if [m.get("edge") for m in rd["members"]] != [c.target_edge for c in expected_m]:
+                problems.append("response_detour members != capacity-event members in change order")
+            for m, c in zip(rd["members"], expected_m):
+                want_w = ({"start_s": c.window.start_s, "end_s": c.window.end_s}
+                          if c.window is not None else None)
+                if m.get("window") != want_w:
+                    problems.append(f"response_detour member {m.get('edge')!r}: window differs "
+                                    "from the change list")
+            if rd.get("end_method_note") != response_probe.END_METHOD_NOTE:
+                problems.append("response_detour end_method_note altered or missing")
+            _want_pm = (response_probe.PROBED_MEMBERS_NOTE
+                        if len(expected_m) < len(_rd_changes) else None)
+            if rd.get("probed_members_note") != _want_pm:
+                problems.append("response_detour probed_members_note altered, missing, or spurious")
+            if rd.get("window_coincidence_note") != response_probe.window_coincidence_note(_rd_changes):
+                problems.append("response_detour window_coincidence_note altered, missing, or "
+                                "spurious (REQUIRED iff member windows differ)")
+            # origin_closed is BOTH-WAYS-PARTIAL here (verify has no net): REQUIRED for origins
+            # sitting on a road_closure target; PRESENT ⇒ the origin edge is modified. The
+            # producer's real predicate is the scenario-net permission check — an origin closed by
+            # an all-car-lanes lane_closure is verify-invisible; the producer test owns it.
+            _rc_targets = {c.target_edge for c in _rd_changes if c.type == "road_closure"}
+            _by_label: dict = {}
+            for o in rd.get("origins", []):
+                _by_label[o.get("label")] = o
+                if o.get("origin_edge") in _rc_targets and o.get("note") != _oc:
+                    problems.append(f"origin {o.get('label')!r}: sits on a road_closure target "
+                                    "but is not labeled origin-closed")
+                if o.get("note") == _oc and o.get("origin_edge") not in (rd.get("modified_edges") or []):
+                    problems.append(f"origin {o.get('label')!r}: origin-closed note on an "
+                                    "unmodified origin edge")
+            for m in rd["members"]:
+                for e in m.get("ends", []):
+                    _at = f"member {m.get('edge')!r} {e.get('label')}"
+                    if e.get("status") == "no_approach":
+                        if e.get("note") != _na or e.get("probes"):
+                            problems.append(f"{_at}: no_approach state inconsistent (note must be "
+                                            "the structural sentence; no probe rows)")
+                        continue
+                    for r in e.get("probes", []):
+                        _row = f"{_at} {r.get('label')!r}"
+                        o = _by_label.get(r.get("label")) or {}
+                        if r.get("added_s") is not None:
+                            if abs(r["added_s"] - round(r["scenario_s"] - r["baseline_s"], 1)) > 0.05:
+                                problems.append(f"{_row}: added_s mismatch")
+                            _want = _hz if r["added_s"] == 0.0 else None
+                            if r.get("note") != _want:
+                                problems.append(f"{_row}: state note wrong for a numeric row "
+                                                "(honest zero owes its sentence; nonzero owes none)")
+                        elif r.get("baseline_s") is None:
+                            _want = _um if o.get("origin_edge") is None else _bu
+                            if r.get("note") != _want:
+                                problems.append(f"{_row}: baseline-unreachable/unmatched state "
+                                                "mislabeled")
+                        else:  # baseline finite, scenario None — the cause must be named
+                            _want = _oc if o.get("note") == _oc else _wu
+                            if r.get("note") != _want:
+                                problems.append(f"{_row}: mislabeled unreachable state (expected "
+                                                f"the {'origin-closed' if _want == _oc else 'window-unreachable'} "
+                                                "sentence — the label IS the causal fact)")
 
     # V2.2d — the zone lens pair may never render doctored, or without its honesty notes. The pair
     # bypasses the scorecard's CellRange/sign_stable machinery, so the variation caveat is a
@@ -1306,6 +1385,55 @@ def render_zone_block(facts) -> list[str]:
     return L
 
 
+_MEMBER_TYPE_PHRASE = {"road_closure": "road closure", "lane_closure": "lane closure",
+                       "incident": "incident"}
+
+
+def _render_response_members(rd: dict, profile: str) -> list[str]:
+    """V2.5b — per-member END reachability: one heading per probed member, ONE line per end
+    (worst-of-stations; per-station figures + causes in the parenthetical — the full grid lives
+    in the payload/corpus). METRIC VOCABULARY: "added time to reach" — NEVER the legacy
+    number-bearing "…s added response-route time" (different measurements; the deliberate
+    vocabulary split records the cross-vintage incomparability in the prose itself, test-pinned).
+    FRAMING's generic methodology wording stays shared across vintages by design."""
+    from demand_profiles import fmt_window
+
+    L: list[str] = []
+    for m in rd["members"]:
+        wtxt = f" (active {fmt_window(m['window'], profile)})" if m.get("window") else ""
+        L.append(f"- **Response access (free-flow estimate) — "
+                 f"{_MEMBER_TYPE_PHRASE.get(m.get('type'), m.get('type'))} {m['edge']}{wtxt}:**")
+        for e in m.get("ends", []):
+            if e.get("status") == "no_approach":
+                L.append(f"  - from the {e['label']}: {e.get('note')}.")
+                continue
+            rows = e.get("probes", [])
+            reach = [r for r in rows if r.get("added_s") is not None]
+            noted = [r for r in rows if r.get("added_s") is None and r.get("note")]
+            extra = "; ".join(f"{r['label']}: {r['note']}" for r in noted)
+            if reach:
+                worst = max(r["added_s"] for r in reach)
+                per = "; ".join(f"{r['label']}: {r['added_s']:+g} s" for r in reach)
+                line = (f"  - from the {e['label']}: worst of {len(rows)} stations {worst:+g} s "
+                        f"added time to reach this end ({per}{'; ' + extra if extra else ''}).")
+                zeros = [r for r in reach if r["added_s"] == 0.0 and r.get("note")]
+                if zeros:  # the honest-zero explanation rides where the zero renders
+                    line += f" *{zeros[0]['note']}.*"
+                L.append(line)
+            elif rows and all(r.get("baseline_s") is None for r in rows):
+                L.append(f"  - from the {e['label']}: not reachable from any station even in "
+                         f"baseline{' (' + extra + ')' if extra else ''}.")
+            else:
+                L.append(f"  - from the {e['label']}: unreachable from all {len(rows)} stations "
+                         f"during the window{' (' + extra + ')' if extra else ''}.")
+    for key in ("origins_note", "probed_members_note", "end_method_note",
+                "window_coincidence_note"):
+        if rd.get(key):
+            L.append(f"- *{rd[key]}.*")
+    L.append(f"- *{rd.get('framing')}; {rd.get('lower_bound_note')}.*")
+    return L
+
+
 def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta, dfacts=None, discourse=None) -> str:
     changes = facts["changes"]
     change = changes[0]  # PRIMARY, for the title
@@ -1383,10 +1511,13 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
                     f"baseline run's end vs {bl.get('scenario', 0)} in this run).")
         L.append(f"- **Diverted:** {facts['cars_rerouted']} cars ended on a different route than baseline; "
                  f"the travel-time cells in section 2 are the delay on the alternates (matched travelers only).")
-    # V2.2b — the emergency-response detour fact, all code-rendered; BOTH honesty sentences ship
-    # with the numbers (verify_facts enforces them verbatim).
+    # V2.2b/V2.5b — the emergency-response fact, all code-rendered; the honesty sentences ship
+    # with the numbers (verify_facts enforces them verbatim). Shape-keyed: `members` = the V2.5b
+    # end-reachability fact; `probes` = the legacy anchor-detour shape (old sidecars, verbatim).
     rd = facts.get("response_detour")
-    if rd is not None:
+    if rd is not None and rd.get("members") is not None:
+        L.extend(_render_response_members(rd, facts.get("demand_profile") or "synthetic_demo"))
+    elif rd is not None:
         if not rd.get("probes"):
             # labeled degradation, never silence: say WHY there are no probe numbers
             L.append(f"- **Response access (free-flow estimate):** "

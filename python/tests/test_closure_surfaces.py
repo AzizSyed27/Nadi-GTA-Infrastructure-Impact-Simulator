@@ -204,6 +204,71 @@ def test_report_response_access_window_coincidence_note_renders_when_present() -
     assert "most-constrained moment" in md
 
 
+def _members_payload() -> dict:
+    """A V2.5b members-shape payload (render-surface fixture; verify-consistency lives in
+    test_report.py with an aligned artifact)."""
+    import response_probe as rp
+
+    return {
+        "framing": rp.FRAMING, "lower_bound_note": rp.LOWER_BOUND_NOTE,
+        "end_method_note": rp.END_METHOD_NOTE,
+        "origins_note": "probe origins are Toronto Fire Services station locations (Toronto "
+                        "Open Data, retrieved 2026-07-25); routes are computed from every "
+                        "station and do not indicate which station would respond",
+        "modified_edges": ["E1"],
+        "origins": [
+            {"label": "Fire Station 231 (740 Markham Rd)", "represents": "fire_station",
+             "origin_edge": "E1", "note": rp.ORIGIN_CLOSED_NOTE},
+            {"label": "Fire Station 232 (1550 Midland Ave)", "represents": "fire_station",
+             "origin_edge": "O2"},
+        ],
+        "members": [
+            {"edge": "E1", "type": "road_closure", "window": {"start_s": 600.0, "end_s": 1200.0},
+             "ends": [
+                 {"node": "J1", "label": "east end", "probes": [
+                     {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": 41.3,
+                      "scenario_s": None, "added_s": None, "note": rp.ORIGIN_CLOSED_NOTE},
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 88.1,
+                      "scenario_s": 100.4, "added_s": 12.3}]},
+                 {"node": "J2", "label": "west end", "probes": [
+                     {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": 41.3,
+                      "scenario_s": None, "added_s": None, "note": rp.ORIGIN_CLOSED_NOTE},
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 90.0,
+                      "scenario_s": None, "added_s": None, "note": rp.END_UNREACHABLE_NOTE}]},
+             ]},
+        ],
+    }
+
+
+def test_report_renders_members_shape_per_end_with_causes_and_new_metric_phrase() -> None:
+    """V2.5b: per-member heading + one line per end; causes ride the rows they explain; the
+    metric phrase is the NEW vocabulary ("added time to reach") — the legacy number-bearing
+    phrase must never appear beside a members-shape figure (cross-vintage incomparability is
+    recorded IN the prose, not only in docs)."""
+    import report
+    import response_probe as rp
+
+    art, out = _closure_artifact(), _closure_outcomes()
+    out["response_detour"] = _members_payload()
+    facts = report.gather_facts(art, out, verdict=None)
+    glosses = {gid: "gloss" for gid in report.GROUP_ORDER}
+    meta = {"generated_at": "x", "provider": "t", "model": "t", "audit_summary": "clean"}
+    md = report.render_markdown(facts, "framing", glosses, {}, "intro", report.build_caveats(facts), meta)
+    # _closure_artifact is calibrated → member windows render as CLOCK times (the fmt_window
+    # convention; sim-seconds on synthetic)
+    assert "road closure E1" in md and "active from 07:10 to 07:20" in md
+    assert "from the east end: worst of 2 stations +12.3 s added time to reach this end" in md
+    assert "from the west end: unreachable from all 2 stations during the window" in md
+    assert md.count("origin street is closed during the window") >= 2  # the cause rides each row
+    assert rp.END_METHOD_NOTE in md  # the method sentence rides the numbers
+    assert rp.FRAMING in md and rp.LOWER_BOUND_NOTE in md
+    assert "do not indicate which station would respond" in md
+    # the VOCABULARY pin: no number-bearing legacy metric phrase in a members render (FRAMING's
+    # generic methodology use of "response-route" is deliberately shared across vintages)
+    assert "s added response-route time" not in md
+    assert "added time to reach" in md
+
+
 def test_report_response_access_uncomputable_is_labeled_not_silent() -> None:
     # destination_edge None -> probes [] must render the destination_note as a labeled absence
     # (the labeled-degradation rule), never a floating disclaimer with no explanation.
