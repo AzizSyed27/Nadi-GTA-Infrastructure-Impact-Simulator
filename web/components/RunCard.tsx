@@ -320,28 +320,46 @@ export function RunCard({
         : `${ncTotal} travelers did not complete under the change`
       : null;
 
-  // V2.2b — the emergency-response detour fact (capacity runs). Worst added_s leads; BOTH honesty
-  // sentences render with the number (never tooltip-only). Unreachable probes surface as words.
+  // V2.2b/V2.5b — the emergency-response fact (capacity runs), SHAPE-KEYED. Members shape: ends
+  // are the counted noun (E excludes no_approach / all-baseline-unreachable ends — not
+  // window-caused; an end is unreachable iff NO station reaches it during the window). Legacy
+  // probes shape keeps today's exact strings; both render the two honesty sentences under the
+  // chip (never tooltip-only). The two shapes measure DIFFERENT things — never compare across.
   const rd = status?.response_detour;
-  const rdComputable = rd?.probes.filter((p) => p.added_s != null) ?? [];
-  // "not computable" is deliberately cause-neutral — a null added_s can mean origin unmatched,
-  // unreachable in baseline, or unreachable during the window; the report carries the per-probe
-  // reason. Empty probes (no routable destination) still render the labeled destination_note.
-  const rdNoNumber = rd?.probes.filter((p) => p.added_s == null) ?? [];
+  const rdEnds = (rd?.members ?? []).flatMap((m) =>
+    (m.ends ?? []).filter((e) => !e.status && (e.probes ?? []).some((p) => p.baseline_s != null)),
+  );
+  const rdEndNumeric = rdEnds.flatMap((e) => e.probes ?? []).filter((p) => p.added_s != null);
+  const rdUnreachableEnds = rdEnds.filter((e) => !(e.probes ?? []).some((p) => p.added_s != null));
+  // legacy shape — "not computable" is deliberately cause-neutral; the report carries the
+  // per-probe reason. Hardened (`?.probes?.`): a members payload carries no probes array.
+  const rdComputable = rd?.probes?.filter((p) => p.added_s != null) ?? [];
+  const rdNoNumber = rd?.probes?.filter((p) => p.added_s == null) ?? [];
   const rdWorst = rdComputable.length ? Math.max(...rdComputable.map((p) => p.added_s as number)) : null;
   // The single number is the MAX and says so — with several stations and a mixed spread, an
   // unlabeled number reads as "the added response time" or an average. Old sidecars without
   // `represents` fall back to "probes".
-  const rdNoun = rd?.probes.length && rd.probes.every((p) => p.represents === 'fire_station') ? 'stations' : 'probes';
-  const responseLine = rd
-    ? rdWorst != null
-      ? `worst of ${rd.probes.length} ${rdNoun}: +${rdWorst.toFixed(0)} s${
-          rdNoNumber.length ? ` (${rdNoNumber.length} not computable — see the report)` : ''
-        }`
-      : rdNoNumber.length
-        ? `response route not computable from any of the ${rd.probes.length} ${rdNoun} — see the report`
-        : rd.destination_note ?? 'response detour not computable — see the report'
-    : null;
+  const rdProbes = rd?.probes ?? [];
+  const rdNoun = rdProbes.length && rdProbes.every((p) => p.represents === 'fire_station') ? 'stations' : 'probes';
+  const responseLine = rd?.members
+    ? rdEndNumeric.length
+      ? `${
+          rdUnreachableEnds.length
+            ? `${rdUnreachableEnds.length} of ${rdEnds.length} segment ends unreachable`
+            : `all ${rdEnds.length} segment ends reachable`
+        } · worst +${Math.max(...rdEndNumeric.map((p) => p.added_s as number)).toFixed(0)} s (${
+          rd.members.length
+        } segment${rd.members.length === 1 ? '' : 's'} × ${rd.origins?.length ?? 0} stations) — see the report`
+      : 'no segment end reachable from any station during the window — see the report'
+    : rd
+      ? rdWorst != null
+        ? `worst of ${rdProbes.length} ${rdNoun}: +${rdWorst.toFixed(0)} s${
+            rdNoNumber.length ? ` (${rdNoNumber.length} not computable — see the report)` : ''
+          }`
+        : rdNoNumber.length
+          ? `response route not computable from any of the ${rdProbes.length} ${rdNoun} — see the report`
+          : rd.destination_note ?? 'response detour not computable — see the report'
+      : null;
 
   // V2.4c — save the identity; on success MERGE the response into local status (the poll loop has
   // STOPPED on a terminal run and would never repaint the name otherwise). Errors render verbatim

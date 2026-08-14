@@ -33,7 +33,12 @@ function mixedArtifact(): { body: string; changes: Record<string, unknown>[] } {
   return { body: JSON.stringify(art), changes };
 }
 
-async function mockBackend(page: Page, artifactBody: string, changes: Record<string, unknown>[]) {
+async function mockBackend(
+  page: Page,
+  artifactBody: string,
+  changes: Record<string, unknown>[],
+  responseDetour?: Record<string, unknown>,
+) {
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));
   await page.route('**/api/runs', (route) =>
@@ -55,7 +60,7 @@ async function mockBackend(page: Page, artifactBody: string, changes: Record<str
           car: { baseline: 15, scenario: 20 },
           bicycle: { baseline: 3, scenario: 5 },
         },
-        response_detour: {
+        response_detour: responseDetour ?? {
           framing: 'estimated added response-route time; free-flow routing, not a dispatch model',
           lower_bound_note:
             'free-flow estimate; does not include congestion the incident induces — a lower bound on added response time',
@@ -108,4 +113,83 @@ test('untagged mixed composite: composite chip + spanning window; no member-0 wi
   const text = await page.getByTestId('run-card').innerText();
   expect(BANNED.test(text)).toBe(false);
   expect(STANCE_TALLY.test(text)).toBe(false);
+});
+
+const OC_NOTE =
+  "this station's origin street is closed during the window — no route from it is computable";
+const MEMBERS_DETOUR = {
+  framing: 'estimated added response-route time; free-flow routing, not a dispatch model',
+  lower_bound_note:
+    'free-flow estimate; does not include congestion the incident induces — a lower bound on added response time',
+  end_method_note:
+    'cost to a segment end is the fastest available approach to that end in each net; ' +
+    'baseline and during-window routes may use different approaches',
+  modified_edges: ['E1'],
+  origins: [
+    { label: 'Fire Station 231 (740 Markham Rd)', represents: 'fire_station', origin_edge: 'E1', note: OC_NOTE },
+    { label: 'Fire Station 232 (1550 Midland Ave)', represents: 'fire_station', origin_edge: 'O2' },
+  ],
+  members: [
+    {
+      edge: 'E1', type: 'road_closure', window: { start_s: 600, end_s: 1200 },
+      ends: [
+        { node: 'J1', label: 'east end', probes: [
+            { label: 'Fire Station 231 (740 Markham Rd)', baseline_s: 40.0, scenario_s: null, added_s: null, note: OC_NOTE },
+            { label: 'Fire Station 232 (1550 Midland Ave)', baseline_s: 88.1, scenario_s: 117.2, added_s: 29.1 },
+          ] },
+        { node: 'J2', label: 'west end', probes: [
+            { label: 'Fire Station 231 (740 Markham Rd)', baseline_s: 40.0, scenario_s: null, added_s: null, note: OC_NOTE },
+            { label: 'Fire Station 232 (1550 Midland Ave)', baseline_s: 90.0, scenario_s: null, added_s: null,
+              note: 'unreachable from this origin during the window' },
+          ] },
+      ],
+    },
+  ],
+};
+
+test('V2.5b members shape: the chip counts ENDS, worst added time, honesty sentences ride', async ({ page }) => {
+  const { body, changes } = mixedArtifact();
+  await mockBackend(page, body, changes, MEMBERS_DETOUR);
+  await page.goto(`/?run=${RUN_ID}`);
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await expect(page.getByTestId('run-card')).toBeVisible();
+
+  // ends are the counted noun (never M×4 probes); the number is labeled as the worst
+  await expect(page.getByTestId('response-access-chip')).toContainText(
+    '1 of 2 segment ends unreachable · worst +29 s (1 segment × 2 stations) — see the report',
+  );
+  await expect(page.getByTestId('response-access-chip')).toContainText('not a dispatch model');
+  await expect(page.getByTestId('response-access-chip')).toContainText('a lower bound');
+  // the vocabulary split reaches the chip: no legacy number-bearing metric phrase
+  const chipText = await page.getByTestId('response-access-chip').innerText();
+  expect(chipText.includes('s added response-route time')).toBe(false);
+  const text = await page.getByTestId('run-card').innerText();
+  expect(BANNED.test(text)).toBe(false);
+  expect(STANCE_TALLY.test(text)).toBe(false);
+});
+
+test('a shapeless response payload renders the labeled fallback, never a crash', async ({ page }) => {
+  // crash-hardening pin: probes went OPTIONAL in V2.5b — a payload with neither members nor
+  // probes must render the run card with the labeled fallback line, not a blank card
+  const { body, changes } = mixedArtifact();
+  await mockBackend(page, body, changes, {
+    framing: 'estimated added response-route time; free-flow routing, not a dispatch model',
+    lower_bound_note:
+      'free-flow estimate; does not include congestion the incident induces — a lower bound on added response time',
+  });
+  await page.goto(`/?run=${RUN_ID}`);
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
+  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await expect(page.getByTestId('run-card')).toBeVisible();
+  await expect(page.getByTestId('response-access-chip')).toContainText(
+    'response detour not computable — see the report',
+  );
+  await expect(page.getByTestId('composite-chip')).toHaveText('3 changes · active t=600–1800 s');
 });

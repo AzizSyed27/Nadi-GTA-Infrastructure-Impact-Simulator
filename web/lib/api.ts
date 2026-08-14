@@ -161,17 +161,49 @@ export interface RunStatus {
   // V2.3a: live enrich progress DERIVED server-side from the events file (present only while
   // stage is enrich:*) — the poll degrade path's counts when the SSE stream is unavailable.
   enrich_progress?: { done?: number; total?: number; label?: string };
-  // V2.2b (capacity runs: closures + incidents): the emergency-response detour fact — free-flow
-  // routing estimate; both honesty sentences ride the payload and must render with the numbers.
+  // V2.2b/V2.5b (capacity runs: closures + incidents): the emergency-response fact — free-flow
+  // routing; the honesty sentences ride the payload and must render with the numbers.
+  // SHAPE-KEYED: `members` = the V2.5b end-node reachability fact; `probes` = the legacy anchor
+  // shape (old sidecars keep rendering as-is). The two measurements are NOT comparable.
   response_detour?: {
     framing: string;
     lower_bound_note: string;
     // what the origins ARE + the dispatch-misreading guard ("routes are computed from every
     // station and do not indicate which station would respond")
     origins_note?: string;
-    destination_edge: string | null;
+    // --- V2.5b members shape -------------------------------------------------------------
+    end_method_note?: string;
+    probed_members_note?: string;
+    window_coincidence_note?: string;
+    modified_edges?: string[];
+    origins?: {
+      label: string;
+      represents?: string; // 'fire_station' since the V2.2d prelim
+      origin_edge: string | null;
+      note?: string; // origin-level cause (unmatched point / origin street closed)
+    }[];
+    members?: {
+      edge: string;
+      type: string;
+      window?: { start_s: number; end_s: number };
+      ends: {
+        node: string;
+        label: string; // compass end label ("east end" …) or the degenerate/loop fallback
+        status?: string; // 'no_approach' — structural, no probe rows
+        note?: string;
+        probes?: {
+          label: string;
+          baseline_s: number | null;
+          scenario_s: number | null;
+          added_s: number | null;
+          note?: string;
+        }[];
+      }[];
+    }[];
+    // --- legacy (pre-V2.5b) anchor shape -------------------------------------------------
+    destination_edge?: string | null;
     destination_note?: string;
-    probes: {
+    probes?: {
       label: string;
       represents?: string; // 'fire_station' since the V2.2d prelim
       origin_edge: string | null;
