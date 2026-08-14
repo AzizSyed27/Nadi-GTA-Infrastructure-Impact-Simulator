@@ -590,6 +590,49 @@ def test_members_verify_recomputes_state_labels_not_just_numbers():
         _rb_verify(_na_probes)
 
 
+def test_members_citation_verify_recomputes_worst_names_and_riding_notes():
+    """V2.5b verify block 2 (members): the worst figure recomputes from the end rows; a station
+    unreachable at EVERY probed end must be NAMED (the doorstep lesson at the citation level);
+    the end-method sentence rides. Composed by the REAL chain → consistent baseline."""
+    import institutions
+
+    changes = _rb_changes()
+    rd = _members_detour_payload()
+    entry = next(e for e in institutions.load_roster() if e["id"] == "tfs")
+    cites = institutions.compose_citations(entry, {"response_detour": rd})
+    agent = Agent(grounding="mandate", persona=Persona(id="tfs", label="Toronto Fire Services"),
+                  reaction=institutions.compose_reaction(entry, cites),
+                  mandate=Mandate(**entry["mandate"]),
+                  citations=[Citation(**c) for c in cites])
+    win = _win_artifact(changes)
+    art = TrajectoryArtifact(schema_version="0.9.0", meta=win.meta, vehicles=win.vehicles,
+                             scorecard=win.scorecard, agents=[agent])
+    out = _win_outcomes()
+    out["response_detour"] = rd
+    facts = report.gather_facts(art, out, verdict=None)
+    report.verify_facts(facts, art, out)  # must not raise
+
+    facts2 = report.gather_facts(art, out, verdict=None)
+    facts2["institutional"][0]["citations"][0]["text"] = \
+        facts2["institutional"][0]["citations"][0]["text"].replace("+12.3", "+2.3")
+    with pytest.raises(AssertionError, match="worst"):
+        report.verify_facts(facts2, art, out)
+
+    facts3 = report.gather_facts(art, out, verdict=None)
+    facts3["institutional"][0]["citations"][0]["text"] = \
+        facts3["institutional"][0]["citations"][0]["text"].replace(
+            " Unreachable at every probed end: S1.", "")
+    with pytest.raises(AssertionError, match="named"):
+        report.verify_facts(facts3, art, out)
+
+    facts4 = report.gather_facts(art, out, verdict=None)
+    facts4["institutional"][0]["citations"][0]["notes"] = [
+        n for n in facts4["institutional"][0]["citations"][0]["notes"]
+        if "different approaches" not in n]
+    with pytest.raises(AssertionError, match="end-method"):
+        report.verify_facts(facts4, art, out)
+
+
 def test_scope_disclosure_absent_for_unwindowed_runs():
     change = Change(type="speed_limit", target_edge="E1", value_mps=11.11, description="40 km/h")
     assert report.build_scope_disclosure([change], 1800.0, "synthetic_demo") is None

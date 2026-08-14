@@ -142,6 +142,142 @@ def test_tfs_citation_carries_both_honesty_sentences_verbatim() -> None:
     assert institutions.compose_citations(_entry("tfs"), facts) == cites
 
 
+def _members_rd(**over) -> dict:
+    """Canonical V2.5b members payload: 2 members, station 231 origin-closed everywhere (the
+    doorstep shape), 232 mixed — exercises per-end aggregation, counts, and the capstone."""
+    oc = response_probe.ORIGIN_CLOSED_NOTE
+    base = {
+        "framing": response_probe.FRAMING,
+        "lower_bound_note": response_probe.LOWER_BOUND_NOTE,
+        "end_method_note": response_probe.END_METHOD_NOTE,
+        "origins_note": RESPONSE_DETOUR["origins_note"],
+        "modified_edges": ["E1", "E2"],
+        "origins": [
+            {"label": "Fire Station 231 (740 Markham Rd)", "represents": "fire_station",
+             "origin_edge": "E1", "note": oc},
+            {"label": "Fire Station 232 (1550 Midland Ave)", "represents": "fire_station",
+             "origin_edge": "O2"},
+        ],
+        "members": [
+            {"edge": "E1", "type": "road_closure", "window": {"start_s": 600.0, "end_s": 1200.0},
+             "ends": [
+                 {"node": "J1", "label": "east end", "probes": [
+                     {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": 40.0,
+                      "scenario_s": None, "added_s": None, "note": oc},
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 88.1,
+                      "scenario_s": 100.4, "added_s": 12.3}]},
+                 {"node": "J2", "label": "west end", "probes": [
+                     {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": 40.0,
+                      "scenario_s": None, "added_s": None, "note": oc},
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 90.0,
+                      "scenario_s": None, "added_s": None,
+                      "note": response_probe.END_UNREACHABLE_NOTE}]},
+             ]},
+            {"edge": "E2", "type": "incident", "window": {"start_s": 900.0, "end_s": 1500.0},
+             "ends": [
+                 {"node": "J3", "label": "north end", "probes": [
+                     {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": 41.0,
+                      "scenario_s": None, "added_s": None, "note": oc},
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 70.0,
+                      "scenario_s": 73.1, "added_s": 3.1}]},
+                 {"node": "J4", "label": "south end", "probes": [
+                     {"label": "Fire Station 231 (740 Markham Rd)", "baseline_s": 41.0,
+                      "scenario_s": None, "added_s": None, "note": oc},
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 60.0,
+                      "scenario_s": 61.0, "added_s": 1.0}]},
+             ]},
+        ],
+    }
+    base.update(over)
+    return base
+
+
+def test_members_citation_aggregates_per_end_and_names_the_cut_off_station() -> None:
+    """V2.5b (ratified rollup): stations AGGREGATE per member×end — worst-of-reachable +
+    "u of n unreachable"; per-station figures never enter the citation (the report/corpus carry
+    them); names appear only in the capstone for stations unreachable at EVERY probed end (a
+    station cut off at one end but fine at the other is a count, not a name — naming it would
+    read as fully cut off). Pinned as a LITERAL, never composed-vs-composed."""
+    cites = institutions.compose_citations(_entry("tfs"), {"response_detour": _members_rd()})
+    assert [c["key"] for c in cites] == ["response_detour"]
+    assert cites[0]["text"] == (
+        "Response access (free-flow estimate): Road closure E1 — east end worst of the "
+        "reachable +12.3 s (1 of 2 unreachable); west end unreachable from all 2 stations. "
+        "Incident E2 — north end worst of the reachable +3.1 s (1 of 2 unreachable); south end "
+        "worst of the reachable +1 s (1 of 2 unreachable). "
+        "Unreachable at every probed end: Fire Station 231 (740 Markham Rd).")
+    notes = cites[0]["notes"]
+    assert notes[0] == response_probe.FRAMING  # compose_comment rides notes[0]
+    assert response_probe.LOWER_BOUND_NOTE in notes
+    assert response_probe.END_METHOD_NOTE in notes
+    assert any("do not indicate which station would respond" in n for n in notes)
+    # the VOCABULARY split: the legacy number-bearing metric phrase never appears
+    assert "s added response-route time" not in cites[0]["text"]
+
+
+def test_members_citation_collapse_and_terse_shapes() -> None:
+    # both ends fully reachable → collapsed "across both ends"
+    both_ok = _members_rd()
+    both_ok["members"] = [
+        {"edge": "E9", "type": "lane_closure",
+         "ends": [
+             {"node": "J1", "label": "east end", "probes": [
+                 {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 50.0,
+                  "scenario_s": 54.2, "added_s": 4.2}]},
+             {"node": "J2", "label": "west end", "probes": [
+                 {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 60.0,
+                  "scenario_s": 61.1, "added_s": 1.1}]},
+         ]}]
+    both_ok["origins"] = [both_ok["origins"][1]]
+    text = institutions.compose_citations(_entry("tfs"), {"response_detour": both_ok})[0]["text"]
+    assert text == ("Response access (free-flow estimate): Lane closure E9 — "
+                    "worst +4.2 s across both ends.")
+    # both ends fully unreachable → collapsed; every cut-off station named in the capstone
+    none_ok = _members_rd()
+    wu = response_probe.END_UNREACHABLE_NOTE
+    none_ok["members"] = [
+        {"edge": "E1", "type": "road_closure",
+         "ends": [
+             {"node": "J1", "label": "east end", "probes": [
+                 {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 50.0,
+                  "scenario_s": None, "added_s": None, "note": wu}]},
+             {"node": "J2", "label": "west end", "probes": [
+                 {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 60.0,
+                  "scenario_s": None, "added_s": None, "note": wu}]},
+         ]}]
+    none_ok["origins"] = [none_ok["origins"][1]]
+    text = institutions.compose_citations(_entry("tfs"), {"response_detour": none_ok})[0]["text"]
+    assert text == ("Response access (free-flow estimate): Road closure E1 — unreachable from "
+                    "all 1 stations at both ends. "
+                    "Unreachable at every probed end: Fire Station 232 (1550 Midland Ave).")
+    # a no_approach end is a terse labeled fragment, never silence
+    na = _members_rd()
+    na["members"] = [
+        {"edge": "E1", "type": "road_closure",
+         "ends": [
+             {"node": "J1", "label": "east end", "probes": [
+                 {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 50.0,
+                  "scenario_s": 51.0, "added_s": 1.0}]},
+             {"node": "J2", "label": "west end", "status": "no_approach",
+              "note": response_probe.NO_APPROACH_NOTE},
+         ]}]
+    na["origins"] = [na["origins"][1]]
+    text = institutions.compose_citations(_entry("tfs"), {"response_detour": na})[0]["text"]
+    assert "west end not probeable (no approach)" in text
+    assert "east end worst +1 s" in text
+
+
+def test_citation_composer_raises_on_a_shapeless_payload() -> None:
+    """The false-'could not be computed' trap is structurally unreachable: a payload with
+    NEITHER members NOR probes must raise, never fall through to the legacy degradation
+    sentence (TFS speaking a falsehood with all guards green)."""
+    import pytest as _pytest
+
+    with _pytest.raises(ValueError, match="neither"):
+        institutions.compose_citations(_entry("tfs"),
+                                       {"response_detour": {"framing": response_probe.FRAMING}})
+
+
 def test_tfs_citation_lifts_the_window_coincidence_note_when_present() -> None:
     """V2.5a: the most-constrained-moment disclosure rides the citation whenever the payload
     carries it (LIFTED, never re-typed); framing stays notes[0] — compose_comment rides it

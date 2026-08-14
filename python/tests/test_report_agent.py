@@ -133,6 +133,43 @@ def test_corpus_response_doc_carries_the_window_coincidence_note_when_present():
     assert "most-constrained moment" not in docs2["response_access"]
 
 
+def test_corpus_response_doc_members_shape_carries_per_station_rows():
+    """V2.5b: the corpus keeps FULL per-station granularity per member×end (retrieval wants it;
+    corpus docs may carry digits) + every riding sentence; the metric vocabulary is the new
+    'added … to reach' family, never the legacy number-bearing phrase."""
+    import response_probe as rp
+
+    out = _outcomes()
+    out["response_detour"] = {
+        "framing": rp.FRAMING, "lower_bound_note": rp.LOWER_BOUND_NOTE,
+        "end_method_note": rp.END_METHOD_NOTE,
+        "modified_edges": ["E1"],
+        "origins": [{"label": "Fire Station 232 (1550 Midland Ave)",
+                     "represents": "fire_station", "origin_edge": "O2"}],
+        "members": [
+            {"edge": "E1", "type": "road_closure", "window": {"start_s": 600.0, "end_s": 1200.0},
+             "ends": [
+                 {"node": "J1", "label": "east end", "probes": [
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 88.1,
+                      "scenario_s": 100.4, "added_s": 12.3}]},
+                 {"node": "J2", "label": "west end", "probes": [
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 90.0,
+                      "scenario_s": None, "added_s": None,
+                      "note": rp.END_UNREACHABLE_NOTE}]},
+             ]},
+        ],
+    }
+    docs = {d["source"]: d["text"] for d in report_agent.build_corpus(_artifact(), out, verdict=None)}
+    doc = docs["response_access"]
+    assert "road closure E1" in doc
+    assert ("east end, from Fire Station 232 (1550 Midland Ave): baseline 88.1 s, during the "
+            "window 100.4 s, added 12.3 s to reach this end") in doc
+    assert "west end, from Fire Station 232 (1550 Midland Ave): " + rp.END_UNREACHABLE_NOTE in doc
+    assert rp.END_METHOD_NOTE in doc
+    assert rp.FRAMING in doc and rp.LOWER_BOUND_NOTE in doc
+    assert "s added response-route time" not in doc  # the vocabulary split reaches the corpus
+
+
 def test_corpus_zone_doc_carries_pair_and_all_notes():
     """V2.2d — the school-zone lens doc: the pair rides with the variation caveat (ALWAYS — it
     bypasses the scorecard's range machinery) and the population lock (never schoolchildren)."""

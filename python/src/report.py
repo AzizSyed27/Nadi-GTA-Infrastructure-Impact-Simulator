@@ -542,33 +542,70 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
             for c in v["citations"]:
                 if c["key"] == "response_detour":
                     rd2 = outcomes.get("response_detour") or {}
-                    numeric = [p for p in rd2.get("probes", []) if isinstance(p.get("added_s"), (int, float))]
-                    if numeric:
-                        worst = max(p["added_s"] for p in numeric)
-                        if f"{worst:+g} s" not in c["text"]:
-                            problems.append(f"{iid}: response_detour citation missing the recomputed "
-                                            f"worst-station figure {worst:+g} s")
-                    # an unreachable origin is the most consequential fact — it must be counted and
-                    # named in the citation, never silently dropped (verify-side recompute)
-                    u2 = [p for p in rd2.get("probes", [])
-                          if p.get("added_s") is None and "unreachable" in (p.get("note") or "")]
-                    if u2:
-                        n_probes = len(rd2.get("probes", []))
-                        expected_count = (f"all {n_probes}" if len(u2) == n_probes
-                                          else f"{len(u2)} of {n_probes}")
-                        if expected_count not in c["text"] or "unreachable" not in c["text"]:
-                            problems.append(f"{iid}: {len(u2)} unreachable origin(s) not surfaced "
-                                            "in the response_detour citation")
                     notes = c.get("notes") or []
-                    if not any("not a dispatch model" in n for n in notes):
-                        problems.append(f"{iid}: the free-flow framing sentence must ride the citation")
-                    if not any("a lower bound" in n for n in notes):
-                        problems.append(f"{iid}: the lower-bound sentence must ride the citation")
-                    # V2.5a: when the payload discloses window coincidence, a voice may not cite
-                    # the figure while dropping the most-constrained-moment caveat
-                    if rd2.get("window_coincidence_note") and \
-                            not any("most-constrained moment" in n for n in notes):
-                        problems.append(f"{iid}: the window-coincidence sentence must ride the citation")
+                    if rd2.get("members") is not None:
+                        # V2.5b members shape: recompute the worst figure over ALL end rows; a
+                        # station unreachable at EVERY probed end must be NAMED (the doorstep
+                        # lesson at the citation level); the end-method sentence rides; the
+                        # legacy number-bearing metric phrase is banned (vocabulary split).
+                        rows2 = [r for m2 in rd2["members"] for e2 in m2.get("ends", [])
+                                 for r in e2.get("probes", [])]
+                        numeric2 = [r["added_s"] for r in rows2
+                                    if isinstance(r.get("added_s"), (int, float))]
+                        if numeric2:
+                            worst2 = max(numeric2)
+                            if f"{worst2:+g} s" not in c["text"]:
+                                problems.append(f"{iid}: members citation missing the recomputed "
+                                                f"worst figure {worst2:+g} s")
+                        for o in rd2.get("origins", []):
+                            probed2 = [r for r in rows2 if r.get("label") == o.get("label")
+                                       and r.get("baseline_s") is not None]
+                            if probed2 and all(r.get("added_s") is None for r in probed2) \
+                                    and o.get("label", "") not in c["text"]:
+                                problems.append(f"{iid}: station {o.get('label')!r} is unreachable "
+                                                "at every probed end but is not named in the citation")
+                        if not any("not a dispatch model" in n for n in notes):
+                            problems.append(f"{iid}: the free-flow framing sentence must ride the citation")
+                        if not any("a lower bound" in n for n in notes):
+                            problems.append(f"{iid}: the lower-bound sentence must ride the citation")
+                        if not any("different approaches" in n for n in notes):
+                            problems.append(f"{iid}: the end-method sentence must ride the citation")
+                        if rd2.get("window_coincidence_note") and \
+                                not any("most-constrained moment" in n for n in notes):
+                            problems.append(f"{iid}: the window-coincidence sentence must ride the citation")
+                        if rd2.get("probed_members_note") and \
+                                not any("not separately probed" in n for n in notes):
+                            problems.append(f"{iid}: the probed-members sentence must ride the citation")
+                        if "s added response-route time" in c["text"]:
+                            problems.append(f"{iid}: legacy metric phrase in a members citation "
+                                            "(the vocabulary split records the incomparability)")
+                    else:
+                        numeric = [p for p in rd2.get("probes", []) if isinstance(p.get("added_s"), (int, float))]
+                        if numeric:
+                            worst = max(p["added_s"] for p in numeric)
+                            if f"{worst:+g} s" not in c["text"]:
+                                problems.append(f"{iid}: response_detour citation missing the recomputed "
+                                                f"worst-station figure {worst:+g} s")
+                        # an unreachable origin is the most consequential fact — it must be counted and
+                        # named in the citation, never silently dropped (verify-side recompute)
+                        u2 = [p for p in rd2.get("probes", [])
+                              if p.get("added_s") is None and "unreachable" in (p.get("note") or "")]
+                        if u2:
+                            n_probes = len(rd2.get("probes", []))
+                            expected_count = (f"all {n_probes}" if len(u2) == n_probes
+                                              else f"{len(u2)} of {n_probes}")
+                            if expected_count not in c["text"] or "unreachable" not in c["text"]:
+                                problems.append(f"{iid}: {len(u2)} unreachable origin(s) not surfaced "
+                                                "in the response_detour citation")
+                        if not any("not a dispatch model" in n for n in notes):
+                            problems.append(f"{iid}: the free-flow framing sentence must ride the citation")
+                        if not any("a lower bound" in n for n in notes):
+                            problems.append(f"{iid}: the lower-bound sentence must ride the citation")
+                        # V2.5a: when the payload discloses window coincidence, a voice may not cite
+                        # the figure while dropping the most-constrained-moment caveat
+                        if rd2.get("window_coincidence_note") and \
+                                not any("most-constrained moment" in n for n in notes):
+                            problems.append(f"{iid}: the window-coincidence sentence must ride the citation")
                 elif c["key"] == "zone_facts":
                     pv2 = (outcomes.get("zone_facts") or {}).get("ped_vehicle_conflicts") or {}
                     if f"{pv2.get('scenario')} in the scenario vs {pv2.get('baseline')} in the baseline" not in c["text"]:

@@ -235,10 +235,40 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
                      f"In-run adaptation: {facts['cars_rerouted']} cars rerouted within the run."
                      + closure_txt))
 
-    # V2.2b — the response-detour fact as its own retrievable doc (corpus docs may carry digits;
-    # generated prose stays digit-free-audited). BOTH honesty sentences ride with the numbers.
+    # V2.2b/V2.5b — the response fact as its own retrievable doc (corpus docs may carry digits;
+    # generated prose stays digit-free-audited). Shape-keyed: members = the V2.5b end-reachability
+    # fact with FULL per-station granularity (retrieval wants it); probes = the legacy anchor
+    # shape, verbatim. Metric vocabulary: "added … to reach" — never the legacy number-bearing
+    # phrase (the cross-vintage split reaches the chat corpus too).
     rd = facts.get("response_detour")
-    if rd:
+    if rd and rd.get("members") is not None:
+        type_phrase = {"road_closure": "road closure", "lane_closure": "lane closure",
+                       "incident": "incident"}
+        lines = []
+        for m in rd["members"]:
+            head = f"{type_phrase.get(m.get('type'), m.get('type'))} {m['edge']}"
+            for e in m.get("ends", []):
+                if e.get("status") == "no_approach":
+                    lines.append(f"{head}, {e['label']}: {e.get('note')}.")
+                    continue
+                for r in e.get("probes", []):
+                    if r.get("added_s") is not None:
+                        row = (f"{head}, {e['label']}, from {r['label']}: baseline "
+                               f"{r['baseline_s']} s, during the window {r['scenario_s']} s, "
+                               f"added {r['added_s']} s to reach this end.")
+                        if r.get("note"):
+                            row += f" {r['note']}."
+                        lines.append(row)
+                    else:
+                        lines.append(f"{head}, {e['label']}, from {r['label']}: "
+                                     f"{r.get('note') or 'not computable'}.")
+        tail = "".join(f" {rd[k]}." for k in ("origins_note", "probed_members_note",
+                                              "end_method_note", "window_coincidence_note")
+                       if rd.get(k))
+        docs.append(_doc("response_access", "Emergency response access (free-flow estimate)",
+                         " ".join(lines) + tail
+                         + f" {rd.get('framing')}. {rd.get('lower_bound_note')}."))
+    elif rd:
         lines = []
         if not rd.get("probes"):  # labeled degradation: say why there are no probe numbers
             lines.append(f"Response detour not computable: "

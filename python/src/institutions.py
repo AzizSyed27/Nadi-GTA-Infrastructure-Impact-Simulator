@@ -99,7 +99,79 @@ def speaking_institutions(side: dict) -> list[tuple[dict, dict]]:
 # ===================================================================================================
 
 
+_MEMBER_TYPE_PHRASE = {"road_closure": "road closure", "lane_closure": "lane closure",
+                       "incident": "incident"}
+
+
+def _members_end_frag(e: dict, noun: str) -> str:
+    """One terse fragment per end (the ratified aggregation rule: stations aggregate, per-station
+    figures never enter the citation — the report/corpus carry them)."""
+    if e.get("status") == "no_approach":
+        return f"{e['label']} not probeable (no approach)"
+    rows = e.get("probes", [])
+    reach = [r for r in rows if r.get("added_s") is not None]
+    unre = [r for r in rows if r.get("added_s") is None]
+    if not reach:
+        return f"{e['label']} unreachable from all {len(rows)} {noun}"
+    worst = max(r["added_s"] for r in reach)
+    if unre:
+        return f"{e['label']} worst of the reachable {worst:+g} s ({len(unre)} of {len(rows)} unreachable)"
+    return f"{e['label']} worst {worst:+g} s"
+
+
+def _cite_response_members(rd: dict) -> dict:
+    """V2.5b members shape. Length is the binding constraint (the TFS comment embeds this text in
+    a non-scrollable feed block): per-member clauses, fully-reachable/-unreachable end pairs
+    COLLAPSE, and the capstone names only stations unreachable at EVERY probed end — a station
+    cut off at one end but fine at the other is a count, not a name (naming it would read as
+    fully cut off). The metric phrase is the V2.5b vocabulary; never the legacy number-bearing
+    "…s added response-route time" (cross-vintage incomparability, test-pinned)."""
+    origins = rd.get("origins") or []
+    noun = ("stations" if origins and all(o.get("represents") == "fire_station" for o in origins)
+            else "response-route origins")
+    clauses: list[str] = []
+    for m in rd.get("members", []):
+        ends = m.get("ends", [])
+        rows_ok = [e for e in ends if e.get("status") != "no_approach"]
+        all_reach = rows_ok and len(rows_ok) == len(ends) == 2 and all(
+            r.get("added_s") is not None for e in rows_ok for r in e.get("probes", []))
+        all_unre = rows_ok and len(rows_ok) == len(ends) == 2 and all(
+            r.get("added_s") is None for e in rows_ok for r in e.get("probes", []))
+        head = f"{_MEMBER_TYPE_PHRASE.get(m.get('type'), m.get('type'))} {m['edge']} — "
+        if all_reach:
+            worst = max(r["added_s"] for e in ends for r in e["probes"])
+            clause = head + f"worst {worst:+g} s across both ends"
+        elif all_unre:
+            n = max(len(e.get("probes", [])) for e in ends)
+            clause = head + f"unreachable from all {n} {noun} at both ends"
+        else:
+            clause = head + "; ".join(_members_end_frag(e, noun) for e in ends)
+        clauses.append(clause[0].upper() + clause[1:])
+    text = "Response access (free-flow estimate): " + ". ".join(clauses) + "."
+    # capstone: stations with a finite-baseline row somewhere but NO reachable row anywhere
+    cut_off: list[str] = []
+    for o in origins:
+        rows = [r for m in rd.get("members", []) for e in m.get("ends", [])
+                for r in e.get("probes", []) if r.get("label") == o.get("label")]
+        probed = [r for r in rows if r.get("baseline_s") is not None]
+        if probed and all(r.get("added_s") is None for r in probed):
+            cut_off.append(o["label"])
+    if cut_off:
+        text += f" Unreachable at every probed end: {'; '.join(cut_off)}."
+    notes = [n for n in (rd.get("framing"), rd.get("lower_bound_note"),
+                         rd.get("window_coincidence_note"), rd.get("origins_note"),
+                         rd.get("end_method_note"), rd.get("probed_members_note")) if n]
+    return {"key": "response_detour", "text": text, "notes": notes}
+
+
 def _cite_response_detour(rd: dict) -> dict:
+    # V2.5b shape dispatch — a payload with NEITHER key must raise, never fall through to the
+    # legacy "could not be computed" degradation (TFS speaking a falsehood with all guards green)
+    if rd.get("members"):
+        return _cite_response_members(rd)
+    if rd.get("probes") is None:
+        raise ValueError("response_detour payload has neither 'members' nor 'probes' — refusing "
+                         "to compose a citation that could misstate the fact")
     probes = rd.get("probes") or []
     numeric = [p for p in probes if isinstance(p.get("added_s"), (int, float))]
     # A probe whose destination becomes UNREACHABLE while the change is active is the single most
