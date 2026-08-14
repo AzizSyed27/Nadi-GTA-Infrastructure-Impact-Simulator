@@ -59,31 +59,48 @@ def _changes(pair: list[dict]) -> list[Change]:
 
 
 def _detour_side(changes: list[Change]) -> dict:
-    """A V2.4b+V2.5a-shaped response_detour payload built FROM the real constants — every honesty
-    sentence comes from response_probe (never re-typed), so a constant edit regenerates here."""
+    """A V2.5b MEMBERS-shape response_detour payload built FROM the real constants — every
+    honesty sentence comes from response_probe (never re-typed), so a constant edit regenerates
+    here. The capacity gate probes ONLY the road_closure member (the windowed speed_limit fails
+    it → probed_members_note owed); the disjoint windows owe the coincidence note (V2.5a)."""
     import response_probe
 
     wc = response_probe.window_coincidence_note(changes)
     assert wc is not None, "fixture invariant: the change set must owe the coincidence note"
+    a = changes[0]  # the road_closure — the only capacity-event member of this change set
+    assert a.type == "road_closure" and a.window is not None
     return {
         "framing": response_probe.FRAMING,
         "lower_bound_note": response_probe.LOWER_BOUND_NOTE,
+        "end_method_note": response_probe.END_METHOD_NOTE,
+        "probed_members_note": response_probe.PROBED_MEMBERS_NOTE,
         "origins_note": ("probe origins are Toronto Fire Services station locations (Toronto Open "
                          "Data, retrieved 2026-07-25); routes are computed from every station and "
                          "do not indicate which station would respond"),
-        "destination_edge": "D1",
-        "destination_note": "first outgoing passenger edge at the first downstream junction with "
-                            "an alternate approach (0 hop(s) past the changed road)",
-        "modified_edges": sorted({c.target_edge for c in changes}),
-        "destination_anchor": changes[0].target_edge,
-        "anchor_note": ("destination anchored to the first change; with multiple modified "
-                        "edges this choice is arbitrary and affects the estimate"),
         "window_coincidence_note": wc,
-        "probes": [
-            {"label": "Fire Station 232 (1550 Midland Ave)", "origin_edge": "O1",
-             "represents": "fire_station", "baseline_s": 80.0, "scenario_s": 90.2, "added_s": 10.2},
-            {"label": "Fire Station 234 (40 Coronation Dr)", "origin_edge": "O2",
-             "represents": "fire_station", "baseline_s": 120.0, "scenario_s": 149.1, "added_s": 29.1},
+        "modified_edges": sorted({c.target_edge for c in changes}),
+        "origins": [
+            {"label": "Fire Station 232 (1550 Midland Ave)", "represents": "fire_station",
+             "origin_edge": "O1"},
+            {"label": "Fire Station 234 (40 Coronation Dr)", "represents": "fire_station",
+             "origin_edge": "O2"},
+        ],
+        "members": [
+            {"edge": a.target_edge, "type": "road_closure",
+             "window": {"start_s": a.window.start_s, "end_s": a.window.end_s},
+             "ends": [
+                 {"node": "J1", "label": "east end", "probes": [
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 80.0,
+                      "scenario_s": 90.2, "added_s": 10.2},
+                     {"label": "Fire Station 234 (40 Coronation Dr)", "baseline_s": 120.0,
+                      "scenario_s": 149.1, "added_s": 29.1}]},
+                 {"node": "J2", "label": "west end", "probes": [
+                     {"label": "Fire Station 232 (1550 Midland Ave)", "baseline_s": 82.0,
+                      "scenario_s": None, "added_s": None,
+                      "note": response_probe.END_UNREACHABLE_NOTE},
+                     {"label": "Fire Station 234 (40 Coronation Dr)", "baseline_s": 118.0,
+                      "scenario_s": 124.0, "added_s": 6.0}]},
+             ]},
         ],
     }
 
@@ -226,8 +243,14 @@ def test_fixture_mandate_is_roster_verbatim_and_notes_ride() -> None:
     assert response_probe.FRAMING in notes
     assert response_probe.LOWER_BOUND_NOTE in notes
     assert response_probe.WINDOW_COINCIDENCE_NOTE in notes  # the V2.5a item-1 sentence rides
+    assert response_probe.END_METHOD_NOTE in notes          # V2.5b: the end-method sentence rides
+    assert response_probe.PROBED_MEMBERS_NOTE in notes      # V2.5b: the gate gap is named
     assert any("do not indicate which station would respond" in n for n in notes)
-    assert "worst of 2 fire stations +29.1 s" in tfs.citations[0].text
+    # the aggregated members citation (V2.5b): per-end rollup, count-not-name for the
+    # one-end-cut-off station, no legacy number-bearing metric phrase
+    assert "east end worst +29.1 s" in tfs.citations[0].text
+    assert "west end worst of the reachable +6 s (1 of 2 unreachable)" in tfs.citations[0].text
+    assert "s added response-route time" not in tfs.citations[0].text
 
 
 def test_fixture_change_set_owes_both_new_disclosures() -> None:

@@ -56,11 +56,18 @@ test('a mandate voice renders pinned in the feed and opens the grounding card', 
   await expect(panel).toBeVisible();
   await expect(page.getByTestId('institution-mandate')).toContainText(MISSION); // verbatim, uncut
   await expect(page.getByTestId('institution-mandate')).toContainText('retrieved 2026-08-01');
-  await expect(page.getByTestId('institution-citation')).toContainText('worst of 2 fire stations');
+  // V2.5b members citation — per-end aggregation, re-quoted from the regenerated fixture bytes
+  await expect(page.getByTestId('institution-citation')).toContainText('east end worst +29.1 s');
+  await expect(page.getByTestId('institution-citation')).toContainText(
+    'west end worst of the reachable +6 s (1 of 2 unreachable)',
+  );
   await expect(page.getByTestId('institution-citation')).toContainText('not a dispatch model');
   await expect(page.getByTestId('institution-citation')).toContainText('a lower bound');
   // V2.5a item 1 — the window-coincidence sentence rides the citation notes in the real UI
   await expect(page.getByTestId('institution-citation')).toContainText('most-constrained moment');
+  // V2.5b — the end-method + probed-members sentences ride too
+  await expect(page.getByTestId('institution-citation')).toContainText('may use different approaches');
+  await expect(page.getByTestId('institution-citation')).toContainText('not separately probed');
   await expect(page.getByTestId('institution-disclaimer')).toContainText('not a statement by, from, or on behalf of');
 
   // V2.5a item 3 — the fixture's disjoint windows surface the dead-time clause on the scope note
@@ -131,5 +138,7 @@ test('the report view renders the institutional section (producer-real fixture)'
   await expect(section).toContainText('retrieved 2026-08-01');
   await expect(section).toContainText('not a dispatch model');
   await expect(section).toContainText('most-constrained moment'); // V2.5a item 1 in the report section
+  await expect(section).toContainText('east end worst +29.1 s'); // V2.5b members citation text
+  await expect(section).toContainText('may use different approaches'); // V2.5b end-method note
   await expect(section).toContainText('not statements by, from, or on behalf of');
 });

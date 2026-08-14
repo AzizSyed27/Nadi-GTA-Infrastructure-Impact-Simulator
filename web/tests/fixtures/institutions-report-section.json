@@ -12,16 +12,18 @@
       "citations": [
         {
           "key": "response_detour",
-          "text": "Response access (free-flow estimate): worst of 2 fire stations +29.1 s added response-route time (Fire Station 232 (1550 Midland Ave): +10.2 s; Fire Station 234 (40 Coronation Dr): +29.1 s).",
+          "text": "Response access (free-flow estimate): Road closure -1073334268#2 — east end worst +29.1 s; west end worst of the reachable +6 s (1 of 2 unreachable).",
           "notes": [
             "estimated added response-route time; free-flow routing, not a dispatch model",
             "free-flow estimate; does not include congestion the incident induces — a lower bound on added response time",
             "the during-window estimate applies every change simultaneously; where change windows differ, the figure reflects the most-constrained moment",
-            "probe origins are Toronto Fire Services station locations (Toronto Open Data, retrieved 2026-07-25); routes are computed from every station and do not indicate which station would respond"
+            "probe origins are Toronto Fire Services station locations (Toronto Open Data, retrieved 2026-07-25); routes are computed from every station and do not indicate which station would respond",
+            "cost to a segment end is the fastest available approach to that end in each net; baseline and during-window routes may use different approaches",
+            "reachability is probed for capacity-event members (closures and incidents); permanent members shape the routing but are not separately probed"
           ]
         }
       ],
-      "comment": "Toronto Fire Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes protection against loss of life, property and the environment. Read against that mandate, this run computed: Response access (free-flow estimate): worst of 2 fire stations +29.1 s added response-route time (Fire Station 232 (1550 Midland Ave): +10.2 s; Fire Station 234 (40 Coronation Dr): +29.1 s) (estimated added response-route time; free-flow routing, not a dispatch model)."
+      "comment": "Toronto Fire Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes protection against loss of life, property and the environment. Read against that mandate, this run computed: Response access (free-flow estimate): Road closure -1073334268#2 — east end worst +29.1 s; west end worst of the reachable +6 s (1 of 2 unreachable) (estimated added response-route time; free-flow routing, not a dispatch model)."
     }
   ],
   "empty_reason": null,
