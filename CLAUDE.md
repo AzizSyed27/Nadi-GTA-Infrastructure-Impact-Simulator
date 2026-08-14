@@ -381,10 +381,12 @@ TAGGED `v2.2` (no contract change).**
   check): mid-enrich 404 on the stream route + reload → real Chrome EventSource gave up (CLOSED) → verbatim note →
   POLLED counts advanced 79→201/212 → poll finished the job → note cleared, voices ✓. Report/discourse live labels
   ride the same `cmd_start` plumbing (voices-proven; no live report enrich — the latest-report singleton + cost).
-- **Ops note (hazard CLOSED in V2.5a):** `.claude/hooks/format.py`'s prettier leg was ARMED-BUT-CONFIGLESS — any
-  `npx prettier` run seeded the npx cache and the PostToolUse hook then rewrote edited web files to prettier
-  DEFAULTS (no repo config exists; cost a 231-line accidental reformat, reverted). The leg is REMOVED (eslint
-  stays); hook edits activate on session reload, so the first post-reload web edit is the live confirmation.
+- **Ops note (hazard CLOSED in V2.5a, removal CONFIRMED LIVE 2026-08-14):** `.claude/hooks/format.py`'s prettier
+  leg was ARMED-BUT-CONFIGLESS — any `npx prettier` run seeded the npx cache and the PostToolUse hook then rewrote
+  edited web files to prettier DEFAULTS (no repo config exists; cost a 231-line accidental reformat, reverted).
+  The leg is REMOVED (eslint stays), proven by the cache-seeded probe check (seed → divergent single-quoted .ts
+  through the live hook → byte-identical → cache restored). NB the activation-lag caveat covers settings.json
+  REGISTRATIONS only; a registered command's script body is re-read every invocation.
 
 **V2.3 Step b — PERSONA INTERVIEWS — COMPLETE (ephemeral; no contract change; agents stay a preview).**
 - **`POST /api/interview {run_id, agent_id, agent_index?, question, transcript}`** → an in-character answer
@@ -765,10 +767,16 @@ sidecar/off-contract and every sentence lives in existing free-form fields).**
   byte-pin; the synergy invariant; companion recompute; regen via
   `python python/tests/test_institutions_fixture.py`). institutions.spec.ts is fixture-driven:
   empty state = a mechanical mandate filter, report splice = the companion.
-- **Item 6 — the PRETTIER HOOK LEG is REMOVED (hazard closed):** verified armed-but-configless
-  (no config/dep anywhere, prettier absent from the npx cache — inert by cache state only); the
-  leg deleted per "prettier is deliberately unconfigured", eslint keeps the TS leg, both hazard
-  notes rewritten. Hook edits activate on session reload — first post-reload web edit confirms.
+- **Item 6 — the PRETTIER HOOK LEG is REMOVED (hazard closed, CONFIRMED LIVE 2026-08-14):**
+  verified armed-but-configless (no config/dep anywhere, prettier absent from the npx cache —
+  inert by cache state only); the leg deleted per "prettier is deliberately unconfigured", eslint
+  keeps the TS leg, both hazard notes rewritten. The deliberate check ran the CONCLUSIVE variant:
+  prettier SEEDED into the npx cache (`npx --no-install prettier` resolving — the exact 231-line-
+  reformat precondition), a single-quoted probe .ts written through the live hook, byte-identical
+  after → no reformat; probe deleted, cache entry removed (as-found). PRECISION on the reload
+  caveat: it applies to settings.json REGISTRATIONS only — the registered command
+  (`python format.py`) re-executes the current script body every invocation, so script-body edits
+  are live immediately; that is why the check was valid same-session, not deferred to b.
 - Suites: **457 pytest (+18) + 75 Playwright (+2)**; unwindowed golden byte-identical throughout.
 - **Item 4 — the institutional chat index PROVEN LIVE (2026-08-13, the V2.3c deferral paid):**
   built the 235-doc LightRAG index for the V2.4b closure composite

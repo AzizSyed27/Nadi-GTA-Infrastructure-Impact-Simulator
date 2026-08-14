@@ -91,6 +91,26 @@ an "active intermittently" per-member form remains possible future work, no long
 duty. zone_facts `window_note` deliberately NOT extended (the zone macro assigns identical windows;
 a disjoint zone run is only craftable via clone-edit) — extend it there if that ever changes.
 
+## V2.5a follow-on — singleton/index drift hazards (the two-day-cost class)
+Both surfaced by the V2.5a forensics; both got DOC corrections only — the mechanisms are still
+live, and each already cost ~2 silent days once.
+- **`newest_index()` lexicographic sort is still live ammunition:** the resolver
+  (`report_agent.py`, `sorted(INDEX_ROOT.glob("index-*"))[-1]`) picks the lexicographically last
+  `index-*` NAME — any non-timestamp name sorting above `'2'` (e.g. `index-V*`) beats every
+  timestamped index forever. It silently served the wrong run's chat for 2 days (the
+  "index run != report run" boot warning prints into a detached server log nobody reads).
+  Candidate fixes: parse-and-sort by the actual timestamp with a LOUD refusal on unparseable
+  names, or resolve the served index FROM the committed `latest-report.json` run id instead of
+  newest-anything (kills the misalignment class outright).
+- **The `latest-report.*` singleton is one demo commit from red again:** the pinned-run guard
+  covers artifact-rewriting enriches, but nothing structural stops another committed
+  `latest-report.*` overwrite — commit `0bead19` ("feat: demo run") did exactly this and
+  discourse.spec sat red ~2 days until the V2.5a forensics found it. The recorded LESSON
+  (re-run discourse.spec after touching either singleton) is procedural only. Candidate guards:
+  a spec-side pin that `latest-report.json.run.scenario_run_id` equals the Playwright-pinned run
+  id (a cheap always-on test fails the suite AT the overwriting commit, not days later), or the
+  real fix — a per-run report view retiring the global singleton (V2.7 territory).
+
 ## V2.4 follow-on — new_road members in composites (regen-then-runtime; USER-HIT gap)
 A real drafting attempt composed a 3-segment new-road CHAIN plus a 29-street school zone in one
 basket and hit the member-type refusal (`REASON_COMPOSITE_MEMBER`) — exactly the "build the
