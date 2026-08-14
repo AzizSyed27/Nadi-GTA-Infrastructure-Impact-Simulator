@@ -33,7 +33,23 @@ and no loading knob recovers it). Both are phase-opening rebuilds, never patches
 - **real signal-plan import** — replace netconvert-default green splits at arterial intersections with
   the city's coordinated timings. Shifts every baseline; requires recalibration end-to-end.
 
-## V2.2 response detour — rung 2: destination-rule bias (deferred design)
+## V2.2 response detour — rung 2 — LANDED in V2.5b (end-node probing replaced the anchor walk)
+The rung-2 design SHIPPED: per capacity-event member × per segment END NODE × per station,
+cost-to-end = min over ALL incoming passenger approaches per net (no exclusions — the mutated nets
+encode member state; the reverse partner of a one-way-closed street is just an approach),
+independent best-per-net disclosed by `END_METHOD_NOTE`. The open questions resolved: one-end
+rendering = one line per end with causes riding; honest zero = one constant; it REPLACED the old
+fact (legacy `probes` sidecars render as-is, shape-keyed). The doorstep station's rows carry an
+explicit ORIGIN-CLOSED cause. `position_m` was SUPERSEDED at this rung (end-node probing answers
+"which direction" without it; a position-refined claim would assert more than the whole-edge
+`apply_to_net` computes) — it stays accepted-but-unused, waiting on a partial-edge capacity model
+(rung 3, alongside per-window nets). **Cross-vintage incomparability:** old "+29.1 s
+detour-past-anchor" and new "+X s to reach an end" are DIFFERENT measurements — the vocabulary
+split is test-pinned in every new-shape render; CompareView is the named exposure (sides are slim
+{meta, scorecard} and render no detour today; if response access ever enters compare or any
+side-by-side surface, cross-SHAPE deltas get the refused-"—†" idiom, never arithmetic).
+
+## The pre-V2.5b record (historical; the design pressure that produced the above)
 The current destination rule picks the first downstream junction WITH AN ALTERNATE APPROACH, so the
 measured fact is **"how much longer to reach a point reachable another way" — systematically biased
 toward small/zero deltas**. The question a response service actually asks is "can you still reach

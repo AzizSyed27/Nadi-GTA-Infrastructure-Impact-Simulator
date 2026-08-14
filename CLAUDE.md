@@ -155,10 +155,16 @@ citations + corpus), the honest-zero note pluralizes from the edge union, the di
 rides the scope disclosure both sides, the institutional chat index PROVEN LIVE (+ the
 singleton-drift forensic finding — see the V2.5a block), the producer-real 0.9.0 institutions
 fixture retired the drifted hand-mock, and the prettier hook leg is REMOVED (hazard closed).
-Suites: **457 pytest + 75 Playwright**.
-Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, rung-2 detour — now with a
-live datapoint and both V2.5a wording observations paid at rung 1, student demand, mandate
-re-verification, the calibrated composite exemplar).
+**V2.5b IS CLOSED (rung-2 response reachability):** end-node probing REPLACED the anchor walk —
+per capacity member × per segment end × per station, min-over-approaches per net, labeled causal
+states verify-RECOMPUTED (origin-closed / window-unreachable / baseline-unreachable /
+no-approach / honest-zero), aggregated citations + the ends-counting chip, legacy sidecars
+byte-identical via shape-keyed branches, the vocabulary split pinning the cross-vintage
+incomparability, accepted live on the doorstep-composite rerun (east end +1.7 s vs west end
++29.1 s — the direction answer; 231's origin-closed CAUSE). Suites: **469 pytest + 77 Playwright**.
+Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
+re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
+probing at rung 3).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -805,6 +811,62 @@ sidecar/off-contract and every sentence lives in existing free-form fields).**
 - **CORRECTION:** `newest_index()` is a LEXICOGRAPHIC name sort, not newest-timestamp —
   `index-V22AACCEPT` outsorts every `index-<ts>` name (`'V' > '2'`), which is exactly why the live
   proof required archiving BOTH previously-live indexes first (Run-commands note fixed).
+
+**V2.5 Step b — RUNG-2 RESPONSE REACHABILITY — COMPLETE (end-node probing REPLACED the anchor
+walk; no contract change — the payload is sidecar/off-contract; design ratified per-axis before
+implementation).**
+- **The fact:** per capacity-event member × per segment END NODE × per station — "can you still
+  reach addresses ON the changed segment, and from which direction?" cost-to-end = min over ALL
+  incoming passenger approaches per net (NO exclusions — the mutated nets encode member state;
+  baseline-via-the-segment is real; a reverse partner is just an approach), independent
+  best-per-net disclosed by `END_METHOD_NOTE`. `destination_edge()`/anchor keys DELETED — the
+  anchor arbitrariness is retired BY CONSTRUCTION (anchor_note's duty fulfilled by probing every
+  member); shape-split ends EMBRACED (an end whose only approach is the closed segment IS
+  unreachable — that's the answer, pinned live on KINGSTON's north end). Ratified axes: member
+  gate = `capacity_event` (same predicate as the whole-fact gate, two arities) +
+  `PROBED_MEMBERS_NOTE` REQUIRED-iff a member fails it; aggregated citations; promote-on-new-shape
+  verify. `position_m` SUPERSEDED at this rung (whole-edge effects; rung 3 with per-window nets).
+- **Labeled states, verify-RECOMPUTED (the fold-in: the label IS the causal fact):** no_approach
+  (boundary stub, no probe rows) / baseline-unreachable / window-unreachable / ORIGIN-CLOSED
+  (explicit permission check, scenario legs DECLARED not computed — the doorstep station carries
+  its CAUSE, never four bare unreachables) / one honest-zero constant. verify_facts recomputes
+  each row's expected state from nullness + the change list against VERIFY-SIDE literals
+  (origin-closed both-ways-partial — road_closure targets required, modified-edge sanity, the
+  all-car-lanes case producer-test-owned); the `members` key is a same-vintage marker BY
+  CONSTRUCTION, so end-method/probed-members/coincidence notes are FULL REQUIRED-iff on the new
+  shape (absence FAILS) while the legacy branch keeps V2.5a's tolerance untouched.
+- **Rollups:** report = per-member heading (type + edge + fmt_window window) + ONE line per end,
+  per-station figures + causes in the parenthetical; citation = per-member clauses with per-end
+  worst-of-reachable + "u of n unreachable", fully-reachable/-unreachable pairs COLLAPSE, capstone
+  names ONLY stations unreachable at EVERY probed end (one-end-cut-off = a count, not a name);
+  chip = "U of E segment ends unreachable · worst +X s (M segments × S stations)" with ends the
+  counted noun (E excludes no_approach/baseline-unreachable ends; unreachable iff NO station
+  reaches it); corpus keeps FULL per-station rows. **VOCABULARY SPLIT (fold-in): new-shape prose
+  says "added time to reach" and NEVER the number-bearing "s added response-route time" —
+  test-pinned per surface (FRAMING's generic methodology wording deliberately shared); old
+  "+29.1 s detour-past-anchor" and new "+X s to reach an end" are DIFFERENT measurements;
+  CompareView is the named BACKLOG exposure (slim sides, no detour today; cross-shape deltas get
+  "—†" if it ever enters).** Legacy `probes` sidecars render byte-identically everywhere
+  (shape-keyed branches; the three verbatim Playwright chip pins stay green unmodified; a
+  shapeless payload → labeled fallback, crash-hardened; `_cite_response_detour` raises on
+  neither-key — the false-"could not be computed" trap is structurally unreachable).
+- **Accepted live (`multimodal-scenario-20260814T063253Z` — the doorstep composite rerun):** the
+  phase's target sentence on a real run — road closure `-36784353#20`: **east end worst of the
+  reachable +1.7 s (via the reverse partner `36784353#18`); west end worst +29.1 s** — the old
+  anchor's +10.2/+29.1/+2.7 turn out to have been the WEST end's numbers, and the new fact adds
+  the direction answer the old one couldn't give; **Station 231 carries the ORIGIN-CLOSED cause
+  at every end** (was: a bare "unreachable"); the incident's ends probed with honest small
+  numbers + zero-notes; `probed_members_note` fired (3 modified edges, 2 probed members);
+  coincidence note rides (600–1200 vs 600–1680). verify_facts (incl. state-label recompute)
+  green on the live sidecar; 214 voices (TFS spoke the aggregated citation with all six notes,
+  capstone naming 231); report audit 8 clean / 1 corrected / 0 unresolved; singleton RESTORED +
+  discourse.spec green same-arc (the V2.5a lesson). Analysis wall time trivial (~5 min run;
+  routing volume a non-issue). Screenshots `docs-assets/v25b-*.png` — the feed instBlock FITS
+  (the citation-length acceptance check; fallback lever recorded: worst-end-only per member);
+  chip wraps mid-word via the pre-existing `wordBreak: break-all` card style (V2.7 UI territory).
+- Suites: **469 pytest + 77 Playwright** (+2 chip cases; producer tests rewritten with probed
+  real-net literals — compass labels, the shape-split end, the reverse partner, a real
+  no-approach stub edge, the doorstep origin-closed case).
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
