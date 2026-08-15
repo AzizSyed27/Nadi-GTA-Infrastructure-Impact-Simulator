@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifact } from './support/default-artifact';
 import {
   REASON_SETTLED_SEVERED,
   deriveBlockers,
@@ -143,6 +144,7 @@ type DraftSeam = {
 };
 
 async function mockBackend(page: Page, opts: { reject?: { status: number; detail: string } } = {}) {
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   let lastBody: Record<string, unknown> | null = null;
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) =>

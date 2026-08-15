@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -32,6 +33,7 @@ function fixture(): { body: string; edges: string[]; window: { start_s: number; 
  * tiny fixture resolving inside StrictMode's double-mount window crashes maplibre teardown);
  * network.json is REAL (the fixture's edges are canonical ids). */
 async function mockLoadedRun(page: Page, artifactBody: string, extraRuns: { id: string; body: string }[] = []) {
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));
   const runs = [{ id: RUN_ID, description: 'school zone fixture', status: 'done', stage: 'done', started_at: 2 },
@@ -70,6 +72,7 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
   });
   const zone = [E(1), E(2), E(3)];
   let lastBody: Record<string, unknown> | null = null;
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) =>
     route.fulfill({ json: { edges: zone.map((e) => ({ id: e.id, geometry: e.geometry, lanes: 2, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } })) } }));

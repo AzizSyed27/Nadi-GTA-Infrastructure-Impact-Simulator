@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifact } from './support/default-artifact';
 
 // V2.2c — the palette's closure/incident actions: the lane picker (REAL car-lane indices), the
 // window inputs (minutes -> sim-seconds on the wire; clock labels on calibrated), the windowed →
@@ -17,6 +18,7 @@ const D1_REASON = 'temporary events have no equilibrium; use day-one response';
 const BANNED = /\b(majority|minority|referendum|consensus|unanimous|plurality)\b/i;
 
 async function mockBackend(page: Page, opts: { reject400?: string } = {}) {
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   let lastBody: Record<string, unknown> | null = null;
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [J1], count: 1 } }));
   await page.route('**/network.json', (route) =>

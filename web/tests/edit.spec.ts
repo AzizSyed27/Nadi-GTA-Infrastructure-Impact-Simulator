@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifact } from './support/default-artifact';
 
 // Phase 5.2 — the editor UI. Backend is MOCKED (page.route) for determinism + speed; the two map clicks are
 // injected via the dev/test seam window.__nadiEdit(lon,lat) so we exercise the real snap→form→submit→poll→load
@@ -27,6 +28,7 @@ const BANNED = /\b(majority|minority|referendum|consensus|unanimous|plurality)\b
 const STANCE_TALLY = /\d+\s*%[^.]{0,24}(support|oppos|favou?r|against)|\bfinal (distribution|tally|result|vote)\b|\d+\s+for\s*\/\s*\d+\s+against/i;
 
 async function mockBackend(page: Page) {
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   const statusCalls: Record<string, number> = {};
   let lastType = 'new_road'; // captured from the last /api/simulate POST → drives the status stage list
   const NEWROAD = ['regen', 'baseline', 'scenario', 'analysis', 'done'];

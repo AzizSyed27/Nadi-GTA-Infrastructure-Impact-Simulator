@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -6,7 +7,8 @@ import * as path from 'node:path';
 // PRODUCER-REAL (institutions-run.json, regen-pinned by python/tests/test_institutions_fixture.py
 // — the old hand-mocked mandate agent had already drifted from the producer's disclaimer and
 // survived on a shared substring). The artifact is genuine 0.9.0 with a TFS mandate agent built
-// by the real deterministic chain; the client ajv-validates it against the REAL contract schema.
+// by the real deterministic chain (loaded via the standard fetch+parse path — no client-side
+// schema validation runs; the dead ajv loader was removed in V2.5c).
 // Its change set is the V2.5a synergy shape (2-member all-windowed DISJOINT composite whose
 // detour payload carries the window-coincidence note), so this spec also pins the item-1 sentence
 // and the item-3 clause in the real UI. StrictMode conventions apply (~500 ms delay + warm reload).
@@ -20,7 +22,8 @@ const MISSION =
   'preparedness, prevention, public education and emergency response, with an emphasis on quality services, ' +
   'efficiency, effectiveness and safety.';
 
-/** Serve the producer-real fixture at /latest.json (+ minimal API mocks); `mutate` for variants. */
+/** Serve the producer-real fixture as the DEFAULT run (V2.5c: the pointer pair — latest.json
+ * resolves to a run id, the artifact serves separately); `mutate` for variants. */
 async function mockArtifact(page: Page, mutate?: (art: { agents: { grounding: string }[] }) => void) {
   const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
   if (mutate) mutate(art);
@@ -28,10 +31,7 @@ async function mockArtifact(page: Page, mutate?: (art: { agents: { grounding: st
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));
   await page.route('**/api/runs', (route) => route.fulfill({ json: { runs: [] } }));
-  await page.route('**/latest.json', async (route) => {
-    await new Promise((res) => setTimeout(res, 500));
-    await route.fulfill({ body, contentType: 'application/json' });
-  });
+  await mockDefaultArtifactBody(page, body);
 }
 
 async function openPlayback(page: Page) {

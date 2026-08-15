@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -67,11 +68,9 @@ async function mockBackend(
     captured.push({ body });
     return route.fulfill({ json: respond(body) });
   });
-  // '/' loads latest.json — serve the ENRICHED fixture there (~500 ms floor delay, StrictMode convention).
-  await page.route('**/latest.json', async (route) => {
-    await new Promise((res) => setTimeout(res, 500));
-    await route.fulfill({ body: enriched, contentType: 'application/json' });
-  });
+  // '/' resolves the latest.json POINTER (V2.5c) — serve the ENRICHED fixture as the default
+  // run (the helper carries the ~500 ms StrictMode floor delay).
+  await mockDefaultArtifactBody(page, enriched);
 }
 
 function reply(bodyIn: Record<string, unknown>, answer: string, status = 'clean'): Record<string, unknown> {

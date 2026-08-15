@@ -81,25 +81,26 @@ test('excluded content appears NOWHERE in the DOM, across playback, every cascad
   await assertAbsent('report');
 });
 
-test('the pinned specs are independent of latest.json (overwrite it and they still pass)', async ({ page }) => {
-  // latest.json is now only the editor's current-run pointer — overwrite it with a social-less new_road run
-  // and confirm the pinned discourse view is unaffected, while the DEFAULT view reflects the overwrite.
+test('the pinned specs are independent of latest.json (repoint it and they still pass)', async ({ page }) => {
+  // V2.5c: latest.json is the POINTER ONLY ({run_id}) — repoint it at a social-less new_road run
+  // (a ~50-byte write, no 20 MB copy) and confirm the pinned discourse view is unaffected, while
+  // the DEFAULT view resolves the repoint.
   const pub = path.resolve(__dirname, '..', 'public');
   const latest = path.join(pub, 'latest.json');
-  const newRoad = path.join(pub, 'multimodal-scenario-20260709T221140Z.json'); // real new_road run, no social
-  const backup = fs.readFileSync(latest);
-  fs.copyFileSync(newRoad, latest);
+  const backup = fs.existsSync(latest) ? fs.readFileSync(latest) : null;
+  fs.writeFileSync(latest, JSON.stringify({ run_id: 'multimodal-scenario-20260709T221140Z' })); // real new_road run, no social
   try {
     // pinned run still drives discourse, unaffected by latest.json
     await page.goto(PINNED_URL);
     await page.getByTestId('mode-discourse').click();
     await expect(page.getByTestId('discourse-feed')).toBeVisible();
-    // the default view (latest.json) now shows the new_road run → discourse is locked (no social)
+    // the default view resolves the pointer to the new_road run → discourse is locked (no social)
     await page.goto('/');
-    // 20s: a real ~20MB artifact fetch+ajv on '/' can exceed the 5s default in dev mode (the same
-    // budget the other mount-path waits use)
+    // 20s: the resolved artifact is a real ~20 MB fetch+parse on '/' in dev mode (the same
+    // budget the other mount-path waits use; no client-side schema validation runs — V2.5c fact)
     await expect(page.getByTestId('mode-discourse')).toBeDisabled({ timeout: 20_000 });
   } finally {
-    fs.writeFileSync(latest, backup); // restore (idempotent; harmless either way once latest.json is gitignored)
+    if (backup) fs.writeFileSync(latest, backup); // restore as-found
+    else fs.unlinkSync(latest);
   }
 });

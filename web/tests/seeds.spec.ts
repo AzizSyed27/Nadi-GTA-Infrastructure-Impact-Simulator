@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -6,7 +7,7 @@ import * as path from 'node:path';
 // byte-identical (single-seed rails/renders unchanged). The finished run resolves to the committed
 // fixture seeds-run.json — a REAL 0.8.0 artifact whose ranges came from the actual
 // scorecard.attach_ranges (test_seeds_fixture.py pins that), loaded through the normal
-// loadArtifact -> ScorecardPanel -> ScoreCell path. No test-only props: the fixture flip and a live
+// fetch/parse -> ScorecardPanel -> ScoreCell path. No test-only props: the fixture flip and a live
 // flip hit the SAME render branch.
 
 const SEED_RUN_ID = 'multimodal-scenario-seeds-fixture';
@@ -21,6 +22,7 @@ const STANCE_TALLY = /\d+\s*%[^.]{0,24}(support|oppos|favou?r|against)|\bfinal (
 const RUNTIME_STAGES = ['baseline', 'scenario', 'analysis', 'done'];
 
 async function mockBackend(page: Page, opts: { seedDetail?: boolean } = {}) {
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   const statusCalls: Record<string, number> = {};
   let lastBody: Record<string, unknown> | null = null;
 

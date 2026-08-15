@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -51,6 +52,7 @@ const STATUS = {
 };
 
 async function mockBackend(page: Page) {
+  await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) => route.fulfill({ json: { edges: [] } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));

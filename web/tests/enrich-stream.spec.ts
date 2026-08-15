@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -21,7 +22,7 @@ const STANCE_TALLY = /\d+\s*%[^.]{0,24}(support|oppos|favou?r|against)|\bfinal (
 
 // The five streamed voices: 1 sim (pinned to the fixture's real veh0) + 3 inferred community voices
 // + 1 mandate-grounded institutional voice (V2.3c — streams through the SAME plumbing unchanged;
-// mandate agents force the enriched artifact to 0.9.0, which the client ajv-validates).
+// mandate agents force the enriched artifact to 0.9.0). No client-side schema validation runs (V2.5c fact).
 const VOICES = [
   {
     persona: { id: 'time_pressed', label: 'Devi, commuter' },
@@ -105,7 +106,7 @@ async function mockBackend(
   const base = fs.readFileSync(FIXTURE, 'utf-8');
   const enrichedArt = JSON.parse(base);
   enrichedArt.agents = VOICES;
-  enrichedArt.schema_version = '0.9.0'; // a mandate agent makes it a 0.9.0 artifact (ajv-checked)
+  enrichedArt.schema_version = '0.9.0'; // a mandate agent makes it a 0.9.0 artifact
   const enriched = JSON.stringify(enrichedArt);
 
   let enrichPosted = false;
@@ -151,13 +152,9 @@ async function mockBackend(
     await new Promise((res) => setTimeout(res, 500));
     await route.fulfill({ body: enrichDone ? enriched : base, contentType: 'application/json' });
   });
-  // '/' loads latest.json before anything else — the REAL one is ~90 MB since the calibrated
-  // exemplar and openRun loads it twice (goto + warm reload), eating most of the test budget.
-  // Serve the tiny fixture there too (same floor delay).
-  await page.route('**/latest.json', async (route) => {
-    await new Promise((res) => setTimeout(res, 500));
-    await route.fulfill({ body: base, contentType: 'application/json' });
-  });
+  // '/' resolves the latest.json POINTER (V2.5c: never a payload) — serve the tiny fixture as
+  // the default run via the pointer pair (the helper carries the floor delay).
+  await mockDefaultArtifactBody(page, base);
 }
 
 /** Seek to sim end by scrubbing the Timeline slider — the app's own pause-and-seek path (the
