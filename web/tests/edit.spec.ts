@@ -76,6 +76,11 @@ async function mockBackend(page: Page) {
 
 async function enterEditAndLoadJunctions(page: Page) {
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 }); // artifact loaded → map mounted → getBounds works
   // Hydration guard (the sibling tests' own convention, :176): the button can be VISIBLE before
   // React attaches handlers on a cold dev compile — a pre-hydration click fires no junctions fetch.
@@ -149,6 +154,11 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
 test('the run switcher restores a prior run', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   await page.getByTestId('mode-edit').click();
   await expect(page.getByTestId('run-switcher')).toBeVisible();
 
@@ -163,6 +173,11 @@ test('the run switcher restores a prior run', async ({ page }) => {
 test('discourse mode is locked until a run carries a social block', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   // Load a new_road run (no social) explicitly, then assert Discourse is locked — independent of latest.json,
   // which is now an arbitrary editor pointer.
   await page.getByTestId('mode-edit').click();
@@ -175,6 +190,11 @@ test('discourse mode is locked until a run carries a social block', async ({ pag
 // ---- 5.2b: edit an existing edge ----
 async function enterEditForEdges(page: Page) {
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   // 20s like enterEditAndLoadJunctions: '/' loads the REAL latest.json (an arbitrary editor pointer —
   // since the calibrated exemplar it is a ~90 MB artifact), so first paint can far exceed the 5s default.
   await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
@@ -229,6 +249,11 @@ test('a speed_limit submit walks the regen-free stages and reads 0-reroute as de
 test('the exported network renders as the base road layer (all modes)', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   // map mounted — 20s: '/' loads the real (~90 MB since the exemplar) latest.json first
   await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   // The network loaded and set the deterministic seam — the drawn roads ARE the simulation's roads.

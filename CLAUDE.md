@@ -162,9 +162,18 @@ no-approach / honest-zero), aggregated citations + the ends-counting chip, legac
 byte-identical via shape-keyed branches, the vocabulary split pinning the cross-vintage
 incomparability, accepted live on the doorstep-composite rerun (east end +1.7 s vs west end
 +29.1 s — the direction answer; 231's origin-closed CAUSE). Suites: **470 pytest + 77 Playwright**.
+**V2.5c IS CLOSED (the two-jobs fix + the frame budget):** latest.json is a POINTER only (written
+on quant completion only — enriches never repoint; the accidental-repoint footgun class closed),
+every spec routes its own pointer pair (DOUBLE acceptance: the 90 MB pointer AND the DELETED
+pointer both leave the suite green 76/76), and perf is measured-first with budgets — the headless
+0.36 FPS "catastrophe" unmasked as SwiftShader (frame numbers are HEADED numbers or they measure
+the rasterizer), the one indicted fix (trails data-identity memo) A/B'd 48→74 fps on the 90 MB
+exemplar, everything else measured NOT-indicted and deliberately unbuilt. Budgets (headed, prod):
+first paint ≤5 s @90 MB (3.9 achieved), ≤2 s @~20 MB (1.1); playback p95 ≥30 fps (71 achieved).
+Suites: **471 pytest + 77 Playwright**.
 Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
-probing at rung 3).
+probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
@@ -882,6 +891,53 @@ implementation).**
 - Suites: **470 pytest + 77 Playwright** (+2 chip cases; producer tests rewritten with probed
   real-net literals — compass labels, the shape-split end, the reverse partner, a real
   no-approach stub edge, the doorstep origin-closed case).
+
+**V2.5 Step c — the TWO-JOBS FIX and the FRAME BUDGET — COMPLETE (latest.json split + perf
+measured-first; the biggest finding was about the MEASUREMENT, not the app).**
+- **latest.json is a POINTER, never a payload** (`{"run_id": ...}` via
+  `trajectory_io.write_latest_pointer`), written ONLY on quant-run completion — scorecard
+  recomputes and propagation enriches no longer touch it (DELIBERATE change: an enrich/recompute
+  of an old run silently stealing the default was the accidental-repoint footgun, H3 of the four
+  recorded sightings; the payload job was also already broken — the voices enrich never rewrote
+  it). MapView resolves the pointer → `/<run_id>.json`; a legacy payload-shaped latest.json still
+  works but EXPIRES LOUDLY (console.warn + the scheduled V2.7 removal in BACKLOG). Python
+  consumers migrated (propagation id-read; oasis_spike resolve; test_propagation pins the
+  COMMITTED social run). Dead `web/lib/loadArtifact.ts` DELETED (zero importers — client-side
+  ajv NEVER ran; the stale "client ajv-validates" comments corrected).
+- **Spec immunization (`web/tests/support/default-artifact.ts`):** every `goto('/')` spec routes
+  the POINTER PAIR (pointer + resolved artifact with the ~500 ms StrictMode floor delay — the
+  split alone would only have MOVED the 90 MB fetch); 7 formerly-vulnerable specs migrated, 3
+  full-body mockers switched, discourse.spec's independence test REPOINTS (~50 bytes) instead of
+  copying 20 MB. **The migration made H4 LIVE:** three specs (closure-palette, edit ×5 sites,
+  seeds ×2) had never needed the warm-reload convention because the real 20–90 MB artifact never
+  resolved inside StrictMode's double-mount window — the tiny default fixture DOES, and
+  closure-palette:48 crashed maplibre teardown exactly as CLAUDE.md's H4 note predicts. The
+  convention is now on every `goto('/')` site. **Reporting lesson (self-caught):** the first
+  acceptance pass was mis-read as green — `tail -2` on the Playwright summary ATE the "1 failed"
+  line above "N passed"; verification output must be captured to the summary BLOCK, not its last
+  lines. **DOUBLE ACCEPTANCE (post-fix), both green:** the real pointer aimed at the 90 MB
+  exemplar, then latest.json DELETED entirely (the stronger form — anything breaking on
+  missing-X is still coupled).
+- **Perf, measured first (`scripts/perf-harness.mjs`, prod build, permanent `nadi:*` marks):**
+  the headless baseline showed 0.36 FPS "catastrophe" — the CPU profile was 99.2% native
+  "(program)" time, which unmasked it as **SwiftShader: headless Chromium's software rasterizer.
+  Frame numbers are HEADED (hardware-GL) numbers or they are numbers about the rasterizer** (the
+  harness has `--headed` + `--profile`; the sampler is TIME-bounded — a frame-count sampler
+  takes minutes at pathological rates). HEADED TRUTH on the 90 MB exemplar: transfer 26.9 MB gz /
+  fetch 2.9 s / parse ~3.4 s / **nav→first-render 3.9 s** / heap 189 MB / **frames p50 13.6 ms
+  (74 fps), p95 14.1 ms (71 fps), 0 longtasks**. Synthetic control: first-render ~1.1 s, 137 fps.
+- **The one indicted fix, A/B'd on hardware:** the TripsLayer trails array was rebuilt every
+  render (time-invariant contents) → deck re-tessellated per rAF tick; one `useMemo` took the
+  exemplar from p50 20.9 ms (48 fps) / p95 27.8 ms (36 fps — grazing the floor) to 74/71 fps.
+  **Everything else measured NOT indicted and deliberately NOT built** (the ratified
+  measurement-gated protocol): subtree memoization, trajectory thinning (+ its proof
+  seam/disclosure), the eager-slim split, network simplification — verdicts + the two levers
+  recorded in BACKLOG for V2.7. BACKLOG's "36 fps playback" aspiration RESOLVED (74 fps).
+- **BUDGETS (headed, prod build, this box — re-measure with the harness at V2.7 checkpoints; no
+  CI gate, ratified):** first map paint ≤ 5 s on a 90 MB artifact (achieved 3.9 s), ≤ 2 s on a
+  ~20 MB run (achieved ~1.1 s); scrub/playback p95 ≥ 30 fps at the concurrency peak (achieved
+  71 fps). The contract payload rung (~50% wire waste: unused speeds, regular timestamps,
+  14-decimal coords) is measured + BACKLOG'd for the 0.10.0 ceremony.
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.

@@ -38,6 +38,11 @@ async function mockBackend(page: Page, opts: { reject400?: string } = {}) {
 
 async function openPalette(page: Page) {
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   await page.getByTestId('mode-edit').click();
   await page.waitForFunction(() => typeof (window as unknown as { __nadiEditEdge?: unknown }).__nadiEditEdge === 'function');
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);

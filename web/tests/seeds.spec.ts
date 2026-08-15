@@ -60,6 +60,11 @@ async function mockBackend(page: Page, opts: { seedDetail?: boolean } = {}) {
 test('the seeds option posts n_seeds=3 and the run shows the seeds chip with probe detail', async ({ page }) => {
   const getBody = await mockBackend(page, { seedDetail: true });
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   await page.getByTestId('mode-edit').click();
   await expect(page.getByTestId('run-options')).toBeVisible();
 
@@ -89,6 +94,11 @@ test('the seeds option posts n_seeds=3 and the run shows the seeds chip with pro
 test('ranged cells render ranges; sign-unstable cells are neutral with the SIGN? badge', async ({ page }) => {
   await mockBackend(page);
   await page.goto('/');
+  // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
+  // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
+  // once before interacting.
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
   await page.getByTestId('mode-edit').click();
   await page.getByTestId('run-select').selectOption(SEED_RUN_ID);
   await page.waitForResponse((r) => r.url().includes(`${SEED_RUN_ID}.json`));

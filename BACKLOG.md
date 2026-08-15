@@ -107,6 +107,17 @@ an "active intermittently" per-member form remains possible future work, no long
 duty. zone_facts `window_note` deliberately NOT extended (the zone macro assigns identical windows;
 a disjoint zone run is only craftable via clone-edit) — extend it there if that ever changes.
 
+## V2.5c follow-on — the contract-side payload rung (measured, awaiting the ceremony)
+Profiling measured ~50% of the 90 MB exemplar as wire waste, all CONTRACT-side (schema bump +
+both serializers + fixture regen — the trajectory-contract ceremony, deliberately out of V2.5c's
+render-side scope): **`speeds` is read by no renderer (8.6 MB)**; **timestamps are perfectly
+regular 1.0 s steps (8.2 MB, derivable from `t0 + i·step`)**; **coordinates carry 14 decimals
+where 6 ≈ 11 cm (~32 MB of the 64.6 MB path mass)**. A future 0.10.0 candidate — the numbers
+above justify the ceremony when V2.7 needs the payload headroom. Render-side levers measured and
+NOT currently indicted (74 fps, 3.9 s first paint on 90 MB): the eager-slim sidecar split
+(~840 KB chrome payload, the graphs-sidecar idiom) and typed-array coordinate storage — both
+designs recorded in the V2.5c plan, available when V2.7's per-frame ambitions raise the bar.
+
 ## V2.5c follow-on — remove the legacy latest.json payload fallback (scheduled: V2.7)
 MapView's mount tolerates a pre-V2.5c latest.json that still carries a FULL artifact payload
 (the transitional branch), and per the expire-loudly rule it `console.warn`s naming the stale
@@ -181,7 +192,11 @@ never a drive-by reword. No mechanism until it hurts.
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).
-- **36 fps playback** — smoother trail animation at real entity counts (perf pass on the deck layers).
+- **36 fps playback** — RESOLVED by V2.5c measurement: 74 fps p50 / 71 fps p95 on the 90 MB
+  exemplar (headed prod build, hardware GL) after the trails data-identity memo. The historical
+  "slow playback" perception was two things: the trails re-tessellation churn (fixed, A/B'd
+  48→74 fps) and SOFTWARE-GL environments (headless/SwiftShader measures the rasterizer, not the
+  app — the harness's --headed lesson).
 - **Echo-exclusion refinement** — the 4.4 cascade `safety_direction` rule tuning has known residual edge cases in
   distinguishing echoes from assertions.
 - **Equilibrium / multi-day modeling** — the sim is one-shot within a corridor window; true traveler adaptation
