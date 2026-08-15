@@ -170,7 +170,7 @@ pointer both leave the suite green 76/76), and perf is measured-first with budge
 the rasterizer), the one indicted fix (trails data-identity memo) A/B'd 48→74 fps on the 90 MB
 exemplar, everything else measured NOT-indicted and deliberately unbuilt. Budgets (headed, prod):
 nav→first-artifact-render ≤5 s @90 MB (3.9 achieved), ≤2 s @~20 MB (1.1); playback p95 ≥30 fps (71 achieved).
-Suites: **471 pytest + 77 Playwright**.
+Suites: **471 pytest + 78 Playwright**.
 Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
 probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal).
