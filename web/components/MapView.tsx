@@ -464,6 +464,12 @@ export default function MapView() {
     if (artifact) performance.mark('nadi:artifact-rendered');
   }, [artifact]);
 
+  // V2.5c: the trails data is TIME-INVARIANT (pinned changes only on artifact swap) — the old
+  // fresh-array-per-render identity made deck re-run the path tesselator on every rAF tick
+  // (173k points on the exemplar → the 0.36 FPS baseline). currentTime is a TripsLayer UNIFORM;
+  // the data reference must be stable so buffers upload once.
+  const trailVehicles = useMemo(() => pinned.filter((d) => d.kind === 'vehicle'), [pinned]);
+
   // Agents for the time-keyed comment feed = the pinned ones (all carry trigger_t).
   const pinnedAgents = useMemo(() => pinned.map((p) => p.agent), [pinned]);
   // Inferred (community) voices — no trip, no dot; the feed interleaves them on a synthetic clock.
@@ -1058,8 +1064,8 @@ export default function MapView() {
   const [minLon, minLat, maxLon, maxLat] = meta.bbox;
   const t = currentTime;
 
-  // 1) Faint trails for the instrumented VEHICLE travelers (keeps the current look; ped trails omitted).
-  const trailVehicles = pinned.filter((d) => d.kind === 'vehicle');
+  // 1) Faint trails for the instrumented VEHICLE travelers (keeps the current look; ped trails
+  // omitted). Data = the STABLE memoized array (hoisted above the early return, V2.5c).
   const trails = new TripsLayer<Pinned>({
     id: 'instrumented-trails',
     data: trailVehicles,

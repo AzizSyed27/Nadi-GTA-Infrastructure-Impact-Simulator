@@ -31,7 +31,14 @@ const SCRUB_T = Number(opt('scrub', '3400')); // the measured concurrency peak o
 
 const pct = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
 
-const browser = await chromium.launch({ args: ['--enable-precise-memory-info'] });
+// --headed: run with a visible window (HARDWARE GL). Default headless uses SwiftShader
+// (software GL) — frame numbers there measure the rasterizer, not the user's GPU experience
+// (caught live: 99.2% of a 1.8 s/frame profile sat in native "(program)" time under headless).
+const HEADED = args.includes('--headed');
+const browser = await chromium.launch({
+  headless: !HEADED,
+  args: ['--enable-precise-memory-info'],
+});
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 
 const t0 = Date.now();
@@ -75,6 +82,17 @@ const parseControlMs = await page.evaluate(async (runId) => {
 await page.locator('input[type=range]').first().fill(String(SCRUB_T));
 await page.waitForTimeout(300);
 await page.locator('button[aria-label="Play"]').click({ timeout: 15_000 });
+
+// --profile: attribute the frame time — sample the V8 CPU profile during the same window and
+// print the top self-time functions (the measure-first mandate: name the cost, then fix it).
+const PROFILE = args.includes('--profile');
+let cdp = null;
+if (PROFILE) {
+  cdp = await page.context().newCDPSession(page);
+  await cdp.send('Profiler.enable');
+  await cdp.send('Profiler.setSamplingInterval', { interval: 200 });
+  await cdp.send('Profiler.start');
+}
 const frames = await page.evaluate(
   () =>
     new Promise((res) => {
@@ -101,6 +119,23 @@ const frames = await page.evaluate(
       requestAnimationFrame(tick);
     }),
 );
+if (PROFILE && cdp) {
+  const { profile } = await cdp.send('Profiler.stop');
+  const hits = new Map();
+  const total = profile.samples?.length ?? 0;
+  const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+  for (const s of profile.samples ?? []) {
+    const n = byId.get(s);
+    if (!n) continue;
+    const f = n.callFrame;
+    const key = `${f.functionName || '(anonymous)'} @ ${(f.url || '').split('/').pop()}:${f.lineNumber}`;
+    hits.set(key, (hits.get(key) ?? 0) + 1);
+  }
+  const top = [...hits.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14);
+  console.log(`\n--- CPU self-time top functions (${total} samples during the frame window) ---`);
+  for (const [k, v] of top) console.log(`${(100 * v / total).toFixed(1).padStart(5)}%  ${k}`);
+}
+
 const sorted = frames.deltas.slice().sort((a, b) => a - b);
 const p50 = pct(sorted, 50);
 const p95 = pct(sorted, 95);
