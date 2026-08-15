@@ -18,7 +18,10 @@ import report
 import trajectory_io
 
 REPO = Path(__file__).resolve().parents[2]
-LATEST = REPO / "web" / "public" / "latest.json"
+# V2.5c: latest.json is a POINTER ({"run_id": ...}), never a payload — these tests pin the
+# COMMITTED 212-agent social run instead (tracked, stable on a fresh clone; the same run the
+# Playwright specs pin), independent of the mutable pointer by construction.
+LATEST = REPO / "web" / "public" / "multimodal-scenario-20260702T044134Z.json"
 
 
 # --------------------------------------------------------------------------- build_nodes

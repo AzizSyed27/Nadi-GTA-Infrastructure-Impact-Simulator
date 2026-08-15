@@ -107,6 +107,13 @@ an "active intermittently" per-member form remains possible future work, no long
 duty. zone_facts `window_note` deliberately NOT extended (the zone macro assigns identical windows;
 a disjoint zone run is only craftable via clone-edit) — extend it there if that ever changes.
 
+## V2.5c follow-on — remove the legacy latest.json payload fallback (scheduled: V2.7)
+MapView's mount tolerates a pre-V2.5c latest.json that still carries a FULL artifact payload
+(the transitional branch), and per the expire-loudly rule it `console.warn`s naming the stale
+shape and this removal. By V2.7 every environment has rerun a scenario (regenerating the
+pointer) — DELETE the `data?.meta` legacy branch in the mount effect then. A compat branch that
+works silently is the kind that lives forever; this line is its scheduled death.
+
 ## V2.5a follow-on — singleton/index drift hazards (the two-day-cost class)
 Both surfaced by the V2.5a forensics; both got DOC corrections only — the mechanisms are still
 live, and each already cost ~2 silent days once.

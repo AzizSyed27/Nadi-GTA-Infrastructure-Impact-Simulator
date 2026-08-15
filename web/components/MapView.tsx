@@ -49,8 +49,9 @@ const ROAD_CASING = [70, 74, 82, 220] as [number, number, number, number]; // da
 const ROAD_FILL = [214, 214, 219, 255] as [number, number, number, number]; // plain grey (non-bike, the minority)
 const ROAD_FILL_BIKE = [208, 216, 211, 255] as [number, number, number, number]; // whisper green = bike-permitted
 
-// The artifact to play back. Stable alias written by the pipeline's final step (scorecard.py) — always
-// mirrors the fully-assembled + scorecard-injected run, so no brittle timestamped filename here.
+// The default-run POINTER (V2.5c): latest.json is {"run_id": "<id>"} — never a payload — written
+// ONLY on quant-run completion (enriches never repoint the default). The mount effect resolves it
+// then fetches /<run_id>.json.
 const ARTIFACT_URL = '/latest.json';
 
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
@@ -236,15 +237,33 @@ export default function MapView() {
     // no-store: these are large (~20MB), frequently-rewritten aliases — don't HTTP-cache (avoids stale reads +
     // chromium ERR_CACHE_WRITE_FAILURE on the large body).
     const run = new URLSearchParams(window.location.search).get('run');
-    const url = run ? `/${run}.json` : ARTIFACT_URL;
-    fetch(url, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data: TrajectoryArtifact) => {
+    const load = async () => {
+      let url = run ? `/${run}.json` : ARTIFACT_URL;
+      try {
+        let r = await fetch(url, { cache: 'no-store' });
+        let data = (await r.json()) as TrajectoryArtifact & { run_id?: string };
+        if (!run && data && typeof data.run_id === 'string' && !data.meta) {
+          // V2.5c: latest.json is the POINTER — resolve it to the per-run artifact
+          url = `/${data.run_id}.json`;
+          r = await fetch(url, { cache: 'no-store' });
+          data = (await r.json()) as TrajectoryArtifact;
+        } else if (!run && data?.meta) {
+          // TRANSITIONAL, expires LOUDLY (remove at V2.7 — BACKLOG): a pre-V2.5c latest.json
+          // still carrying a full artifact payload works, but must announce itself — a compat
+          // branch that works silently is the kind that lives forever.
+          console.warn(
+            'latest.json is a legacy full-artifact payload — rerun any scenario to regenerate ' +
+              'the pointer; this fallback is removed at V2.7',
+          );
+        }
         if (cancelled) return;
-        setArtifact(data);
-        setCurrentTime(data.meta.sim_start);
-      })
-      .catch((e) => console.error(`failed to load ${url}`, e));
+        setArtifact(data as TrajectoryArtifact);
+        setCurrentTime((data as TrajectoryArtifact).meta.sim_start);
+      } catch (e) {
+        console.error(`failed to load ${url}`, e);
+      }
+    };
+    void load();
     return () => {
       cancelled = true;
     };

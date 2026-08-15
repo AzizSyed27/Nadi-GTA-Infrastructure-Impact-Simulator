@@ -1696,12 +1696,12 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     trajectory_io.load_artifact(art_path)  # round-trip proof
     web = run_sim.ROOT / "web" / "public"
     (web / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
-    (web / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    trajectory_io.write_latest_pointer(ids["scen_id"])  # V2.5c: pointer only, on completion only
     run_state.set_stage(run_id, "done", f"cars_on_new_road={on_new}", scenario_run_id=ids["scen_id"],
                         cars_on_new_road=on_new, cars_rerouted=rerouted,
                         **({"n_seeds": n_seeds} if n_seeds > 1 else {}))
     print(f"[run_quant] {ids['scen_id']} — cars_on_new_road={on_new} (rerouted {rerouted}/{reroute_matched}); "
-          f"scorecard injected; latest.json updated")
+          f"scorecard injected; latest.json pointer updated")
     return ids["scen_id"], on_new
 
 
@@ -1824,7 +1824,7 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
     trajectory_io.load_artifact(art_path)  # round-trip proof
     web = run_sim.ROOT / "web" / "public"
     (web / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
-    (web / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
+    trajectory_io.write_latest_pointer(ids["scen_id"])  # V2.5c: pointer only, on completion only
 
     # Car-delay summary for the RunCard (cars often absorb a lane loss as delay, not detour — 2.2 finding).
     car_out = [o["delta_seconds"] for o in buckets["car"]["outcomes"]]
@@ -1844,7 +1844,7 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
                         **({"tags": tags} if tags else {}),
                         **({"n_seeds": n_seeds} if n_seeds > 1 else {}))
     print(f"[run_quant_runtime] {ids['scen_id']} — rerouted {rerouted}/{reroute_matched}; "
-          f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json updated")
+          f"car median delta {car_median}s, affected {car_share}; scorecard injected; latest.json pointer updated")
     return {"scen_id": ids["scen_id"], "cars_rerouted": rerouted, "car_median_delta_s": car_median,
             "car_affected_share": car_share, "buckets": buckets, "severed": sorted(severed or [])}
 

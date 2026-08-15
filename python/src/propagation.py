@@ -6,7 +6,9 @@ The base-env half of the two-env boundary. It:
      conda env (``conda run --no-capture-output -n oasis …``) — the only crossing is files,
   3. parses the raw per-cascade output, derives opinion TRAJECTORIES (a temp-0 stance-scoring pass through
      the existing provider funnel), runs the POST-HOC GUARDS (audit + immutability), computes ARGUMENT-REACH,
-  4. assembles the ``social{}`` block INTO the artifact in place, validates, and recopies ``latest.json``.
+  4. assembles the ``social{}`` block INTO the artifact in place, validates, and refreshes the
+     per-run web copy (V2.5c: latest.json is a POINTER an enrich never touches — repointing the
+     default from an enrich of an old run was the accidental-repoint footgun).
 
 Agent keys everywhere use the frozen convention (vehicle_id ?? person_id ?? persona.id). The row_index ->
 agentId map is OWNED here (from CSV row order) and reconstructed from row order on return — NEVER from
@@ -499,7 +501,7 @@ def assemble(artifact, run_id: str, edges: dict, nodes: list[dict], parsed_by_ca
     trajectory_io.load_artifact(out_path)  # round-trip proof
     WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
     (WEB_PUBLIC / out_path.name).write_text(out_path.read_text(encoding="utf-8"), encoding="utf-8")
-    (WEB_PUBLIC / "latest.json").write_text(out_path.read_text(encoding="utf-8"), encoding="utf-8")
+    # V2.5c: latest.json (the pointer) deliberately NOT touched — enriches never repoint the default
     return {"excluded_count": social.excluded_count, "immutability_violations": viols, "out_path": str(out_path)}
 
 
@@ -610,8 +612,8 @@ def recompute_reach(run_id: str, art_path: Path) -> None:
     trajectory_io.dump_artifact(artifact, path=art_path)  # revalidates against the frozen schema
     trajectory_io.load_artifact(art_path)                 # round-trip proof
     (WEB_PUBLIC / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
-    (WEB_PUBLIC / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
-    print(f"[propagation] recomputed ENGAGED-reach for {len(reach_diag)} cascade(s) -> {art_path.name} + latest.json")
+    print(f"[propagation] recomputed ENGAGED-reach for {len(reach_diag)} cascade(s) -> {art_path.name} "
+          f"(+ web copy; latest.json pointer untouched)")
     _report_reach(reach_diag)
 
 
@@ -676,10 +678,9 @@ def reaudit(run_id: str, art_path: Path) -> None:
     trajectory_io.dump_artifact(artifact, path=art_path)  # revalidates
     trajectory_io.load_artifact(art_path)                 # round-trip proof
     (WEB_PUBLIC / art_path.name).write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
-    (WEB_PUBLIC / "latest.json").write_text(art_path.read_text(encoding="utf-8"), encoding="utf-8")
 
     print("\n" + "=" * 72)
-    print(f"RE-AUDIT (persona-voice safety) — {art_path.name} + latest.json")
+    print(f"RE-AUDIT (persona-voice safety) — {art_path.name} (+ web copy)")
     print("=" * 72)
     print(f"content-bearing step>=1 events audited: {audited} (== 797, full population)")
     print(f"excluded_count: {sum(before.values())} -> {len(excluded_now)}")
@@ -713,7 +714,8 @@ def main() -> None:
     args = ap.parse_args()
 
     SCRATCH.mkdir(parents=True, exist_ok=True)
-    run_id = args.run_id or json.loads((WEB_PUBLIC / "latest.json").read_text(encoding="utf-8"))["meta"]["run_id"]
+    # V2.5c: latest.json is a pointer ({"run_id": ...}) — read the id, never a payload
+    run_id = args.run_id or json.loads((WEB_PUBLIC / "latest.json").read_text(encoding="utf-8"))["run_id"]
     # V2.3c closeout — structural guard BEFORE the early-return paths: assemble, --recompute-reach
     # and --reaudit ALL rewrite the artifact in place, and the default-from-latest.json resolution
     # above is exactly how the pinned anchor could be hit by accident.
@@ -793,7 +795,8 @@ def main() -> None:
         print("\n" + "!" * 88)
         print("COST GATE: this was cascade #1. Review the cost above, then re-run with --cascades 3.")
         print("!" * 88)
-    print(f"\n[propagation] social{{}} assembled into {assemble_stats['out_path']} + web/public/latest.json")
+    print(f"\n[propagation] social{{}} assembled into {assemble_stats['out_path']} "
+          f"(+ web copy; latest.json pointer untouched)")
 
 
 if __name__ == "__main__":

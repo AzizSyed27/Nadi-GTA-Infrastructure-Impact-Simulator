@@ -175,3 +175,15 @@ def load_artifact(path: str | Path) -> TrajectoryArtifact:
         data = json.load(fh)
     validate_artifact(data)
     return TrajectoryArtifact.model_validate(data)
+
+
+def write_latest_pointer(run_id: str) -> None:
+    """V2.5c — web/public/latest.json is a POINTER ONLY ({"run_id": ...}), never a payload.
+    The old full-artifact alias did two jobs (newest-run pointer + default payload); the payload
+    job was both already-stale (the voices enrich never rewrote it) and the 90 MB spec hazard.
+    Written ONLY on quant-run completion — an enrich or CLI recompute of an OLD run must never
+    repoint the default (the accidental-repoint footgun class, V2.5c deliberate behavior change).
+    The frontend resolves the pointer then fetches /<run_id>.json."""
+    web = Path(__file__).resolve().parents[2] / "web" / "public"
+    web.mkdir(parents=True, exist_ok=True)
+    (web / "latest.json").write_text(json.dumps({"run_id": run_id}) + "\n", encoding="utf-8")

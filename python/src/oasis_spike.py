@@ -49,7 +49,10 @@ BENCH_IN_PER_CALL, BENCH_OUT_PER_CALL = 3356, 167
 def pick_agents() -> list[dict]:
     personas = {p["id"]: p for p in json.loads(
         (REPO / "python" / "src" / "personas.json").read_text(encoding="utf-8"))["personas"]}
-    artifact = json.loads((REPO / "web" / "public" / "latest.json").read_text(encoding="utf-8"))
+    # V2.5c: latest.json is a POINTER — resolve it, then load the canonical per-run artifact
+    pointer = json.loads((REPO / "web" / "public" / "latest.json").read_text(encoding="utf-8"))
+    artifact = json.loads(
+        (REPO / "contract" / "runs" / f"{pointer['run_id']}.json").read_text(encoding="utf-8"))
     reaction_by_pid: dict[str, dict] = {}
     for a in artifact["agents"]:
         reaction_by_pid.setdefault(a["persona"]["id"], a["reaction"])
