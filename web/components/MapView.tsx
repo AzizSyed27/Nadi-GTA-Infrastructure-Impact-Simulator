@@ -241,12 +241,17 @@ export default function MapView() {
       let url = run ? `/${run}.json` : ARTIFACT_URL;
       try {
         let r = await fetch(url, { cache: 'no-store' });
+        // V2.5c perf marks (permanent, read by scripts/perf-harness.mjs): fetch-to-parse split
+        performance.mark('nadi:parse:start');
         let data = (await r.json()) as TrajectoryArtifact & { run_id?: string };
+        performance.mark('nadi:parse:end');
         if (!run && data && typeof data.run_id === 'string' && !data.meta) {
           // V2.5c: latest.json is the POINTER — resolve it to the per-run artifact
           url = `/${data.run_id}.json`;
           r = await fetch(url, { cache: 'no-store' });
+          performance.mark('nadi:parse:start');
           data = (await r.json()) as TrajectoryArtifact;
+          performance.mark('nadi:parse:end');
         } else if (!run && data?.meta) {
           // TRANSITIONAL, expires LOUDLY (remove at V2.7 — BACKLOG): a pre-V2.5c latest.json
           // still carrying a full artifact payload works, but must announce itself — a compat
@@ -417,6 +422,7 @@ export default function MapView() {
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
   // vehicle/person NOT pinned. Inferred agents have no trip, so they don't appear on the map.
   const { pinned, bgVehicles, bgPersons } = useMemo(() => {
+    performance.mark('nadi:join:start'); // V2.5c perf mark (permanent; runs on artifact change only)
     const vehicles = artifact?.vehicles ?? [];
     const persons = artifact?.persons ?? [];
     // NB: `Map` is shadowed by the react-map-gl <Map> import above — use plain Records for the lookups.
@@ -443,11 +449,19 @@ export default function MapView() {
         }
       }
     }
-    return {
+    const out = {
       pinned: pins,
       bgVehicles: vehicles.filter((v) => !pinnedVeh.has(v.id)),
       bgPersons: persons.filter((p) => !pinnedPer.has(p.id)),
     };
+    performance.mark('nadi:join:end');
+    return out;
+  }, [artifact]);
+
+  // V2.5c perf mark: the first committed render WITH artifact data — the harness's
+  // first-map-paint proxy (fires once per artifact swap, after React commits the layer tree).
+  useEffect(() => {
+    if (artifact) performance.mark('nadi:artifact-rendered');
   }, [artifact]);
 
   // Agents for the time-keyed comment feed = the pinned ones (all carry trigger_t).
