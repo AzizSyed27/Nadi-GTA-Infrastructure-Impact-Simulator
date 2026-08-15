@@ -247,6 +247,7 @@ export default function MapView() {
         performance.mark('nadi:parse:end');
         if (!run && data && typeof data.run_id === 'string' && !data.meta) {
           // V2.5c: latest.json is the POINTER — resolve it to the per-run artifact
+          if (cancelled) return; // don't issue the (large) second fetch for a dead mount
           url = `/${data.run_id}.json`;
           r = await fetch(url, { cache: 'no-store' });
           performance.mark('nadi:parse:start');
@@ -262,8 +263,16 @@ export default function MapView() {
           );
         }
         if (cancelled) return;
-        setArtifact(data as TrajectoryArtifact);
-        setCurrentTime((data as TrajectoryArtifact).meta.sim_start);
+        const art = data as TrajectoryArtifact;
+        if (!art?.meta) {
+          // labeled degradation, never a render crash (review-caught): well-formed JSON of the
+          // WRONG shape (neither {run_id} nor an artifact) must not commit a bogus artifact —
+          // it would blow up at the meta.bbox destructure in render, eating the app shell.
+          console.error(`failed to load ${url}: unrecognized artifact/pointer shape`);
+          return;
+        }
+        setCurrentTime(art.meta.sim_start);
+        setArtifact(art);
       } catch (e) {
         console.error(`failed to load ${url}`, e);
       }

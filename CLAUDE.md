@@ -169,7 +169,7 @@ pointer both leave the suite green 76/76), and perf is measured-first with budge
 0.36 FPS "catastrophe" unmasked as SwiftShader (frame numbers are HEADED numbers or they measure
 the rasterizer), the one indicted fix (trails data-identity memo) A/B'd 48→74 fps on the 90 MB
 exemplar, everything else measured NOT-indicted and deliberately unbuilt. Budgets (headed, prod):
-first paint ≤5 s @90 MB (3.9 achieved), ≤2 s @~20 MB (1.1); playback p95 ≥30 fps (71 achieved).
+nav→first-artifact-render ≤5 s @90 MB (3.9 achieved), ≤2 s @~20 MB (1.1); playback p95 ≥30 fps (71 achieved).
 Suites: **471 pytest + 77 Playwright**.
 Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
@@ -934,7 +934,7 @@ measured-first; the biggest finding was about the MEASUREMENT, not the app).**
   seam/disclosure), the eager-slim split, network simplification — verdicts + the two levers
   recorded in BACKLOG for V2.7. BACKLOG's "36 fps playback" aspiration RESOLVED (74 fps).
 - **BUDGETS (headed, prod build, this box — re-measure with the harness at V2.7 checkpoints; no
-  CI gate, ratified):** first map paint ≤ 5 s on a 90 MB artifact (achieved 3.9 s), ≤ 2 s on a
+  CI gate, ratified):** nav→first-artifact-render (the nadi:artifact-rendered mark — a React-commit proxy, not a Paint Timing event) ≤ 5 s on a 90 MB artifact (achieved 3.9 s), ≤ 2 s on a
   ~20 MB run (achieved ~1.1 s); scrub/playback p95 ≥ 30 fps at the concurrency peak (achieved
   71 fps). The contract payload rung (~50% wire waste: unused speeds, regular timestamps,
   14-decimal coords) is measured + BACKLOG'd for the 0.10.0 ceremony.
@@ -948,8 +948,10 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
   ```
   The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then, on enrich,
-  `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend loads
-  `/latest.json` (or `/?run=<id>`); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
+  `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend
+  resolves `/latest.json` (V2.5c: a `{"run_id"}` POINTER, never a payload — written ONLY on quant completion;
+  enriches and CLI recomputes deliberately do NOT repoint the default) then fetches `/<run_id>.json` (or
+  `/?run=<id>` directly); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
   Run identity (user name/note) lives in the `contract/runs/state/<run_id>.identity.json` SIDECAR —
   endpoint-only writer, never the state file or the artifact; three file classes coexist under
   `run_state.list_all`'s glob (state / `.composite.json` / `.identity.json` — see the V2.4c block).

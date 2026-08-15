@@ -16,6 +16,9 @@
  *   - frame profile at the exemplar's concurrency peak (scrub to t=3400, press Play, sample
  *     600 rAF deltas ≈ 10 s): p50/p95/max frame ms + fps + longtask count;
  *   - usedJSHeapSize after first render (launch with --enable-precise-memory-info).
+ *
+ * SCOPE: the nadi:* marks instrument the MOUNT path only (?run= / pointer-resolve);
+ * loadRun (in-app run switching) is unmarked — measure it here if it ever matters.
  */
 import { chromium } from '../web/node_modules/@playwright/test/index.mjs';
 

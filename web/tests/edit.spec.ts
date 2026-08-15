@@ -195,8 +195,7 @@ async function enterEditForEdges(page: Page) {
   // once before interacting.
   await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  // 20s like enterEditAndLoadJunctions: '/' loads the REAL latest.json (an arbitrary editor pointer —
-  // since the calibrated exemplar it is a ~90 MB artifact), so first paint can far exceed the 5s default.
+  // 20s: generous first-paint budget (the default artifact is the mocked pointer pair since V2.5c).
   await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('mode-edit').click();
   await expect(page.getByTestId('edit-panel')).toBeVisible();
@@ -254,7 +253,7 @@ test('the exported network renders as the base road layer (all modes)', async ({
   // once before interacting.
   await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  // map mounted — 20s: '/' loads the real (~90 MB since the exemplar) latest.json first
+  // map mounted — 20s: generous first-paint budget (mocked pointer pair since V2.5c)
   await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
   // The network loaded and set the deterministic seam — the drawn roads ARE the simulation's roads.
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);

@@ -81,6 +81,18 @@ test('excluded content appears NOWHERE in the DOM, across playback, every cascad
   await assertAbsent('report');
 });
 
+test('a malformed pointer degrades to the shell, never a render crash', async ({ page }) => {
+  // V2.5c review-caught: well-formed JSON of the WRONG shape (neither {run_id} nor an artifact)
+  // must not commit a bogus artifact — that blew up at the meta.bbox destructure in render.
+  await page.route('**/latest.json', (route) => route.fulfill({ json: { weird: true } }));
+  await page.goto('/');
+  // the LABELED loading state survives (nothing bogus committed) — no dev-overlay crash
+  await expect(page.getByText('Loading scenario…')).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(1500); // give a would-be crash time to unmount the shell
+  await expect(page.getByText('Loading scenario…')).toBeVisible();
+  await expect(page.getByTestId('scorecard-panel')).toHaveCount(0); // nothing bogus committed
+});
+
 test('the pinned specs are independent of latest.json (repoint it and they still pass)', async ({ page }) => {
   // V2.5c: latest.json is the POINTER ONLY ({run_id}) — repoint it at a social-less new_road run
   // (a ~50-byte write, no 20 MB copy) and confirm the pinned discourse view is unaffected, while
