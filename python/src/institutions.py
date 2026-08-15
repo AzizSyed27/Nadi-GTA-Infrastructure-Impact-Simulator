@@ -149,11 +149,13 @@ def _cite_response_members(rd: dict) -> dict:
         clauses.append(clause[0].upper() + clause[1:])
     text = "Response access (free-flow estimate): " + ". ".join(clauses) + "."
     # capstone: stations with a finite-baseline row somewhere but NO reachable row anywhere
+    # (baseline_routed = the single-sourced window-caused filter, shared with the report render)
+    import response_probe
     cut_off: list[str] = []
     for o in origins:
         rows = [r for m in rd.get("members", []) for e in m.get("ends", [])
                 for r in e.get("probes", []) if r.get("label") == o.get("label")]
-        probed = [r for r in rows if r.get("baseline_s") is not None]
+        probed = response_probe.baseline_routed(rows)
         if probed and all(r.get("added_s") is None for r in probed):
             cut_off.append(o["label"])
     if cut_off:

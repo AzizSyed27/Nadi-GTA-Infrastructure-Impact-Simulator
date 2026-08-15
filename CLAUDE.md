@@ -860,8 +860,14 @@ implementation).**
   coincidence note rides (600–1200 vs 600–1680). verify_facts (incl. state-label recompute)
   green on the live sidecar; 214 voices (TFS spoke the aggregated citation with all six notes,
   capstone naming 231); report audit 8 clean / 1 corrected / 0 unresolved; singleton RESTORED +
-  discourse.spec green same-arc (the V2.5a lesson). Analysis wall time trivial (~5 min run;
-  routing volume a non-issue). Screenshots `docs-assets/v25b-*.png` — the feed instBlock FITS
+  discourse.spec green same-arc (the V2.5a lesson). **Analysis-cost input for V2.5c (measured,
+  follow-up):** on the acceptance change set, `compute_response_detour` = **3.0 s net reads (×2,
+  the dominant, pre-existing cost) + 0.56 s routing = 88 `getOptimalPath` calls** (2 members ×
+  4 ends × 16 station rows × 2 nets × approach candidates) — the V2.5b routing multiplication is
+  a rounding error; the leg is net-read-bound. The harness now records it permanently:
+  `wall_clock_s` gains `analysis` (whole stage) + `response_probe` (evidence-only fields, land
+  on the NEXT run — the multimodal path only). Screenshots `docs-assets/v25b-*.png` — the feed
+  instBlock FITS
   (the citation-length acceptance check; fallback lever recorded: worst-end-only per member);
   chip wraps mid-word via the pre-existing `wordBreak: break-all` card style (V2.7 UI territory).
 - **Review catch (fixed + pinned):** the members render's no-reachable branch counted

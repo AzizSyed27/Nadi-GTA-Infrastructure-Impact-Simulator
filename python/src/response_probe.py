@@ -153,13 +153,27 @@ def _cost_to_end(net, origin, node) -> float | None:
     getOptimalPath's cost INCLUDES the from edge's and the approach edge's own traversal
     (v1_27_0 finalizeCost, source-verified: includeFromToCost adds the from edge; removeTo is 0
     when toPos is None) — "cost to arrive at the end via that approach", consistent across both
-    nets; the slight bias toward short approach edges is shared by both legs."""
+    nets; the slight bias toward short approach edges is shared by both legs.
+    SEMANTIC CONSEQUENCES (the public-safety-number check, V2.5b follow-up): the approach edge
+    is INCOMING to the end node, so its traversal ends AT the node — the returned cost is
+    genuinely "time to arrive at the end", no phantom extra edge; and the from-edge inclusion is
+    identical in both legs, so it CANCELS in added_s — unless the origin street itself is a
+    modified member, in which case its contribution is real signal, not a systematic offset."""
     best = None
     for a in _approach_edges(node):
         c = _route_seconds(net, origin, a)
         if c is not None and (best is None or c < best):
             best = c
     return best
+
+
+def baseline_routed(rows: list[dict]) -> list[dict]:
+    """Rows with a finite baseline route — the ONLY rows a window-caused claim may count (a
+    baseline-null/unmatched row was not made unreachable by the window; review-caught when the
+    report render and the citation capstone disagreed about exactly this). SINGLE SOURCE for the
+    production consumers (report render, institutions capstone); report.verify_facts keeps its
+    own literal re-derivation on purpose — a recompute that reused this could not catch its bugs."""
+    return [r for r in rows if r.get("baseline_s") is not None]
 
 
 def _origin_status(scen_net, origin_edge_id: str) -> str | None:

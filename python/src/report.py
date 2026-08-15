@@ -558,6 +558,8 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                                 problems.append(f"{iid}: members citation missing the recomputed "
                                                 f"worst figure {worst2:+g} s")
                         for o in rd2.get("origins", []):
+                            # deliberately independent of response_probe.baseline_routed — a
+                            # recompute that reused the shared filter could not catch its bugs
                             probed2 = [r for r in rows2 if r.get("label") == o.get("label")
                                        and r.get("baseline_s") is not None]
                             if probed2 and all(r.get("added_s") is None for r in probed2) \
@@ -1463,8 +1465,9 @@ def _render_response_members(rd: dict, profile: str) -> list[str]:
             else:
                 # review-caught: only finite-baseline rows are WINDOW-caused — a baseline-null/
                 # unmatched row must never inflate the "during the window" count (its own cause
-                # rides the parenthetical; the capstone/citation recomputes use the same filter)
-                caused = [r for r in rows if r.get("baseline_s") is not None]
+                # rides the parenthetical); single-sourced with the citation capstone
+                import response_probe
+                caused = response_probe.baseline_routed(rows)
                 subject = (f"all {len(caused)} stations" if len(caused) == len(rows)
                            else f"all {len(caused)} stations with a baseline route")
                 L.append(f"  - from the {e['label']}: unreachable from {subject} "

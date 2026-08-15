@@ -1731,6 +1731,11 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
               "pedestrian": count_persons(prof.ped_routes)}
     buckets = join_per_mode(ids["base_ti"], ids["scen_ti"], demand)
     run_state.set_stage(run_id, "analysis", "joining outcomes + conflicts + scorecard")
+    # V2.5b follow-up: the analysis stage is now a measured quantity (V2.5c budget input) —
+    # wall_clock_s gains "analysis" (whole stage) and "response_probe" (the end-node routing,
+    # the part V2.5b multiplied ~8-16x). Evidence-only fields, like baseline/scenario.
+    import time as _time
+    _t_analysis = _time.perf_counter()
     car_ids = [o["id"] for o in buckets["car"]["outcomes"]]
     rerouted, reroute_matched = reroute_count(ids["base_vr"], ids["scen_vr"], car_ids)
 
@@ -1785,7 +1790,9 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
         closure_extras["window_events"] = ids["window_events"]
     if change_scheduler.any_capacity_event(changes):
         import response_probe
+        _t_probe = _time.perf_counter()
         closure_extras["response_detour"] = response_probe.compute_response_detour(changes)
+        ids["wall_clock_s"]["response_probe"] = round(_time.perf_counter() - _t_probe, 1)
     # V2.2d — the school-zone lens: the ped-vehicle crossing pair on zone streets during the
     # window, counted on both FULL conflict lists (never the render sample). Tag-gated: every
     # untagged run's sidecar/run-state stays byte-identical.
@@ -1795,6 +1802,7 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
             ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s, changes, tags,
             dist_to_zone=zone_lens.net_dist_fn(net, [c.target_edge for c in changes]),
             demand_profile=profile)
+    ids["wall_clock_s"]["analysis"] = round(_time.perf_counter() - _t_analysis, 1)
 
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
         "scenario_run_id": ids["scen_id"], "baseline_run_id": ids["base_id"],
