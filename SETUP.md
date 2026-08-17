@@ -81,7 +81,10 @@ then enrich the finished run (voices → report → discourse) from its run card
 
 Notes for a fresh clone: the repo ships two complete pre-computed runs (the pinned 212-voice
 social run and a modern institutional run) — the map loads one immediately, before you ever run
-SUMO. Larger exemplars referenced in the docs (the 90 MB calibrated school-zone run) are not in
+SUMO. Built SUMO networks (`*.net.xml`) are gitignored: before anything *simulates*, regenerate
+`python/scenario/corridor.net.xml` with `netconvert` from the tracked OSM extract
+(`python/scenario/corridor_bbox.osm.xml`), then rerun `python python/src/network_export.py` so
+the web base layer matches. Larger exemplars referenced in the docs (the 90 MB calibrated school-zone run) are not in
 the repo; regenerate them with the pipeline if you need them. Scratch/index directories live
 under `%LOCALAPPDATA%` (`nadi-report-agent`, `nadi-oasis-spike`, `nadi-demand`, `nadi-enrich`)
 — deliberately outside any OneDrive-synced tree.

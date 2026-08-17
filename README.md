@@ -1,268 +1,218 @@
 # Nadi — GTA Infrastructure Impact Simulator
 
-> Preview the impact of a proposed infrastructure change — a new road, bike lane, speed limit,
-> lane/road closure, incident, or school zone — on a Toronto corridor **before** public consultation.
-> Nadi couples a SUMO traffic microsimulation with an LLM-driven stakeholder-reaction layer, shown as
-> moving dots on a map with a per-stakeholder scorecard, a credibility-first report you can query, a
-> simulated public-discourse view — plus interviewable voices, mandate-grounded institutional
-> perspectives, the tool's two graphs rendered side by side, and now full **scenario composition**:
-> draft several changes of mixed types, preview the blockers, run them as one composite, clone the
-> run that almost worked, and name what you keep.
+Nadi lets a city planner **preview** the impact of a proposed street change — a new road, a bike
+lane, a speed limit, a lane or road closure, a timed incident, a school zone — on a Toronto
+corridor *before* public consultation. It couples a real SUMO traffic microsimulation with an
+LLM-driven stakeholder-reaction layer: moving dots on a map, a per-stakeholder scorecard, ~212
+interviewable persona voices, an audited report you can question, and a simulated-discourse view —
+built so that **the tool arranges evidence and the planner concludes**, never the other way around.
 
-![The calibrated AM-peak corridor loaded in the editor](docs-assets/calibrated-run-loaded.png)
+![The pinned 212-voice run mid-playback: dots, the reaction feed, the per-stakeholder scorecard](docs-assets/v25d-hero-playback.png)
 
-**Status:** Phases 0–5 and V2.0–**V2.4** complete (tags `v2.2`, `v2.3a`, `v2.3`, `v2.4`) · Trajectory
-contract **v0.9.0** (unchanged through all of V2.4 — `changes[]` + tags have carried composition since
-v0.5.0) · Suites **439 pytest + 73 Playwright (17 specs)** · Study corridor: **Scarborough /
-Pickering / Ajax** · The *simulation* is bounded to one corridor/neighborhood, even though the framing
-is "the GTA."
+**Status:** Phases 0–5 and V2.0–**V2.5** complete (tags `v2.2` … `v2.5`) · trajectory contract
+**v0.9.0** · **471 pytest + 79 Playwright** tests · study corridor: Scarborough / Pickering / Ajax.
+The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
-It answers a planner's real question — *who wins, who loses, and what does each objection sound like?* —
-as an **anticipation**, never a verdict.
+## See it live
 
----
+A **static demo** is the fastest way in — a read-only walkthrough of pre-computed runs (deploy in
+flight; until the link lands here, [SETUP.md](SETUP.md) runs the same walkthrough locally in two
+commands). Three stops:
 
-## What it does
+1. **The bare URL** — the 212-voice run: press play, click dots, open 📄 Report and 🕸 Graphs.
+2. **`/?run=multimodal-scenario-20260814T063253Z`** — a 3-member composite (a road closure at a
+   fire station's doorstep + a speed limit + an incident) where Toronto Fire Services' published
+   mandate is read against the run's computed reachability facts.
+3. **`/?run=multimodal-scenario-20260702T044134Z&compare=multimodal-scenario-20260814T063253Z`**
+   — ⇄ Compare, including the provenance-mismatch guard doing its job on a mismatched pair.
 
-Open the map, hit **✏️ Edit**, and *compose* the scenario: every palette action — a new road between
-two junctions, a speed limit or bike lane, a lane or road closure, a timed incident — **adds a member
-to a draft** rather than firing a run. Mix types freely, window each member independently, and watch
-the draft's **blockers** surface *before* you run (the server's own rejection reasons, verbatim — a
-settled request against a severing closure, same-edge crossing windows). One **Run** submits the whole
-draft as a composite; the **🏫 school zone** is a macro that drops several streets to 30 km/h through
-the same basket. Afterwards, **⧉ clone** any past run into a fresh draft, adjust the one member that
-mattered, and rerun — and give runs a **name and note** so the picker reads like a workspace, not a
-timestamp list. The server runs each submission as a staged job and the map fills in as results land.
+Two things the demo is honest about up front. The runs are **pre-computed and real**: nothing
+simulates in the browser, and these are actual SUMO runs on calibrated Toronto open data — not
+mockups. And the live affordances are visibly disabled rather than clickable-then-failing, each
+carrying the same sentence: *"read-only walkthrough of pre-computed runs; editing, chat, and
+interviews need the local backend (SUMO + a model key) — see SETUP.md in the repo."*
+
+## The thesis: honesty as architecture
+
+Simulation plus LLMs is an easy way to build a very confident liar. Nadi's design premise is that
+every honesty property must be **structural** — enforced by code and tests, not by prompt
+etiquette. The locked decisions:
+
+- **Preview, never verdict.** The agent layer anticipates *who wins, who loses, and what each
+  objection sounds like*. It is not a referendum: no stance tallies, no sentiment averages, no
+  winner, anywhere. This is test-enforced — a banned-language sweep rides **14 of the 17
+  Playwright specs** plus a python-side sweep, so a regression toward "62% support" fails CI, not
+  a code review.
+- **No LLM per simulated vehicle.** SUMO runs *all* traffic as cheap physics; only a few hundred
+  sampled persona agents reason, each pinned to a specific simulated traveler's own measured trip.
+- **Safety = surrogate measures.** Near-miss measures (time-to-collision, hard braking, blocked
+  junctions) computed from trajectories, rendered as ±magnitude with the direction explicitly not
+  claimed — it flips across random seeds, and the tool checked. Never crash prediction.
+- **A per-stakeholder scorecard, not a single number.** Travel time / safety surrogate / access,
+  per group. No ROI, no aggregate.
+- **Numbers carry their own caveats.** Every LLM sentence passes `audit_prose` (no digits, no
+  safety direction, no tallies, no crash words — retry once, then fail loudly). The report's
+  `verify_facts` recomputes every rendered figure from the artifact and enforces that required
+  caveats actually ride their numbers. Scope limitations travel *in the artifact* — a windowed
+  change's report says out loud that the scorecard covers the full run while the change was active
+  only for its window. When something can't render, a **labeled note** says why; refusals to
+  compute look different from missing data.
+- **Institutions are never impersonated.** An institutional voice (Toronto Fire Services, TDSB,
+  Transportation Services) is deterministic — zero LLM calls: its mission is a verbatim,
+  byte-pinned quote of a sourced page with its retrieval date shown, it cites only facts this run
+  computed, and no facts means no voice (the section says why it's empty).
+- **Two graphs, two jobs.** The discourse-propagation graph and the report agent's memory graph
+  are distinct, and the UI renders them side by side to prove it.
+
+## Three things it computed (caveats included, as always)
+
+**A fire station's street, closed.** A drafted 3-member composite closed the road outside Fire
+Station 231 for a timed window. The response-reachability probe routes free-flow from all four
+real TFS stations to *each end* of every changed segment: the east end stayed reachable at
+**+1.7 s worst added time to reach** (a route survives via the street's reverse direction); the
+west end's worst was **+29.1 s**; and Station 231 itself gets a per-end labeled cause — *its own
+origin street is closed during the window, so no route from it is computable* — rather than being
+folded into an average. The riding caveats: free-flow routing, not dispatch simulation; a lower
+bound; and no claim about which station would actually respond.
+
+![TFS's mandate-lens citation of the computed reachability facts, caveats riding](docs-assets/v25b-institution-citation.png)
+
+**A school zone at bell time.** The 🏫 macro drops several streets to 30 km/h for 08:00–09:00
+under calibrated AM-peak demand, and a zone lens counts pedestrian-vehicle crossing conflicts
+near the zone in both runs: the pair came out **30 vs 28** — and the tool refuses to read it as a
+direction. Two notes ride the numbers unconditionally: *"single-seed counts; at these small event
+counts the difference between the two figures is within run-to-run variation and does not
+establish a direction"*, and the measured population is named — *pedestrian entities from the
+calibrated demand, not modeled schoolchildren*.
+
+![The calibrated school-zone run: zone tint, window badges, the windowed-scope note](docs-assets/v25d-school-zone.png)
+
+**The corridor saturates.** Under count-calibrated AM-peak demand (~67k travelers anchored to
+Toronto traffic-count open data), inflow exceeds outflow for the whole peak window and only
+**72% of demand is delivered by 09:00**. The calibration itself is reported with the same
+discipline: GEH<5 on **51.8%** of 421 links — the textbook 85% is structurally unreachable on a
+boundary-clipped extract, and the tool records that instead of tuning until the number flatters
+it. Scenario-vs-baseline comparisons stay like-for-like regardless.
+
+## What using it looks like
+
+Open ✏️ Edit and *compose*: every palette action — a new road between junctions, a speed limit, a
+bike lane, a lane/road closure, a timed incident — **adds a member to a draft** rather than firing
+a run. Members window independently; blockers surface *before* you run, speaking the server's own
+rejection strings verbatim. One **Run** submits the draft as a composite; a staged job
+(baseline → scenario → analysis) fills the map in as results land. Afterwards: enrich with voices
+(they stream in live), an audited report, and an OASIS discourse pass; **⧉ clone** any past run
+into a fresh draft to iterate; name the runs you keep. Compare two finished runs; interview any
+voice 🎤 in character — answers grounded server-side in that one agent's own recorded trip,
+passing the same live honesty guard, ephemeral by construction.
 
 ![A 3-member mixed draft — road closure, speed limit, and incident — ready to run](docs-assets/v24b-draft-3member.png)
 
-The pipeline, end to end:
+## The two graphs
 
-1. **Simulate** — SUMO runs **all** traffic (cars, bikes, pedestrians) as cheap physics — no LLM per
-   vehicle. Demand is either the synthetic demo set or a **count-calibrated AM peak** (~67k travelers
-   anchored to Toronto's traffic-count open data, t=0 == 07:00). Windowed changes apply at their start
-   time and revert at their end *inside* the run, with a capture/restore proof log — **per member** on
-   a composite, all riding one scheduler.
-2. **Compare** — a baseline-vs-scenario pair with identical demand and seeds; outcomes joined
-   per traveler (Δ travel time, Δ delay, non-completions with causally-neutral accounting). Optional:
-   **settled assignment** (iterated routes — "after drivers adapt") and **1–3 seeds**, with per-cell
-   ranges so a sign that flips across seeds is never rendered as a direction.
-3. **Score** — a per-stakeholder **scorecard** (7 groups × travel time / safety / access) with honesty
-   metadata on every cell: measured vs low-confidence, safety as ±magnitude only (direction never
-   claimed), notes that ride the artifact. On a composite, overlapping access heuristics are never
-   silently summed — the cell refuses with a both-counts note ("N of M changes affect this group's
-   access; not separable yet"). Safety comes from **surrogate near-miss measures**
-   (TTC/PET/hard-braking + a pedestrian-crossing pass) — never crash prediction. Capacity changes add
-   first-class facts: diverted counts, non-completions, and a free-flow **emergency-response detour**
-   estimate from four real Toronto Fire Services stations (labeled as routing, never dispatch) — on
-   composites the payload logs its multi-member exclusion set and says out loud that the destination
-   anchor is order-dependent ("this choice is arbitrary and affects the estimate"), in the report too.
-4. **React** — ~212 persona **voices**: vehicle- and pedestrian-pinned agents react to *their own
-   measured trip*, plus inferred community voices (business owners, residents) with no trajectory —
-   each an individual anticipated reaction, never a poll. Voices **stream in as they generate**
-   (server-sent events; a dead stream degrades to polling with a visible label, never silently). A
-   tagged school zone gets one mechanical preface; parents advocate from their own outcomes —
-   children are never ventriloquized.
-5. **Report & explore** — everything assembles into a versioned artifact and plays back in the
-   browser: sentiment-colored dots, a live comment feed keyed to each traveler's worst moment,
-   time-true overlays (a windowed closure disappears from the map when it reverts). On top of that:
-   a **5-section report** where the LLM fills only narrative slots (all numbers code-rendered, then
-   audited: no digits, no safety direction, no vote tallies, no crash words), an **"ask the report"
-   chat** over a per-run LightRAG index that cites its sources and refuses honestly, an **OASIS
-   discourse view** (opinion cascades over a social graph — illustrative texture, never a forecast),
-   and a **⇄ Compare** mode for two runs with a provenance-mismatch guard and delta cells that refuse
-   arithmetic wherever a direction isn't claimable.
-6. **Meet the agents** (V2.3) — click 🎤 on any voice and **interview it in character**: answers are
-   grounded server-side in that one agent's own recorded trip, pass the same live honesty guard as
-   the report, deflect referendum questions in character, and are ephemeral (nothing written).
-   **🏛 Institutional perspectives** speak through a mandate lens: a small roster (Toronto Fire
-   Services, TDSB, Transportation Services) whose published missions are quoted **verbatim from
-   sourced pages** (never LLM-touched, retrieval date shown) and who cite only facts this run
-   computed — no facts, no voice, and the section says why it's empty. And the **🕸 Graphs**
-   split-view finally renders the tool's two graphs side by side — *who influences whom in the
-   simulated discourse* vs *what the report's chat agent knows* — with posts withheld by the honesty
-   audit marked on the graph (the rule on hover, never the content) and no centrality leaderboard
-   anywhere.
+**Two different graphs on purpose: discourse propagation is not the chat agent's memory.** The
+🕸 Graphs view renders them side by side — *who influences whom* in the simulated discourse
+(uniform node size: no centrality leaderboard; colors by group, never stance; posts withheld by
+the honesty audit marked with their rule on hover, never their content) versus *what the report's
+chat agent knows* (the LightRAG entity graph, with its staleness relative to the run stated).
 
 ![The two graphs, visibly two graphs — OASIS discourse vs the chat agent's entity graph](docs-assets/graphs-split-view.png)
 
-## Design principles (the guardrails)
+## What's real / what's not
 
-These are locked decisions — they're what keep the tool honest:
-
-- **Preview, not verdict.** The agent layer previews *who wins, who loses, and the texture of each
-  objection*. It is not a referendum, an oracle, or a recommendation. No stance tallies, no sentiment
-  averages, no winner — anywhere.
-- **No LLM per simulated vehicle.** SUMO simulates all traffic as physics; only a few hundred sampled
-  persona agents reason, each pinned to a specific simulated traveler.
-- **Safety = surrogate measures.** Time-to-collision, hard braking, blocked junctions — computed from
-  trajectories, rendered as ±magnitude with the direction explicitly not claimed (it flips across
-  seeds). Nadi **never** claims crash prediction.
-- **Per-stakeholder scorecard, not a single ROI.** Travel time / safety surrogate / access, *per
-  group* — not one number.
-- **Numbers carry their own caveats.** What a number means rides the artifact (confidence, notes,
-  seed ranges, population disclosures like "pedestrian entities from the calibrated demand — not
-  modeled schoolchildren"), never just a docstring. Refusals to compute look different from absence.
-  On a windowed run, the **scope disclosure** says both scopes out loud — scorecard measures cover
-  the whole simulated period; the change was active for only its window of it — in the report, its
-  caveats, the chat corpus, and the scorecard panel.
-- **Institutions are never impersonated.** An institutional voice is mandate-grounded and
-  facts-gated: its mission is a verbatim, byte-pinned quote of a sourced page, it cites only
-  computed facts with their honesty sentences attached, it is deterministic (zero LLM calls), and
-  every rendering carries the disclaimer that these are not statements by the named organizations.
-  No facts → no voice.
-- **Two graphs, two jobs.** The OASIS social graph (opinion propagation) and the report agent's
-  GraphRAG memory are distinct and never conflated — and since V2.3d they render side by side,
-  visibly different, each panel stating its job.
-- **Playback, not stream-live.** Run the physics, run the agent pass batched, then replay. (The
-  enrich *progress* streams; the artifact is byte-identical either way.)
-- **Reuse libraries.** The custom work is the *glue* (SUMO↔web, edit↔network-regen) — not rebuilding
-  what SUMO / deck.gl / OASIS / LightRAG already do.
+| Real | Deliberately not |
+|---|---|
+| SUMO microsimulation of all traffic (cars, bikes, pedestrians) | Any crash prediction — safety is surrogate near-miss measures, direction unclaimed |
+| Count-calibrated AM-peak demand from Toronto open data, provenance recorded | A verdict, recommendation, or tally — the referendum guard is test-enforced |
+| Four real TFS station locations; institutional missions quoted verbatim with retrieval dates | Dispatch simulation — response numbers are free-flow lower bounds, labeled as such |
+| Windowed changes applying and reverting *inside* the run, with capture/restore proof logs | Region-scale claims — the simulation is bounded to one corridor and says so |
+| Persona voices pinned to their own measured trips | A poll — each voice is one individual anticipated reaction |
 
 ## Architecture — two worlds, one contract
 
 ```
-┌──────────────────────────────┐      frozen trajectory contract      ┌──────────────────────────┐
-│ python/  (simulation+agents) │  ──►  contract/trajectory_schema.json ──►  web/  (frontend)      │
-│ SUMO · scorecard · voices ·  │       (JSON Schema + pydantic + TS)   │  Next.js · deck.gl ·     │
-│ report+chat · OASIS ·        │              v0.9.0, versioned        │  MapLibre                │
-│ institutions · graph layouts │                                      └────────────┬─────────────┘
-└──────────────┬───────────────┘                                                   │
-               │        FastAPI job-runner (server.py, :8000)                      │
-               └─  /api/simulate · /api/runs · /api/runs/<id>/enrich/stream ·  ────┘
-                  /api/runs/<id>/identity · /api/report · /api/chat · /api/interview
+┌──────────────────────────────┐    frozen trajectory contract     ┌──────────────────────────┐
+│ python/  (simulation+agents) │ ─► contract/trajectory_schema.json ─► web/  (frontend)        │
+│ SUMO · staged harness ·      │    (JSON Schema + pydantic + TS)  │  Next.js · deck.gl ·      │
+│ scorecard · voices · report+ │           v0.9.0, versioned       │  MapLibre                 │
+│ chat (LightRAG) · OASIS ·    │                                   └────────────┬─────────────┘
+│ institutions · graph layouts │   web/public/latest.json = a POINTER           │
+└──────────────┬───────────────┘   {"run_id"} written only on quant completion; │
+               │                   per-run artifacts load by id                 │
+               │      FastAPI job-runner (server.py, :8000)                     │
+               └─  /api/simulate · /api/runs · …/enrich/stream · …/identity ·  ─┘
+                  /api/report · /api/chat · /api/interview
 ```
 
-- **`python/`** — simulation + agents: SUMO via TraCI, the staged harness, scorecard, the
-  provider-agnostic LLM layer, the report + LightRAG chat, persona interviews, the institutions
-  roster, OASIS propagation (own conda env), and the graph-layout exporter.
-- **`web/`** — Next.js + React + TypeScript; deck.gl over MapLibre renders the exported network
-  itself as the base layer (4,570 edges — the drawn roads ARE the simulation's roads).
-- **`contract/`** — the boundary is a **frozen trajectory contract**. Changing its schema means
-  bumping the version and updating *both* sides; a hook guards it. Since v0.5.0 a scenario is a
-  **list of changes** (+ optional tags); v0.9.0 added mandate-grounded institutional agents.
-
-## Repo layout
+The boundary is a **frozen contract**: changing its schema means bumping the version and updating
+both sides, and a hook guards the directory. Since v0.5.0 a scenario is a *list* of changes (+
+tags); v0.9.0 added mandate-grounded institutional agents.
 
 ```
 python/src/
-  run_sim.py              # Phase-0 spine: SUMO run → trajectory artifact
-  scenario_harness.py     # staged baseline+scenario pairs, outcome join, seed probes, CLI
-  server.py               # FastAPI job-runner: /api/simulate /runs /edges /report /chat /interview
-  change_scheduler.py     # windowed changes: apply/revert in-sim + proof log; closures; incidents
-  run_state.py            # staged run-state + the V2.4c identity sidecar (user name/note)
+  scenario_harness.py     # staged baseline+scenario pairs, outcome join, seed probes
+  server.py               # FastAPI job-runner fronting the whole pipeline
+  change_scheduler.py     # windowed apply/revert in-sim + proof logs; closures; incidents
   scorecard.py            # 7-group scorecard + honesty metadata + cross-seed ranges
-  sampler.py / personas.py / reactions.py   # pin travelers → voice them (provider-agnostic LLM)
+  sampler.py / reactions.py                 # pin travelers → voice them (provider-agnostic LLM)
   report.py / report_agent.py               # audited 5-section report + per-run LightRAG chat
-  interview.py            # in-character persona interviews (server-built grounding, live guard)
-  institutions.py/.json   # the mandate-grounded roster: verbatim missions, facts gating, citations
-  propagation.py          # OASIS discourse cascades (separate `oasis` conda env)
-  graph_export.py         # the two graphs' layouts (networkx server-side, positions-only sidecar)
-  enrich_events.py        # the SSE enrich-progress channel (env-gated; CLI stays byte-identical)
-  response_probe.py       # emergency-response detour fact (4 real TFS stations, free-flow routing)
-  zone_lens.py            # school-zone ped-vehicle conflict pair (tag-gated, caveats built in)
-  network_edit.py / network_export.py       # netconvert patches + the web base-layer export
-  demand_profiles.py / demand_calibration.py / settle.py   # demand registry · calibration · settled
-contract/                 # trajectory_schema.json (v0.9.0) + gitignored runs/
-data/                     # counts / demand / schools — open-data provenance + calibration records
-web/
-  components/             # MapView, EditPanel+palettes, DraftPanel, ScorecardPanel, CompareView,
-                          # GraphSplitView, InstitutionPanel, InterviewDrawer, …
-  lib/                    # types, loaders, compare logic, sim-time formatting, enrich stream,
-                          # draftBlockers (the client mirror of the shared rejection predicates)
-  tests/                  # 73 Playwright tests across 17 specs
-python/tests/             # 439 pytest tests (golden spine, contract gates, honesty invariants)
+  interview.py / institutions.py            # in-character interviews · the mandate-lens roster
+  response_probe.py       # per-end response reachability (4 real TFS stations, free-flow)
+  zone_lens.py / propagation.py / graph_export.py   # school-zone lens · OASIS · graph layouts
+web/                      # Next.js + deck.gl/MapLibre; the exported network IS the base layer
+contract/                 # trajectory_schema.json (v0.9.0) + runs/
+data/                     # counts / demand / schools — open-data provenance records
+scripts/                  # build-static-demo.mjs · perf-harness.mjs (measured frame budgets)
 ```
 
-## Quickstart
+## Run it yourself
 
-**Prerequisites**
-- [SUMO](https://eclipse.dev/sumo/) 1.27 (set `SUMO_HOME`; not on PATH on Windows)
-- Python (miniconda): `pydantic`, `jsonschema`, `fastapi`, `uvicorn`, `networkx`, plus
-  `python/requirements-agent.txt` for the report/chat spine
-- Node.js for `web/`
-- Keys in `python/.env` (gitignored): `DEEPSEEK_API_KEY` (report + agent pipeline pins DeepSeek),
-  `GROQ_API_KEY` (reaction layer default)
-
-> **Fresh-clone note:** built SUMO networks (`*.net.xml`) are gitignored — regenerate
-> `python/scenario/corridor.net.xml` with `netconvert` from the tracked OSM extract
-> (`python/scenario/corridor_bbox.osm.xml`) before anything simulates, then rerun
-> `python python/src/network_export.py` so the web base layer matches.
-
-**The primary flow — the editor:**
+Full local setup — SUMO 1.27, the python envs, keys per optional layer — lives in
+**[SETUP.md](SETUP.md)**. The short version:
 
 ```bash
-export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"   # per session
-cd python/src && uvicorn server:app --port 8000           # the job-runner API
-cd web && npm run dev                                     # → http://localhost:3000 → ✏️ Edit
+cd python/src && uvicorn server:app --port 8000   # the job-runner API
+cd web && npm run dev                              # → http://localhost:3000 → ✏️ Edit
 ```
 
-Add changes to the draft (mix types; each windowed independently), review the members and any
-blockers in the DraftPanel, pick run options (demand profile, day-one vs settled, seeds), **Run** —
-the RunCard tracks the staged run; then enrich with voices / report / discourse from the same card
-(voices tick in live). **⧉ Clone** a finished run back into a fresh draft to iterate, and **name**
-the runs you keep. Compare two finished runs via ⇄ Compare or `/?run=<A>&compare=<B>`; open 🕸
-Graphs on any enriched run; click 🎤 on a voice to interview it.
-
-**Tests**
+The quant pipeline (simulate → scorecard) needs **no keys**; each enrich layer (voices, report +
+chat + interviews, discourse) unlocks with one. The repo ships two complete pre-computed runs, so
+the map renders before you ever run SUMO.
 
 ```bash
-python -m pytest python/tests        # 439 tests
-cd web && npx playwright test        # 73 tests, 17 specs
+python -m pytest python/tests        # 471 tests
+cd web && npx playwright test        # 79 tests, 17 specs
 ```
 
-## Roadmap
+## History
 
-- **Phase 0 — ✅ Spine.** Corridor → SUMO → frozen artifact → moving dots + timeline.
-- **Phase 1 — ✅ Scenario + agents.** Baseline-vs-scenario, outcome join, ~12 voices, reactive map.
-- **Phase 2 — ✅ Scorecard + multimodal.** Bikes/peds, conflicts, the 7-group scorecard, 212 voices.
-- **Phase 3 — ✅ Report + chat.** Audited report; per-run LightRAG "ask the report".
-- **Phase 4 — ✅ Discourse.** OASIS opinion cascades over the voices (the second graph).
-- **Phase 5 — ✅ The editor.** The server fronts the pipeline; draw-a-road + edit-an-edge.
-- **V2.0 — ✅** Contract v0.5.0 (multi-change scenarios) + the network itself as the base map layer.
-- **V2.1 — ✅** Count-calibrated AM-peak demand, settled assignment, seed ranges, ⇄ Compare.
-- **V2.2 — ✅ (tagged `v2.2`)** Windowed changes with in-sim revert proofs, lane/road closures,
-  incidents, the response-detour fact, the full editor palette, and the **school zone** — the first
-  real composite, accepted synthetically and landed on a calibrated run (zone conflict pair 30-vs-28,
-  direction deliberately not claimed at that n). Closed out with the **windowed-scope disclosure**.
-- **V2.3 — ✅ (tagged `v2.3`)** The agent-experience layer: **SSE-streamed enrich** (voices render as
-  they generate; labeled degradation, byte-identical artifacts), **persona interviews** (in
-  character, own-outcomes-only, live-guarded, referendum questions deflected, ephemeral),
-  **mandate-grounded institutional stakeholders** (contract v0.9.0 — verbatim sourced missions,
-  facts-gated, deterministic; the fire service speaking a real computed detour was the phase's
-  headline), and the **graph split-view** — the OASIS social graph and the report's GraphRAG entity
-  graph side by side, exclusions visible with their audit rules, no influence leaderboard.
-- **V2.4 — ✅ (tagged `v2.4`)** Scenario composition: the **draft basket** becomes the editing model
-  (apply adds a member, one Run submits; draft-time blockers speak the server's own rejection
-  strings, with the LIFO window rule's boundary semantics pinned on both sides of the language
-  boundary), **mixed-type composites** run for real (the four windowable types, per-member
-  rejection matrix, per-type serializer), and both honesty paths that sat unit-pinned since V2.2d
-  finally executed **in production** — the composite scorecard's refuse-to-sum access note on a
-  live 2-closure run, and the response detour's multi-member exclusion on a live 3-member run
-  (clean primary-branch destination; the doorstep fire station honestly unreachable, worst
-  reachable +29.1 s; the exclusion set and the anchor's order-dependence logged *and* rendered).
-  Plus **⧉ clone-to-draft** (cross-version — old artifacts clone cleanly) and **run identity**:
-  a user name/note in an endpoint-only identity sidecar, injection-inert end to end, with the
-  pinned-run guard extended to identity writes.
-- **Next — V2.5** network styling over the functional-plain base layer.
-- **Further** — `BACKLOG.md`: the bbox-expansion + signal-plan rebuild (the pace probe measured the
-  boundary-clipped corridor **saturating** under calibrated AM peak — inflow > outflow all window,
-  72% of demand delivered by 09:00 — a larger net is what changes that), the rung-2 along-edge
-  detour refinement (now with a live multi-member datapoint), a calibrated windowed-closure
-  composite as a future exemplar, a real student-demand segment, periodic mandate re-verification.
+- **Phases 0–5 ✅** — spine → scenario+voices → scorecard/multimodal → audited report + chat →
+  OASIS discourse → the editor (the server fronts the pipeline).
+- **V2.0–V2.1 ✅** — multi-change contract; the network as the base layer; count-calibrated
+  demand; settled assignment (day-one **+5.05 s** vs settled **+2.31 s** on the same change —
+  adaptation absorbs about half the shock); seed ranges; ⇄ Compare.
+- **V2.2 ✅ (`v2.2`)** — windowed changes with in-sim revert proofs, closures, incidents, the
+  response probe, the school zone, the windowed-scope disclosure.
+- **V2.3 ✅ (`v2.3`)** — streamed enrich, persona interviews, mandate-grounded institutions
+  (contract v0.9.0), the graph split-view.
+- **V2.4 ✅ (`v2.4`)** — scenario composition: the draft basket, mixed-type composites, clone-to-
+  draft, run identity.
+- **V2.5 ✅ (`v2.5`)** — the presentable core: disclosure debts paid, **per-end response
+  reachability** (the fire-station fact above), the `latest.json` pointer split + the first
+  measured frame budgets, the static demo, this README.
+- **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
+  changes the saturation finding), network styling (V2.7), a real student-demand segment,
+  periodic mandate re-verification, contract payload thinning.
 
-## Tech stack
+**Stack:** SUMO 1.27 (TraCI) · FastAPI · a provider-agnostic LLM layer (DeepSeek for the
+report/agent spine, Groq for voices) · LightRAG + local MiniLM embeddings · OASIS/CAMEL ·
+networkx · Next.js · React · TypeScript · deck.gl · MapLibre.
 
-SUMO 1.27 (TraCI) · FastAPI · provider-agnostic LLM layer (DeepSeek for report/agents, Groq default
-for reactions; Gemini/OpenAI-compatible adapters) · LightRAG + local MiniLM embeddings · OASIS/CAMEL
-(separate conda env) · networkx (graph layouts) · Next.js · React · TypeScript · deck.gl · MapLibre.
-Two graphs, kept distinct: the OASIS social graph (opinion propagation) and GraphRAG (the report
-agent's memory).
-
-
+For developers: `CLAUDE.md` is the full per-phase engineering record; `BACKLOG.md` holds every
+deferred thread with its honesty notes.
 
 ---
 
-*Nadi is a stakeholder-reaction **preview**: it anticipates who wins, who loses, and the texture of
-each objection. It is not a referendum, a recommendation, or a crash predictor, and its simulation is
-bounded to a single corridor.*
+*Nadi is a stakeholder-reaction **preview**: it anticipates who wins, who loses, and the texture
+of each objection. It is not a referendum, a recommendation, or a crash predictor, and its
+simulation is bounded to a single corridor.*
