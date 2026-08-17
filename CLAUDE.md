@@ -96,7 +96,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.9.0**. Phases 0–5 and V2.0–V2.2 are COMPLETE: the ✏️ editor fronts the whole pipeline
+Contract **v0.9.0**. Phases 0–5 and V2.0–V2.5 are COMPLETE: the ✏️ editor fronts the whole pipeline
 (draw a road / speed / bike lane / lane- & road-closures / incidents / 🏫 school-zone COMPOSITES —
 windowed changes apply+revert in-sim with proof logs), demand is synthetic or calibrated AM-peak,
 assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
@@ -170,8 +170,19 @@ pointer both leave the suite green 76/76), and perf is measured-first with budge
 the rasterizer), the one indicted fix (trails data-identity memo) A/B'd 48→74 fps on the 90 MB
 exemplar, everything else measured NOT-indicted and deliberately unbuilt. Budgets (headed, prod):
 nav→first-artifact-render ≤5 s @90 MB (3.9 achieved), ≤2 s @~20 MB (1.1); playback p95 ≥30 fps (71 achieved).
-Suites: **471 pytest + 78 Playwright**.
-Open threads: **V2.5 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
+**V2.5d IS CLOSED (the presentable core) — V2.5 IS CLOSED and TAGGED `v2.5`:** a STATIC read-only
+demo build (`output:'export'` behind `NEXT_STATIC_EXPORT`; `scripts/build-static-demo.mjs` prunes
+to a 43.9 MB bundle — the pinned triple + the committed modern run
+`multimodal-scenario-20260814T063253Z`, every file <25 MiB for Cloudflare Pages; dead controls
+render DISABLED-WITH-WHY via the single-sourced `DEMO_READONLY_NOTE`, never clickable-then-failing;
+the landing page's one unlabeled failure became the labeled `artifact-load-error`, spec-pinned on
+404 + malformed shapes), stranger-facing setup docs (SETUP.md + python/requirements.txt +
+.env.example), the README rewritten for the cold 90-second reader (pre-computed AND real said
+plainly; the three computed facts carry their riding caveats verbatim; the fire-station fact
+speaks ONLY the V2.5b per-end vocabulary, verified against the committed run's TFS citation),
+curated screenshots looked at before commit, and DEPLOY.md (the CF click is the user's).
+Suites: **471 pytest + 79 Playwright**.
+Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
 probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal).
 
@@ -225,7 +236,7 @@ invariants live in the pydantic models; `dump_artifact` runs `audit_version_gate
 b: the drawn roads ARE the simulation's roads — `network_export.py` exports the canonical net to
 `web/public/network.json` (4,570 edges), the deck.gl BASE layer in all modes (basemap = CARTO
 positron-nolabels); `/api/edges` serves eligibility METADATA only; `network.json` is the single
-source of road pixels. Functional-plain styling deferred to V2.5.
+source of road pixels. Functional-plain styling deferred to V2.7.
 
 **V2.1 (a–d) — COMPLETE (contract v0.6.0→v0.8.0; calibrated demand, assignment modes, seed
 robustness, the compare view).**
@@ -939,6 +950,51 @@ measured-first; the biggest finding was about the MEASUREMENT, not the app).**
   71 fps). The contract payload rung (~50% wire waste: unused speeds, regular timestamps,
   14-decimal coords) is measured + BACKLOG'd for the 0.10.0 ceremony.
 
+**V2.5 Step d — the PRESENTABLE CORE — COMPLETE; V2.5 CLOSED and TAGGED `v2.5` (deployment
+decided, README rewritten for the cold reader, reconciliation; no contract change all phase).**
+- **Deployment ratified (a)+(c), docker skipped, video skipped (shot list committed instead):**
+  a STATIC read-only demo for Cloudflare Pages + local-setup docs. The app is a pure client SPA,
+  so `next.config.ts` gains ONLY `output: process.env.NEXT_STATIC_EXPORT ? "export" : undefined`
+  (npm run start stays intact for the perf harness). `scripts/build-static-demo.mjs`: export
+  build → prune `out/` to the demo set (the pinned triple + `network.json` + `latest-report.*` +
+  the MODERN run `multimodal-scenario-20260814T063253Z` — committed via a `.gitignore` negation,
+  check-ignore-verified, ~20 MB permanent history RATIFIED) → build-writes `out/latest.json`
+  (the pointer is never committed) → manifest + a 25 MiB/file Cloudflare guard. Bundle: 43.9 MB.
+  Smoke on the served bundle: all three walkthrough stops + the compare deep-link green.
+- **Demo honesty (user fold-ins, both landed):** dead controls are DISABLED-WITH-WHY — a
+  build-time `NEXT_PUBLIC_STATIC_DEMO` flag + single-sourced `web/lib/demo.ts` `DEMO_READONLY_NOTE`
+  ("read-only walkthrough of pre-computed runs; editing, chat, and interviews need the local
+  backend (SUMO + a model key) — see SETUP.md in the repo") rendered by every gated surface (the
+  ✏️ Edit toggle, chat form, 🎤 interviews); non-demo builds byte-identical. And the README says
+  PLAINLY that demo runs are PRE-COMPUTED and REAL (nothing simulates in the browser; actual SUMO
+  runs on calibrated Toronto data). In passing, the landing page's ONE unlabeled failure mode got
+  the labeled treatment (TDD): `artifact-load-error` early return on !r.ok / bad pointer / bad
+  shape, spec-pinned (404 + malformed cases in discourse.spec).
+- **Setup docs:** `python/requirements.txt` (authored from actual imports, pinned from the live
+  env; traci/sumolib called out as SUMO_HOME imports, NOT pip), `python/.env.example` (per-key
+  role lines), `SETUP.md` (SUMO 1.27 named LOAD-BEARING, the two-env oasis boundary, per-layer
+  key table, the fresh-clone netconvert note hoisted from the old README).
+- **README rewrite (the discipline applies to the pitch):** cold-90-second-reader structure —
+  plain pitch, demo stops, the honesty-architecture thesis (the referendum guard named as
+  TEST-enforced: the BANNED sweep rides 14 of 17 specs, counted not guessed), three computed
+  facts EACH with riding caveats (the V2.5b per-end fire-station sentence verified verbatim
+  against the committed run's TFS citation, "added time to reach" vocabulary only; the 30-vs-28
+  zone pair with variation + population notes quoted; 72%-delivered saturation with the GEH-51.8%
+  structural framing), what's-real/what's-not, the two-graphs one-liner, pointer-aware
+  architecture diagram. Traps killed: the retired anchor-arbitrariness disclosure sold as a
+  feature, the old-vocabulary +29.1 s roadmap line, the stale roadmap. Screenshots: fresh hero +
+  school-zone frame captured and LOOKED AT (the zone pair itself rides as quoted text — its
+  numbers render in the run's report, not the committed singleton; deliberate, avoids singleton
+  churn); orphan `sample-initial.png` dropped; `docs-assets/demo-shot-list.md` = the optional
+  90-second recording script.
+- **Reconciliation:** BACKLOG — compare bullet marked SHIPPED (V2.1d), tier-1/windowed-shape
+  intro rewritten SHIPPED (tiers 2/3 stay), rung-2 heading LANDED→SHIPPED, the EOF fragment
+  removed. CLAUDE.md — rollup lead V2.0–V2.5, styling deferral → V2.7 (2 sites), the
+  ARTIFACT_URL contradiction replaced with pointer semantics, test counts 471/79, perf-harness +
+  demo-build Run-commands lines. `DEPLOY.md` at repo root (docs/ is gitignored): Cloudflare
+  Pages via wrangler or connect-repo, the 25 MiB cap, why GitHub Pages project sites fail
+  (root-absolute fetches vs basePath) — the deploy click itself is the user's.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -1002,7 +1058,9 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   python python/src/sampler.py                     # sample instrumented travelers
   PROVIDER=groq python python/src/reactions.py     # LLM reactions -> v0.2.0 artifact (GROQ_API_KEY in .env)
   ```
-  Then point `web/components/MapView.tsx` `ARTIFACT_URL` at the new `/scenario-<ts>.json`.
+  The frontend resolves `web/public/latest.json` — since V2.5c a `{"run_id"}` POINTER written only
+  on quant completion (`trajectory_io.write_latest_pointer`) — or open `/?run=<id>` directly; no
+  manual URL edits anywhere.
 - **Report + agent spine** (Phase 3; extra deps in `python/requirements-agent.txt`; DeepSeek default,
   `DEEPSEEK_API_KEY` in `python/.env`):
   ```bash
@@ -1038,14 +1096,21 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
 - **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
-- **Tests:** `python -m pytest python/tests` (439 tests + 1 environmental skip: golden spine + contract
+- **Perf harness (V2.5c budgets):** `node scripts/perf-harness.mjs --headed` against a prod build
+  (`npm run build && npm run start`) — frame numbers are HEADED numbers (headless measures
+  SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
+- **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
+  demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
+- **Tests:** `python -m pytest python/tests` (471 tests + 1 environmental skip: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
-  V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections) and
-  `cd web && npx playwright test`
-  (73 tests across 17 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview, institutions, graphs, draft-basket, composite-runcard, run-identity). **Dev-only Playwright
+  V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections + the V2.5a
+  disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
+  sections) and `cd web && npx playwright test`
+  (79 tests across 17 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions, graphs, draft-basket, composite-runcard, run-identity, the V2.5b ends
+  rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.

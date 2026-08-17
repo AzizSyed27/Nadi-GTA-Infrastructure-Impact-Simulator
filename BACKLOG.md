@@ -3,23 +3,17 @@
 A home for "should I build this now?" — so scope decisions have somewhere to land instead of scattering across
 plan files. Nothing here is committed work; it's the map of what we deliberately deferred and why.
 
-## V2 editor — tiered change types
-The V1 editor ships `new_road` + runtime `speed_limit` / `bike_lane` (the palette). V2 change types, cheapest &
-most demo-worthy first:
+## V2 editor — tiered change types (tier 1 SHIPPED; tiers 2/3 open)
+Tier 1 SHIPPED in V2.2 (road/lane closures + incidents, the full palette) and the windowed-change
+contract shape was decided ONCE as prescribed (the 0.5.0 `window` field, live since V2.2 — apply/
+revert in-sim with proof logs). What remains open:
 
-- **Closures (road / lane / turn) — TIER 1, the first rung when V2 opens.** Cheap (a runtime edge/lane
-  disallow-all, mechanically like `bike_lane`'s lane-permission edit) and **spectacular** on the map — a closed
-  street reroutes visibly and hits the scorecard hard. Highest demo-value-per-effort.
 - **Sidewalk / curb-ramp patches — TIER 2 (medium).** Pedestrian-network geometry; touches the ped population +
   the SSM ped-PET pass. More plumbing than a lane edit, less than a whole vertical. (Note: `new_road` currently
   carries NO sidewalk — a sidewalk patch is the natural pairing.)
 - **Parking — its OWN vertical, NOT a palette button.** Curbside parking supply/demand is a different model
   (occupancy, search traffic, loading) — don't cram it into the change palette; if pursued, it's a separate
   feature with its own data + UI.
-- **Time-windowed changes (peak-only lanes, timed closures, HOV hours) — a CONTRACT design decision to make
-  ONCE.** The artifact/`Change` currently models a single static change in force from t=0. Time-windows mean the
-  change has a schedule → the frozen contract, the SUMO application (mid-sim `apply_change`), and the playback all
-  need a time dimension. Decide the shape deliberately before building any windowed change type.
 
 ## V2.1 calibration — foundation-level, requires recalibration
 These are the levers that move interior GEH past ~55% toward the 85% bar (diagnosis:
@@ -33,7 +27,7 @@ and no loading knob recovers it). Both are phase-opening rebuilds, never patches
 - **real signal-plan import** — replace netconvert-default green splits at arterial intersections with
   the city's coordinated timings. Shifts every baseline; requires recalibration end-to-end.
 
-## V2.2 response detour — rung 2 — LANDED in V2.5b (end-node probing replaced the anchor walk)
+## V2.2 response detour — rung 2 — SHIPPED in V2.5b (end-node probing replaced the anchor walk)
 The rung-2 design SHIPPED: per capacity-event member × per segment END NODE × per station,
 cost-to-end = min over ALL incoming passenger approaches per net (no exclusions — the mutated nets
 encode member state; the reverse partner of a one-way-closed street is just an approach),
@@ -191,7 +185,8 @@ never a drive-by reword. No mechanism until it hurts.
 
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
-- **Side-by-side run compare** — view two runs' scorecards/maps together (currently one active run + the switcher).
+- **Side-by-side run compare** — SHIPPED V2.1d as ⇄ Compare (two slim scorecard sides, the
+  provenance-mismatch guard, refused "—†" deltas where direction isn't claimable).
 - **36 fps playback** — RESOLVED by V2.5c measurement: 74 fps p50 / 71 fps p95 on the 90 MB
   exemplar (headed prod build, hardware GL) after the trails data-identity memo. The historical
   "slow playback" perception was two things: the trails re-tessellation churn (fixed, A/B'd
@@ -206,6 +201,3 @@ never a drive-by reword. No mechanism until it hurts.
 - **Vestigial legacy paths** — `scenario_harness.run_pair` / `join_outcomes` / `_print_report` and `sampler.py`'s
   flat-outcomes (`"modes" not in side`) branch are dead since `speed_limit` moved to the multimodal
   `run_quant_runtime` (5.2b). No live producer emits the flat shape; safe to delete in a dedicated cleanup step.
-
-## Features to add
-- **Multiple new Scenarios** - Adding scenarios like   

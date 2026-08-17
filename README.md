@@ -16,8 +16,8 @@ The *simulation* is bounded to one corridor, even though the framing is "the GTA
 ## See it live
 
 A **static demo** is the fastest way in — a read-only walkthrough of pre-computed runs (deploy in
-flight; until the link lands here, [SETUP.md](SETUP.md) runs the same walkthrough locally in two
-commands). Three stops:
+flight per [DEPLOY.md](DEPLOY.md); until the link lands here, [SETUP.md](SETUP.md) runs the same
+walkthrough locally in two commands). Three stops:
 
 1. **The bare URL** — the 212-voice run: press play, click dots, open 📄 Report and 🕸 Graphs.
 2. **`/?run=multimodal-scenario-20260814T063253Z`** — a 3-member composite (a road closure at a
