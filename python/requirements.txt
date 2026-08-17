@@ -1,0 +1,21 @@
+# Base environment (miniconda / python 3.13) — simulation, contract, analysis, tests.
+# Derived from the actual imports across python/src + python/tests; pins = the working env.
+#
+# NOT pip-installed on purpose:
+#   traci / sumolib / libsumo  -> come from the SUMO install (SUMO_HOME/tools, sys.path'd by run_sim.py)
+#   camel / oasis              -> the SEPARATE `oasis` conda env (python 3.11; see SETUP.md)
+# The report/chat/RAG server extras live in requirements-agent.txt (install after this file).
+
+pydantic==2.13.4
+jsonschema==4.26.0
+networkx==3.6.1
+numpy==2.4.4
+requests==2.34.2
+python-dotenv==1.2.1
+
+# the provider-agnostic LLM layer (voices): OpenAI-compatible adapters (Groq/DeepSeek/...) + Gemini
+openai==2.44.0
+google-genai==2.10.0
+
+# tests
+pytest==9.1.1
