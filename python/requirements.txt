@@ -13,6 +13,10 @@ numpy==2.4.4
 requests==2.34.2
 python-dotenv==1.2.1
 
+# the job-runner API (server.py fronts the whole pipeline — needed for the primary editor flow)
+fastapi==0.139.0
+uvicorn[standard]==0.50.0
+
 # the provider-agnostic LLM layer (voices): OpenAI-compatible adapters (Groq/DeepSeek/...) + Gemini
 openai==2.44.0
 google-genai==2.10.0

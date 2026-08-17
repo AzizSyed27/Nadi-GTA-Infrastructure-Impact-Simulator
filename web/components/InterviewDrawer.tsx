@@ -106,7 +106,9 @@ export function InterviewDrawer({
 
       {STATIC_DEMO && (
         // V2.5d demo: interviews need the live model — a property of the demo, not a failure
-        <div style={errBox} data-testid="demo-readonly-note">{DEMO_READONLY_NOTE}</div>
+        <div style={{ ...agentMsg, color: '#9aa0a6' }} data-testid="demo-readonly-note">
+          {DEMO_READONLY_NOTE}
+        </div>
       )}
       {!STATIC_DEMO && (
       <form style={form} onSubmit={send}>

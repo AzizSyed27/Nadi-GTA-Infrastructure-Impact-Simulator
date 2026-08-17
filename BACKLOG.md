@@ -119,6 +119,16 @@ shape and this removal. By V2.7 every environment has rerun a scenario (regenera
 pointer) — DELETE the `data?.meta` legacy branch in the mount effect then. A compat branch that
 works silently is the kind that lives forever; this line is its scheduled death.
 
+## V2.5d follow-on — STATIC_DEMO gating has no spec coverage (smoke-verified only)
+`NEXT_PUBLIC_STATIC_DEMO` is inlined at BUILD time, so the dev-server Playwright project can never
+exercise the demo branches (the disabled-with-why Edit toggle / chat form / interview form, the
+`DEMO_READONLY_NOTE` renders, default-vs-no-store caching). V2.5d verified them by smoke + a
+looked-at screenshot against the served bundle — procedural, not structural. The structural fix is
+a SECOND Playwright project whose webServer serves `web/out/` after `build-static-demo.mjs` (a
+handful of specs: note visible on all three gated surfaces, Edit toggle visibly disabled, the
+walkthrough stops render). Until then, any change touching `web/lib/demo.ts` or a gated surface
+re-runs the served-bundle smoke by hand.
+
 ## V2.5a follow-on — singleton/index drift hazards (the two-day-cost class)
 Both surfaced by the V2.5a forensics; both got DOC corrections only — the mechanisms are still
 live, and each already cost ~2 silent days once.

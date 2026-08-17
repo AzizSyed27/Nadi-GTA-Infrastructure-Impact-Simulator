@@ -237,8 +237,9 @@ export default function MapView() {
   useEffect(() => {
     let cancelled = false;
     // `?run=<id>` deep-links a specific run (used by tests to pin a fixture); default is the editor pointer.
-    // no-store: these are large (~20MB), frequently-rewritten aliases — don't HTTP-cache (avoids stale reads +
-    // chromium ERR_CACHE_WRITE_FAILURE on the large body).
+    // Caching is ARTIFACT_CACHE (web/lib/demo.ts): no-store in live builds — large (~20MB),
+    // frequently-rewritten aliases (avoids stale reads + chromium ERR_CACHE_WRITE_FAILURE on the
+    // large body) — but default caching in the static demo, whose files are immutable.
     const run = new URLSearchParams(window.location.search).get('run');
     const load = async () => {
       let url = run ? `/${run}.json` : ARTIFACT_URL;
@@ -1541,7 +1542,11 @@ export default function MapView() {
           💬 Discourse
         </button>
         <button
-          style={{ ...modeBtn, ...(effectiveMode === 'edit' ? modeBtnActive : null) }}
+          style={{
+            ...modeBtn,
+            ...(effectiveMode === 'edit' ? modeBtnActive : null),
+            ...(STATIC_DEMO ? modeBtnDisabled : null),
+          }}
           onClick={() => !STATIC_DEMO && setMode('edit')}
           disabled={STATIC_DEMO}
           title={STATIC_DEMO ? DEMO_READONLY_NOTE : undefined}

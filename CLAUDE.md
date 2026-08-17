@@ -994,6 +994,16 @@ decided, README rewritten for the cold reader, reconciliation; no contract chang
   demo-build Run-commands lines. `DEPLOY.md` at repo root (docs/ is gitignored): Cloudflare
   Pages via wrangler or connect-repo, the 25 MiB cap, why GitHub Pages project sites fail
   (root-absolute fetches vs basePath) — the deploy click itself is the user's.
+- **Review fixes (folded in):** the README's "every changed segment" overclaim narrowed to the
+  probed capacity-event members (the PROBED_MEMBERS_NOTE duty applies to the pitch too);
+  fastapi/uvicorn HOISTED to base `requirements.txt` (server.py fronts the PRIMARY flow — a fresh
+  clone's step-6 uvicorn hard-failed on the base-only install; the agent extras keep RAG-only
+  deps); the ✏️ Edit toggle now renders VISIBLY disabled in the demo (it was attribute-disabled
+  but visually indistinguishable — modeBtnDisabled applied, verified by a looked-at toolbar
+  screenshot on the rebuilt served bundle) and the InterviewDrawer demo note dropped the ERROR
+  styling (a property, not a failure); the STATIC_DEMO gating's no-spec-coverage gap is RECORDED
+  in BACKLOG (build-time flag → needs a second Playwright project over `web/out`; smoke-verified
+  only until then).
 
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
@@ -1101,7 +1111,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (471 tests + 1 environmental skip: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (471 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the

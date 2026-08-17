@@ -1,5 +1,5 @@
 /**
- * V2.5d — build the static read-only demo bundle (docs/DEPLOY.md has the hosting story).
+ * V2.5d — build the static read-only demo bundle (DEPLOY.md has the hosting story).
  *
  *   node scripts/build-static-demo.mjs
  *
@@ -80,4 +80,4 @@ walk(OUT);
 console.log(`[demo] pruned ${pruned} non-demo files; bundle ${(total / 1048576).toFixed(1)} MB at ${OUT}`);
 console.log('[demo] files > 1 MB:');
 for (const m of manifest.sort().reverse()) console.log('  ' + m);
-console.log('[demo] serve locally:  npx serve web/out   ·   deploy: see docs/DEPLOY.md');
+console.log('[demo] serve locally:  npx serve web/out   ·   deploy: see DEPLOY.md');

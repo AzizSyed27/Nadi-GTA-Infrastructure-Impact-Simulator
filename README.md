@@ -68,7 +68,8 @@ etiquette. The locked decisions:
 
 **A fire station's street, closed.** A drafted 3-member composite closed the road outside Fire
 Station 231 for a timed window. The response-reachability probe routes free-flow from all four
-real TFS stations to *each end* of every changed segment: the east end stayed reachable at
+real TFS stations to *each end* of every closed or incident segment (permanent members shape the
+routing but aren't separately probed — and the payload says so): the east end stayed reachable at
 **+1.7 s worst added time to reach** (a route survives via the street's reverse direction); the
 west end's worst was **+29.1 s**; and Station 231 itself gets a per-end labeled cause — *its own
 origin street is closed during the window, so no route from it is computable* — rather than being

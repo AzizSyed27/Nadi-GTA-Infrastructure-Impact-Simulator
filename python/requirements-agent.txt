@@ -2,13 +2,13 @@
 # Extra deps beyond the base simulation env. Installed into base miniconda on Windows-native,
 # Python 3.13.12. Verified working end-to-end 2026-07-04.
 #
-#   pip install lightrag-hku fastapi "uvicorn[standard]" sentence-transformers torch
+#   pip install lightrag-hku sentence-transformers torch
 #
 # Observed versions (pin loosely — these are the confirmed-good set):
 lightrag-hku==1.5.4            # RAG index over the run corpus (import name: lightrag). File-based
                               # storages only (Json/NetworkX/NanoVectorDB) — do NOT use Postgres on Windows.
-fastapi==0.139.0              # chat/report backend (requires Pydantic v2)
-uvicorn[standard]==0.50.0     # dev server:  uvicorn server:app --reload --port 8000  (run from python/src)
+# fastapi / uvicorn moved to requirements.txt (V2.5d): the job-runner serves the BASE editor
+# flow, not just this spine — install requirements.txt first and they're already present.
 sentence-transformers==5.6.0  # local embeddings: all-MiniLM-L6-v2 (dim 384) via lightrag.llm.hf.hf_embed
 torch==2.12.1                 # CPU build auto-selected on Windows; pulled in by sentence-transformers/transformers
 #
