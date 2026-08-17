@@ -81,16 +81,25 @@ test('excluded content appears NOWHERE in the DOM, across playback, every cascad
   await assertAbsent('report');
 });
 
-test('a malformed pointer degrades to the shell, never a render crash', async ({ page }) => {
+test('a malformed pointer degrades LABELED, never a render crash', async ({ page }) => {
   // V2.5c review-caught: well-formed JSON of the WRONG shape (neither {run_id} nor an artifact)
   // must not commit a bogus artifact — that blew up at the meta.bbox destructure in render.
+  // V2.5d: the failure is now LABELED (the artifact-load-error line), not an eternal spinner.
   await page.route('**/latest.json', (route) => route.fulfill({ json: { weird: true } }));
   await page.goto('/');
-  // the LABELED loading state survives (nothing bogus committed) — no dev-overlay crash
-  await expect(page.getByText('Loading scenario…')).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(1500); // give a would-be crash time to unmount the shell
-  await expect(page.getByText('Loading scenario…')).toBeVisible();
+  await expect(page.getByTestId('artifact-load-error')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('scorecard-panel')).toHaveCount(0); // nothing bogus committed
+});
+
+test('a missing default artifact degrades LABELED, never an eternal spinner', async ({ page }) => {
+  // V2.5d: the landing page was the app's ONE unlabeled failure — a 404 left a permanent
+  // silent "Loading scenario…" (no r.ok check). Now it names the condition.
+  await page.route('**/latest.json', (route) => route.fulfill({ status: 404, body: 'not found' }));
+  await page.goto('/');
+  const err = page.getByTestId('artifact-load-error');
+  await expect(err).toBeVisible({ timeout: 20_000 });
+  await expect(err).toContainText("couldn't load the scenario artifact");
+  await expect(err).toContainText('?run=');
 });
 
 test('the pinned specs are independent of latest.json (repoint it and they still pass)', async ({ page }) => {

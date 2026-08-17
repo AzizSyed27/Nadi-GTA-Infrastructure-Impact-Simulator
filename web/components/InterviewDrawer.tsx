@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import type { Agent } from '@/lib/types';
 import { agentId } from '@/lib/viz';
 import { postInterview, type InterviewMsg } from '@/lib/api';
+import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 
 /**
  * V2.3b — the interview drawer: ask ONE of this run's voices a question, in character. Session-only:
@@ -103,6 +104,11 @@ export function InterviewDrawer({
         )}
       </div>
 
+      {STATIC_DEMO && (
+        // V2.5d demo: interviews need the live model — a property of the demo, not a failure
+        <div style={errBox} data-testid="demo-readonly-note">{DEMO_READONLY_NOTE}</div>
+      )}
+      {!STATIC_DEMO && (
       <form style={form} onSubmit={send}>
         <input
           style={inputBox}
@@ -121,6 +127,7 @@ export function InterviewDrawer({
           {'Ask · <1¢'}
         </button>
       </form>
+      )}
     </div>
   );
 }

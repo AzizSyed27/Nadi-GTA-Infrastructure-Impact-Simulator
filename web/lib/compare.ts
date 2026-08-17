@@ -3,6 +3,7 @@
 // CompareView renders what these functions decide. Tested through web/tests/compare.spec.ts
 // (web/ has no vitest harness — deliberate; don't introduce one for this).
 
+import { ARTIFACT_CACHE } from './demo';
 import type { Change, Meta, Scorecard, ScorecardCell, TrajectoryArtifact } from '@/lib/types';
 import { changesOf } from '@/lib/types';
 import type { CellKind } from '@/lib/scorecardStyles';
@@ -28,7 +29,7 @@ export function slimFromArtifact(a: TrajectoryArtifact): CompareSide {
  * A shape guard covers the honest failure modes instead (a 404 HTML body, a non-artifact JSON).
  */
 export async function loadCompareSide(id: string): Promise<CompareSide> {
-  const r = await fetch(`/${id}.json`, { cache: 'no-store' });
+  const r = await fetch(`/${id}.json`, { cache: ARTIFACT_CACHE });
   if (!r.ok) throw new Error(`run artifact /${id}.json not found (HTTP ${r.status})`);
   const data = (await r.json()) as TrajectoryArtifact;
   if (typeof data?.meta?.run_id !== 'string' || typeof data?.schema_version !== 'string') {

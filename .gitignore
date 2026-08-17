@@ -48,3 +48,6 @@ docs/
 # V2.3d: the pinned run's committed graphs sidecar (the split-view fixture) — the glob above
 # hides every run's sidecar as churn, this ONE is negated back in deliberately.
 !web/public/multimodal-scenario-20260702T044134Z-graphs.json
+# V2.5d: the static demo's MODERN run (0.9.0, institutional voices + the ends chip) — committed
+# so the demo bundle + fresh clones carry a current-schema exemplar beside the pinned run.
+!web/public/multimodal-scenario-20260814T063253Z.json

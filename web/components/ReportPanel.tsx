@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import type { Scorecard, ScorecardGroup } from '@/lib/types';
 import { GROUP_LABEL, SCORECARD_GROUP_ORDER } from '@/lib/personaGroups';
+import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import { badgeLow, badgeMeas, chipInferred, chipSim, ScoreCell } from '@/lib/scorecardStyles';
 
 // The report is a SEPARATE artifact (not on the frozen trajectory contract), written by python/src/report.py
@@ -423,7 +424,7 @@ function ChatSection() {
         read the tables above.
       </div>
 
-      {messages.length === 0 && (
+      {messages.length === 0 && !STATIC_DEMO && (
         <div style={starterWrap}>
           {STARTERS.map((s) => (
             <button key={s} style={starterBtn} data-testid="chat-starter" onClick={() => ask(s)}>
@@ -462,24 +463,31 @@ function ChatSection() {
         {loading && <div style={{ ...agentMsg, color: '#9aa0a6' }}>…thinking</div>}
       </div>
 
-      <form
-        style={chatForm}
-        onSubmit={(e) => {
-          e.preventDefault();
-          ask(input);
-        }}
-      >
-        <input
-          style={chatInput}
-          data-testid="chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about this run — a group, the scorecard, the limits…"
-        />
-        <button style={chatSend} data-testid="chat-send" type="submit" disabled={loading}>
-          Ask
-        </button>
-      </form>
+      {STATIC_DEMO ? (
+        // V2.5d demo: the chat needs the live agent — say so as a property, never a failure
+        <div style={{ ...agentMsg, color: '#9aa0a6' }} data-testid="demo-readonly-note">
+          {DEMO_READONLY_NOTE}
+        </div>
+      ) : (
+        <form
+          style={chatForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            ask(input);
+          }}
+        >
+          <input
+            style={chatInput}
+            data-testid="chat-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about this run — a group, the scorecard, the limits…"
+          />
+          <button style={chatSend} data-testid="chat-send" type="submit" disabled={loading}>
+            Ask
+          </button>
+        </form>
+      )}
     </div>
   );
 }

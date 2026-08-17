@@ -5,6 +5,7 @@ import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { PathStyleExtension } from '@deck.gl/extensions';
 import { fmtWindowRange } from '@/lib/simTime';
+import { ARTIFACT_CACHE, DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, LineLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
@@ -166,6 +167,8 @@ function DeckOverlay({
 
 export default function MapView() {
   const [artifact, setArtifact] = useState<TrajectoryArtifact | null>(null);
+  // V2.5d: the default-artifact load failure is LABELED (was the app's one eternal spinner)
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [selected, setSelected] = useState<PinnedSimAgent | null>(null);
   // V2.3b — the interview drawer: which voice is being interviewed + per-agent SESSION transcripts
@@ -240,7 +243,8 @@ export default function MapView() {
     const load = async () => {
       let url = run ? `/${run}.json` : ARTIFACT_URL;
       try {
-        let r = await fetch(url, { cache: 'no-store' });
+        let r = await fetch(url, { cache: ARTIFACT_CACHE });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         // V2.5c perf marks (permanent, read by scripts/perf-harness.mjs): fetch-to-parse split
         performance.mark('nadi:parse:start');
         let data = (await r.json()) as TrajectoryArtifact & { run_id?: string };
@@ -249,7 +253,8 @@ export default function MapView() {
           // V2.5c: latest.json is the POINTER — resolve it to the per-run artifact
           if (cancelled) return; // don't issue the (large) second fetch for a dead mount
           url = `/${data.run_id}.json`;
-          r = await fetch(url, { cache: 'no-store' });
+          r = await fetch(url, { cache: ARTIFACT_CACHE });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
           performance.mark('nadi:parse:start');
           data = (await r.json()) as TrajectoryArtifact;
           performance.mark('nadi:parse:end');
@@ -269,12 +274,16 @@ export default function MapView() {
           // WRONG shape (neither {run_id} nor an artifact) must not commit a bogus artifact —
           // it would blow up at the meta.bbox destructure in render, eating the app shell.
           console.error(`failed to load ${url}: unrecognized artifact/pointer shape`);
+          setLoadError(`${url} — unrecognized artifact/pointer shape`);
           return;
         }
         setCurrentTime(art.meta.sim_start);
         setArtifact(art);
       } catch (e) {
+        // V2.5d: the landing page was the app's ONE unlabeled failure (a 404 left an eternal
+        // silent spinner) — name the condition instead.
         console.error(`failed to load ${url}`, e);
+        if (!cancelled) setLoadError(`${url} — ${e instanceof Error ? e.message : String(e)}`);
       }
     };
     void load();
@@ -413,7 +422,7 @@ export default function MapView() {
       setGraphsSidecar((cur) => (cur?.runId === runId && cur.loading ? next : cur));
     (async () => {
       try {
-        const r = await fetch(`/${runId}-graphs.json`, { cache: 'no-store' });
+        const r = await fetch(`/${runId}-graphs.json`, { cache: ARTIFACT_CACHE });
         if (!r.ok) {
           settle({ runId, data: null, loading: false, error: true });
           return;
@@ -654,7 +663,7 @@ export default function MapView() {
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
     try {
-      const r = await fetch(`/${id}.json`, { cache: 'no-store' });
+      const r = await fetch(`/${id}.json`, { cache: ARTIFACT_CACHE });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
       const data = (await r.json()) as TrajectoryArtifact;
       setArtifact(data);
@@ -1066,7 +1075,14 @@ export default function MapView() {
   }, [draft, draftTags, hoveredDraftId]);
 
   if (!artifact) {
-    return <div style={loading}>Loading scenario…</div>;
+    return loadError ? (
+      <div style={loading} data-testid="artifact-load-error">
+        couldn&apos;t load the scenario artifact ({loadError}) — if you&apos;re running locally,
+        complete a run or open a ?run=&lt;id&gt; link.
+      </div>
+    ) : (
+      <div style={loading}>Loading scenario…</div>
+    );
   }
 
   const { meta } = artifact;
@@ -1526,7 +1542,9 @@ export default function MapView() {
         </button>
         <button
           style={{ ...modeBtn, ...(effectiveMode === 'edit' ? modeBtnActive : null) }}
-          onClick={() => setMode('edit')}
+          onClick={() => !STATIC_DEMO && setMode('edit')}
+          disabled={STATIC_DEMO}
+          title={STATIC_DEMO ? DEMO_READONLY_NOTE : undefined}
           data-testid="mode-edit"
         >
           ✏️ Edit
