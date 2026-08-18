@@ -185,6 +185,13 @@ Suites: **471 pytest + 79 Playwright**.
 Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
 probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal).
+**Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
+`v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
+regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
+(DEPLOY.md has the wrangler commands). When the live `*.pages.dev` URL exists, it replaces the
+"deploy in flight" placeholder in README "See it live" — the ONE pending README edit,
+deliberately blocked on the deploy. `main` + all five annotated tags (v2.2–v2.5) are pushed to
+origin as of this handoff.
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM
