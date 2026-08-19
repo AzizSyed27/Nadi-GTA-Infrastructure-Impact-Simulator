@@ -156,6 +156,33 @@ class InterviewReq(BaseModel):
     transcript: list[InterviewTurn] = []
 
 
+class GroupTurn(BaseModel):
+    """V2.6a — one SHARED-room transcript turn. Agent turns carry the V2.3b id+index ref so the
+    server can attribute the utterance ('<label> said:') and detect self ('You said:'); an
+    unresolvable ref degrades to 'Another participant said:' — never a 400 (the agent set may have
+    drifted under a re-enrich; the honesty guard is the floor for the content either way)."""
+
+    role: Literal["user", "agent"]
+    text: str
+    agent_id: str | None = None
+    agent_index: int | None = None
+
+
+class GroupAgentRef(BaseModel):
+    agent_id: str  # vehicle_id ?? person_id ?? persona.id — the web/lib/viz.ts agentId convention
+    agent_index: int | None = None  # sibling disambiguation (the V2.3b lesson)
+
+
+class GroupInterviewReq(BaseModel):
+    """V2.6a — one question to a ROOM of 3-5 voices. Like the single interview, the client sends
+    IDS, never facts: each speaker's grounding is built server-side from its OWN records only."""
+
+    run_id: str
+    agent_refs: list[GroupAgentRef]  # 3..5, validated in the handler (plain 400s, not 422s)
+    question: str
+    transcript: list[GroupTurn] = []
+
+
 @app.get("/api/report")
 async def get_report():
     if not LATEST_REPORT.is_file():
@@ -277,6 +304,67 @@ async def interview_endpoint(req: InterviewReq):
     return {"answer": text, "audit": audit, "grounding": agent.get("grounding", "sim"),
             "run_id": req.run_id, "agent_id": req.agent_id,
             "persona_label": (agent.get("persona") or {}).get("label", "")}
+
+
+@app.post("/api/group-interview")
+async def group_interview_endpoint(req: GroupInterviewReq):
+    """V2.6a — one question to a ROOM of 3-5 of a run's voices, sequential in agent_refs order.
+    Each speaker's grounding is built independently (interview.build_grounding UNCHANGED — the
+    leakage matrix holds structurally); each answer is appended to the shared transcript before the
+    next speaker generates, so cross-agent content flows ONLY through actual utterances. EPHEMERAL
+    like /api/interview: reads the artifact, writes nothing, deliberately outside the one-job lock.
+    Guard failures are CONTENT (200 + per-speaker audit); one refusal never aborts the room."""
+    q = (req.question or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="ask a question")
+    if len(q) > interview.QUESTION_MAX_CHARS:
+        raise HTTPException(status_code=400,
+                            detail=f"question too long (max {interview.QUESTION_MAX_CHARS} chars)")
+    n = len(req.agent_refs)
+    if not (interview.GROUP_MIN_AGENTS <= n <= interview.GROUP_MAX_AGENTS):
+        raise HTTPException(
+            status_code=400,
+            detail=f"agent_refs must list {interview.GROUP_MIN_AGENTS}.."
+                   f"{interview.GROUP_MAX_AGENTS} participants (got {n})")
+    try:
+        ctx = await asyncio.to_thread(interview.load_run_context, req.run_id)
+    except interview.RunNotFound:
+        raise HTTPException(status_code=404,
+                            detail=f"no artifact for run {req.run_id!r} — run the simulation first")
+    except interview.RunNotEnriched:
+        raise HTTPException(status_code=409,
+                            detail=f"run {req.run_id!r} has no voices yet — run the voices enrich first")
+    participants: list[tuple[GroupAgentRef, dict]] = []
+    for i, ref in enumerate(req.agent_refs):
+        a = interview.find_agent(ctx, ref.agent_id, ref.agent_index)
+        if a is None:
+            raise HTTPException(status_code=404,
+                                detail=f"no agent {ref.agent_id!r} (agent_refs[{i}]) in run {req.run_id!r}")
+        participants.append((ref, a))
+    # Duplicates by RESOLVED record (object identity), never ref equality: ("veh0", None) and
+    # ("veh0", 0) are one voice; two SIBLINGS sharing persona.id are two distinct voices.
+    seen_records: set[int] = set()
+    for i, (ref, a) in enumerate(participants):
+        if id(a) in seen_records:
+            raise HTTPException(status_code=400,
+                                detail=f"agent_refs[{i}] ({ref.agent_id!r}) duplicates an earlier participant")
+        seen_records.add(id(a))
+    try:
+        client = _interview_client()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    working = [t.model_dump() for t in req.transcript]
+    answers = []
+    for ref, agent in participants:
+        text, audit = await interview.room_answer(client, ctx, agent, q, working)
+        answers.append({"answer": text, "audit": audit,
+                        "grounding": agent.get("grounding", "sim"),
+                        "agent_id": ref.agent_id, "agent_index": ref.agent_index,
+                        "persona_label": (agent.get("persona") or {}).get("label", "")})
+        working.append({"role": "agent", "text": text,
+                        "agent_id": ref.agent_id, "agent_index": ref.agent_index})
+    return {"run_id": req.run_id, "question": q, "answers": answers,
+            "llm_calls": sum(a["audit"].get("calls", 0) for a in answers)}
 
 
 # ===================================================================================================
