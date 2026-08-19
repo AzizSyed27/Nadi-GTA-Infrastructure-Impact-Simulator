@@ -4,6 +4,7 @@ The [static demo](README.md#see-it-live) is a read-only walkthrough of pre-compu
 page is for running the tool yourself — drawing changes, running simulations, generating voices
 and reports. The stack is Windows-native (that's where it's developed and tested); the pieces:
 
+
 | Piece | What it unlocks | Required? |
 |---|---|---|
 | SUMO 1.27 | everything — the traffic physics | yes |
