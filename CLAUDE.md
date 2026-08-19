@@ -182,9 +182,19 @@ plainly; the three computed facts carry their riding caveats verbatim; the fire-
 speaks ONLY the V2.5b per-end vocabulary, verified against the committed run's TFS citation),
 curated screenshots looked at before commit, and DEPLOY.md (the CF click is the user's).
 Suites: **471 pytest + 79 Playwright**.
-Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
-re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
-probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal).
+**V2.6a IS COMPLETE (the group-interview ROOM, server-side):** `POST /api/group-interview` — 3-5
+voices answer one question SEQUENTIALLY in refs order, each hearing the others' ACTUAL WORDS only
+(grounding per speaker via the UNCHANGED builder — the leakage matrix pinned at both layers;
+institutions never gain traveler records); the ROOM-ONLY `cross_participant` guard rule with
+per-speaker keying + a CONJUNCTION-AWARE disclaimer strip (review catch — a comma-less "but
+everyone here agrees" rode the licensed disclaimer clean); refusals are answers, a room never
+aborts; every audit dict now carries `calls` (the V2.6b cost-label input). Ephemeral, no contract
+change. Suites: **522 pytest + 79 Playwright**.
+Open threads: **the V2.6b room UI** + **V2.7 network styling** + `BACKLOG.md` (bbox expansion,
+student demand, mandate re-verification, the calibrated composite exemplar, the singleton/index
+drift guards, per-window probing at rung 3, the contract payload rung ~50%, the V2.7
+legacy-fallback removal, the SHARED disclaimer-strip conjunction hole, the room sibling-label
+collision).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1012,6 +1022,77 @@ decided, README rewritten for the cold reader, reconciliation; no contract chang
   in BACKLOG (build-time flag → needs a second Playwright project over `web/out`; smoke-verified
   only until then).
 
+**V2.6 Step a — the ROOM, server-side — COMPLETE (group interviews; ephemeral like V2.3b, no
+contract change; the plan's review blocker fixed + pinned same-arc).**
+- **`POST /api/group-interview {run_id, agent_refs[3..5], question, transcript}`** — refs use the
+  V2.3b id+index addressing; DUPLICATES rejected by RESOLVED-record identity, never ref equality
+  (`("veh0", None)` ≡ `("veh0", 0)` is one voice; two same-persona.id SIBLINGS are two legal
+  voices); per-ref 404 names the failing position (`agent_refs[i]`); refs count = manual 400 with
+  the `3..5` detail; otherwise the single endpoint's exact matrix (400 empty/oversize q, 404/409
+  on load, 503 no key, NO one-job lock, guard failures = 200 + per-speaker audit).
+- **Sequential generation in agent_refs order** — each speaker's grounding is built independently
+  by the UNCHANGED `build_grounding` (the structural leakage guarantee carries over verbatim);
+  each answer is appended to the shared working transcript before the next speaker generates, so
+  cross-agent content flows ONLY through actual utterances. The leakage matrix is pinned at BOTH
+  layers (unit prompt-build + endpoint recorded-prompts): B's markers/digits/minute-forms absent
+  from A's prompts always, B reaches A only as B's attributed utterance, institution C never gains
+  either traveler's records (mandate grounding stays mission+citations). One speaker's refusal is
+  that speaker's ANSWER (audit-clean by pin) and rides into later speakers' context — the room
+  never aborts.
+- **Transcript wire** — turns `{role, text, agent_id?, agent_index?}`: the SERVER resolves
+  attribution ("<label> said:"), detects self by resolved-record OBJECT identity ("You said:" —
+  index-qualified refs mark exactly one sibling), and degrades unresolvable refs to "Another
+  participant said:" (never a 400 — membership drifts under re-enrich; the guard floors content).
+  Per-speaker flatten, header "EARLIER IN THIS GROUP INTERVIEW (oldest first):",
+  `ROOM_TRANSCRIPT_MAX_TURNS = 24` × the same `TURN_MAX_CHARS`.
+- **The room guard (`audit_room_utterance`)** = `audit_interview` per utterance with PER-SPEAKER
+  keying (a mixed room's mandate speaker keeps operational/first_person while a sim speaker's
+  household-we stays legal, endpoint-pinned) + the ROOM-ONLY `_CROSS_PARTICIPANT` family
+  (quantifier-of-us / room-deixis+stance / collective-subject+stance / speaking-for; every
+  must-trip form is deliberately `_TALLY`-INVISIBLE — the gap the rule exists to fill; "back" is
+  support-sense only, spatial "went back to" review-FP-fixed; "speaking for" is gerund-only so the
+  GOOD deflection "I can't speak for everyone here" stays legal). Planted-consensus laundering
+  pinned end-to-end (the echo dies at the guard with rule `cross_participant`). **Review-caught
+  BLOCKER fixed: the room's disclaimer strip is CONJUNCTION-AWARE** — `_ROOM_CLAUSE_BOUNDARY` adds
+  `but|though|although|however|yet` to report's punctuation-only boundary, because "I can't predict
+  crashes but everyone here agrees it's better." previously rode the licensed disclaimer to a CLEAN
+  audit. ROOM-LOCAL on purpose: the SHARED strip's identical hole (verdict/tally/crash smuggling
+  via comma-less conjunctions in report slots / chat / single interviews / the room's inherited
+  legs) is a recorded BACKLOG decision — widening it tightens every consumer and shifts the
+  audit-retry baseline (the V2.5a precedent), so it must not land as a side effect.
+- **The guarded loop is EXTRACTED, not duplicated** — `interview._guarded_generate(client, agent,
+  system, user, audit_fn, retry_extra)`: `answer()` is a thin wrapper (public signature + behavior
+  unchanged), `room_answer()` the sibling (`audit_fn=audit_room_utterance` + `ROOM_RETRY_EXTRA`).
+  EVERY audit dict now carries **`calls`** (1 clean/error-first, 2 with retry — generations this
+  module issued, NOT `report._call`'s internal transport retries; the adapter's `usage["calls"]`
+  is a process-lifetime singleton, unusable per-request). Room response = `{run_id, question,
+  answers[{agent_id, agent_index, persona_label, grounding, answer, audit}], llm_calls}` with
+  `llm_calls` = the per-turn sum — the V2.6b client cost label derives from it; the single
+  endpoint inherits `audit.calls` additively (endpoint-pinned).
+- **Room constitutions are ADDENDA constants** (`ROOM_ADDENDUM`, `INSTITUTION_ROOM_ADDENDUM`)
+  between the UNEDITED base constitution and grounding — single-interview prompts stay byte-stable
+  (pinned: no room material in `build_system`, whose output equals the pre-refactor literal
+  composition; `_SIM_SHAPE`/`_MANDATE_SHAPE` extracted). The institutional addendum licenses
+  acknowledging, third person, what a specific participant SAID while content stays mandate+facts
+  only. System prompts stay turn-invariant per speaker (prefix caching); everything shared rides
+  the user message — this-round answers render inside the room-transcript block before the
+  restated question (the literal "appended before the next agent generates" reading; a separate
+  this-round block is a `build_room_user`-local change if ever wanted).
+- **Ephemerality extended** (a full room POST changes nothing under RUNS_DIR, STATE_DIR never
+  created). Tests: `test_group_interview.py` ×32 (guard family both directions, FP set incl. the
+  conjunction + spatial-back pins, flatten attribution/sibling/caps, addenda, byte-stability, the
+  unit leakage matrix) + `test_group_interview_endpoint.py` ×19 (validation matrix, room order +
+  calls, recorded-prompt leakage, refusal-doesn't-abort, planted consensus, mixed-room mandate
+  keying, self/neutral attribution, cap, ephemerality, the single endpoint's additive `calls`).
+  Suites: **522 pytest + 79 Playwright** (no web change; full Playwright rerun green).
+- **Env findings (this box, 2026-08-19):** ruff and pyright are ABSENT (not pip-installed, not on
+  PATH) — the format hook's python legs (`ruff format` / `ruff check --fix`) currently soft-fail,
+  and NO ruff config exists in the repo, so pip-installing ruff would ARM a configless formatter
+  against non-default-formatted code — the V2.5a prettier hazard class exactly (verified: `ruff
+  format --check` wants to rewrite pre-existing files; ruff was uninstalled again, as-found).
+  Types were checked via `npx pyright@1.1.413`: interview.py clean; server.py's 8 errors are all
+  pre-existing (lines 529-782, the job-runner region), none in the V2.6a additions.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -1118,13 +1199,13 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (471 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (522 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
   V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections + the V2.5a
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
-  sections) and `cd web && npx playwright test`
+  sections + the V2.6a group-interview room/endpoint sections) and `cd web && npx playwright test`
   (79 tests across 17 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, the V2.5b ends
   rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright

@@ -193,6 +193,25 @@ source pages, confirm or update the mission text, and refresh `retrieved` + `_pr
 mandate byte-identity pin (`test_institutions.py`) means an update is a deliberate roster edit,
 never a drive-by reword. No mechanism until it hurts.
 
+## V2.6a group interviews — deferred honesty edges (both review-surfaced 2026-08-19)
+- **The SHARED disclaimer strip's conjunction hole (user decision — baseline shift).** report's
+  `_CLAUSE_BOUNDARY` is punctuation-only (`[,;:—–]`), so a COMMA-LESS conjunction lets a claim ride
+  a licensed disclaimer to a clean audit in EVERY consumer of `_strip_disclaimers`: "I can't give a
+  verdict but the city should approve it" passes `audit_prose`/`audit_interview`/the cascade today.
+  V2.6a fixed this for the ROOM's cross-participant leg only (`interview._ROOM_CLAUSE_BOUNDARY`
+  adds `but|though|although|however|yet`; room-local by design) — the room's INHERITED legs
+  (verdict/tally/crash) and the single-interview/report/chat paths still carry the hole. Fixing it
+  properly means widening the shared boundary, which TIGHTENS the guard everywhere → a
+  corrected-on-retry baseline shift (the V2.5a precedent: announce the shift, re-baseline, don't
+  read it as model drift). Deliberate decision, not a drive-by.
+- **Sibling label collision in room attribution (V2.6b UI concern).** Two sibling voices sharing
+  one persona.id (and thus one LABEL) are legal, distinct room participants — but both attribute
+  as "Omar, taxpayer said:" in every speaker's transcript, indistinguishable to the model and to
+  any future transcript UI. Id resolution IS disambiguated (index-qualified, object-identity
+  self-detection); only the rendered label collides. The room UI should disambiguate labels or
+  steer away from same-label rooms; a server-side suffix would put digits/markers into prompt text
+  — decide at V2.6b, not silently here.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — SHIPPED V2.1d as ⇄ Compare (two slim scorecard sides, the
