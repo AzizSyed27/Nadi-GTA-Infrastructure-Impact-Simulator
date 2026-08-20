@@ -144,6 +144,9 @@ def test_build_artifact_composite_with_tags_validates(tmp_path) -> None:
         bbox=BBOX, sim_end=100.0, step=1.0)
     path = trajectory_io.dump_artifact(art, path=tmp_path / "composite-test.json")  # validates
     raw = json.loads(path.read_text(encoding="utf-8"))
+    # V2.6c/D6a wire-shape pin: the producer emits 0.10.0 and speeds never reach the wire
+    assert raw["schema_version"] == "0.10.0"
+    assert all("speeds" not in v for v in raw["vehicles"])
     scen = raw["meta"]["scenario"]
     assert len(scen["changes"]) == 2
     assert scen["tags"] == ["school_zone"]

@@ -931,6 +931,24 @@ def compute_ped_conflicts(xy_tracks: dict, net, bbox: list[float]) -> list[dict]
     return conflicts
 
 
+def stamp_worst_t(buckets: dict, records: dict) -> None:
+    """V2.6c/D6a — stamp each outcome's ``worst_t`` (the traveler's worst-moment sim time) into the
+    outcomes buckets while speeds are still IN MEMORY. The sampler is a detached downstream
+    subprocess whose only other input was the wire ``speeds`` — dropped at 0.10.0. Iterates the
+    RECORDS dict, so teleport-gapped entities are stamped IDENTICALLY (no compact-eligibility
+    branch anywhere near this — F5), and it runs in the same breath the builder drops speeds, so
+    the 'new shape, no speeds, no worst_t' state is impossible by construction (F6). Outcome ids
+    absent from records (non-rendered entities on capped runs) stay honestly unstamped — the
+    sampler only ever samples artifact entities."""
+    from sampler import worst_moment  # lazy: sampler imports trajectory_io/personas, never this module
+
+    for mode in buckets.values():
+        for o in mode.get("outcomes", []):
+            rec = records.get(o.get("id"))
+            if rec is not None:
+                o["worst_t"] = worst_moment(rec["timestamps"], rec["speeds"])
+
+
 def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: str, baseline_run_id: str,
                               changes: list[Change], tags: list[str] | None = None,
                               target_lane: int | None = None, bbox: list[float], sim_end: float,
@@ -944,12 +962,14 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
     capped render sample and meta.render_sample carries the rendered-vs-total counts. V2.2d: takes the
     change LIST + optional tags — single-change runs stay shape-identical (target_lane stamped only on
     a lone change; composite members never carry one)."""
+    # V2.6c/D6a — speeds stay IN-MEMORY only (worst_t is stamped into the outcomes sidecar from
+    # the same records dict; the SSM/PET passes never read wire speeds): the artifact drops them.
     vehicles = [
-        Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
+        Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"])
         for vid, r in records.items() if r["type"] in ("car", "bicycle")
     ]
     persons = [
-        Person(id=pid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
+        Person(id=pid, type=r["type"], path=r["path"], timestamps=r["timestamps"])
         for pid, r in records.items() if r["type"] == "pedestrian"
     ]
     if not vehicles:
@@ -1654,6 +1674,7 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
 
     conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
     records, render_meta = _resolve_records_for_artifact(ids, buckets, profile)
+    stamp_worst_t(buckets, records)  # V2.6c: worst_t rides the outcomes sidecar (speeds leave the wire)
     from render_sample import stratify_conflicts
     conflicts_render = stratify_conflicts(conflicts_s, prof.conflict_cap)  # artifact stream only
     artifact = build_multimodal_artifact(
@@ -1741,6 +1762,7 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
 
     conflicts_s = ids["conf_s"]["ssm"] + ids["conf_s"]["ped"]
     records, render_meta = _resolve_records_for_artifact(ids, buckets, profile)
+    stamp_worst_t(buckets, records)  # V2.6c: worst_t rides the outcomes sidecar (speeds leave the wire)
     from render_sample import stratify_conflicts
     conflicts_render = stratify_conflicts(conflicts_s, prof.conflict_cap)  # artifact stream only
     artifact = build_multimodal_artifact(

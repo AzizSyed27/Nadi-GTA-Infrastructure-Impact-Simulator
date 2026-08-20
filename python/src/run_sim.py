@@ -304,7 +304,8 @@ def build_artifact(
             scenario=scenario,
         ),
         vehicles=[
-            Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"], speeds=r["speeds"])
+            # V2.6c/D6a: speeds are recorded in memory but DROPPED from the wire (0.10.0)
+            Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"])
             for vid, r in records.items()
         ],
     )

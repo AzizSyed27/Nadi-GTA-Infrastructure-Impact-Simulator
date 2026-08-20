@@ -109,6 +109,27 @@ def evenly_spaced(items: list[dict], k: int) -> list[dict]:
     return [items[j] for j in sorted(idxs)[:k]]
 
 
+class SpeedsUnavailableError(RuntimeError):
+    """V2.6c — a 0.10.0 artifact carries no wire speeds: trigger_t must come from the outcomes
+    sidecar's ``worst_t`` (stamped by the harness whenever it drops speeds). Reaching this error
+    means the stamp is missing — fail LOUDLY with a named error; a detached subprocess must never
+    quietly compute against a missing field."""
+
+
+def trigger_time_for(o: dict, ent) -> float:
+    """The V2.6c dual-path: the sidecar ``worst_t`` (0.10.0 runs) ?? the legacy wire-speeds
+    computation. The fallback's vintage boundary is exact — only genuinely old artifacts reach it,
+    and they still carry speeds; a new-shape entity without worst_t raises the named backstop."""
+    wt = o.get("worst_t")
+    if wt is not None:
+        return float(wt)
+    if ent.speeds is None:
+        raise SpeedsUnavailableError(
+            f"entity {ent.id!r}: no wire speeds (0.10.0 artifact) and no worst_t in the outcomes "
+            "sidecar — the harness must stamp worst_t whenever it drops speeds")
+    return worst_moment(ent.timestamps, ent.speeds)
+
+
 def worst_moment(timestamps: list[float], speeds: list[float], stop_eps: float = STOP_EPS) -> float:
     """Sim-time of a traveler's worst moment: START of the longest stop, else the lowest-speed instant.
 
@@ -179,7 +200,7 @@ def build_instrumented(
                 "vehicle_id": o["vehicle_id"],
                 "persona": persona.model_dump(),
                 "outcome": outcome5,
-                "trigger_t": worst_moment(v.timestamps, v.speeds),
+                "trigger_t": trigger_time_for(o, v),
             }
         )
 
@@ -291,7 +312,7 @@ def build_instrumented_multimodal(outcomes_path: Path, counts: dict[str, int], u
             records.append({
                 "grounding": "sim", "mode": mode, pin: o["id"],
                 "persona": persona.model_dump(), "outcome": outcome5,
-                "trigger_t": worst_moment(ent.timestamps, ent.speeds),
+                "trigger_t": trigger_time_for(o, ent),
             })
 
     inferred = by_mode.get("inferred", [])
