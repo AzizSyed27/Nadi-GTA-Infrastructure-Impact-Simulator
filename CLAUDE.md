@@ -189,12 +189,21 @@ institutions never gain traveler records); the ROOM-ONLY `cross_participant` gua
 per-speaker keying + a CONJUNCTION-AWARE disclaimer strip (review catch — a comma-less "but
 everyone here agrees" rode the licensed disclaimer clean); refusals are answers, a room never
 aborts; every audit dict now carries `calls` (the V2.6b cost-label input). Ephemeral, no contract
-change. Suites: **522 pytest + 79 Playwright**.
-Open threads: **the V2.6b room UI** + **V2.7 network styling** + `BACKLOG.md` (bbox expansion,
-student demand, mandate re-verification, the calibrated composite exemplar, the singleton/index
-drift guards, per-window probing at rung 3, the contract payload rung ~50%, the V2.7
-legacy-fallback removal, the SHARED disclaimer-strip conjunction hole, the room sibling-label
-collision).
+change. Suites: **522 pytest + 79 Playwright**. **V2.6b IS COMPLETE (the room in the UI — V2.6 IS
+CLOSED):** rooms assemble from trailing ＋ buttons on every feed row kind + 👥 panel buttons
+({agent, index} pairs resolved ONCE by reference); the RoomDrawer rail card shows per-participant
+grounding sentences (the shared `GROUNDING_SENTENCES` export), a speaker-labeled thread with
+per-answer guard notes, the D3 curation note ("voices you picked… not a poll or a sample of
+opinion"), and the never-understating cost pair (estimate + hedged actuals); transport = the
+RATIFIED `speak` param (per-speaker sequential fetches — answers render as each resolves, the
+thinking row on the CURRENT speaker, a failed slot retries without killing the room, a
+synchronous ref gate kills double-POSTs); the doctored-prefix pins prove the client-assembled
+transcript can't reach grounding or forge attribution. Suites: **528 pytest + 88 Playwright**.
+Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
+re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
+probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal, the SHARED
+disclaimer-strip conjunction hole, the room's prompt-side sibling-label ambiguity — its UI half
+closed in V2.6b).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1093,6 +1102,74 @@ contract change; the plan's review blocker fixed + pinned same-arc).**
   Types were checked via `npx pyright@1.1.413`: interview.py clean; server.py's 8 errors are all
   pre-existing (lines 529-782, the job-runner region), none in the V2.6a additions.
 
+**V2.6 Step b — the ROOM in the UI — COMPLETE; V2.6 CLOSED (transport ratified at plan time;
+no contract change).**
+- **Transport (RATIFIED over streamed NDJSON): optional `speak: int | None` on
+  POST /api/group-interview** — the FULL room still validates on every call (count/resolution/
+  duplicates; the range 400 is TWO-SIDED and precedes I/O — a bare `< n` would let
+  participants[-1] alias the last speaker); the server generates ONLY participants[speak]; the
+  envelope is unchanged and the no-speak path byte-identical (the V2.6a pins green unmodified).
+  Why fetches: EventSource can't POST, `req()` has no stream seam (zero ReadableStream consumers
+  in web/), and Playwright can't stream `route.fulfill` bodies — per-speaker fetches are
+  individually delayable, so sequential rendering is REALLY pinned, not assumed. **Fold-in A
+  pinned both halves (+6 pytest):** the client-assembled prefix is conversational context ONLY —
+  a doctored prefix (a fabricated institution-attributed turn, a ghost ref, consensus bait)
+  cannot reach grounding (system = speaker k's own records), cannot forge attribution (labels
+  are refs-RESOLVED server-side, never client text), and its bait still dies at the room guard.
+- **Assembly**: every feed row kind restructured into a flex wrapper (keys moved to wrappers,
+  inner buttons flex:1, the border-shorthand-before-longhand accent ordering PRESERVED —
+  computed-style pins green) with a trailing ＋; AgentPanel/InstitutionPanel gained 👥 "Add to
+  conversation". MapView stores {agent, index} PAIRS resolved ONCE at add time by REFERENCE
+  (`artifact.agents.indexOf` — a copied object breaks to -1 and an id-scan would misattribute
+  siblings); dup/cap checks live INSIDE the setRoomPairs updater (StrictMode double-invoke is a
+  no-op — identity is intrinsic, no minted ids). Min-3 blocker + cap-5 note, both explained in
+  the drawer ("each answer is a separate guarded model call").
+- **RoomDrawer** (rail card, last playback sibling): per-participant grounding lines via the
+  exported `GROUNDING_SENTENCES` (single source — InterviewDrawer refactored onto it,
+  byte-identity held under the existing toHaveText pins); sibling label collisions get a UI-ONLY
+  "(a)/(b)" suffix (the BACKLOG item's UI half CLOSED; the prompt-side attribution ambiguity
+  stays deferred); speaker-labeled turns; per-answer guard/error notes (the existing sentences
+  verbatim); **fold-in B: the "…thinking" row sits on the CURRENT speaker — never a global
+  spinner**; a failed speak-call fails THAT SLOT (rows 0..k-1 stand, the transport error renders
+  verbatim, Retry resumes from k with the same prefix, "skip the rest of this round" keeps the
+  honest partial round and re-enables the box). **Review catch (D3, reader-facing): the curation
+  note renders in the drawer — "voices you picked, answering one at a time — a conversation
+  preview, not a poll or a sample of opinion"** — structural no-tallying wasn't enough said out
+  loud on the surface most likely to be screenshotted as a verdict panel.
+- **The round machine**: RoomRound SNAPSHOTS the roster at Ask (mid-round add/remove can't shift
+  refs); `roomEpoch` orphans in-flight loops on run swap (checked after EVERY await — stale
+  answers can't resurrect into a fresh session); **review catch: a SYNCHRONOUS `roomLoopActive`
+  ref gates Ask/Retry** (React state commits async — key-repeat/dblclick double-fired before the
+  'thinking' commit; dblclick-pinned: no double-POSTed slot), freed only by the OWNING loop's
+  epoch-conditional finally or by loadRun. Wire truth spec-pinned: turns
+  {role, text, agent_id?, agent_index?} — labels NEVER ride; the current question rides its own
+  field and enters the transcript only as next-round history. Fix-in-passing:
+  `InterviewResp.grounding` gained 'mandate' (api.ts:333, stale since V2.3c).
+- **Cost honesty**: the estimate line "1 question · N voices · ~N×<1¢" + a title naming that
+  retries can exceed it; post-round actuals "this round: K model calls" from summed llm_calls
+  **with the transit-loss hedge title (review catch: a request that fails mid-flight may have
+  spent server-side — the count never claims completeness)**; dismissed rounds render their
+  partial actuals.
+- **Ephemerality**: the room stores join the loadRun clear; run-swap AND reload kill the session
+  (spec-pinned); no persistence surface exists client-side.
+- **Specs (+9 → 88 across 18 files)**: `group-interview.spec.ts` — assembly/blockers/grounding
+  sentences + the curation note; sequential render (a delayed speak-1 mock holds the round:
+  answer 0 visible while row 1 thinks); the wire pin (sorted keys incl. speak, the speak
+  sequence, full-room refs on every call, transcript tails with wire keys only,
+  ids-never-facts); planted-consensus refusal + the per-speaker guard note; institution
+  third-person attributed; failed-slot dblclick-Retry; Dismiss partial round; add/remove +
+  "(a)/(b)" + index-disambiguated sibling refs; run-swap + reload ephemerality. The referendum
+  sweep (BANNED/STANCE_TALLY) rides 6 of 9 via the `sweepRoom` helper. Fixture =
+  `institutions-run.json` BYTES (the drift lesson — the mandate record is never re-authored) +
+  ONE hand-authored inferred sibling of agents[1].
+- **The looked-at gate (`docs-assets/v26b-*.png`)**: feed ＋ buttons render clean beside intact
+  accents; the drawer thread was tightened 260→200 px — at 260 the question form sat below the
+  right-rail's scroll fold (exactly the seam-tests-can't-see-pixels class). NB the first full
+  Playwright run had 3 failures that were the DEV-SERVER HOT-RELOAD RACE (source files edited
+  while the background suite ran against `npm run dev` — all three green standalone on a quiet
+  server): don't edit web/ sources while a suite runs against the dev server.
+  Suites: **528 pytest + 88 Playwright**.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -1199,16 +1276,16 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (522 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (528 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
   V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections + the V2.5a
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
-  sections + the V2.6a group-interview room/endpoint sections) and `cd web && npx playwright test`
-  (79 tests across 17 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
-  interview, institutions, graphs, draft-basket, composite-runcard, run-identity, the V2.5b ends
-  rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
+  sections + the V2.6a/b group-interview room/endpoint/speak sections) and `cd web && npx playwright test`
+  (88 tests across 18 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
+  the V2.5b ends rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.

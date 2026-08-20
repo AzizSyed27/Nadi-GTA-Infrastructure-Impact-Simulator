@@ -204,13 +204,13 @@ never a drive-by reword. No mechanism until it hurts.
   properly means widening the shared boundary, which TIGHTENS the guard everywhere → a
   corrected-on-retry baseline shift (the V2.5a precedent: announce the shift, re-baseline, don't
   read it as model drift). Deliberate decision, not a drive-by.
-- **Sibling label collision in room attribution (V2.6b UI concern).** Two sibling voices sharing
-  one persona.id (and thus one LABEL) are legal, distinct room participants — but both attribute
-  as "Omar, taxpayer said:" in every speaker's transcript, indistinguishable to the model and to
-  any future transcript UI. Id resolution IS disambiguated (index-qualified, object-identity
-  self-detection); only the rendered label collides. The room UI should disambiguate labels or
-  steer away from same-label rooms; a server-side suffix would put digits/markers into prompt text
-  — decide at V2.6b, not silently here.
+- **Sibling label collision in room attribution — UI half CLOSED in V2.6b, prompt half stays.**
+  The RoomDrawer suffixes colliding participant labels "(a)/(b)" (UI-only, spec-pinned), so
+  humans can tell sibling rows apart. STILL OPEN: the MODEL's transcript renders both siblings
+  as "Omar, taxpayer said:" (the server's flatten uses the persona label; a server-side suffix
+  would put markers into prompt text). Id resolution is fully disambiguated (index-qualified,
+  object-identity self-detection) — only the prompt-side rendered label collides. Decide
+  deliberately if a room of same-label siblings becomes a real use pattern.
 
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
