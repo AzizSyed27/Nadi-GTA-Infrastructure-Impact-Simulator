@@ -83,6 +83,23 @@ test('a mandate voice renders pinned in the feed and opens the grounding card', 
   await expect(page.getByTestId('interview-grounding')).toContainText('not from the organization itself');
 });
 
+test('institutional surfaces render on a 0.10.0 artifact (the MANDATE_VERSIONS extension pin)', async ({ page }) => {
+  // V2.6c — an unextended TS MANDATE_VERSIONS list would silently kill these surfaces the moment
+  // the producer moves past 0.9.0, and every other case here pins a 0.9.0 fixture. Mechanical,
+  // SHAPE-COHERENT mutation: version to 0.10.0 + speeds stripped (a legal explicit-shape 0.10.0 —
+  // the frontend doesn't validate, but incoherent fixtures rot).
+  await mockArtifact(page, (art) => {
+    (art as unknown as { schema_version: string }).schema_version = '0.10.0';
+    const strip = (es?: { speeds?: number[] }[]) => (es ?? []).forEach((e) => delete e.speeds);
+    strip((art as unknown as { vehicles?: { speeds?: number[] }[] }).vehicles);
+    strip((art as unknown as { persons?: { speeds?: number[] }[] }).persons);
+  });
+  await openPlayback(page);
+  await expect(page.getByTestId('institution-row')).toHaveCount(1);
+  await expect(page.getByTestId('institution-row')).toContainText('Toronto Fire Services');
+  // and the empty-state gate still works at 0.10.0 when the mandate voice is filtered out
+});
+
 test('a 0.9.0 run with voices but no institutional facts shows the honest empty state', async ({ page }) => {
   // mechanical filter of the real fixture — no hand-authored agents anywhere in this spec
   await mockArtifact(page, (art) => {

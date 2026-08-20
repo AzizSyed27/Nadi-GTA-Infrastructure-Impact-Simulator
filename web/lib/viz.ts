@@ -1,6 +1,22 @@
 // Pure visualization helpers for the playback (no React / deck imports — easy to reason about + test).
 
-import type { Agent, LonLat } from '@/lib/types';
+import type { Agent, LonLat, Person, Vehicle } from '@/lib/types';
+import { expandTimestamps } from '@/lib/compactTime';
+
+/** An entity whose timestamps are guaranteed materialized (the normalizer's output type). */
+export type Materialized<T extends Vehicle | Person> = T & { timestamps: number[] };
+
+/**
+ * V2.6c — the dual-shape reader. EXPLICIT entities return by IDENTITY (positionAtCached's index
+ * hint is a WeakMap keyed on the timestamps ARRAY identity, and the TripsLayer buffers key on
+ * object identity — a copy would cache-miss every frame); COMPACT entities materialize their
+ * array ONCE. Call ONLY from a per-artifact memo (the MapView join memo), never per frame —
+ * a per-frame expansion is the V2.5c 0.36 FPS regression class.
+ */
+export function materializeTimestamps<T extends Vehicle | Person>(e: T): Materialized<T> {
+  if (e.timestamps) return e as Materialized<T>;
+  return { ...e, timestamps: expandTimestamps(e.t0!, e.dt!, e.path.length) };
+}
 
 export type RGB = [number, number, number];
 

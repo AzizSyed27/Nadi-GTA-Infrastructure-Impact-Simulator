@@ -1,5 +1,11 @@
 // TypeScript half of the frozen trajectory contract.
-// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.9.0).
+// Must stay in lockstep with contract/trajectory_schema.json (schema_version 0.10.0).
+// v0.10.0 (the V2.6c payload-encoding bump): entities carry EITHER compact {t0, dt} (regular
+// cadence; readers materialize via web/lib/compactTime.ts expandTimestamps — the write-time
+// check's exact closed form) XOR an explicit timestamps array (teleport-gapped entities keep TRUE
+// holes); speeds is DROPPED (its sole consumer moved python-side to the outcomes-sidecar worst_t);
+// coords emitted at 6 decimals; Change gains optional via (contract capacity — pipeline refuses it
+// until netconvert threading lands). Pre-0.10.0 artifacts keep both index-aligned arrays.
 // v0.9.0 (additive over 0.8.0): agents gain the 'mandate' grounding — an INSTITUTIONAL voice with a
 // sourced published mandate (mission verbatim, never reworded; retrieved = the freshness signal) +
 // citations[] of the run's code-rendered facts with their honesty notes; no pin/outcome/trigger_t;
@@ -74,6 +80,9 @@ export interface Change {
   lanes?: number;
   speed_mps?: number;
   bidirectional?: boolean;
+  /** V2.6c: ordered intermediate junction ids for a new_road — CONTRACT CAPACITY only (the
+   *  pipeline refuses it until netconvert threading lands; readers tolerate presence/absence). */
+  via?: string[];
 }
 
 /**
@@ -144,12 +153,18 @@ export interface Vehicle {
   id: string;
   /** Free string: "car" or (v0.3.0+) "bicycle". */
   type: string;
-  /** Ordered [lon, lat] points; index-aligned with timestamps and speeds. */
+  /** Ordered [lon, lat] points; index-aligned with the entity's time series. 6-dp from v0.10.0. */
   path: LonLat[];
-  /** Simulation time (s) per point. */
-  timestamps: number[];
-  /** Speed (m/s) per point. */
-  speeds: number[];
+  /** Simulation time (s) per point. REQUIRED pre-0.10.0; at v0.10.0 the EXPLICIT shape (XOR with
+   *  {t0, dt}). OPTIONAL here so tsc forces every consumer through the normalizer
+   *  (viz.materializeTimestamps) — the compile-time twin of failing-loud. */
+  timestamps?: number[];
+  /** Speed (m/s) per point. Pre-0.10.0 only — DROPPED at v0.10.0 (read by no renderer). */
+  speeds?: number[];
+  /** v0.10.0 compact: sim time (s) of path[0]; pairs with dt. */
+  t0?: number;
+  /** v0.10.0 compact: the regular step (s); pairs with t0. */
+  dt?: number;
 }
 
 /** v0.3.0+. A pedestrian trajectory — same per-entity shape as Vehicle, distinct population. */
@@ -158,8 +173,10 @@ export interface Person {
   /** Free string; pedestrians use "pedestrian". */
   type: string;
   path: LonLat[];
-  timestamps: number[];
-  speeds: number[];
+  timestamps?: number[];
+  speeds?: number[];
+  t0?: number;
+  dt?: number;
 }
 
 export interface Persona {
@@ -195,7 +212,7 @@ export type Grounding = 'sim' | 'inferred' | 'mandate';
 /** Versions that may carry mandate-grounded agents (v0.9.0+). EXTEND on every future bump — a
  * literal `=== '0.9.0'` at a consumer silently disables the institutional surfaces the moment the
  * producer moves past 0.9.0 (the enum-plus-gates trap; python mirror: contract_models.MANDATE_VERSIONS). */
-export const MANDATE_VERSIONS: readonly string[] = ['0.9.0'];
+export const MANDATE_VERSIONS: readonly string[] = ['0.9.0', '0.10.0'];
 
 /**
  * v0.9.0+. An institution's PUBLISHED mandate, quoted verbatim from a sourced page — never reworded

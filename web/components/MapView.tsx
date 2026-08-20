@@ -36,7 +36,7 @@ import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
 import { loadCompareSide, slimFromArtifact, type CompareSide } from '@/lib/compare';
-import { activeAt, agentId, nearestWithin, positionAt, positionAtCached, sentimentColor } from '@/lib/viz';
+import { activeAt, agentId, materializeTimestamps, nearestWithin, positionAt, positionAtCached, sentimentColor, type Materialized } from '@/lib/viz';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
 // Token-free CARTO positron style (no API key). V2.0b: the NO-LABELS variant — the exported network is now the
@@ -456,14 +456,20 @@ export default function MapView() {
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
   // vehicle/person NOT pinned. Inferred agents have no trip, so they don't appear on the map.
-  const { pinned, bgVehicles, bgPersons } = useMemo(() => {
+  const { pinned, bgVehicles, bgPersons, renderStats } = useMemo(() => {
     performance.mark('nadi:join:start'); // V2.5c perf mark (permanent; runs on artifact change only)
-    const vehicles = artifact?.vehicles ?? [];
-    const persons = artifact?.persons ?? [];
+    // V2.6c — normalize ONCE per artifact: compact {t0, dt} entities materialize their timestamp
+    // array here; explicit entities pass through by IDENTITY (viz.materializeTimestamps). The
+    // normalized objects are what every frame reads (stable identities for the positionAtCached
+    // WeakMap hint + the TripsLayer buffers) and the cost lands inside the nadi:join marks.
+    const rawVehicles = artifact?.vehicles ?? [];
+    const rawPersons = artifact?.persons ?? [];
+    const vehicles = rawVehicles.map(materializeTimestamps);
+    const persons = rawPersons.map(materializeTimestamps);
     // NB: `Map` is shadowed by the react-map-gl <Map> import above — use plain Records for the lookups.
-    const vById: Record<string, Vehicle> = {};
+    const vById: Record<string, Materialized<Vehicle>> = {};
     for (const v of vehicles) vById[v.id] = v;
-    const pById: Record<string, Person> = {};
+    const pById: Record<string, Materialized<Person>> = {};
     for (const p of persons) pById[p.id] = p;
 
     const pins: Pinned[] = [];
@@ -484,14 +490,40 @@ export default function MapView() {
         }
       }
     }
+    // V2.6c — the __nadiRenderStats seam's data: TRUE point counts under both shapes, so a reader
+    // that silently drops or duplicates a teleport tail shows up as a number (spec-pinned).
+    const sumPath = (es: { path: unknown[] }[]) => es.reduce((n, e) => n + e.path.length, 0);
+    const sumTs = (es: { timestamps: number[] }[]) => es.reduce((n, e) => n + e.timestamps.length, 0);
+    const firstCompactVehicle = rawVehicles.find((v) => v.t0 != null);
     const out = {
       pinned: pins,
       bgVehicles: vehicles.filter((v) => !pinnedVeh.has(v.id)),
       bgPersons: persons.filter((p) => !pinnedPer.has(p.id)),
+      renderStats: {
+        vehicles: vehicles.length,
+        persons: persons.length,
+        vehiclePathPoints: sumPath(vehicles),
+        vehicleTsPoints: sumTs(vehicles),
+        personPathPoints: sumPath(persons),
+        personTsPoints: sumTs(persons),
+        compactEntities: [...rawVehicles, ...rawPersons].filter((e) => e.t0 != null).length,
+        explicitEntities: [...rawVehicles, ...rawPersons].filter((e) => e.t0 == null).length,
+        // the literal-anchored expansion sample: the first compact vehicle's first 5 materialized
+        // times — the spec asserts HAND-COMPUTED values, never "same as the python expansion"
+        sampleCompactTimestamps: firstCompactVehicle
+          ? materializeTimestamps(firstCompactVehicle).timestamps.slice(0, 5)
+          : null,
+      },
     };
     performance.mark('nadi:join:end');
     return out;
   }, [artifact]);
+
+  // V2.6c — publish the render-stats seam (the __nadiArrowCount convention: a useEffect, never an
+  // in-memo window write).
+  useEffect(() => {
+    (window as unknown as { __nadiRenderStats?: unknown }).__nadiRenderStats = renderStats;
+  }, [renderStats]);
 
   // V2.5c perf mark: the first committed render WITH artifact data — the harness's
   // first-map-paint proxy (fires once per artifact swap, after React commits the layer tree).
@@ -1225,7 +1257,7 @@ export default function MapView() {
 
   // 2a) Background vehicles: small neutral-grey dots at their current position (only while active).
   const bgVehActive = bgVehicles.filter((v) => activeAt(v.timestamps, t));
-  const backgroundVehicleDots = new ScatterplotLayer<Vehicle>({
+  const backgroundVehicleDots = new ScatterplotLayer<Materialized<Vehicle>>({
     id: 'background-vehicle-dots',
     data: bgVehActive,
     getPosition: (v) => positionAtCached(v.path, v.timestamps, t),
@@ -1238,7 +1270,7 @@ export default function MapView() {
 
   // 2b) Background pedestrians: same small dot, a subtly distinct (muted teal) tint from vehicles.
   const bgPerActive = bgPersons.filter((p) => activeAt(p.timestamps, t));
-  const backgroundPersonDots = new ScatterplotLayer<Person>({
+  const backgroundPersonDots = new ScatterplotLayer<Materialized<Person>>({
     id: 'background-person-dots',
     data: bgPerActive,
     getPosition: (p) => positionAtCached(p.path, p.timestamps, t),
