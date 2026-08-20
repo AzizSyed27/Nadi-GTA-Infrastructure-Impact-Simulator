@@ -30,7 +30,56 @@ SCHEMA_VERSION: Literal["0.9.0"] = "0.9.0"
 # a literal `== "0.9.0"` at a consumer is the classic enum-plus-gates trap (it would silently disable
 # the institutional surfaces, or crash the enrich, the moment SCHEMA_VERSION moves past 0.9.0).
 # Review-caught; the TS mirror is web/lib/types.ts MANDATE_VERSIONS.
-MANDATE_VERSIONS: tuple[str, ...] = ("0.9.0",)
+MANDATE_VERSIONS: tuple[str, ...] = ("0.9.0", "0.10.0")
+
+# V2.6c — versions whose trajectories use the 0.10.0 payload encoding (per-entity EITHER-shape
+# timestamps, speeds dropped). EXTEND on every future bump — the MANDATE_VERSIONS convention.
+COMPACT_TRAJECTORY_VERSIONS: tuple[str, ...] = ("0.10.0",)
+
+# The compact-eligibility comparison rule — SINGLE SOURCE for both languages (the TS twin
+# web/lib/compactTime.ts carries the same literal + the same closed-form formula;
+# lockstep-pinned by test_compact_rule_lockstep_with_ts). The write-time check and every reader
+# use the SAME `t0 + i * dt` comparison within this eps — never incremental accumulation (float
+# drift over ~1800 steps) and never a different tolerance per side (an exact-write/tolerant-read
+# divergence would let an entity pass write and misread).
+COMPACT_DT_EPS = 1e-6
+
+# V2.6c/D6c — coordinate precision applied at RECORD time (~11 cm). Rounding lives in the
+# WRITERS, never in dump_artifact (committed older samples must round-trip byte-identically).
+COORD_DECIMALS = 6
+
+
+def compact_encoding(timestamps: list[float], step_length: float) -> tuple[float, float] | None:
+    """(t0, dt) iff the series is EXACTLY regular under the closed-form rule; None = keep the
+    explicit array. This IS the write-time regularity check: teleport-gapped entities keep their
+    TRUE holes (lossless by construction — positions are never fabricated through a gap)."""
+    n = len(timestamps)
+    if n == 0:
+        return None
+    t0 = timestamps[0]
+    if n == 1:
+        return (t0, float(step_length))
+    dt = timestamps[1] - t0
+    if dt <= 0:
+        return None
+    for i, t in enumerate(timestamps):
+        if abs(t - (t0 + i * dt)) > COMPACT_DT_EPS:
+            return None
+    return (t0, dt)
+
+
+def expand_timestamps(t0: float, dt: float, n: int) -> list[float]:
+    """The reader's reconstruction — the SAME closed form the eligibility check compared against."""
+    return [t0 + i * dt for i in range(n)]
+
+
+def encode_trajectory_fields(timestamps: list[float], step_length: float) -> dict:
+    """Builder helper (D6b): one entity's wire time-fields — compact when eligible, else explicit."""
+    enc = compact_encoding(timestamps, step_length)
+    if enc is None:
+        return {"timestamps": timestamps}
+    return {"t0": enc[0], "dt": enc[1]}
+
 
 # A single geographic point: [lon, lat] in WGS84.
 LonLat = tuple[float, float]
@@ -91,6 +140,11 @@ class Change(BaseModel):
     lanes: int | None = Field(default=None, ge=1)
     speed_mps: float | None = Field(default=None, ge=0)
     bidirectional: bool | None = None
+    # V2.6c: ordered intermediate junction ids for a new_road — CONTRACT CAPACITY only (the 5.1
+    # sibling pattern: schema-loose, semantics in the pipeline). Runtime netconvert threading is
+    # NOT implemented; the pipeline REFUSES via loudly (an ignored via would emit an artifact
+    # whose change lies about the simulated geometry). BACKLOG'd for threading.
+    via: list[str] | None = None
 
     @model_validator(mode="after")
     def _check_semantics(self) -> "Change":
@@ -185,29 +239,79 @@ class Meta(BaseModel):
     scenario: Scenario | None = None  # v0.2.0+, optional
 
 
+def _entity_shape_error(t0: float | None, dt: float | None, timestamps: list[float] | None) -> str | None:
+    """V2.6c per-entity shape rule (version-FREE half; version coherence lives on the artifact):
+    {t0, dt} come as a pair, compact XOR explicit, at least one time shape present."""
+    if (t0 is None) != (dt is None):
+        return "t0 and dt come as a pair"
+    if t0 is not None and timestamps is not None:
+        return "compact {t0, dt} and explicit timestamps are exclusive (XOR)"
+    if t0 is None and timestamps is None:
+        return "an entity needs timestamps or {t0, dt}"
+    return None
+
+
 class Vehicle(BaseModel):
-    """A vehicle trajectory. ``type`` is a free string: "car" or (v0.3.0+) "bicycle"."""
+    """A vehicle trajectory. ``type`` is a free string: "car" or (v0.3.0+) "bicycle".
+    v0.10.0: EITHER compact ``{t0, dt}`` (regular cadence, write-time-checked) XOR an explicit
+    ``timestamps`` array (teleport-gapped entities keep TRUE holes); ``speeds`` is DROPPED.
+    Pre-0.10.0 artifacts carry the two index-aligned arrays; version coherence is enforced at
+    the artifact level."""
 
     model_config = ConfigDict(extra="forbid")
 
     id: str
     type: str
-    path: list[list[float]] = Field(description="Ordered [lon, lat] points; index-aligned with timestamps/speeds")
-    timestamps: list[float]
-    speeds: list[float]
+    path: list[list[float]] = Field(description="Ordered [lon, lat] points; index-aligned with the time series")
+    timestamps: list[float] | None = None
+    speeds: list[float] | None = None
+    t0: float | None = None  # v0.10.0 compact: sim time (s) of path[0]
+    dt: float | None = Field(default=None, gt=0)  # v0.10.0 compact: the regular step (s)
+
+    @model_validator(mode="after")
+    def _check_shape(self) -> "Vehicle":
+        err = _entity_shape_error(self.t0, self.dt, self.timestamps)
+        if err:
+            raise ValueError(f"vehicle {self.id!r}: {err}")
+        if self.t0 is not None and self.speeds is not None:
+            raise ValueError(f"vehicle {self.id!r}: a compact entity cannot carry speeds")
+        return self
+
+    def timestamps_of(self) -> list[float]:
+        """The uniform explicit view under either shape — the reader's single formula."""
+        if self.timestamps is not None:
+            return self.timestamps
+        return expand_timestamps(self.t0, self.dt, len(self.path))  # type: ignore[arg-type]
 
 
 class Person(BaseModel):
     """v0.3.0+. A pedestrian trajectory — SAME per-entity shape as Vehicle, distinct population.
-    ``type`` is a free string; pedestrians use "pedestrian"."""
+    ``type`` is a free string; pedestrians use "pedestrian". v0.10.0 shape rules as Vehicle."""
 
     model_config = ConfigDict(extra="forbid")
 
     id: str
     type: str
-    path: list[list[float]] = Field(description="Ordered [lon, lat] points; index-aligned with timestamps/speeds")
-    timestamps: list[float]
-    speeds: list[float]
+    path: list[list[float]] = Field(description="Ordered [lon, lat] points; index-aligned with the time series")
+    timestamps: list[float] | None = None
+    speeds: list[float] | None = None
+    t0: float | None = None  # v0.10.0 compact: sim time (s) of path[0]
+    dt: float | None = Field(default=None, gt=0)  # v0.10.0 compact: the regular step (s)
+
+    @model_validator(mode="after")
+    def _check_shape(self) -> "Person":
+        err = _entity_shape_error(self.t0, self.dt, self.timestamps)
+        if err:
+            raise ValueError(f"person {self.id!r}: {err}")
+        if self.t0 is not None and self.speeds is not None:
+            raise ValueError(f"person {self.id!r}: a compact entity cannot carry speeds")
+        return self
+
+    def timestamps_of(self) -> list[float]:
+        """The uniform explicit view under either shape — the reader's single formula."""
+        if self.timestamps is not None:
+            return self.timestamps
+        return expand_timestamps(self.t0, self.dt, len(self.path))  # type: ignore[arg-type]
 
 
 class Persona(BaseModel):
@@ -512,8 +616,10 @@ class Social(BaseModel):
 class TrajectoryArtifact(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Accept 0.1.0..0.8.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION (0.9.0).
-    schema_version: Literal["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"] = SCHEMA_VERSION
+    # Accept 0.1.0..0.9.0 on read for back-compat; new artifacts are constructed as SCHEMA_VERSION.
+    schema_version: Literal[
+        "0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0", "0.10.0"
+    ] = SCHEMA_VERSION
     meta: Meta
     vehicles: list[Vehicle]
     persons: list[Person] = Field(default_factory=list)  # v0.3.0+, optional
@@ -521,6 +627,26 @@ class TrajectoryArtifact(BaseModel):
     conflicts: list[Conflict] = Field(default_factory=list)  # v0.3.0+, optional
     scorecard: Scorecard | None = None  # v0.3.0+, optional
     social: Social | None = None  # v0.4.0+, optional
+
+    @model_validator(mode="after")
+    def _check_trajectory_encoding_version(self) -> "TrajectoryArtifact":
+        # V2.6c version-shape coherence (the model half; schema gates J/K + audit_version_gate
+        # mirror it): 0.10.0 entities never carry speeds; pre-0.10.0 entities carry BOTH arrays
+        # and never the compact fields. Keyed on COMPACT_TRAJECTORY_VERSIONS, never a literal.
+        compact_era = self.schema_version in COMPACT_TRAJECTORY_VERSIONS
+        for e in (*self.vehicles, *self.persons):
+            if compact_era:
+                if e.speeds is not None:
+                    raise ValueError(
+                        f"{self.schema_version} entity {e.id!r} carries speeds (dropped at v0.10.0)")
+            else:
+                if e.t0 is not None or e.dt is not None:
+                    raise ValueError(
+                        f"{self.schema_version} entity {e.id!r} carries compact t0/dt (v0.10.0 fields)")
+                if e.timestamps is None or e.speeds is None:
+                    raise ValueError(
+                        f"{self.schema_version} entity {e.id!r} must carry timestamps + speeds")
+        return self
 
 
 # ---- v0.5.0: the change-list accessor (the migration mechanic) ----

@@ -1,0 +1,245 @@
+{
+ "schema_version": "0.10.0",
+ "meta": {
+  "run_id": "sample-v0_10_0-scenario",
+  "network": "corridor.net.xml",
+  "bbox": [
+   -79.3,
+   43.7,
+   -79.2,
+   43.8
+  ],
+  "sim_start": 0.0,
+  "sim_end": 3600.0,
+  "step_length": 1.0,
+  "created_at": "2026-08-01T00:00:00Z",
+  "scenario": {
+   "baseline_run_id": "sample-v0_10_0-baseline",
+   "changes": [
+    {
+     "type": "new_road",
+     "target_edge": "nr_JA_JB",
+     "from_junction": "JA",
+     "to_junction": "JB",
+     "via": [
+      "J_mid"
+     ],
+     "lanes": 1,
+     "speed_mps": 13.9,
+     "bidirectional": false,
+     "description": "A drawn connector road routed via the mid junction (via = V2.6c contract capacity)"
+    },
+    {
+     "type": "speed_limit",
+     "target_edge": "E1",
+     "value_mps": 8.33,
+     "description": "Speed limit lowered on E1"
+    }
+   ]
+  },
+  "demand_profile": "synthetic_demo",
+  "assignment": {
+   "mode": "day_one"
+  }
+ },
+ "vehicles": [
+  {
+   "id": "v1",
+   "type": "car",
+   "path": [
+    [
+     -79.26643,
+     43.742108
+    ],
+    [
+     -79.266218,
+     43.742301
+    ],
+    [
+     -79.266005,
+     43.742494
+    ]
+   ],
+   "t0": 4.0,
+   "dt": 1.0
+  },
+  {
+   "id": "b1",
+   "type": "bicycle",
+   "path": [
+    [
+     -79.265,
+     43.7421
+    ],
+    [
+     -79.2649,
+     43.7422
+    ],
+    [
+     -79.2601,
+     43.7455
+    ],
+    [
+     -79.26,
+     43.7456
+    ]
+   ],
+   "timestamps": [
+    10.0,
+    11.0,
+    45.0,
+    46.0
+   ]
+  }
+ ],
+ "persons": [
+  {
+   "id": "p1",
+   "type": "pedestrian",
+   "path": [
+    [
+     -79.2643,
+     43.7418
+    ],
+    [
+     -79.26428,
+     43.74182
+    ],
+    [
+     -79.26426,
+     43.74184
+    ]
+   ],
+   "t0": 0.0,
+   "dt": 1.0
+  },
+  {
+   "id": "p2",
+   "type": "pedestrian",
+   "path": [
+    [
+     -79.2644,
+     43.7417
+    ],
+    [
+     -79.26438,
+     43.74172
+    ],
+    [
+     -79.26436,
+     43.74174
+    ],
+    [
+     -79.25,
+     43.748
+    ]
+   ],
+   "timestamps": [
+    0.0,
+    1.0,
+    2.0,
+    300.0
+   ]
+  }
+ ],
+ "agents": [
+  {
+   "grounding": "sim",
+   "vehicle_id": "v1",
+   "persona": {
+    "id": "time_pressed",
+    "label": "Time-pressed commuter",
+    "mode": "car"
+   },
+   "outcome": {
+    "baseline_duration": 240.0,
+    "scenario_duration": 360.0,
+    "delta_seconds": 120.0,
+    "baseline_timeloss": 20.0,
+    "scenario_timeloss": 100.0
+   },
+   "reaction": {
+    "comment": "The closed lanes drag my whole drive out \u2014 I feel every extra minute.",
+    "sentiment": -0.7,
+    "stance": "opposed"
+   },
+   "trigger_t": 60.0
+  },
+  {
+   "grounding": "inferred",
+   "persona": {
+    "id": "shop_owner",
+    "label": "Corner shop owner",
+    "mode": "inferred",
+    "stakeholder": "business_owner"
+   },
+   "reaction": {
+    "comment": "With construction out front, I worry customers just skip us this month.",
+    "sentiment": -0.4,
+    "stance": "opposed"
+   }
+  },
+  {
+   "grounding": "mandate",
+   "persona": {
+    "id": "tfs",
+    "label": "Toronto Fire Services",
+    "mode": "inferred"
+   },
+   "mandate": {
+    "institution": "Toronto Fire Services",
+    "mission": "Fire Services provides Toronto residents, visitors and businesses with protection against loss of life, property and the environment from the effects of fire, illness, accidents and all other hazards through preparedness, prevention, public education and emergency response, with an emphasis on quality services, efficiency, effectiveness and safety.",
+    "source": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/fire-services/",
+    "retrieved": "2026-08-01"
+   },
+   "citations": [
+    {
+     "key": "response_detour",
+     "text": "Response access (free-flow estimate): from Fire Station 231 (740 Markham Rd): baseline 57.0 s -> during the window 105.7 s (+48.7 s).",
+     "notes": [
+      "estimated added response-route time; free-flow routing, not a dispatch model",
+      "free-flow estimate; does not include congestion the incident induces \u2014 a lower bound on added response time"
+     ]
+    }
+   ],
+   "reaction": {
+    "comment": "Toronto Fire Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes protection against loss of life, property and the environment. Read against that mandate, this run computed: worst of 4 stations +48.7 s added response-route time (estimated added response-route time; free-flow routing, not a dispatch model).",
+    "sentiment": 0.0,
+    "stance": "neutral"
+   }
+  }
+ ],
+ "conflicts": [
+  {
+   "t": 42.0,
+   "lon": -79.2651,
+   "lat": 43.7423,
+   "type": "ttc",
+   "severity": 0.6,
+   "ttc": 1.4,
+   "entities": [
+    "v1",
+    "b1"
+   ]
+  }
+ ],
+ "scorecard": {
+  "groups": [
+   {
+    "group": "car_commuter",
+    "grounding": "sim",
+    "travel_time_delta": {
+     "value": 120.0,
+     "affected_share": 0.6,
+     "confidence": "measured",
+     "range": {
+      "min": 98.4,
+      "max": 131.7,
+      "n_seeds": 3,
+      "sign_stable": true
+     }
+    }
+   }
+  ]
+ }
+}

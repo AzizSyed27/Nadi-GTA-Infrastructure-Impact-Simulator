@@ -34,6 +34,11 @@ def validate_new_road(change: Change) -> None:
     """Pipeline-level (NOT schema) validation: a new_road MUST carry geometry. Raises loudly otherwise."""
     if change.type != "new_road":
         raise ValueError(f"network_edit only patches new_road changes, got {change.type!r}")
+    if change.via:
+        # V2.6c: via is CONTRACT CAPACITY only — building the road while ignoring via would make
+        # the artifact lie about the simulated geometry. Netconvert threading is BACKLOG.
+        raise ValueError("new_road.via is contract capacity only (V2.6c) — netconvert threading "
+                         "is not implemented; remove via")
     missing = [f for f in ("from_junction", "to_junction", "lanes", "speed_mps") if getattr(change, f) is None]
     if missing:
         raise ValueError(f"new_road change is missing required geometry: {missing}")

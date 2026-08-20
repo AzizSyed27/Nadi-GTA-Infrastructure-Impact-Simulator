@@ -446,10 +446,28 @@ def test_ensure_version_for_mandate() -> None:
     art9.schema_version = "0.8.0"
     reactions.ensure_version_for_mandate(art9, mandate_rec)
     assert art9.schema_version == "0.9.0"  # upgraded in place
+    # V2.6c MUTATION-EFFECTIVE half (user sharpening): the ladder must stop at 0.9.0 BECAUSE a
+    # 0.10.0 stamp would mis-version the old-shape arrays (timestamps+speeds violate the 0.10.0
+    # no-speeds/XOR shape). The pin asserts the REASON, not the version string: the same artifact
+    # force-versioned to 0.10.0 FAILS both validation layers — a "modernized" ladder would be
+    # producing exactly this failure.
+    import trajectory_io
+    from jsonschema import ValidationError as SchemaValidationError
+    dumped = art9.model_dump(mode="json", exclude_none=True, by_alias=True)
+    trajectory_io.validate_artifact(dumped)  # the 0.9.0 landing is version-shape coherent
+    dumped["schema_version"] = "0.10.0"
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(dumped)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(dumped)
 
     art9.schema_version = "0.9.0"
     reactions.ensure_version_for_mandate(art9, mandate_rec)
     assert art9.schema_version == "0.9.0"  # idempotent
+
+    art9.schema_version = "0.10.0"
+    reactions.ensure_version_for_mandate(art9, mandate_rec)
+    assert art9.schema_version == "0.10.0"  # 0.10.0 short-circuits via MANDATE_VERSIONS
 
     art9.schema_version = "0.7.0"
     with pytest.raises(SystemExit):

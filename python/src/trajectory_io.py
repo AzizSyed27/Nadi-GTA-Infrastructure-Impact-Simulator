@@ -14,7 +14,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from contract_models import MANDATE_VERSIONS, TrajectoryArtifact
+from contract_models import COMPACT_TRAJECTORY_VERSIONS, MANDATE_VERSIONS, TrajectoryArtifact
 
 # Repo root is two levels up from python/src/.  python/src/trajectory_io.py -> python/src -> python -> <root>
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -93,12 +93,15 @@ def audit_version_gate(data: dict) -> None:
     scenario carries ``change`` and no ``changes``. v0.6.0: ``meta.demand_profile`` is REQUIRED (and,
     with render_sample, forbidden before 0.6.0). v0.7.0+: ``meta.assignment`` REQUIRED (forbidden
     before). v0.8.0+: scorecard-cell ``range`` allowed (forbidden before). v0.9.0: mandate-grounded
-    agents allowed (forbidden before). Baseline runs (no scenario) skip the scenario check.
+    agents allowed (forbidden before). v0.10.0: the payload encoding — per-entity EITHER-shape
+    timestamps ({t0, dt} XOR explicit) with ``speeds`` DROPPED; pre-0.10.0 entities must carry the
+    two index-aligned arrays and never the compact fields. Baseline runs (no scenario) skip the
+    scenario check.
     Belt-and-suspenders over the schema ``if/then`` gates (and independent of them) so a mis-wrapped
     producer emission fails LOUDLY at write time. Raises ``ValueError`` on mismatch."""
     version = data.get("schema_version")
     meta = data.get("meta", {})
-    if version in ("0.6.0", "0.7.0", "0.8.0", "0.9.0"):
+    if version in ("0.6.0", "0.7.0", "0.8.0", "0.9.0", "0.10.0"):
         if not meta.get("demand_profile"):
             raise ValueError(f"version-gate: a {version} artifact's meta must declare demand_profile")
     elif "demand_profile" in meta or "render_sample" in meta:
@@ -106,7 +109,7 @@ def audit_version_gate(data: dict) -> None:
             f"version-gate: a {version} artifact must not carry meta.demand_profile/render_sample "
             "(v0.6.0 fields)"
         )
-    if version in ("0.7.0", "0.8.0", "0.9.0"):
+    if version in ("0.7.0", "0.8.0", "0.9.0", "0.10.0"):
         if not meta.get("assignment"):
             raise ValueError(f"version-gate: a {version} artifact's meta must declare assignment "
                              "(day_one vs settled)")
@@ -116,7 +119,7 @@ def audit_version_gate(data: dict) -> None:
     # v0.8.0+: scorecard-cell range is optional but forbidden BEFORE 0.8.0 (mirror of the schema's
     # pre-0.8.0 gate — presence on an older version means a mis-wrapped emission). NB `not in`, never
     # a literal `!=` against one version — the classic bump trap.
-    if version not in ("0.8.0", "0.9.0"):
+    if version not in ("0.8.0", "0.9.0", "0.10.0"):
         for grp in (data.get("scorecard") or {}).get("groups", []):
             for key in ("travel_time_delta", "safety_delta", "access_delta"):
                 cell = grp.get(key)
@@ -132,12 +135,39 @@ def audit_version_gate(data: dict) -> None:
                 raise ValueError(
                     f"version-gate: a {version} artifact must not carry mandate-grounded agents "
                     f"(v0.9.0 fields; agent persona={a.get('persona', {}).get('id')!r})")
+    # V2.6c — the trajectory-shape gate (mirror of schema gates J/K; keyed on the single-sourced
+    # COMPACT_TRAJECTORY_VERSIONS, never a literal — the bump trap). 0.10.0: no speeds, per-entity
+    # {t0,dt}-pair XOR timestamps. Pre-0.10.0: both arrays required, compact fields forbidden.
+    entities = list(data.get("vehicles") or []) + list(data.get("persons") or [])
+    if version in COMPACT_TRAJECTORY_VERSIONS:
+        for e in entities:
+            if "speeds" in e:
+                raise ValueError(
+                    f"version-gate: a {version} entity ({e.get('id')!r}) must not carry speeds "
+                    "(dropped at v0.10.0)")
+            has_pair = "t0" in e and "dt" in e
+            has_half_pair = ("t0" in e) != ("dt" in e)
+            has_ts = "timestamps" in e
+            if has_half_pair or has_pair == has_ts:
+                raise ValueError(
+                    f"version-gate: a {version} entity ({e.get('id')!r}) must carry the {{t0, dt}} "
+                    f"pair XOR timestamps (got t0={'t0' in e}, dt={'dt' in e}, timestamps={has_ts})")
+    else:
+        for e in entities:
+            if "t0" in e or "dt" in e:
+                raise ValueError(
+                    f"version-gate: a {version} entity ({e.get('id')!r}) must not carry compact "
+                    "t0/dt (v0.10.0 fields)")
+            if "timestamps" not in e or "speeds" not in e:
+                raise ValueError(
+                    f"version-gate: a {version} entity ({e.get('id')!r}) must carry timestamps "
+                    "+ speeds")
     scenario = meta.get("scenario")
     if scenario is None:
         return
     has_change = "change" in scenario
     has_changes = "changes" in scenario
-    if version in ("0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"):
+    if version in ("0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0", "0.10.0"):
         if not has_changes or has_change:
             raise ValueError(
                 f"version-gate: a {version} artifact's scenario must carry `changes` (the list authority) "

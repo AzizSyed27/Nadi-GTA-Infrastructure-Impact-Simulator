@@ -257,6 +257,19 @@ def test_n_seeds_flag() -> None:
 
 # ---------------------------------------------------------------- V2.2d: the composite POST
 
+def test_new_road_via_rejected_400() -> None:
+    """V2.6c: via is CONTRACT CAPACITY only — the POST refuses it loudly BEFORE any junction
+    resolution (an ignored via would emit an artifact whose change lies about the simulated
+    geometry; netconvert threading is BACKLOG)."""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate({"type": "new_road", "target_edge": "nr_A_B", "from_junction": "A",
+                        "to_junction": "B", "lanes": 1, "speed_mps": 13.9, "via": ["J_mid"]})
+    assert ei.value.status_code == 400
+    assert "via" in str(ei.value.detail)
+
+
 def _post_composite(changes_kw: list[dict], tags=None, **req_kw):
     import asyncio
 

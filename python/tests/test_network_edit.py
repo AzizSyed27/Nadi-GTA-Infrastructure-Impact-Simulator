@@ -34,6 +34,15 @@ def _new_road(**kw) -> Change:
     return Change(**base)
 
 
+def test_validate_new_road_refuses_via() -> None:
+    """V2.6c: via is CONTRACT CAPACITY only — the pipeline refuses it loudly (an ignored via
+    would build a road the change description lies about; netconvert threading is BACKLOG)."""
+    ch = _new_road()
+    ch.via = ["J_mid"]
+    with pytest.raises(ValueError, match="via"):
+        network_edit.validate_new_road(ch)
+
+
 def test_validate_new_road_requires_geometry() -> None:
     """Pipeline-level (NOT schema) negative: a new_road missing geometry fails network_edit validation."""
     network_edit.validate_new_road(_new_road())  # complete geometry -> no raise

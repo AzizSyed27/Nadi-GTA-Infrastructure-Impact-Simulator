@@ -410,6 +410,10 @@ class SimChange(BaseModel):
     lanes: int = 1
     speed_mps: float = 13.9
     bidirectional: bool = False
+    # V2.6c: contract capacity only — the POST 400s on via until netconvert threading lands
+    # (BACKLOG). Must exist HERE or pydantic's extra-ignore silently drops it and the 400 is
+    # unreachable.
+    via: list[str] | None = None
     # runtime-change fields (speed_limit / bike_lane / closures / incident)
     target_edge: str | None = None
     value_mps: float | None = None  # speed_limit new max (m/s)
@@ -714,6 +718,9 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
     run_id = f"multimodal-scenario-{ts}"
 
     if ch.type == "new_road":
+        if ch.via:
+            raise HTTPException(400, "new_road.via is contract capacity only (V2.6c) — netconvert "
+                                     "threading is not implemented; remove via")
         if not (ch.from_junction and ch.to_junction and ch.lanes and ch.speed_mps):
             raise HTTPException(400, "new_road requires from_junction, to_junction, lanes, speed_mps")
         desc = ch.description or f"New road {ch.from_junction}->{ch.to_junction}"

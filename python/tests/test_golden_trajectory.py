@@ -39,6 +39,7 @@ SAMPLE_V6_PATH = REPO_ROOT / "web" / "public" / "sample_v0_6_0.json"
 SAMPLE_V7_PATH = REPO_ROOT / "web" / "public" / "sample_v0_7_0.json"
 SAMPLE_V8_PATH = REPO_ROOT / "web" / "public" / "sample_v0_8_0.json"
 SAMPLE_V9_PATH = REPO_ROOT / "web" / "public" / "sample_v0_9_0.json"
+SAMPLE_V10_PATH = REPO_ROOT / "web" / "public" / "sample_v0_10_0.json"
 
 SAMPLE_TARGET = 20  # ~this many vehicles sampled for the hash
 SAMPLE_ROUND = 5  # decimal places for lon/lat in the sampled tuples (~1 m)
@@ -236,9 +237,9 @@ def test_multimodal_artifact_valid() -> None:
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)
     # Produced by scenario_harness. Historically 0.3.0 (bumped to 0.4.0 by social); current producers emit
     # the current SCHEMA_VERSION — keep the accepted set open-ended forward (pin the SHAPE, not the version).
-    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0")
+    assert art.schema_version in ("0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0", "0.10.0")
     if art.social is not None:
-        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0"), "an artifact carrying a social{} block must be v0.4.0+"
+        assert art.schema_version in ("0.4.0", "0.5.0", "0.6.0", "0.7.0", "0.8.0", "0.9.0", "0.10.0"), "an artifact carrying a social{} block must be v0.4.0+"
     assert art.vehicles and art.persons, "expected multi-modal vehicles + persons"
     veh_ids = {v.id for v in art.vehicles}
     ped_ids = {p.id for p in art.persons}
@@ -785,7 +786,7 @@ def test_v0_8_0_sample() -> None:
 def test_older_samples_validate_under_current_schema() -> None:
     """Every committed older sample stays loadable under the CURRENT schema — the back-compat proof."""
     for p in (SAMPLE_PATH, SAMPLE_V3_PATH, SAMPLE_V4_PATH, SAMPLE_V5_PATH, SAMPLE_V6_PATH,
-              SAMPLE_V7_PATH, SAMPLE_V8_PATH):
+              SAMPLE_V7_PATH, SAMPLE_V8_PATH, SAMPLE_V9_PATH, SAMPLE_V10_PATH):
         trajectory_io.validate_artifact(json.loads(p.read_text(encoding="utf-8")))
 
 
@@ -963,6 +964,197 @@ def test_v0_9_0_semantic_roundtrip() -> None:
     assert "mandate" in m and "citations" in m
     sim = next(a for a in redumped["agents"] if a["grounding"] == "sim")
     assert "mandate" not in sim and "citations" not in sim
+
+
+# ===================================================================================================
+# v0.10.0 — the payload rung (V2.6c): per-entity EITHER-shape timestamps ({t0, dt} XOR explicit —
+# teleport-gapped entities keep TRUE holes), speeds dropped (worst_t moved to the outcomes
+# sidecar), 6-dp coords, new_road.via contract capacity. Full-ceremony block on the 0.9.0 template.
+# ===================================================================================================
+
+
+def _v10_raw() -> dict:
+    return json.loads(SAMPLE_V10_PATH.read_text(encoding="utf-8"))
+
+
+def test_v0_10_0_sample() -> None:
+    """The committed 0.10.0 sample validates at every layer — BOTH trajectory shapes present, and
+    the prior features CARRY (mandate agent, the 0.8.0 ranged cell, via on the new_road) — the
+    literal-comparison trap regression class."""
+    assert SAMPLE_V10_PATH.is_file(), f"committed v0.10.0 sample missing: {SAMPLE_V10_PATH}"
+    raw = _v10_raw()
+    trajectory_io.validate_artifact(raw)
+    trajectory_io.audit_version_gate(raw)
+    art = trajectory_io.load_artifact(SAMPLE_V10_PATH)
+    assert raw["schema_version"] == "0.10.0"
+    v1 = next(v for v in art.vehicles if v.id == "v1")  # compact
+    assert v1.t0 == 4.0 and v1.dt == 1.0 and v1.timestamps is None and v1.speeds is None
+    b1 = next(v for v in art.vehicles if v.id == "b1")  # explicit: a mid-trajectory teleport hole
+    assert b1.timestamps == [10.0, 11.0, 45.0, 46.0] and b1.t0 is None and b1.speeds is None
+    # the uniform explicit view under either shape
+    assert v1.timestamps_of() == [4.0, 5.0, 6.0]
+    assert b1.timestamps_of() == [10.0, 11.0, 45.0, 46.0]
+    p2 = next(p for p in art.persons if p.id == "p2")  # explicit: the TAIL-gap boundary shape
+    assert p2.timestamps is not None and p2.timestamps[-1] == 300.0
+    m = next(a for a in art.agents if a.grounding == "mandate")
+    assert m.mandate is not None and m.citations  # 0.9.0 carries
+    car = next(g for g in art.scorecard.groups if g.group == "car_commuter")
+    assert car.travel_time_delta.range is not None  # 0.8.0 carries
+    nr = next(c for c in contract_models.changes_of(art) if c.type == "new_road")
+    assert nr.via == ["J_mid"]  # V2.6c capacity
+
+
+def test_pre_0_10_0_carrying_t0_dt_fails() -> None:
+    """NEGATIVE both layers: a 0.9.0 artifact carrying t0/dt is mis-versioned; AND a 0.9.0 entity
+    MISSING speeds fails — gate J re-imposes the old per-entity obligation after the base
+    `required` relaxation (the relaxation and gate J must land together)."""
+    raw = _v10_raw()
+    raw["schema_version"] = "0.9.0"
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+    raw2 = _v9_raw()
+    del raw2["vehicles"][0]["speeds"]
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw2)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw2)
+
+
+def test_v0_10_0_carrying_speeds_fails() -> None:
+    """NEGATIVE both layers: speeds is DROPPED at 0.10.0 — an artifact carrying it is mis-versioned."""
+    raw = _v10_raw()
+    raw["vehicles"][1]["speeds"] = [1.0, 1.0, 1.0, 1.0]
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_v0_10_0_both_shapes_on_one_entity_fails() -> None:
+    """NEGATIVE: the per-entity shapes are XOR — t0/dt AND timestamps together fail every layer."""
+    raw = _v10_raw()
+    raw["vehicles"][0]["timestamps"] = [4.0, 5.0, 6.0]
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+
+
+def test_v0_10_0_shape_semantics_fail() -> None:
+    """NEGATIVE: dt must be > 0 (schema exclusiveMinimum + model gt); t0 without dt breaks the
+    pair rule at every layer."""
+    raw = _v10_raw()
+    raw["vehicles"][0]["dt"] = 0.0
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw)
+    raw2 = _v10_raw()
+    del raw2["vehicles"][0]["dt"]
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw2)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw2)
+    with pytest.raises(ModelValidationError):
+        contract_models.TrajectoryArtifact.model_validate(raw2)
+
+
+def test_v0_10_0_still_requires_prior_obligations() -> None:
+    """The existing-gate audit: 0.10.0 must not DROP an obligation — demand_profile, assignment
+    and the changes[] authority all still required."""
+    for key in ("demand_profile", "assignment"):
+        raw = _v10_raw()
+        del raw["meta"][key]
+        with pytest.raises(SchemaValidationError):
+            trajectory_io.validate_artifact(raw)
+        with pytest.raises(ValueError):
+            trajectory_io.audit_version_gate(raw)
+    raw = _v10_raw()
+    sc = raw["meta"]["scenario"]
+    sc["change"] = sc.pop("changes")[0]
+    with pytest.raises(SchemaValidationError):
+        trajectory_io.validate_artifact(raw)
+    with pytest.raises(ValueError):
+        trajectory_io.audit_version_gate(raw)
+
+
+def test_v0_10_0_semantic_roundtrip() -> None:
+    """Both trajectory shapes survive dump/load byte-equal: the compact entity re-emits t0/dt and
+    OMITS timestamps/speeds (exclude_none), the explicit entity keeps its array."""
+    src = _v10_raw()
+    art = trajectory_io.load_artifact(SAMPLE_V10_PATH)
+    out = RUNS_DIR / "_rt_v0_10_0.json"
+    try:
+        trajectory_io.dump_artifact(art, path=out)
+        redumped = json.loads(out.read_text(encoding="utf-8"))
+        trajectory_io.load_artifact(out)
+    finally:
+        out.unlink(missing_ok=True)
+    assert src == redumped, "semantic round-trip must be equal"
+    v1 = next(v for v in redumped["vehicles"] if v["id"] == "v1")
+    assert "t0" in v1 and "dt" in v1 and "timestamps" not in v1 and "speeds" not in v1
+    b1 = next(v for v in redumped["vehicles"] if v["id"] == "b1")
+    assert "timestamps" in b1 and "t0" not in b1 and "speeds" not in b1
+
+
+def test_compact_expand_literals() -> None:
+    """The shared-inverse-bug breaker (user sharpening): LITERALS on both sides — encoder and
+    decoder cannot agree on a wrong answer. expand(compact(x)) == x alone would pass under a
+    shared inverse bug."""
+    assert contract_models.expand_timestamps(4.0, 1.0, 3) == [4.0, 5.0, 6.0]
+    assert contract_models.compact_encoding([4.0, 5.0, 6.0], 1.0) == (4.0, 1.0)
+    assert contract_models.compact_encoding([7.5], 1.0) == (7.5, 1.0)  # n==1: dt from step_length
+    assert contract_models.compact_encoding([], 1.0) is None
+
+
+def test_compact_encoding_accepts_regular() -> None:
+    """A long regular series compacts and expands back exactly — the per-point `t0 + i*dt`
+    comparison (never accumulation) keeps float drift out over ~1800 steps."""
+    ts = [float(i) for i in range(1800)]
+    enc = contract_models.compact_encoding(ts, 1.0)
+    assert enc == (0.0, 1.0)
+    assert contract_models.expand_timestamps(enc[0], enc[1], len(ts)) == ts
+    ts2 = [3.0 + 0.5 * i for i in range(400)]  # non-unit dt, offset t0
+    enc2 = contract_models.compact_encoding(ts2, 1.0)
+    assert enc2 == (3.0, 0.5)
+    assert contract_models.expand_timestamps(enc2[0], enc2[1], len(ts2)) == ts2
+
+
+def test_compact_encoding_gap_positions() -> None:
+    """F2 — a teleport gap at the START, MIDDLE, or END (the long-tail case) forces the explicit
+    shape, and the artifact round-trips identical coordinates + timestamps (TRUE holes kept)."""
+    start_gap = [0.0, 50.0, 51.0, 52.0]
+    mid_gap = [0.0, 1.0, 40.0, 41.0]
+    end_gap = [0.0, 1.0, 2.0, 300.0]
+    for ts in (start_gap, mid_gap, end_gap):
+        assert contract_models.compact_encoding(ts, 1.0) is None, f"gap not detected: {ts}"
+    for ts in (start_gap, mid_gap, end_gap):
+        raw = _v10_raw()
+        b1 = next(v for v in raw["vehicles"] if v["id"] == "b1")
+        b1["timestamps"] = ts  # b1's path has 4 points — index-aligned with each shape
+        art = contract_models.TrajectoryArtifact.model_validate(raw)
+        out = RUNS_DIR / "_rt_v0_10_0_gap.json"
+        try:
+            trajectory_io.dump_artifact(art, path=out)
+            redumped = json.loads(out.read_text(encoding="utf-8"))
+        finally:
+            out.unlink(missing_ok=True)
+        rb1 = next(v for v in redumped["vehicles"] if v["id"] == "b1")
+        assert rb1["timestamps"] == ts and rb1["path"] == b1["path"]
+
+
+def test_compact_rule_lockstep_with_ts() -> None:
+    """F1 — the cross-language port-boundary pin: the TS twin carries the SAME eps literal and the
+    same `t0 + i * dt` expansion formula as contract_models (single-sourced comparison rule; an
+    exact-write/tolerant-read divergence would let an entity pass write and misread)."""
+    assert contract_models.COMPACT_DT_EPS == 1e-6  # the python literal, anchored here
+    ts_src = (REPO_ROOT / "web" / "lib" / "compactTime.ts").read_text(encoding="utf-8")
+    assert "COMPACT_DT_EPS = 1e-6" in ts_src, "TS eps literal must match the python constant"
+    assert "t0 + i * dt" in ts_src, "TS expansion must use the identical closed-form formula"
 
 
 def _write_golden() -> None:
