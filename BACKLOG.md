@@ -194,16 +194,18 @@ mandate byte-identity pin (`test_institutions.py`) means an update is a delibera
 never a drive-by reword. No mechanism until it hurts.
 
 ## V2.6a group interviews — deferred honesty edges (both review-surfaced 2026-08-19)
-- **The SHARED disclaimer strip's conjunction hole (user decision — baseline shift).** report's
-  `_CLAUSE_BOUNDARY` is punctuation-only (`[,;:—–]`), so a COMMA-LESS conjunction lets a claim ride
-  a licensed disclaimer to a clean audit in EVERY consumer of `_strip_disclaimers`: "I can't give a
-  verdict but the city should approve it" passes `audit_prose`/`audit_interview`/the cascade today.
-  V2.6a fixed this for the ROOM's cross-participant leg only (`interview._ROOM_CLAUSE_BOUNDARY`
-  adds `but|though|although|however|yet`; room-local by design) — the room's INHERITED legs
-  (verdict/tally/crash) and the single-interview/report/chat paths still carry the hole. Fixing it
-  properly means widening the shared boundary, which TIGHTENS the guard everywhere → a
-  corrected-on-retry baseline shift (the V2.5a precedent: announce the shift, re-baseline, don't
-  read it as model drift). Deliberate decision, not a drive-by.
+- **The SHARED disclaimer strip's conjunction hole — CLOSED (2026-08-19, the V2.6 follow-up;
+  user-ratified baseline decision).** `_CLAUSE_BOUNDARY` now carries the coordinating adversatives
+  (`but|yet`) for EVERY consumer; the V2.6b room-local fork is deleted (the room tests passed
+  unmodified). ACCEPTED RESIDUALS — decisions, not gaps: and/or are never boundaries (a
+  multi-object disclaimer — "cannot predict crashes or their probability" — must stay whole or
+  its tail re-enters the crash check, the V2.3b false-positive class), and
+  though/although/however are excluded too (review-caught on a five-word draft: they commonly
+  CONTINUE a disclaimer — "crashes however unlikely the probability" false-flagged as crash
+  talk). Smuggles joined by any excluded connector are absorbed by retry + the prompt rules;
+  every exclusion carries a MUTATION-EFFECTIVE pin in test_report.py so the boundary set can
+  neither shrink nor grow by drift. The audit-retry BASELINE SHIFT is recorded in CLAUDE.md's
+  provider block (the next natural regen's count is the new baseline's first reading, not drift).
 - **Sibling label collision in room attribution — UI half CLOSED in V2.6b, prompt half stays.**
   The RoomDrawer suffixes colliding participant labels "(a)/(b)" (UI-only, spec-pinned), so
   humans can tell sibling rows apart. STILL OPEN: the MODEL's transcript renders both siblings

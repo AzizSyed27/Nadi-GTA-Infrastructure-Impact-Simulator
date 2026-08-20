@@ -74,6 +74,15 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
   `_strip_disclaimers` re-check in `audit_prose`; disclaimer-paired claims no longer skip) — a modestly higher
   corrected-on-retry count on the NEXT report regen is expected from the guard change, not model drift;
   compare against a post-change baseline before reading it as a flag.
+  **BASELINE SHIFT (2026-08-19):** the guard TIGHTENED again (the V2.6 follow-up — `_CLAUSE_BOUNDARY` gained
+  the coordinating adversatives `but|yet`, closing the comma-less-conjunction smuggle for ALL consumers at
+  once: report slots, chat, cascade, interviews, the room) — a modest corrected-on-retry uptick on the next
+  natural regen is EXPECTED from the guard change, not model drift; **the next regen's count is the new
+  baseline's FIRST READING, not a deviation from the old one.** The boundary set is deliberately MINIMAL:
+  and/or are never boundaries (a multi-object disclaimer — "cannot predict crashes or their probability" —
+  must stay whole), and though/although/however are excluded too (review-caught on a five-word draft: they
+  commonly CONTINUE a disclaimer — "crashes however unlikely the probability" false-flagged as crash talk).
+  Every exclusion is pinned mutation-effective; the excluded-connector smuggles are the accepted residuals.
 - **Windows-native gotchas (LightRAG):** the per-run RAG index lives under `%LOCALAPPDATA%\nadi-report-agent\`,
   NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
   (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation
@@ -199,11 +208,15 @@ RATIFIED `speak` param (per-speaker sequential fetches — answers render as eac
 thinking row on the CURRENT speaker, a failed slot retries without killing the room, a
 synchronous ref gate kills double-POSTs); the doctored-prefix pins prove the client-assembled
 transcript can't reach grounding or forge attribution. Suites: **528 pytest + 88 Playwright**.
+**The V2.6 FOLLOW-UP closed the SHARED disclaimer-strip conjunction hole** (user-ratified baseline
+decision): `_CLAUSE_BOUNDARY` carries the adversative conjunctions for every consumer, the V2.6b
+room fork is DELETED (byte-identity confirmed first; room tests green unmodified), per-call-site
+pins landed, the and/or residual is pinned as a decision, and the audit-retry BASELINE SHIFT is
+recorded beside the 2026-07-31 precedent. Suites: **530 pytest + 88 Playwright**.
 Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
 re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
-probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal, the SHARED
-disclaimer-strip conjunction hole, the room's prompt-side sibling-label ambiguity — its UI half
-closed in V2.6b).
+probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal, the room's
+prompt-side sibling-label ambiguity — its UI half closed in V2.6b).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1170,6 +1183,41 @@ no contract change).**
   server): don't edit web/ sources while a suite runs against the dev server.
   Suites: **528 pytest + 88 Playwright**.
 
+**V2.6 follow-up — the SHARED disclaimer-strip conjunction hole CLOSED (the user-ratified
+baseline decision; code diff = report.py + interview.py + two test files, no contract change).**
+- `report._CLAUSE_BOUNDARY` gained the COORDINATING adversatives (`\b(?:but|yet)\b`, re.I)
+  beside the punctuation set — the comma-less "but <claim>" form is re-checked like its comma'd
+  sibling in EVERY consumer at once (audit_prose = report slots + chat; audit_prose_cascade;
+  audit_interview's verdict/operational legs; the room). RED-proven first: "I can't give a
+  verdict but the majority should approve it." audited CLEAN pre-fix at both pinned call sites.
+- **The boundary set is deliberately MINIMAL — every exclusion is a pinned decision, not a
+  gap.** and/or NEVER: a multi-object disclaimer ("cannot predict crashes or their probability",
+  pinned clean since V2.3b) must stay whole or its tail re-enters the crash check.
+  though/although/however NEVER — **the review CAUGHT the five-word draft reintroducing the very
+  false-positive class the fix's own comment forbade**: as subordinators/conjunctive adverbs they
+  commonly CONTINUE a disclaimer ("cannot predict crashes however unlikely the probability" /
+  "though not their probability" tripped crash — verified live, old-vs-new). The review also
+  caught the original and-pin being mutation-INEFFECTIVE (two independently-licensed clauses);
+  replaced with the true analog "crashes and their likelihood", which flips under an and/or
+  mutation. Every exclusion now carries a mutation-effective pin (test_report.py) — the set can
+  neither shrink nor grow by drift. Accepted residuals: smuggles joined by
+  and/or/though/although/however (retry + prompt rules absorb).
+- **The V2.6b room fork is DELETED** (`_ROOM_CLAUSE_BOUNDARY` + `_strip_disclaimers_room`):
+  byte-identity with the then-five-word shared boundary was confirmed BEFORE deletion, then the
+  shared set was narrowed (the room's conjunction pins all use "but" forms and ride the shared
+  set unmodified); `audit_room_utterance` reads `report._strip_disclaimers` again (one strip,
+  one source).
+- Pins are PER CALL SITE (the V2.3b hoist precedent — each consumer proven to route through the
+  fix, never just the helper in isolation): report but/yet-tally + but-crash + cascade/tally
+  (test_report.py) and interview/verdict (test_interview.py).
+- The audit-retry **BASELINE SHIFT (2026-08-19)** is recorded beside the 2026-07-31 precedent in
+  the provider block: the next natural regen's corrected-on-retry count is the new baseline's
+  FIRST READING, not drift. NO paid regen was run (precedent-consistent; a validation regen +
+  singleton restore + discourse.spec stays available on request).
+- Playwright deliberately NOT run: zero web/ changes — the guard is server-side and every room
+  spec mocks the backend, so a suite run would add no evidence. Suites: **530 pytest + 88
+  Playwright**.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -1276,13 +1324,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (528 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (530 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
   V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections + the V2.5a
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
-  sections + the V2.6a/b group-interview room/endpoint/speak sections) and `cd web && npx playwright test`
+  sections + the V2.6a/b group-interview room/endpoint/speak sections + the V2.6 follow-up
+  conjunction pins) and `cd web && npx playwright test`
   (88 tests across 18 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
   the V2.5b ends rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
