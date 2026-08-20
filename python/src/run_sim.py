@@ -33,7 +33,7 @@ SUMO_BINARY = SUMO_HOME / "bin" / "sumo.exe"
 sys.path.insert(0, str(SUMO_HOME / "tools"))
 # Sibling imports: this file runs as a script, so sys.path[0] is python/src/.
 import trajectory_io  # noqa: E402
-from contract_models import Assignment, Change, Meta, Scenario, TrajectoryArtifact, Vehicle  # noqa: E402
+from contract_models import Assignment, Change, Meta, Scenario, TrajectoryArtifact, Vehicle, encode_trajectory_fields  # noqa: E402
 
 # libsumo-first, TraCI fallback. Both expose the identical .start/.simulationStep/.vehicle/.simulation/.close API.
 # NOTE: the two-run harness calls start()/close() twice in one process. That is safe on TraCI (a fresh
@@ -304,8 +304,10 @@ def build_artifact(
             scenario=scenario,
         ),
         vehicles=[
-            # V2.6c/D6a: speeds are recorded in memory but DROPPED from the wire (0.10.0)
-            Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"])
+            # V2.6c: speeds dropped from the wire (D6a); regular cadence compacts to {t0, dt},
+            # gapped entities keep their true explicit arrays (D6b, encode_trajectory_fields)
+            Vehicle(id=vid, type=r["type"], path=r["path"],
+                    **encode_trajectory_fields(r["timestamps"], step_length))
             for vid, r in records.items()
         ],
     )

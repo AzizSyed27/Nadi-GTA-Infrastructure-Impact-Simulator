@@ -57,6 +57,7 @@ from contract_models import (
     TrajectoryArtifact,
     Vehicle,
     Window,
+    encode_trajectory_fields,
 )
 
 ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.rou.xml"
@@ -964,12 +965,16 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
     a lone change; composite members never carry one)."""
     # V2.6c/D6a — speeds stay IN-MEMORY only (worst_t is stamped into the outcomes sidecar from
     # the same records dict; the SSM/PET passes never read wire speeds): the artifact drops them.
+    # D6b — encode_trajectory_fields IS the write-time regularity check: regular cadence compacts
+    # to {t0, dt}; teleport-gapped entities keep their TRUE explicit arrays (lossless).
     vehicles = [
-        Vehicle(id=vid, type=r["type"], path=r["path"], timestamps=r["timestamps"])
+        Vehicle(id=vid, type=r["type"], path=r["path"],
+                **encode_trajectory_fields(r["timestamps"], step))
         for vid, r in records.items() if r["type"] in ("car", "bicycle")
     ]
     persons = [
-        Person(id=pid, type=r["type"], path=r["path"], timestamps=r["timestamps"])
+        Person(id=pid, type=r["type"], path=r["path"],
+               **encode_trajectory_fields(r["timestamps"], step))
         for pid, r in records.items() if r["type"] == "pedestrian"
     ]
     if not vehicles:
