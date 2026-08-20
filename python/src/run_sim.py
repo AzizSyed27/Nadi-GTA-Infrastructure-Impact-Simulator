@@ -33,7 +33,7 @@ SUMO_BINARY = SUMO_HOME / "bin" / "sumo.exe"
 sys.path.insert(0, str(SUMO_HOME / "tools"))
 # Sibling imports: this file runs as a script, so sys.path[0] is python/src/.
 import trajectory_io  # noqa: E402
-from contract_models import Assignment, Change, Meta, Scenario, TrajectoryArtifact, Vehicle, encode_trajectory_fields  # noqa: E402
+from contract_models import COORD_DECIMALS, Assignment, Change, Meta, Scenario, TrajectoryArtifact, Vehicle, encode_trajectory_fields  # noqa: E402
 
 # libsumo-first, TraCI fallback. Both expose the identical .start/.simulationStep/.vehicle/.simulation/.close API.
 # NOTE: the two-run harness calls start()/close() twice in one process. That is safe on TraCI (a fresh
@@ -250,7 +250,8 @@ def simulate(
                         "timestamps": [],
                         "speeds": [],
                     }
-                rec["path"].append([lon, lat])
+                # D6c: 6-dp (~11 cm) at record time — never in dump_artifact
+                rec["path"].append([round(lon, COORD_DECIMALS), round(lat, COORD_DECIMALS)])
                 rec["timestamps"].append(round(t, 3))
                 rec["speeds"].append(round(conn.vehicle.getSpeed(vid), 3))
         sim_end = conn.simulation.getTime()

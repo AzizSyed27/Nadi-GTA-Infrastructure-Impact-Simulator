@@ -55,6 +55,7 @@ from contract_models import (
     RenderSample,
     Scenario,
     TrajectoryArtifact,
+    COORD_DECIMALS,
     Vehicle,
     Window,
     encode_trajectory_fields,
@@ -257,7 +258,8 @@ def _record(records: dict, eid: str, mode: str, pos, speed: float, t: float, xy_
     rec = records.get(eid)
     if rec is None:
         rec = records[eid] = {"type": mode, "path": [], "timestamps": [], "speeds": []}
-    rec["path"].append([lon, lat])
+    # D6c: 6-dp (~11 cm) at RECORD time — never in dump_artifact (older samples round-trip byte-equal)
+    rec["path"].append([round(lon, COORD_DECIMALS), round(lat, COORD_DECIMALS)])
     rec["timestamps"].append(round(t, 3))
     rec["speeds"].append(round(speed, 3))
     # Raw SUMO x,y (metres) kept only for the post-hoc ped-PET pass — NOT written to the artifact.
@@ -347,7 +349,8 @@ class SpillRecorder:
         self._gone.pop(eid, None)
         xy = rec["xy"]
         convert = self._convert or run_sim.conn.simulation.convertGeo  # converter is the normal path
-        path = [list(convert(xy[i], xy[i + 1])) for i in range(0, len(xy), 2)]
+        path = [[round(c, COORD_DECIMALS) for c in convert(xy[i], xy[i + 1])]  # D6c: 6-dp at flush
+                for i in range(0, len(xy), 2)]
         self._fh.write(json.dumps(
             {"id": eid, "type": rec["type"], "path": path,
              "timestamps": list(rec["ts"]), "speeds": list(rec["sp"])}, separators=(",", ":")) + "\n")
