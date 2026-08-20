@@ -181,6 +181,12 @@ class GroupInterviewReq(BaseModel):
     agent_refs: list[GroupAgentRef]  # 3..5, validated in the handler (plain 400s, not 422s)
     question: str
     transcript: list[GroupTurn] = []
+    # V2.6b — when set, generate ONLY participants[speak] (the room drawer's sequential fetch
+    # loop; each answer renders as its fetch resolves). The FULL room still validates (count,
+    # resolution, duplicates). The transcript is used AS SENT as conversational context ONLY —
+    # attribution comes from refs resolution and grounding from the artifact, so a doctored
+    # prefix reaches neither (fold-in A, test-pinned).
+    speak: int | None = None
 
 
 @app.get("/api/report")
@@ -326,6 +332,11 @@ async def group_interview_endpoint(req: GroupInterviewReq):
             status_code=400,
             detail=f"agent_refs must list {interview.GROUP_MIN_AGENTS}.."
                    f"{interview.GROUP_MAX_AGENTS} participants (got {n})")
+    # V2.6b — structural check before any I/O; the 0 <= half is load-bearing (a bare `< n`
+    # would let participants[-1] silently alias the last speaker).
+    if req.speak is not None and not (0 <= req.speak < n):
+        raise HTTPException(status_code=400,
+                            detail=f"speak must be an agent_refs index 0..{n - 1} (got {req.speak})")
     try:
         ctx = await asyncio.to_thread(interview.load_run_context, req.run_id)
     except interview.RunNotFound:
@@ -354,8 +365,10 @@ async def group_interview_endpoint(req: GroupInterviewReq):
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     working = [t.model_dump() for t in req.transcript]
+    # speak = the drawer's per-speaker call: same room, same validation, ONE generation.
+    speakers = participants if req.speak is None else [participants[req.speak]]
     answers = []
-    for ref, agent in participants:
+    for ref, agent in speakers:
         text, audit = await interview.room_answer(client, ctx, agent, q, working)
         answers.append({"answer": text, "audit": audit,
                         "grounding": agent.get("grounding", "sim"),
