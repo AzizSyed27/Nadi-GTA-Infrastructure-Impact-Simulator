@@ -31,6 +31,9 @@ interface CommentFeedProps {
   /** V2.3b: open the interview drawer for an INFERRED community voice (sim voices interview via the
    * AgentPanel button; this is the community rows' click affordance). */
   onInterview?: (agent: Agent) => void;
+  /** V2.6b: add ANY feed voice to the group-interview room (the trailing ＋ on every row kind).
+   * Bubbles the artifact's own agent OBJECT — MapView resolves the agents[] index by reference. */
+  onAddToRoom?: (agent: Agent) => void;
   selectedId?: string | null;
 }
 
@@ -73,6 +76,7 @@ export function CommentFeed(props: CommentFeedProps) {
     onSelect,
     onLocate,
     onInterview,
+    onAddToRoom,
     selectedId,
   } = props;
   const [expanded, setExpanded] = useState(false);
@@ -129,22 +133,34 @@ export function CommentFeed(props: CommentFeedProps) {
             </div>
           ) : (
             institutions.map((a) => (
-              <button
-                key={agentId(a)}
-                data-testid="institution-row"
-                style={instRow}
-                onClick={() => onInstitution?.(a)}
-                title="See this voice's grounding — mandate source + the facts it cites"
-              >
-                <span style={rowText}>
-                  <span style={rowLabel}>
-                    <span style={icon}>🏛️</span>
-                    {a.persona.label}
-                    <span style={instTag}>— mandate lens</span>
+              <div style={rowWrap} key={agentId(a)}>
+                <button
+                  data-testid="institution-row"
+                  style={{ ...instRow, flex: 1 }}
+                  onClick={() => onInstitution?.(a)}
+                  title="See this voice's grounding — mandate source + the facts it cites"
+                >
+                  <span style={rowText}>
+                    <span style={rowLabel}>
+                      <span style={icon}>🏛️</span>
+                      {a.persona.label}
+                      <span style={instTag}>— mandate lens</span>
+                    </span>
+                    <span style={rowComment}>{a.reaction.comment}</span>
                   </span>
-                  <span style={rowComment}>{a.reaction.comment}</span>
-                </span>
-              </button>
+                </button>
+                {onAddToRoom && (
+                  <button
+                    style={addBtn}
+                    data-testid="room-add-institution"
+                    title="Add to conversation — a group interview (3–5 voices)"
+                    aria-label={`Add ${a.persona.label} to conversation`}
+                    onClick={() => onAddToRoom(a)}
+                  >
+                    ＋
+                  </button>
+                )}
+              </div>
             ))
           )}
         </div>
@@ -160,48 +176,73 @@ export function CommentFeed(props: CommentFeedProps) {
           <>
             {shown.map((it, i) =>
               it.kind === 'sim' ? (
-                <button
-                  key={it.key}
-                  data-testid="comment-row"
-                  onClick={() => {
-                    onSelect(it.agent);
-                    onLocate(it.agent);
-                  }}
-                  style={{
-                    ...row,
-                    ...(i === 0 ? rowFresh : null),
-                    ...(agentId(it.agent) === selectedId ? rowSelected : null),
-                  }}
-                >
-                  <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
-                  <span style={rowText}>
-                    <span style={rowLabel}>
-                      <span style={icon}>{modeIcon(it.agent.persona.id)}</span>
-                      {it.agent.persona.label}
+                <div style={rowWrap} key={it.key}>
+                  <button
+                    data-testid="comment-row"
+                    onClick={() => {
+                      onSelect(it.agent);
+                      onLocate(it.agent);
+                    }}
+                    style={{
+                      ...row,
+                      flex: 1,
+                      ...(i === 0 ? rowFresh : null),
+                      ...(agentId(it.agent) === selectedId ? rowSelected : null),
+                    }}
+                  >
+                    <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
+                    <span style={rowText}>
+                      <span style={rowLabel}>
+                        <span style={icon}>{modeIcon(it.agent.persona.id)}</span>
+                        {it.agent.persona.label}
+                      </span>
+                      <span style={rowComment}>{it.agent.reaction.comment}</span>
                     </span>
-                    <span style={rowComment}>{it.agent.reaction.comment}</span>
-                  </span>
-                </button>
+                  </button>
+                  {onAddToRoom && (
+                    <button
+                      style={addBtn}
+                      data-testid="room-add-sim"
+                      title="Add to conversation — a group interview (3–5 voices)"
+                      aria-label={`Add ${it.agent.persona.label} to conversation`}
+                      onClick={() => onAddToRoom(it.agent)}
+                    >
+                      ＋
+                    </button>
+                  )}
+                </div>
               ) : (
                 // V2.3b: a community row is now a click target — it opens the interview drawer for
                 // this inferred voice (styling unchanged; UA button styles reset in communityRow).
-                <button
-                  key={it.key}
-                  data-testid="community-row"
-                  style={{ ...communityRow, ...(onInterview ? { cursor: 'pointer' } : null) }}
-                  onClick={() => onInterview?.(it.agent)}
-                  title="Ask this voice a question"
-                >
-                  <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
-                  <span style={rowText}>
-                    <span style={rowLabel}>
-                      <span style={icon}>{modeIcon(it.agent.persona.id)}</span>
-                      {it.agent.persona.label}
-                      <span style={communityTag}>— community perspective</span>
+                <div style={rowWrap} key={it.key}>
+                  <button
+                    data-testid="community-row"
+                    style={{ ...communityRow, flex: 1, ...(onInterview ? { cursor: 'pointer' } : null) }}
+                    onClick={() => onInterview?.(it.agent)}
+                    title="Ask this voice a question"
+                  >
+                    <span style={dot(sentimentHex(it.agent.reaction.sentiment))} />
+                    <span style={rowText}>
+                      <span style={rowLabel}>
+                        <span style={icon}>{modeIcon(it.agent.persona.id)}</span>
+                        {it.agent.persona.label}
+                        <span style={communityTag}>— community perspective</span>
+                      </span>
+                      <span style={rowComment}>{it.agent.reaction.comment}</span>
                     </span>
-                    <span style={rowComment}>{it.agent.reaction.comment}</span>
-                  </span>
-                </button>
+                  </button>
+                  {onAddToRoom && (
+                    <button
+                      style={addBtn}
+                      data-testid="room-add-community"
+                      title="Add to conversation — a group interview (3–5 voices)"
+                      aria-label={`Add ${it.agent.persona.label} to conversation`}
+                      onClick={() => onAddToRoom(it.agent)}
+                    >
+                      ＋
+                    </button>
+                  )}
+                </div>
               ),
             )}
             {hiddenCount > 0 && (
@@ -330,3 +371,21 @@ const showEarlier: React.CSSProperties = {
 function dot(color: string): React.CSSProperties {
   return { width: 10, height: 10, borderRadius: '50%', background: color, marginTop: 3, flex: '0 0 auto' };
 }
+
+// V2.6b — every row kind gains a trailing "add to conversation" ＋. Nested buttons are invalid
+// HTML, so each row is a flex WRAPPER (the list key lives here) with the original row button
+// (flex:1 — its width:100% is inert once flex-basis is 0) and the add button as SIBLINGS. The
+// row buttons keep their testids and their border-shorthand-before-longhand accent ordering
+// (computed-style-pinned in interview.spec).
+const rowWrap: React.CSSProperties = { display: 'flex', alignItems: 'stretch', gap: 2 };
+const addBtn: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: '#6b7280',
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: 'pointer',
+  padding: '0 5px',
+  borderRadius: 8,
+  flex: '0 0 auto',
+};

@@ -3,6 +3,8 @@
 // python/src/server.py request+response shapes. CORS is enabled server-side; per-run artifacts are served
 // statically from web/public/<run_id>.json (the switcher + refresh fetch those directly, not via this client).
 
+import type { Grounding } from '@/lib/types';
+
 export const API_BASE = 'http://localhost:8000';
 
 /** A snap target from GET /api/junctions (existing SUMO junction). */
@@ -330,7 +332,7 @@ export interface InterviewMsg extends InterviewTurn {
 export interface InterviewResp {
   answer: string;
   audit: { status: string; [k: string]: unknown };
-  grounding: 'sim' | 'inferred';
+  grounding: Grounding; // V2.6b fix-in-passing: the server returns 'mandate' since V2.3c
   run_id: string;
   agent_id: string;
   persona_label: string;
@@ -356,6 +358,62 @@ export function postInterview(
       ...(agentIndex != null && agentIndex >= 0 ? { agent_index: agentIndex } : {}),
       question,
       transcript,
+    }),
+  });
+}
+
+/** V2.6b — a room participant reference (ids only, the V2.3b convention; the index is always
+ * sent — the room resolves it ONCE at add time, never per turn). */
+export interface GroupAgentRefWire {
+  agent_id: string;
+  agent_index: number;
+}
+
+/** One SHARED-room transcript turn. Agent turns carry the id+index ref; the SERVER attributes
+ * the utterance ("<label> said:") — labels never ride the wire. */
+export interface GroupTurnWire {
+  role: 'user' | 'agent';
+  text: string;
+  agent_id?: string;
+  agent_index?: number;
+}
+
+export interface GroupAnswer {
+  agent_id: string;
+  agent_index: number | null;
+  persona_label: string;
+  grounding: Grounding;
+  answer: string;
+  audit: { status: string; calls?: number; [k: string]: unknown };
+}
+
+export interface GroupInterviewResp {
+  run_id: string;
+  question: string;
+  answers: GroupAnswer[];
+  llm_calls: number;
+}
+
+/** POST /api/group-interview — one question to a ROOM of 3..5 of a run's voices. `speak` makes the
+ * server generate ONLY that agent_refs index (the room drawer's sequential fetch loop — answers
+ * render as each fetch resolves); agent_refs always declare the FULL room, which validates whole
+ * (count, resolution, duplicates) on every call. */
+export function postGroupInterview(
+  runId: string,
+  refs: GroupAgentRefWire[],
+  question: string,
+  transcript: GroupTurnWire[],
+  speak?: number,
+): Promise<ApiResult<GroupInterviewResp>> {
+  return req(`/api/group-interview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      run_id: runId,
+      agent_refs: refs,
+      question,
+      transcript,
+      ...(speak != null ? { speak } : {}),
     }),
   });
 }

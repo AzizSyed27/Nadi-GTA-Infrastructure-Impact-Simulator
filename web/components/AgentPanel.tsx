@@ -10,10 +10,13 @@ export function AgentPanel({
   agent,
   onClose,
   onInterview,
+  onAddToRoom,
 }: {
   agent: PinnedSimAgent | null;
   onClose: () => void;
   onInterview?: (agent: PinnedSimAgent) => void;
+  /** V2.6b: add this voice to the group-interview room (3-5 voices, one question each round). */
+  onAddToRoom?: (agent: PinnedSimAgent) => void;
 }) {
   if (!agent) return null;
   const { persona, outcome, reaction } = agent;
@@ -63,6 +66,16 @@ export function AgentPanel({
           title="Ask this persona questions — answers come from its own simulated trip in this run."
         >
           {'🎤 Interview · <1¢'}
+        </button>
+      )}
+      {onAddToRoom && (
+        <button
+          style={interviewBtn}
+          data-testid="room-add-panel"
+          onClick={() => onAddToRoom(agent)}
+          title="Add this voice to a group interview — 3–5 voices answer the same question in turn."
+        >
+          {'👥 Add to conversation'}
         </button>
       )}
     </div>

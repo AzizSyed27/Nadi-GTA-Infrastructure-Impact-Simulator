@@ -18,9 +18,10 @@ import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
-import { getJunctions, getEdges, postSimulate, postSimulateComposite, type ChangeWindow, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
+import { getJunctions, getEdges, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
+import { RoomDrawer, type RoomMsg, type RoomPair, type RoomRound } from '@/components/RoomDrawer';
 import { GraphSplitView, type GraphsSidecar } from '@/components/GraphSplitView';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
@@ -180,6 +181,21 @@ export default function MapView() {
   const onInterviewMsgs = useCallback((id: string, msgs: InterviewMsg[]) => {
     setInterviews((cur) => ({ ...cur, [id]: msgs }));
   }, []);
+  // V2.6b — the group-interview ROOM. Participants are {agent, index} PAIRS resolved ONCE at add
+  // time (identity flows as object references; indexOf on a copy breaks to -1 and an id-scan
+  // fallback would misattribute sibling voices). Session-only like the single interviews — every
+  // store below clears in loadRun; roomEpoch kills an in-flight round on run swap (an awaited
+  // response must never resurrect turns into a fresh session).
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomPairs, setRoomPairs] = useState<RoomPair[]>([]);
+  const [roomMsgs, setRoomMsgs] = useState<RoomMsg[]>([]);
+  const [roomRound, setRoomRound] = useState<RoomRound | null>(null);
+  const [roomLastRound, setRoomLastRound] = useState<number | null>(null);
+  const roomEpoch = useRef(0);
+  // SYNCHRONOUS in-flight guard (review catch): React state commits async, so key-repeat on a
+  // focused Retry/Ask can fire twice before `roomRound` updates — a ref check-and-set is the only
+  // race-free gate against a double-POSTed speaker slot (double spend).
+  const roomLoopActive = useRef(false);
   const [showAllConflicts, setShowAllConflicts] = useState(true);
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
@@ -660,6 +676,14 @@ export default function MapView() {
     setInterviewee(null);
     setInterviews({});
     setInstitution(null); // V2.3c: the grounding card is per-run too
+    // V2.6b: the room is a per-run session too; the epoch bump kills any in-flight round loop
+    roomEpoch.current++;
+    roomLoopActive.current = false; // the epoch bump orphaned any in-flight loop — free the gate
+    setRoomOpen(false);
+    setRoomPairs([]);
+    setRoomMsgs([]);
+    setRoomRound(null);
+    setRoomLastRound(null);
     // V2.3d: an enrich may have just exported fresh graph layouts for this same run_id — drop the
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
@@ -673,6 +697,98 @@ export default function MapView() {
       console.error('failed to load run', id, e);
     }
   }, []);
+
+  // V2.6b — room handlers. addToRoom resolves the artifact index ONCE (reference equality is the
+  // only reliable identity; a ref is never guessed for a copied object). Dup/cap checks live
+  // INSIDE the functional updater: StrictMode double-invokes it, and identity being intrinsic
+  // makes the second invoke a no-op (no minted ids needed, unlike the draft basket).
+  const addToRoom = useCallback(
+    (agent: Agent) => {
+      const idx = artifact?.agents?.indexOf(agent) ?? -1;
+      if (idx < 0) return;
+      setRoomOpen(true);
+      setRoomPairs((cur) => {
+        if (cur.length >= 5 || cur.some((p) => p.index === idx)) return cur;
+        return [...cur, { agent, index: idx }];
+      });
+    },
+    [artifact],
+  );
+
+  const removeFromRoom = useCallback((index: number) => {
+    setRoomPairs((cur) => cur.filter((p) => p.index !== index));
+  }, []);
+
+  // The sequential round loop (the ratified speak-param transport): one POST per speaker, each
+  // answer appended to the wire transcript before the next call — answers render as they arrive.
+  // A transport failure stops at that SPEAKER'S slot: rows 0..k-1 stand, Retry resumes from k
+  // (same speak, same prefix — no silent re-spend). The epoch check after EVERY await keeps a
+  // run-swap mid-round from resurrecting stale turns into the fresh session.
+  const runRoomLoop = useCallback(
+    async (round: RoomRound) => {
+      if (!artifact || roomLoopActive.current) return; // ref gate: race-free vs key-repeat
+      roomLoopActive.current = true;
+      const epoch = roomEpoch.current;
+      try {
+        const runId = artifact.meta.run_id;
+        const refs = round.pairs.map((p) => ({ agent_id: agentId(p.agent), agent_index: p.index }));
+        let transcript = round.transcript;
+        let calls = round.llmCalls;
+        for (let k = round.speak; k < round.pairs.length; k++) {
+          setRoomRound({ ...round, speak: k, transcript, llmCalls: calls, status: 'thinking', error: undefined });
+          const res = await postGroupInterview(runId, refs, round.question, transcript, k);
+          if (epoch !== roomEpoch.current) return; // run swapped mid-round — the room is gone
+          if (!res.ok) {
+            setRoomRound({ ...round, speak: k, transcript, llmCalls: calls, status: 'error', error: res.error });
+            return;
+          }
+          const a = res.value.answers[0];
+          const aIdx = a.agent_index ?? refs[k].agent_index;
+          setRoomMsgs((cur) => [
+            ...cur,
+            { role: 'agent', text: a.answer, agentId: a.agent_id, agentIndex: aIdx,
+              speakerLabel: a.persona_label, grounding: a.grounding, audit: a.audit },
+          ]);
+          transcript = [...transcript, { role: 'agent', text: a.answer, agent_id: a.agent_id, agent_index: aIdx }];
+          calls += res.value.llm_calls;
+        }
+        setRoomRound(null);
+        setRoomLastRound(calls); // the round's ACTUAL spend — can exceed N (per-speaker retries)
+      } finally {
+        // only the loop that still owns the session frees the gate — a stale (epoch-orphaned)
+        // loop's finally must not unlock a successor mid-round; loadRun already reset it
+        if (epoch === roomEpoch.current) roomLoopActive.current = false;
+      }
+    },
+    [artifact],
+  );
+
+  const askRoom = useCallback(
+    (question: string) => {
+      if (roomLoopActive.current) return; // pre-side-effect gate: no duplicate optimistic user turn
+      // the wire prefix is the PRIOR history stripped to wire keys — the question rides its own
+      // field (the V2.3b no-duplication rule); display fields (labels/audit) never ride the wire
+      const base: GroupTurnWire[] = roomMsgs.map((m) =>
+        m.role === 'agent'
+          ? { role: m.role, text: m.text, agent_id: m.agentId, agent_index: m.agentIndex }
+          : { role: m.role, text: m.text },
+      );
+      setRoomMsgs((cur) => [...cur, { role: 'user', text: question }]);
+      setRoomLastRound(null);
+      void runRoomLoop({ question, pairs: roomPairs, speak: 0, transcript: base, llmCalls: 0, status: 'thinking' });
+    },
+    [roomMsgs, roomPairs, runRoomLoop],
+  );
+
+  const retryRoom = useCallback(() => {
+    if (roomRound) void runRoomLoop(roomRound);
+  }, [roomRound, runRoomLoop]);
+
+  const dismissRound = useCallback(() => {
+    if (!roomRound) return;
+    setRoomLastRound(roomRound.llmCalls); // the honest partial round — what was actually spent
+    setRoomRound(null);
+  }, [roomRound]);
 
   // V2.3a — a voice streamed in mid-enrich: append its agent to the loaded artifact (hasVoices flips,
   // the playback feed grows, a pinned-sim dot appears) AND to the arrival-order ticker list. Dedup by
@@ -1636,6 +1752,7 @@ export default function MapView() {
             institutionsEmpty={institutionsEmpty}
             onInstitution={setInstitution}
             selectedId={selected ? agentId(selected) : null}
+            onAddToRoom={addToRoom}
           />
           <div style={rightRail}>
             <ScorecardPanel
@@ -1645,11 +1762,17 @@ export default function MapView() {
               demandProfile={meta.demand_profile}
               scope={windowedScope(changesOf(artifact), meta.sim_end)}
             />
-            <AgentPanel agent={selected} onClose={() => setSelected(null)} onInterview={setInterviewee} />
+            <AgentPanel
+              agent={selected}
+              onClose={() => setSelected(null)}
+              onInterview={setInterviewee}
+              onAddToRoom={addToRoom}
+            />
             <InstitutionPanel
               agent={institution}
               onClose={() => setInstitution(null)}
               onInterview={setInterviewee}
+              onAddToRoom={addToRoom}
             />
             {interviewee &&
               (() => {
@@ -1671,6 +1794,22 @@ export default function MapView() {
                   />
                 );
               })()}
+            {roomOpen && (
+              // V2.6b — the room: closing keeps pairs+thread (the session lives until loadRun);
+              // any add re-opens it with the thread intact.
+              <RoomDrawer
+                pairs={roomPairs}
+                messages={roomMsgs}
+                round={roomRound}
+                lastRoundCalls={roomLastRound}
+                busy={roomRound?.status === 'thinking'}
+                onAsk={askRoom}
+                onRetry={retryRoom}
+                onDismissRound={dismissRound}
+                onRemove={removeFromRoom}
+                onClose={() => setRoomOpen(false)}
+              />
+            )}
           </div>
           <ConflictLegend
             count={conflicts.length}

@@ -13,6 +13,16 @@ import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
  * IDS only (run_id + agentId) — the grounding is built server-side from the artifact, and the server's
  * honesty guard audits every answer (a failed audit renders the in-character refusal + a labeled note).
  */
+
+/** The per-grounding disclosure sentences — ONE source (V2.6b: the RoomDrawer renders the same
+ * sentences per participant; the spec pins them with toHaveText, so they must never fork). */
+export const GROUNDING_SENTENCES: Record<'sim' | 'inferred' | 'mandate', string> = {
+  mandate:
+    "Answers are generated from this organization's published mandate and this run's computed facts — not from the organization itself.",
+  inferred:
+    "This voice wasn't simulated directly — it speaks from what the scenario implies for someone like them.",
+  sim: "Answers come from this persona's own simulated trip in this run — anticipation, never a verdict.",
+};
 export function InterviewDrawer({
   agent,
   agentIndex,
@@ -70,11 +80,7 @@ export function InterviewDrawer({
       </div>
       <div style={title}>{agent.persona.label}</div>
       <div style={grounding} data-testid="interview-grounding">
-        {kind === 'mandate'
-          ? "Answers are generated from this organization's published mandate and this run's computed facts — not from the organization itself."
-          : kind === 'inferred'
-            ? "This voice wasn't simulated directly — it speaks from what the scenario implies for someone like them."
-            : "Answers come from this persona's own simulated trip in this run — anticipation, never a verdict."}
+        {GROUNDING_SENTENCES[kind]}
       </div>
 
       <div style={thread}>

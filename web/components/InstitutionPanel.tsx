@@ -12,10 +12,13 @@ export function InstitutionPanel({
   agent,
   onClose,
   onInterview,
+  onAddToRoom,
 }: {
   agent: MandateAgent | null;
   onClose: () => void;
   onInterview?: (agent: MandateAgent) => void;
+  /** V2.6b: add this mandate-lens voice to the group-interview room. */
+  onAddToRoom?: (agent: MandateAgent) => void;
 }) {
   if (!agent) return null;
   const md = agent.mandate;
@@ -64,6 +67,16 @@ export function InstitutionPanel({
           title="Ask questions answered from the published mandate + this run's computed facts only."
         >
           {'🎤 Interview · <1¢'}
+        </button>
+      )}
+      {onAddToRoom && (
+        <button
+          style={interviewBtn}
+          data-testid="room-add-institution-panel"
+          onClick={() => onAddToRoom(agent)}
+          title="Add this mandate-lens voice to a group interview — 3–5 voices answer the same question in turn."
+        >
+          {'👥 Add to conversation'}
         </button>
       )}
     </div>
