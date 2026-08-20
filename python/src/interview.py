@@ -479,39 +479,24 @@ _CROSS_PARTICIPANT = re.compile(
 )
 
 
-# Review-caught (V2.6a): report's _CLAUSE_BOUNDARY is punctuation-only, so a COMMA-LESS "but" let
-# a consensus claim ride a licensed disclaimer to a clean audit ("I can't predict crashes but
-# everyone here agrees it's better."). The room's boundary treats conjunctions as clause breaks
-# too. ROOM-LOCAL on purpose: widening the SHARED boundary would tighten audit_prose for report
-# slots + chat and shift the audit-retry baseline (the V2.5a lesson) — that pre-existing hole is
-# recorded in BACKLOG for a deliberate decision, not fixed as a side effect here.
-_ROOM_CLAUSE_BOUNDARY = re.compile(r"[,;:—–]|\b(?:but|though|although|however|yet)\b", re.I)
-
-
-def _strip_disclaimers_room(sentence: str) -> str:
-    """report._strip_disclaimers' walk with the room's wider clause boundary — the conjunction word
-    itself is kept, so the remainder ("but everyone here agrees…") is re-checked."""
-    out: list[str] = []
-    i = 0
-    while True:
-        m = report._ALLOW.search(sentence, i)
-        if not m:
-            out.append(sentence[i:])
-            return "".join(out)
-        out.append(sentence[i : m.start()])
-        b = _ROOM_CLAUSE_BOUNDARY.search(sentence, m.end())
-        i = b.start() if b else len(sentence)  # the boundary char/word itself is kept
+# The V2.6b room-local conjunction-aware strip fork (_ROOM_CLAUSE_BOUNDARY +
+# _strip_disclaimers_room) is DELETED: the shared report._CLAUSE_BOUNDARY carries adversative
+# conjunctions since the V2.6 follow-up (the baseline decision was made — see the BASELINE SHIFT
+# note in CLAUDE.md), so the fork's reason expired. NB the shared set was then NARROWED to
+# but|yet (review-caught: though/although/however commonly CONTINUE a disclaimer and
+# false-flagged pure hedges) — the room's conjunction pins all use "but" forms and ride the
+# shared set; the smuggle residuals are documented at report._CLAUSE_BOUNDARY.
 
 
 def audit_room_utterance(text: str, grounding: str = "sim", mission: str | None = None) -> list[tuple[str, str]]:
     """The ROOM guard: audit_interview (the full per-speaker set -- mandate speakers keep their
-    operational/first-person rules) + the cross-participant rule, through the room's
-    conjunction-aware clause-bounded disclaimer strip so a refusal may name what it refuses while
-    a "(,) but <room claim>" clause is re-checked. Room-only: the single-interview path never sees
-    this rule."""
+    operational/first-person rules) + the cross-participant rule, through the SAME clause-bounded
+    disclaimer strip (conjunction-aware since the V2.6 follow-up) so a refusal may name what it
+    refuses while a "(,) but <room claim>" clause is re-checked. Room-only: the single-interview
+    path never sees this rule."""
     viol = audit_interview(text, grounding, mission)
     for s in report._sentences(text):
-        t = _strip_disclaimers_room(s) if report._ALLOW.search(s) else s
+        t = report._strip_disclaimers(s) if report._ALLOW.search(s) else s
         if _CROSS_PARTICIPANT.search(t):
             viol.append(("cross_participant", s))
     seen: set[tuple[str, str]] = set()

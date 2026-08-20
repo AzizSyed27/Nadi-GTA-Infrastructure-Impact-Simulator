@@ -170,6 +170,15 @@ def test_guard_allow_clause_cannot_smuggle_a_real_claim() -> None:
     assert "crash" in rules2
 
 
+def test_guard_conjunction_cannot_smuggle_a_verdict() -> None:
+    """V2.6 follow-up: the shared strip's boundary gained the adversative conjunctions — the
+    comma-less "but" form no longer rides the disclaimer clause to a clean audit at THIS call
+    site (the single-interview verdict leg routes through report._strip_disclaimers)."""
+    rules = {r for r, _ in interview.audit_interview(
+        "I can't give a verdict but the city should approve it.")}
+    assert "verdict" in rules
+
+
 def test_guard_verdict_covers_recommend_and_negated_should() -> None:
     assert {r for r, _ in interview.audit_interview("I recommend the city build this right away.")} == {"verdict"}
     assert {r for r, _ in interview.audit_interview("This shouldn't go ahead in my opinion.")} == {"verdict"}

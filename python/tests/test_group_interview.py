@@ -149,10 +149,11 @@ def test_room_guard_disclaimer_strip_applies() -> None:
 
 
 def test_room_strip_conjunction_cannot_smuggle_consensus() -> None:
-    """Review-caught (V2.6a): report's clause boundary is punctuation-only, so a COMMA-LESS 'but'
-    let a consensus claim ride a licensed disclaimer to a clean audit. The room's strip treats
-    conjunctions as clause boundaries too (room-local — widening the shared boundary would shift
-    the report's audit-retry baseline)."""
+    """Review-caught at V2.6b (when report's boundary was punctuation-only, a COMMA-LESS 'but'
+    let a consensus claim ride a licensed disclaimer to a clean audit); closed room-locally
+    first, then the V2.6 follow-up hoisted the conjunction-aware boundary into the SHARED
+    report._CLAUSE_BOUNDARY and deleted the room fork — these pins now exercise the shared
+    path (their green-unmodified run was the consolidation's acceptance)."""
     for text in (
         "I can't predict crashes but everyone here agrees it's better.",
         "I can't give a verdict but most of us agree it works.",

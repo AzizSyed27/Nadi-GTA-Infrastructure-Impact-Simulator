@@ -674,7 +674,22 @@ _CRASH = re.compile(r"\b(crash\w*|accident\w*|collision\w*|fatalit\w*|injur\w*|p
 # LLM slots are constrained so this rarely fires, but it keeps the audit from flagging a pure disclaimer.
 _ALLOW = re.compile(r"(cannot|can't|does not|do not|doesn't|don't|not a|isn't|is not)\b.{0,40}"
                     r"(predict|prediction|verdict|crash|collision|guarantee|claim)", re.I)
-_CLAUSE_BOUNDARY = re.compile(r"[,;:—–]")
+# V2.6 follow-up — the boundary carries the COORDINATING adversatives (but/yet) beside the
+# punctuation set: a COMMA-LESS "but" used to have no boundary, so the strip ran to sentence end
+# and ate the smuggled claim ("I can't give a verdict but the majority should approve it."
+# audited CLEAN — V2.6b review-caught, closed room-locally first, hoisted here after the
+# deliberate baseline decision; see the BASELINE SHIFT note in CLAUDE.md).
+# The set is deliberately MINIMAL — every exclusion protects disclaimers that must stay whole:
+#  - and/or NEVER: a multi-object disclaimer ("cannot predict crashes or their probability")
+#    would leak its tail back into the crash check — the exact false-positive class the
+#    clause-bounding was built to kill (V2.3b).
+#  - though/although/however NEVER (review-caught on a five-word draft): as subordinators/
+#    conjunctive adverbs they commonly CONTINUE the disclaimer — "cannot predict crashes however
+#    unlikely the probability" / "though not their probability" false-flagged as crash talk.
+# Accepted residuals, decisions not gaps (retry + the prompt rules absorb): smuggles joined by
+# and/or/though/although/however. Every exclusion is pinned with a mutation-effective sentence
+# (test_report.py) so the set can neither shrink nor grow by drift.
+_CLAUSE_BOUNDARY = re.compile(r"[,;:—–]|\b(?:but|yet)\b", re.I)
 
 
 def _strip_disclaimers(sentence: str) -> str:
@@ -683,7 +698,9 @@ def _strip_disclaimers(sentence: str) -> str:
     whole-sentence: a compound sentence pairing a disclaimer with a real claim ("I can't give a
     verdict, but the majority should approve it") would smuggle the claim past the audit (V2.3b
     review-caught). Clause-bounded, not span-bounded, so a multi-object disclaimer ("cannot predict
-    crashes or their probability") stays whole instead of leaking its tail back into the checks."""
+    crashes or their probability") stays whole instead of leaking its tail back into the checks.
+    Since the V2.6 follow-up an adversative conjunction bounds the clause too — the comma-less
+    "but <claim>" form is re-checked like its comma'd sibling (the boundary word itself is kept)."""
     out: list[str] = []
     i = 0
     while True:

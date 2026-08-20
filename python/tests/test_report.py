@@ -85,6 +85,30 @@ def test_audit_cascade_allow_clause_cannot_smuggle_a_tally():
     assert not report.audit_prose_cascade("I can't predict crashes, that's not my place.")
 
 
+def test_audit_conjunction_cannot_smuggle_a_real_claim():
+    """V2.6 follow-up: the clause boundary includes the COORDINATING adversatives (but/yet) — a
+    COMMA-LESS "but" no longer rides a licensed disclaimer to the end of the sentence. The
+    boundary set is deliberately NARROW, review-verified in both directions: and/or must stay out
+    (a multi-object disclaimer's tail would re-enter the crash check) and though/although/however
+    must stay out too (they commonly CONTINUE a disclaimer — "crashes however unlikely the
+    probability" false-flagged under a five-word set). Every exclusion is pinned with a
+    mutation-effective sentence so the set can neither shrink nor grow by drift."""
+    assert "tally" in _rules("I can't give a verdict but the majority supports this.")
+    assert "tally" in _rules("I can't give a verdict yet the majority supports this.")
+    assert "crash" in _rules("I can't predict the future but there would be fewer collisions here.")
+    # the protected multi-object class: or-joined AND and-joined tails stay inside the disclaimer
+    # ("and their likelihood" flips to a crash violation if and/or ever join the boundary)
+    assert not _rules("This tool cannot predict crashes or their probability.")
+    assert not _rules("This tool cannot predict crashes and their likelihood.")
+    # the protected CONTINUATION class (review-caught on the five-word set): subordinating/
+    # adverbial connectors keep the disclaimer whole — these flip if though/however join the set
+    assert not _rules("This tool cannot predict crashes though not their probability.")
+    assert not _rules("This tool cannot predict crashes however unlikely the probability.")
+    # the cascade call site routes through the same widened boundary
+    rules = {r for r, _ in report.audit_prose_cascade("I can't give a verdict but most agents vote yes.")}
+    assert "tally" in rules
+
+
 # --------------------------------------------------------------------------------------------------
 # Cell rendering — ± magnitude for safety, signed for travel/access, POSITIVE = worse.
 # --------------------------------------------------------------------------------------------------
