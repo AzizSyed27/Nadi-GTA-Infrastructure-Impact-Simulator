@@ -224,11 +224,20 @@ on the 90 MB exemplar (headed): gzip 26.9→7.6 MB (-72%), parse 3.3→1.4 s, na
 heap 189→90 MB, frames identical. Live acceptance end-to-end incl. a mandate voice at 0.10.0;
 golden refreshed; committed fixtures stay at their vintages (the back-compat proof). Suites:
 **556 pytest + 91 Playwright**.
+**THE RESOLVER-FAMILY FIX (2026-08-21):** the twice-fired lexicographic newest-pick bug is DEAD
+family-wide — `trajectory_io.newest_ts_named` (digit-first; junk warned by name; junk-only exits
+loudly naming the flag; CLI/subprocess-contained severity) backs newest_instrumented /
+newest_outcomes / report._resolve / scorecard._resolve / robustness + the golden picks;
+`newest_index` is ALIGNMENT-FIRST (latest-report's run → its index; the V2.5a drift class dead
+structurally); run_state.list_all orders junk LAST (inventory, never filtered); settle's
+iteration dirs sort NUMERICALLY (string-sort took iteration 9 of 0..11 — the V2.1c settled
+deliverable's re-verification decision is OPEN in BACKLOG). Both old fix candidates were
+counterexampled (strptime by the SEED1 probe; mtime by OneDrive resync). Suites: **567 pytest +
+91 Playwright**.
 Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
-re-verification, the calibrated composite exemplar, the singleton/index drift guards — the
-lexicographic-sort ammunition FIRED live in C6 (newest_instrumented), per-window probing at rung
-3, the V2.7 legacy-fallback removal, new_road.via runtime threading, the room's prompt-side
-sibling-label ambiguity — its UI half closed in V2.6b).
+re-verification, the calibrated composite exemplar, the settled-basis re-verification, per-window
+probing at rung 3, the V2.7 legacy-fallback removal, new_road.via runtime threading, the room's
+prompt-side sibling-label ambiguity — its UI half closed in V2.6b).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -303,7 +312,9 @@ robustness, the compare view).**
   micro pair on settled routes (`settle.py`; runtime changes get the patched net PLUS the TraCI
   apply, VERIFIED by readback). `meta.assignment` REQUIRED; settled ⇒ `scope:"cars_only"` ON THE
   WIRE (scope limitations ride the artifact, never a docstring). Deliverable: Kingston Rd 40 km/h
-  day-one **+5.05 s** vs settled **+2.31 s** — adaptation absorbs ~half the shock.
+  day-one **+5.05 s** vs settled **+2.31 s** — adaptation absorbs ~half the shock. **(NB 2026-08-21:
+  the settled BASIS is under re-verification — the pre-fix iteration sort took iteration 9 of 0..11,
+  not the last; see BACKLOG's settled-basis entry. The direction of the finding is not in doubt.)**
 - **d (v0.8.0):** `--n-seeds 3` probe pairs after the canonical pair. **Seed 42 IS the artifact**;
   probes contribute ONLY per-cell `range {min, max, n_seeds, sign_stable}` — no cross-seed central
   aggregate; settled probes REUSE the canonical settled routes (basis disclosed). HONESTY
@@ -1372,12 +1383,13 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   **must be generated FOR that run** or `discourse.spec`'s `report-discourse` assertion fails (report view ↔ pinned
   artifact diverge — a later run's report silently overwrites it). Regenerate with the EXPLICIT run-id — never let
   `_resolve` pick the newest: `python python/src/report.py --run-id multimodal-scenario-20260702T044134Z`.
-  `report_agent.newest_index()` likewise picks the **lexicographically last-NAMED** index (a plain name sort,
-  NOT newest-timestamp — `index-V22AACCEPT` outsorts every `index-<ts>` name because `'V' > '2'`; V2.5a-corrected);
-  with several runs' indexes under `%LOCALAPPDATA%\nadi-report-agent\`, the server may serve a different run's chat
-  than the report view (it warns "index run != report run") — keep only the intended run's index live to align the chat.
-  V2.1 practice: non-pinned indexes are ARCHIVED (reversibly) at `%LOCALAPPDATA%\nadi-report-agent\archive\`, and
-  after any verification report-regen, restore the singleton via `git checkout -- web/public/latest-report.*`.
+  `report_agent.newest_index()` resolves **ALIGNMENT-FIRST since the resolver-family fix (2026-08-21)**: the
+  served `latest-report.json`'s run id → its `index-<ts>` dir when present (chat and report align by
+  construction); fallback = the digit-first newest timestamp-named index DIR with junk names warned by name
+  (the old lexicographic name sort served `index-V22AACCEPT` for two silent days — that class is dead).
+  The lifespan "index run != report run" warning is the backstop canary now; archiving other indexes at
+  `%LOCALAPPDATA%\nadi-report-agent\archive\` remains good tidiness but is no longer load-bearing for alignment.
+  After any verification report-regen, restore the singleton via `git checkout -- web/public/latest-report.*`.
 - **Graphs sidecar backfill (V2.3d):**
   ```bash
   python python/src/graph_export.py --run-id <id> [--half oasis|entity|both]   # EXPLICIT id — no newest-run default
@@ -1399,14 +1411,15 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (556 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (567 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
   V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections + the V2.5a
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
   sections + the V2.6a/b group-interview room/endpoint/speak sections + the V2.6 follow-up
-  conjunction pins + the V2.6c 0.10.0 ceremony/compact/worst_t/coord sections) and
+  conjunction pins + the V2.6c 0.10.0 ceremony/compact/worst_t/coord sections + the
+  resolver-family sections) and
   `cd web && npx playwright test`
   (91 tests across 19 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,

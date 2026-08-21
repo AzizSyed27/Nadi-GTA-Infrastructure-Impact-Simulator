@@ -191,7 +191,9 @@ cd web && npx playwright test        # 79 tests, 17 specs
   OASIS discourse → the editor (the server fronts the pipeline).
 - **V2.0–V2.1 ✅** — multi-change contract; the network as the base layer; count-calibrated
   demand; settled assignment (day-one **+5.05 s** vs settled **+2.31 s** on the same change —
-  adaptation absorbs about half the shock); seed ranges; ⇄ Compare.
+  adaptation absorbs about half the shock; the settled figure's iteration basis is under
+  re-verification after a sort-order fix — the direction of the finding is not in doubt);
+  seed ranges; ⇄ Compare.
 - **V2.2 ✅ (`v2.2`)** — windowed changes with in-sim revert proofs, closures, incidents, the
   response probe, the school zone, the windowed-scope disclosure.
 - **V2.3 ✅ (`v2.3`)** — streamed enrich, persona interviews, mandate-grounded institutions

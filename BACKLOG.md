@@ -122,15 +122,35 @@ multi-segment building (minted ids, node/edge pairs multiply per waypoint) + the
 path capture + adding via to `changeSetKey`'s mechanical projection. Until then via is
 schema-loose like its five 5.1 siblings (not type-restricted at the model — precedented).
 
-## V2.6c sighting — the lexicographic-sort ammunition FIRED live (newest_instrumented)
-During the C6 acceptance, `reactions.newest_instrumented()` (`sorted(glob("instrumented-*.json"))
-[-1]`) picked the STALE `instrumented-V22AACCEPT.json` over the fresh timestamp file ('V' > '2' —
-the exact `newest_index()` bug class this file already called live ammunition) and enriched a
-stale roster: burned the Groq free-tier day cap and clobbered the (untracked) V22AACCEPT
-artifact. No repo damage; the rerun used the documented explicit `--instrumented` form. FIX
-CANDIDATE (one line each): mtime-sort or a `instrumented-2*.json` timestamp-shaped glob in BOTH
-`newest_instrumented()` and `report_agent.newest_index()` — do them together, they are the same
-bug twice.
+## The lexicographic newest-pick family — FIXED (2026-08-21, after firing twice)
+The `sorted(glob)[-1]` bug ('V' > '2') fired twice with real cost (the V2.5a two-day stale-index
+drift; the V2.6c stale-roster Groq-cap burn) and the fix swept the FAMILY, not the pair: the
+shared `trajectory_io.newest_ts_named` (digit-first name filter; skipped junk WARNED by name
+every resolution; junk-only → loud SystemExit naming files + the explicit flag) now backs
+`newest_instrumented` / `newest_outcomes` (the upstream sibling with SIX junk names) /
+`report._resolve` / `scorecard._resolve` / `robustness._seed42` + the golden-test picks + the
+review-caught stragglers `report._load_calibration_provenance` (the SILENT variant — a junk
+provenance would have fed report methodology text with no error) and `demand_calibration`'s
+`newest_inventory`/`newest_provenance` (single-file spaces today; future-proofed inline);
+`run_state.list_all` got an ORDERING-ONLY key (junk lists last, never filtered — an inventory,
+not a resolver); `report_agent.newest_index` was REDESIGNED alignment-first (latest-report's
+run id → its index dir; explicit prints on unreadable-report + skipped junk + missing aligned
+index; is_dir guards the stray-file trap) — the V2.5a drift class is dead structurally, and the
+lifespan mismatch warning is now the backstop canary. NB BOTH previously recorded fix candidates
+were counterexampled in this tree: strict strptime rejects the legitimate --run-ts probe
+`20260719T0500SEED1`; mtime is scrambled by OneDrive resync (July-named files carrying August
+mtimes) and index-dir mtime tracks last CHAT, not last build. SystemExit severity is
+CLI/subprocess-contained (reachability grep in test_run_resolvers.py — no live handler reaches
+an exit-bearing resolver).
+
+## DISCOVERED with the family — settle's iteration sort (FIXED; re-verification OPEN)
+`settle.py` had the same bug in the NUMERIC alphabet: `sorted()` over string digit dir-names
+('9' > '11'), so with DEFAULT_CAP=12 (dirs 0..11) "the last iteration's routes" silently took
+ITERATION 9's routes, and the avg_tts sequence feeding `convergence_stats` was scrambled too.
+Fixed (`_iteration_dirs`, key=int, test-pinned 0..11 → 11). **OPEN DECISION: the V2.1c settled
+deliverable (Kingston Rd day-one +5.05 s vs settled +2.31 s) was produced under the old sort —
+its settled basis may be iteration 9, not the last. Re-verification = one settled calibrated
+rerun (hours). The fix makes every FUTURE settled run correct regardless.**
 
 ## V2.5c follow-on — remove the legacy latest.json payload fallback (scheduled: V2.7)
 MapView's mount tolerates a pre-V2.5c latest.json that still carries a FULL artifact payload
