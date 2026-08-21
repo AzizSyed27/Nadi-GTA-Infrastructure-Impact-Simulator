@@ -11,9 +11,23 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 ## Cardinal rules
 1. **Positions are ALWAYS `[lon, lat]` (WGS84)** — never SUMO internal x/y. (Wrong → dots in the ocean.)
 2. **The schema is FROZEN.** Do not change field names/types/shape without **bumping `schema_version`**
-   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.5.0`**.
-   `schema_version` is an **enum `["0.1.0", "0.2.0", "0.3.0", "0.4.0", "0.5.0"]`** — 0.5.0 is what new runs emit;
-   older versions are accepted for back-compat reads (they simply omit the newer optional structures).
+   AND updating BOTH sides (Python models + TS types) in the same change. Current: **`0.10.0`**.
+   `schema_version` is an **enum `["0.1.0" … "0.10.0"]`** — 0.10.0 is what new runs emit; older
+   versions are accepted for back-compat reads. NB the per-version reference sections BELOW this
+   file's fold stop at 0.5.0 and are HISTORICAL — v0.6.0 (demand_profile/render_sample), v0.7.0
+   (assignment), v0.8.0 (scorecard cell ranges), v0.9.0 (mandate agents) and v0.10.0 (below) are
+   documented in the schema's own top-level description + CLAUDE.md's phase blocks; the committed
+   `contract/trajectory_schema.json` is ALWAYS the authority when this doc lags.
+   **v0.10.0 (V2.6c, the payload encoding):** per-entity EITHER-shape time series — compact
+   `{t0, dt}` when the cadence is exactly regular (write-time-checked against `t0 + i*dt` within
+   the shared `COMPACT_DT_EPS`; the reader reconstructs with the SAME closed form —
+   `contract_models.expand_timestamps` / `web/lib/compactTime.ts`, lockstep-pinned) XOR the
+   explicit `timestamps` array (teleport-gapped entities keep TRUE holes); **`speeds` is DROPPED**
+   (the sole consumer, sampler's worst-moment/trigger_t pass, reads the outcomes-sidecar `worst_t`
+   stamped by the harness at record time — `SpeedsUnavailableError` is the named backstop);
+   coordinates are emitted at 6 decimals (~11 cm, rounded at RECORD time, never in
+   dump_artifact); `Change` gains optional `via` (new_road waypoints — CONTRACT CAPACITY only,
+   the pipeline refuses it until netconvert threading lands).
    **v0.5.0 added, ADDITIVELY (all optional, no renames):** `meta.scenario.changes[]` — the new change AUTHORITY
    (a scenario may compose several changes) — plus optional `meta.scenario.tags[]`; and `Change` gains
    `window`/`target_lanes`/`effect`/`position_m` and the types `lane_closure`/`road_closure`/`incident`. A 0.5.0
@@ -47,7 +61,10 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
      not the schema. The pydantic `Agent` defaults `grounding="sim"` so v0.2.0 agents still model-load.
    - **Uniform scorecard sign: POSITIVE = WORSE for the group.** Group deltas are optional & nullable
      (`null`/absent = no signal / no trip). New structures are deliberately under-constrained (2.4 tightens).
-3. `path`, `timestamps`, `speeds` are **index-aligned** per vehicle (same length, same order).
+3. **Pre-0.10.0:** `path`, `timestamps`, `speeds` are **index-aligned** per entity (same length,
+   same order). **At 0.10.0:** `speeds` does not exist; `path` is index-aligned with the entity's
+   MATERIALIZED time series (the explicit `timestamps` array, or `t0 + i*dt` over
+   `path.length` when compact) — readers materialize once via the shared helpers, never per frame.
 4. `timestamps` are **simulation seconds** (matches deck.gl `currentTime`/`trailLength` units on the web side).
 5. `contract/` is **write-guarded by a PreToolUse hook** (`.claude/hooks/guard.py`) that now **ASKS** — a
    Write/Edit/MultiEdit to `contract/` raises an in-the-moment permission prompt. **The legitimate path is
@@ -67,14 +84,31 @@ The artifact is a SUMO run reduced to per-vehicle GEOGRAPHIC trajectories.
 
 Artifacts are emitted to `contract/runs/<run_id>.json` (see the `run-sim` skill). `contract/runs/` is gitignored.
 
-## To extend the contract (the only correct procedure)
+## To extend the contract — THE FULL CEREMONY (what 0.9.0 and 0.10.0 actually performed)
 0. Make every `contract/` edit through the **Write/Edit tool** and **approve the guard's ask prompt** — never
    through Bash/Python (that bypasses the guard and is a banned process violation, per cardinal rule 5).
-1. Bump `schema_version` (e.g. `0.1.0` → `0.2.0`) in `contract/trajectory_schema.json`.
-2. Mirror the change in `python/src/contract_models.py` AND `web/lib/types.ts` (and any consumer).
-3. Update `python/src/trajectory_io.py` only if validation logic changes (it reads the schema file, so
-   field changes are picked up automatically).
-4. Re-emit a run (`run-sim` skill) and confirm `load_artifact()` still validates.
+1. Bump the `schema_version` enum + the top-level description prose in `contract/trajectory_schema.json`.
+2. **Audit EVERY existing `allOf` gate**: obligation gates ("vX+ requires …") gain the new version in
+   their `if.enum` + a "$comment EXTENDED for …" note; forbid gates (pre-vX) stay FROZEN. Add a NEW
+   pre-<new> forbid gate for whatever the bump introduces (the `properties:false` idiom — null-safe;
+   `required: ["schema_version"]` inside `if` is load-bearing).
+3. Mirror in `python/src/contract_models.py` (SCHEMA_VERSION, the Literal union, models, the
+   version-set constants — MANDATE_VERSIONS / COMPACT_TRAJECTORY_VERSIONS extend on EVERY bump; a
+   literal `== "0.x.0"` at a consumer is the enum-plus-gates trap) AND `web/lib/types.ts` (types,
+   the TS version-set mirrors, the header changelog).
+4. Extend `trajectory_io.audit_version_gate` — every forward tuple + every `not in (…)` forbid
+   (never a literal `!=` — the regression-pinned bump trap) + any new shape gate.
+5. Author `web/public/sample_v0_<new>.json` (0.6.0+ samples live in web/public ONLY) exercising the
+   new fields AND carrying prior-version features (the carry pins).
+6. Tests on the established template block in `python/tests/test_golden_trajectory.py`: the positive
+   sample test, **negatives BOTH layers** (schema + audit) for mis-versioned shapes in BOTH
+   directions, semantics negatives, the prior-obligation audit, the dump/reload roundtrip; append
+   the new sample to the back-compat ladder + relax the open-ended producer tuples (pin-relax).
+7. Producer emits the new version NOW; committed fixtures/pinned runs STAY at their vintages (they
+   ARE the back-compat proof — do not regen).
+8. One REAL-run acceptance end-to-end (produce → enrich → report → browser), suites fully green.
+9. Update THIS skill doc's "Current:" + cardinal rules if the bump changed them (0.10.0 did).
+10. Record the bump in CLAUDE.md (block + rollup) and strike/append BACKLOG.
 
 ## Schema reference (schema_version 0.5.0) — keep both worlds consistent with THIS
 Top level: `{ schema_version, meta, vehicles }` required; **`persons`, `agents`, `conflicts`, `scorecard`,

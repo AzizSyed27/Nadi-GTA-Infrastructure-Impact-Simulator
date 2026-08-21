@@ -101,16 +101,36 @@ an "active intermittently" per-member form remains possible future work, no long
 duty. zone_facts `window_note` deliberately NOT extended (the zone macro assigns identical windows;
 a disjoint zone run is only craftable via clone-edit) — extend it there if that ever changes.
 
-## V2.5c follow-on — the contract-side payload rung (measured, awaiting the ceremony)
-Profiling measured ~50% of the 90 MB exemplar as wire waste, all CONTRACT-side (schema bump +
-both serializers + fixture regen — the trajectory-contract ceremony, deliberately out of V2.5c's
-render-side scope): **`speeds` is read by no renderer (8.6 MB)**; **timestamps are perfectly
-regular 1.0 s steps (8.2 MB, derivable from `t0 + i·step`)**; **coordinates carry 14 decimals
-where 6 ≈ 11 cm (~32 MB of the 64.6 MB path mass)**. A future 0.10.0 candidate — the numbers
-above justify the ceremony when V2.7 needs the payload headroom. Render-side levers measured and
-NOT currently indicted (74 fps, 3.9 s first paint on 90 MB): the eager-slim sidecar split
-(~840 KB chrome payload, the graphs-sidecar idiom) and typed-array coordinate storage — both
-designs recorded in the V2.5c plan, available when V2.7's per-frame ambitions raise the bar.
+## V2.5c follow-on — the contract-side payload rung — PAID in V2.6c (the 0.10.0 ceremony)
+Landed 2026-08-20, measured on the 90 MB exemplar via the real encoders + the V2.5c harness
+(headed, prod): raw 90.5→40.7 MB (-55.0%), **gzip transfer 26.9→7.6 MB (-71.8%)**, parse
+3.3→1.4 s, **nav→first-render 3.7→1.8 s**, heap 189→90 MB, frames identical (122/61 fps p50/p95);
+the normalizer's cost is visible in joinMs (2→7 ms). One measured-claim CORRECTION recorded: the
+V2.5c "`speeds` is read by no renderer" line was TS-true but python-FALSE — `sampler.worst_moment`
+(the trigger_t computation, a detached subprocess) consumed wire speeds; V2.6c moved it to the
+outcomes-sidecar `worst_t` stamped at record time, with the `SpeedsUnavailableError` named
+backstop. Timestamps were NOT all regular either: 2-10 calibrated vehicles per run carry real
+3-216 s teleport holes — 0.10.0 uses per-entity EITHER-shape ({t0, dt} XOR explicit), lossless by
+construction. Render-side levers (eager-slim split, typed arrays) stay unindicted and recorded
+for V2.7.
+
+## V2.6c follow-on — new_road.via runtime threading (contract capacity landed)
+`Change.via` (ordered intermediate junction ids) exists on the 0.10.0 wire, models and TS types —
+CAPACITY only: the POST and `network_edit.validate_new_road` REFUSE it loudly (an ignored via
+would emit an artifact whose change lies about the simulated geometry). Threading = netconvert
+multi-segment building (minted ids, node/edge pairs multiply per waypoint) + the draft-overlay
+path capture + adding via to `changeSetKey`'s mechanical projection. Until then via is
+schema-loose like its five 5.1 siblings (not type-restricted at the model — precedented).
+
+## V2.6c sighting — the lexicographic-sort ammunition FIRED live (newest_instrumented)
+During the C6 acceptance, `reactions.newest_instrumented()` (`sorted(glob("instrumented-*.json"))
+[-1]`) picked the STALE `instrumented-V22AACCEPT.json` over the fresh timestamp file ('V' > '2' —
+the exact `newest_index()` bug class this file already called live ammunition) and enriched a
+stale roster: burned the Groq free-tier day cap and clobbered the (untracked) V22AACCEPT
+artifact. No repo damage; the rerun used the documented explicit `--instrumented` form. FIX
+CANDIDATE (one line each): mtime-sort or a `instrumented-2*.json` timestamp-shaped glob in BOTH
+`newest_instrumented()` and `report_agent.newest_index()` — do them together, they are the same
+bug twice.
 
 ## V2.5c follow-on — remove the legacy latest.json payload fallback (scheduled: V2.7)
 MapView's mount tolerates a pre-V2.5c latest.json that still carries a FULL artifact payload

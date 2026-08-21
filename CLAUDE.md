@@ -105,7 +105,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.9.0**. Phases 0–5 and V2.0–V2.5 are COMPLETE: the ✏️ editor fronts the whole pipeline
+Contract **v0.10.0**. Phases 0–5 and V2.0–V2.5 are COMPLETE: the ✏️ editor fronts the whole pipeline
 (draw a road / speed / bike lane / lane- & road-closures / incidents / 🏫 school-zone COMPOSITES —
 windowed changes apply+revert in-sim with proof logs), demand is synthetic or calibrated AM-peak,
 assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
@@ -213,10 +213,22 @@ decision): `_CLAUSE_BOUNDARY` carries the adversative conjunctions for every con
 room fork is DELETED (byte-identity confirmed first; room tests green unmodified), per-call-site
 pins landed, the and/or residual is pinned as a decision, and the audit-retry BASELINE SHIFT is
 recorded beside the 2026-07-31 precedent. Suites: **530 pytest + 88 Playwright**.
+**V2.6c IS COMPLETE (the 0.10.0 CEREMONY — the payload rung PAID):** per-entity EITHER-shape
+timestamps ({t0, dt} XOR explicit — teleport holes kept TRUE), speeds DROPPED (worst_t rides the
+outcomes sidecar; SpeedsUnavailableError is the named backstop), 6-dp coords at record time,
+new_road.via as refused contract capacity; the full gate ceremony (A/B/C/E extended, NEW J/K,
+audit tuples, samples + negatives both layers, pin-relax); the TS reader normalizes ONCE per
+entity-array identity (__nadiRenderStats counts both shapes; the memo keyed off [artifact] was a
+review catch — the voice stream would have re-allocated every compact array per voice). MEASURED
+on the 90 MB exemplar (headed): gzip 26.9→7.6 MB (-72%), parse 3.3→1.4 s, nav→render 3.7→1.8 s,
+heap 189→90 MB, frames identical. Live acceptance end-to-end incl. a mandate voice at 0.10.0;
+golden refreshed; committed fixtures stay at their vintages (the back-compat proof). Suites:
+**556 pytest + 91 Playwright**.
 Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
-re-verification, the calibrated composite exemplar, the singleton/index drift guards, per-window
-probing at rung 3, the contract payload rung ~50%, the V2.7 legacy-fallback removal, the room's
-prompt-side sibling-label ambiguity — its UI half closed in V2.6b).
+re-verification, the calibrated composite exemplar, the singleton/index drift guards — the
+lexicographic-sort ammunition FIRED live in C6 (newest_instrumented), per-window probing at rung
+3, the V2.7 legacy-fallback removal, new_road.via runtime threading, the room's prompt-side
+sibling-label ambiguity — its UI half closed in V2.6b).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1218,6 +1230,69 @@ baseline decision; code diff = report.py + interview.py + two test files, no con
   spec mocks the backend, so a suite run would add no evidence. Suites: **530 pytest + 88
   Playwright**.
 
+**V2.6 Step c — the 0.10.0 CEREMONY — COMPLETE (contract v0.10.0; the V2.5c payload rung PAID;
+seven commits C1–C7, every one leaving the full suite green).**
+- **The encoding (D6, ratified with two exploration-driven revisions):** per-entity EITHER-shape
+  timestamps — compact `{t0, dt}` iff the write-time regularity check passes (the check IS
+  `contract_models.compact_encoding`: per-point closed-form `t0 + i*dt` comparison within
+  `COMPACT_DT_EPS = 1e-6`, never accumulation), explicit arrays for teleport-gapped entities
+  (measured 2–10 per calibrated run, gaps 3–216 s — TRUE holes kept, lossless by construction);
+  **speeds DROPPED** — the V2.5c "read by no renderer" claim was TS-true but python-FALSE
+  (`sampler.worst_moment` computed trigger_t in a detached subprocess): the harness now stamps
+  `worst_t` into the outcomes sidecar at record time (`stamp_worst_t` before BOTH quant paths'
+  sidecar writes; records-dict iteration = gapped entities stamped identically; fires in the same
+  breath speeds drop, so new-shape-without-worst_t is impossible by construction) and the sampler's
+  `trigger_time_for` falls back to wire speeds ONLY for genuinely old artifacts, raising the NAMED
+  `SpeedsUnavailableError` otherwise; **coords 6-dp (~11 cm) at RECORD time** (_record /
+  SpillRecorder._flush / run_sim — never dump_artifact: the committed samples' byte-roundtrips);
+  ped-PET/SSM keep raw metres, untouched.
+- **The gate ceremony:** schema enum + description; obligation gates A/B/C/E EXTENDED; NEW gate J
+  (pre-0.10.0 re-imposes timestamps+speeds required + forbids t0/dt — lands in the SAME edit as
+  the base required-relaxation) + gate K (0.10.0: speeds:false + per-entity oneOf XOR);
+  `audit_version_gate` forward tuples + a raw-dict shape gate keyed on the single-sourced
+  `COMPACT_TRAJECTORY_VERSIONS`; MANDATE_VERSIONS gains 0.10.0 BOTH sides (the reactions upgrade
+  ladder needs NO change — pinned MUTATION-EFFECTIVELY: the test asserts the 0.10.0 alternative
+  FAILS validation, not just the version string); `sample_v0_10_0.json` + negatives both layers +
+  pin-relax on the 0.9.0 template; the literal pins
+  (`expand_timestamps(4.0, 1.0, 3) == [4.0, 5.0, 6.0]` — the shared-inverse-bug breaker) + F2 gap
+  positions (start/middle/end) + the F1 cross-language lockstep pin (a pytest reads
+  `web/lib/compactTime.ts` and pins the eps literal + formula).
+- **The TS dual-path reader:** types.ts makes timestamps/speeds OPTIONAL (tsc forces every
+  consumer through `viz.materializeTimestamps` — identity pass-through for explicit entities, one
+  materialization for compact), normalization memo'd PER ENTITY-ARRAY IDENTITY — **review catch:
+  keyed on `[artifact]` it would re-allocate every compact array on each V2.3a streamed voice
+  (setArtifact-spread per voice; the V2.5c trails-identity class)** — split into its own memo on
+  `artifact?.vehicles/persons`; `__nadiRenderStats` (NEW seam) publishes true point counts under
+  both shapes + a literal-anchored expansion sample; `compact-run.json` is producer-real
+  (regen-pinned) with mid-gap + tail-gap entities; specs pin the seam constants hand-written.
+- **new_road.via = CONTRACT CAPACITY, REFUSED at runtime** (POST 400 + validate_new_road; an
+  ignored via would emit an artifact that lies about simulated geometry; `SimChange` is
+  extra-ignore so via had to be ADDED to the request model for the 400 to be reachable; threading
+  BACKLOG'd). Schema-loose like its five 5.1 siblings.
+- **Acceptance (live):** fresh run_sim (300/300 compact, 3.35 MB) → golden refreshed (same
+  146,269 points; the 5-dp digest is transparent to 6-dp coords); full E2E — harness (worst_t
+  stamped 511/511 outcomes) → sampler consumed worst_t (no fallback fired) → DeepSeek voices (213
+  agents incl. a LIVE mandate voice at 0.10.0) → report **audit 8 clean / 1 corrected / 0
+  unresolved — the conjunction baseline's FIRST READING, no uptick vs V2.5b's 8/1/0** → singleton
+  restored → HEADED browser smoke green (511 compact joined, path==ts counts, feed + institutions
+  live; `docs-assets/v26c-live-smoke.png` looked at). NB headless sad-tabbed under SwiftShader
+  AFTER the join — headed passed in 5.9 s (the V2.5c rasterizer lesson now extends to renderer
+  crashes: real-run render questions are HEADED questions).
+- **MEASURED (the numbers that justified the rung; V2.5c harness, headed, prod, the local 90 MB
+  exemplar):** raw 90.5→40.7 MB (-55.0%), **gzip transfer 26.9→7.6 MB (-71.8%)**, fetch
+  2.7→1.1 s, parse 3.3→1.4 s, **nav→first-render 3.72→1.83 s** (the 90 MB run now clears even the
+  ~20 MB-class ≤2 s budget), heap 189→90 MB, frames IDENTICAL (p50 8.2 ms/122 fps, p95
+  16.4 ms/61 fps, 0 longtasks), join 2→7 ms (the normalizer's cost, visible where the plan wanted
+  it). The re-encode measures BYTES only; correctness lives in the literal-anchored test set.
+  Committed-demo datum: 20.08→9.03 MB (55.1%). 1589/10 compact/explicit on the exemplar.
+- **Incidents (both handled + recorded):** `newest_instrumented()`'s lexicographic sort — the
+  recorded live-ammunition class — FIRED during acceptance (instrumented-V22AACCEPT outsorted the
+  fresh ts name; the stale-roster enrich burned the Groq day cap; untracked scratch only; the
+  rerun used the explicit `--instrumented`; the one-line fix candidate is BACKLOG'd beside
+  `newest_index()` — the same bug twice). Suites: **556 pytest + 91 Playwright**. The
+  trajectory-contract SKILL.md is refreshed (was stale at "Current: 0.5.0"; cardinal rule 3 was
+  turned actively false by this bump; the recipe now documents the REAL ceremony).
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -1324,17 +1399,18 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (530 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (556 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
   V2.4b composite-matrix/probe/scorecard sections + the V2.4c identity sections + the V2.5a
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
   sections + the V2.6a/b group-interview room/endpoint/speak sections + the V2.6 follow-up
-  conjunction pins) and `cd web && npx playwright test`
-  (88 tests across 18 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  conjunction pins + the V2.6c 0.10.0 ceremony/compact/worst_t/coord sections) and
+  `cd web && npx playwright test`
+  (91 tests across 19 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
-  the V2.5b ends rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
+  compact-run, the V2.5b ends rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
