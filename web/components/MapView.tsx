@@ -456,16 +456,27 @@ export default function MapView() {
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
   // vehicle/person NOT pinned. Inferred agents have no trip, so they don't appear on the map.
+  // V2.6c — normalize ONCE per ENTITY-ARRAY identity: compact {t0, dt} entities materialize their
+  // timestamp array here; explicit entities pass through by IDENTITY (viz.materializeTimestamps).
+  // The normalized objects are what every frame reads (stable identities for the positionAtCached
+  // WeakMap hint + the TripsLayer buffers). Keyed on artifact?.vehicles/persons — NOT [artifact]:
+  // the V2.3a voice stream setArtifact-spreads per streamed voice (agents change, entity arrays
+  // keep their references), and keying on the artifact would re-allocate every compact array per
+  // voice — the V2.5c trails-identity regression class (review-caught).
+  const rawVehicles = artifact?.vehicles;
+  const rawPersons = artifact?.persons;
+  const { normVehicles, normPersons } = useMemo(
+    () => ({
+      normVehicles: (rawVehicles ?? []).map(materializeTimestamps),
+      normPersons: (rawPersons ?? []).map(materializeTimestamps),
+    }),
+    [rawVehicles, rawPersons],
+  );
+
   const { pinned, bgVehicles, bgPersons, renderStats } = useMemo(() => {
     performance.mark('nadi:join:start'); // V2.5c perf mark (permanent; runs on artifact change only)
-    // V2.6c — normalize ONCE per artifact: compact {t0, dt} entities materialize their timestamp
-    // array here; explicit entities pass through by IDENTITY (viz.materializeTimestamps). The
-    // normalized objects are what every frame reads (stable identities for the positionAtCached
-    // WeakMap hint + the TripsLayer buffers) and the cost lands inside the nadi:join marks.
-    const rawVehicles = artifact?.vehicles ?? [];
-    const rawPersons = artifact?.persons ?? [];
-    const vehicles = rawVehicles.map(materializeTimestamps);
-    const persons = rawPersons.map(materializeTimestamps);
+    const vehicles = normVehicles;
+    const persons = normPersons;
     // NB: `Map` is shadowed by the react-map-gl <Map> import above — use plain Records for the lookups.
     const vById: Record<string, Materialized<Vehicle>> = {};
     for (const v of vehicles) vById[v.id] = v;
@@ -494,7 +505,8 @@ export default function MapView() {
     // that silently drops or duplicates a teleport tail shows up as a number (spec-pinned).
     const sumPath = (es: { path: unknown[] }[]) => es.reduce((n, e) => n + e.path.length, 0);
     const sumTs = (es: { timestamps: number[] }[]) => es.reduce((n, e) => n + e.timestamps.length, 0);
-    const firstCompactVehicle = rawVehicles.find((v) => v.t0 != null);
+    const rawEntities = [...(rawVehicles ?? []), ...(rawPersons ?? [])];
+    const firstCompactVehicle = (rawVehicles ?? []).find((v) => v.t0 != null);
     const out = {
       pinned: pins,
       bgVehicles: vehicles.filter((v) => !pinnedVeh.has(v.id)),
@@ -506,8 +518,8 @@ export default function MapView() {
         vehicleTsPoints: sumTs(vehicles),
         personPathPoints: sumPath(persons),
         personTsPoints: sumTs(persons),
-        compactEntities: [...rawVehicles, ...rawPersons].filter((e) => e.t0 != null).length,
-        explicitEntities: [...rawVehicles, ...rawPersons].filter((e) => e.t0 == null).length,
+        compactEntities: rawEntities.filter((e) => e.t0 != null).length,
+        explicitEntities: rawEntities.filter((e) => e.t0 == null).length,
         // the literal-anchored expansion sample: the first compact vehicle's first 5 materialized
         // times — the spec asserts HAND-COMPUTED values, never "same as the python expansion"
         sampleCompactTimestamps: firstCompactVehicle
@@ -517,7 +529,7 @@ export default function MapView() {
     };
     performance.mark('nadi:join:end');
     return out;
-  }, [artifact]);
+  }, [artifact, normVehicles, normPersons, rawVehicles, rawPersons]);
 
   // V2.6c — publish the render-stats seam (the __nadiArrowCount convention: a useEffect, never an
   // in-memo window write).
