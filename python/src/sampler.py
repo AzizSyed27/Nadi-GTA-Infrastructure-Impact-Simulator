@@ -161,10 +161,12 @@ def worst_moment(timestamps: list[float], speeds: list[float], stop_eps: float =
 
 
 def newest_outcomes() -> Path:
-    files = sorted(RUNS_DIR.glob("outcomes-*.json"))
-    if not files:
-        raise SystemExit("no outcomes-*.json in contract/runs/ — run scenario_harness.py first")
-    return files[-1]
+    # Digit-first (this space carries SIX junk names — V22AACCEPT/SMOKEV22* — that outsort every
+    # fresh timestamp; it feeds newest_instrumented downstream): trajectory_io.newest_ts_named.
+    return trajectory_io.newest_ts_named(
+        RUNS_DIR, "outcomes-*.json", "outcomes-",
+        none_msg="no outcomes-*.json in contract/runs/ — run scenario_harness.py first",
+        flag_hint="--outcomes")
 
 
 def build_instrumented(

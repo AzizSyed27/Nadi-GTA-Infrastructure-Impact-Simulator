@@ -179,10 +179,11 @@ def _resolve(run_id: str | None) -> tuple[Path, str]:
         if not art.is_file():
             raise SystemExit(f"artifact not found: {art}")
     else:
-        runs = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))
-        if not runs:
-            raise SystemExit("no multimodal-scenario-*.json in contract/runs/ — run the scenario pipeline first.")
-        art = runs[-1]
+        # Digit-first resolver (junk acceptance names outsort every fresh ts): newest_ts_named.
+        art = trajectory_io.newest_ts_named(
+            RUNS_DIR, "multimodal-scenario-*.json", "multimodal-scenario-",
+            none_msg="no multimodal-scenario-*.json in contract/runs/ — run the scenario pipeline first.",
+            flag_hint="--run-id")
     return art, art.stem.replace("multimodal-scenario-", "")
 
 
@@ -295,7 +296,14 @@ def _load_calibration_provenance() -> dict | None:
     """The newest data/demand provenance (GEH acceptance + caveats) for calibrated-run methodology.
     Missing file -> None (the report renders a labeled absence, never silence)."""
     demand_dir = Path(__file__).resolve().parents[2] / "data" / "demand"
-    paths = sorted(demand_dir.glob("demand-calibrated-am-*.json"))
+    # Digit-first (the resolver-family rule): a junk-named provenance must NEVER silently feed the
+    # report's methodology text. None-contract kept — the report renders a labeled absence.
+    all_paths = sorted(demand_dir.glob("demand-calibrated-am-*.json"))
+    paths = [p for p in all_paths if p.name[len("demand-calibrated-am-"):][:1].isdigit()]
+    skipped = [p for p in all_paths if p not in paths]
+    if skipped:
+        print(f"[report] skipping {len(skipped)} non-timestamp provenance name(s): "
+              f"{', '.join(p.name for p in skipped)}")
     if not paths:
         return None
     return json.loads(paths[-1].read_text(encoding="utf-8"))

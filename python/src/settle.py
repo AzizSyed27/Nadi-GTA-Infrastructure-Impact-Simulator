@@ -37,6 +37,15 @@ DEFAULT_CONV_DEV = 0.02   # relative stddev of avg travel time — duaIterate's 
 DEFAULT_CONV_IT = 3       # window (iterations) the deviation is computed over
 
 
+def _iteration_dirs(out_dir: Path) -> list[Path]:
+    """duaIterate's per-iteration dirs in NUMERIC order. key=int is load-bearing: a string sort
+    puts '9' after '11', so with the cap of 12 (dirs 0..11) the 'last iteration' silently became
+    iteration 9 — wrong settled routes AND a scrambled avg_tts sequence feeding
+    convergence_stats (the lexicographic newest-pick bug in the numeric alphabet)."""
+    return sorted((d for d in out_dir.iterdir() if d.is_dir() and d.name.isdigit()),
+                  key=lambda d: int(d.name))
+
+
 def _avg_tt(tripinfo: Path) -> float | None:
     """Average vehicle trip duration in one iteration's tripinfo — the same reduction duaIterate uses."""
     durations = [float(ti.get("duration", 0.0)) for ti in ET.parse(tripinfo).getroot().iter("tripinfo")]
@@ -106,7 +115,7 @@ def settle_leg(net_path: Path, car_routes: Path, out_dir: Path, *, cap: int = DE
         raise RuntimeError(f"duaIterate failed (exit {proc.returncode}) — see {out_dir / 'duaIterate.log'}")
 
     # per-iteration average travel time from each NNN/tripinfo_NNN.xml
-    iter_dirs = sorted(d for d in out_dir.iterdir() if d.is_dir() and d.name.isdigit())
+    iter_dirs = _iteration_dirs(out_dir)
     avg_tts: list[float] = []
     for d in iter_dirs:
         ti = d / f"tripinfo_{d.name}.xml"
@@ -117,7 +126,7 @@ def settle_leg(net_path: Path, car_routes: Path, out_dir: Path, *, cap: int = DE
     # final relative deviation over the last conv_it iterations (duaIterate's own measure)
     rel_dev, converged = convergence_stats(avg_tts, conv_dev, conv_it, len(iter_dirs), last)
 
-    # the LAST iteration's routes are the settled set
+    # the LAST iteration's routes are the settled set (NUMERIC order — see _iteration_dirs)
     routes: Path | None = None
     if iter_dirs:
         cand = sorted(iter_dirs[-1].glob("*.rou.xml"))

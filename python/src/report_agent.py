@@ -453,13 +453,44 @@ def index_dir(ts: str) -> Path:
     return INDEX_ROOT / f"index-{ts}"
 
 
+# The served report — the run the chat index SHOULD align with (server.py keeps its own copy of
+# this path for the report body; both derive from report.WEB_PUBLIC).
+LATEST_REPORT = report.WEB_PUBLIC / "latest-report.json"
+
+
 def newest_index() -> tuple[Path, str] | None:
+    """ALIGNMENT-FIRST index resolution (the V2.5a fix: `index-V22AACCEPT` lexicographically
+    outsorted the pinned run's index and served the wrong run's chat corpus for two silent
+    days). The chat index's JOB is to serve the run the report view shows, so:
+    1. latest-report.json's scenario_run_id → its index dir, when it exists — aligned by
+       construction (the lifespan mismatch warning becomes the backstop canary).
+    2. Report missing/unreadable (SAID OUT LOUD — the old bare-except left the misalignment
+       warning silently unarmed) → digit-first newest among index-* DIRS (junk names like
+       index-V22AACCEPT are skipped WITH a warning; a stray FILE named index-* is ignored —
+       it used to be returned and die inside make_rag).
+    3. Nothing at all → None (the caller's NO-INDEX message)."""
     if not INDEX_ROOT.exists():
         return None
-    dirs = sorted(INDEX_ROOT.glob("index-*"))
-    if not dirs:
+    try:
+        served = json.loads(LATEST_REPORT.read_text(encoding="utf-8"))["run"]["scenario_run_id"]
+        ts = served.replace("multimodal-scenario-", "")
+        aligned = index_dir(ts)
+        if aligned.is_dir():
+            return aligned, ts
+        print(f"[report-agent] no index for the served report ({served}) under {INDEX_ROOT} — "
+              "falling back to the newest timestamp-named index (rebuild via report_agent.py)")
+    except Exception as e:  # noqa: BLE001 — missing/unparseable report is a legitimate state
+        print(f"[report-agent] latest-report unreadable ({e.__class__.__name__}) — "
+              "falling back to the newest timestamp-named index")
+    dirs = sorted(d for d in INDEX_ROOT.glob("index-*") if d.is_dir())
+    eligible = [d for d in dirs if d.name[len("index-"):][:1].isdigit()]
+    skipped = [d for d in dirs if not d.name[len("index-"):][:1].isdigit()]
+    if skipped:
+        print(f"[report-agent] skipping {len(skipped)} non-timestamp index name(s): "
+              f"{', '.join(d.name for d in skipped)}")
+    if not eligible:
         return None
-    d = dirs[-1]
+    d = eligible[-1]
     return d, d.name.replace("index-", "")
 
 

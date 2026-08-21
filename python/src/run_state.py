@@ -114,7 +114,12 @@ def list_all() -> list[dict]:
     out = []
     if not STATE_DIR.is_dir():
         return out
-    for p in sorted(STATE_DIR.glob("*.json"), reverse=True):
+    # Ordering ONLY, never a filter (an INVENTORY, not a resolver — junk-named runs stay listed;
+    # a planner may legitimately load one from the picker). Digit-first: timestamp-shaped names
+    # newest-first, acceptance/smoke names (V22AACCEPT-class — they lexicographically outsort
+    # every ts and used to pin themselves to the TOP of the run list) sort LAST.
+    for p in sorted(STATE_DIR.glob("*.json"), reverse=True,
+                    key=lambda p: (p.stem.rsplit("-", 1)[-1][:1].isdigit(), p.name)):
         if p.name.endswith(".composite.json"):
             continue  # a composite HANDOFF spec (server → harness), not run state
         if p.name.endswith(IDENTITY_SUFFIX):

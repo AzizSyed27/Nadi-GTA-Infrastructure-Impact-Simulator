@@ -32,6 +32,7 @@ import run_sim  # wires SUMO tools onto sys.path (must precede sumolib)
 import sumolib
 import scenario_harness as sh
 import scorecard as sc
+import trajectory_io
 from contract_models import Change
 
 RUNS_DIR = sh.RUNS_DIR
@@ -74,7 +75,10 @@ def _count_by_group(conflicts: list[dict]) -> dict[str, int]:
 
 def _seed42() -> dict:
     """Reuse the 2.4a on-disk run (native TTC<3.0 log + the artifact/sidecar ped conflicts)."""
-    art_path = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))[-1]
+    art_path = trajectory_io.newest_ts_named(
+        RUNS_DIR, "multimodal-scenario-*.json", "multimodal-scenario-",
+        none_msg="no multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.",
+        flag_hint="a hand-picked artifact (robustness.py has no CLI flag — edit _seed42)")
     ts = art_path.stem.replace("multimodal-scenario-", "")
     art = json.loads(art_path.read_text(encoding="utf-8"))
     base = json.loads((RUNS_DIR / f"conflicts-baseline-{ts}.json").read_text(encoding="utf-8"))

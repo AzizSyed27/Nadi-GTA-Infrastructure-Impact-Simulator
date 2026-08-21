@@ -146,7 +146,10 @@ def merged_movements(record: dict) -> dict[str, dict[str, int]]:
 # --------------------------------------------------------------------------------------
 
 def newest_inventory() -> Path:
-    paths = sorted(glob.glob(INVENTORY_GLOB))
+    # Digit-first (the resolver-family rule; the space holds one ts-shaped file today —
+    # future-proofing against the V22AACCEPT-class junk that fired twice elsewhere).
+    paths = sorted(p for p in glob.glob(INVENTORY_GLOB)
+                   if Path(p).name.rsplit("-", 1)[-1][:1].isdigit())
     if not paths:
         raise SystemExit("no counts inventory found — run count_inventory.py first (V2.1a)")
     return Path(paths[-1])
@@ -687,7 +690,9 @@ def write_provenance(inv_path: Path, locs: list[dict], turn_stats: dict, bike_st
 
 
 def newest_provenance() -> Path:
-    paths = sorted(DATA_DEMAND.glob("demand-calibrated-am-*.json"))
+    # Digit-first (the resolver-family rule) — see newest_inventory.
+    paths = sorted(p for p in DATA_DEMAND.glob("demand-calibrated-am-*.json")
+                   if p.name[len("demand-calibrated-am-"):][:1].isdigit())
     if not paths:
         raise SystemExit("no provenance JSON — run `demand_calibration.py emit-counts` first")
     return paths[-1]

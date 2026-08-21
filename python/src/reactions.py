@@ -415,10 +415,12 @@ def ensure_version_for_mandate(scenario_art: TrajectoryArtifact, records: list[d
 
 
 def newest_instrumented() -> Path:
-    files = sorted(RUNS_DIR.glob("instrumented-*.json"))
-    if not files:
-        raise SystemExit("no instrumented-*.json in contract/runs/ — run sampler.py first")
-    return files[-1]
+    # The digit-first resolver (the V2.6c stale-roster burn: instrumented-V22AACCEPT outsorted
+    # every fresh timestamp name and enriched a dead roster) — see trajectory_io.newest_ts_named.
+    return trajectory_io.newest_ts_named(
+        RUNS_DIR, "instrumented-*.json", "instrumented-",
+        none_msg="no instrumented-*.json in contract/runs/ — run sampler.py first",
+        flag_hint="--instrumented")
 
 
 async def smoke_test(client: LLMClient, changes: list[dict], profile: str = "synthetic_demo",

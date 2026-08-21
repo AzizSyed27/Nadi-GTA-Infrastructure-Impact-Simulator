@@ -51,8 +51,10 @@ def resolve_artifact() -> Path | None:
     if env:
         return Path(env)
     # Match only real sim runs (run_sim names them "corridor-<UTC>.json"), not hand-authored
-    # fixtures like sample_v0_2_0.json that also live in contract/runs/.
-    runs = sorted(RUNS_DIR.glob("corridor-*.json"))
+    # fixtures like sample_v0_2_0.json that also live in contract/runs/. Digit-first (the
+    # lexicographic newest-pick fix): non-timestamp names never win. Contract kept: None-if-absent.
+    runs = sorted(p for p in RUNS_DIR.glob("corridor-*.json")
+                  if p.name[len("corridor-"):][:1].isdigit())
     return runs[-1] if runs else None
 
 
@@ -160,7 +162,8 @@ def test_v0_2_0_sample_agents() -> None:
 
 def test_scenario_pipeline_agents() -> None:
     """Pipeline guard on the newest real scenario run (skips if none on disk — runs are gitignored)."""
-    runs = sorted(RUNS_DIR.glob("scenario-*.json"))
+    runs = sorted(p for p in RUNS_DIR.glob("scenario-*.json")
+                  if p.name[len("scenario-"):][:1].isdigit())  # digit-first: junk names never win
     if not runs:
         pytest.skip(
             "No scenario-*.json in contract/runs/ (gitignored). "
@@ -231,7 +234,8 @@ def test_v0_3_0_sample() -> None:
 def test_multimodal_artifact_valid() -> None:
     """Pipeline guard on the newest REAL multimodal v0.3.0 artifact. Skips if none on disk (gitignored).
     Validates schema + model, conflicts[] well-formed, and (post-2.4b) the 7-group scorecard."""
-    runs = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))
+    runs = sorted(p for p in RUNS_DIR.glob("multimodal-scenario-*.json")
+                  if p.name[len("multimodal-scenario-"):][:1].isdigit())  # digit-first
     if not runs:
         pytest.skip("No multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py first.")
     art = trajectory_io.load_artifact(runs[-1])  # schema + model round-trip (also enforces the agent invariant)

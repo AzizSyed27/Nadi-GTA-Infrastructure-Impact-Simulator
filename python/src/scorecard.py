@@ -276,10 +276,11 @@ def _resolve(run_id: str | None) -> tuple[Path, str]:
         if not art.is_file():
             raise SystemExit(f"artifact not found: {art}")
     else:
-        runs = sorted(RUNS_DIR.glob("multimodal-scenario-*.json"))
-        if not runs:
-            raise SystemExit("no multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py (2.4a) first.")
-        art = runs[-1]
+        # Digit-first resolver (junk acceptance names outsort every fresh ts): newest_ts_named.
+        art = trajectory_io.newest_ts_named(
+            RUNS_DIR, "multimodal-scenario-*.json", "multimodal-scenario-",
+            none_msg="no multimodal-scenario-*.json in contract/runs/ — run scenario_harness.py (2.4a) first.",
+            flag_hint="--run-id")
     ts = art.stem.replace("multimodal-scenario-", "")
     return art, ts
 

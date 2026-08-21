@@ -86,6 +86,36 @@ def validate_artifact(data: dict) -> None:
     _validator().validate(data)
 
 
+def newest_ts_named(directory: Path, glob_pattern: str, prefix: str, *,
+                    none_msg: str, flag_hint: str) -> Path:
+    """Newest by NAME among TIMESTAMP-SHAPED candidates — the variable part after ``prefix``
+    starts with a digit (every pipeline-minted run-ts starts with the year, so names sort
+    correctly WITHIN the class; the legitimate --run-ts probe `20260719T0500SEED1` stays
+    eligible — a strict strptime would reject it, and mtime is scrambled by OneDrive resync,
+    both counterexampled in this tree).
+
+    The lexicographic `sorted(glob)[-1]` this replaces fired TWICE ('V' > '2'): the V2.5a
+    two-day stale-index drift and the V2.6c stale-roster Groq burn. Skipped non-timestamp names
+    are WARNED by name on EVERY resolution; a junk-only space exits LOUDLY naming the files and
+    the explicit flag — silence was the incident class. SystemExit is deliberate and
+    CLI/subprocess-contained: no live FastAPI handler reaches this (reachability grep recorded
+    in test_run_resolvers.py)."""
+    candidates = sorted(directory.glob(glob_pattern))
+    eligible = [p for p in candidates if p.name[len(prefix):][:1].isdigit()]
+    skipped = [p for p in candidates if not p.name[len(prefix):][:1].isdigit()]
+    if skipped:
+        names = ", ".join(p.name for p in skipped)
+        print(f"[resolve] skipping {len(skipped)} non-timestamp name(s): {names} — "
+              f"pass {flag_hint} explicitly to use one")
+    if eligible:
+        return eligible[-1]
+    if skipped:
+        raise SystemExit(
+            f"only non-timestamp names found ({', '.join(p.name for p in skipped)}) — "
+            f"refusing to guess; pass {flag_hint} explicitly")
+    raise SystemExit(none_msg)
+
+
 def audit_version_gate(data: dict) -> None:
     """Emitted-shape self-check: the version must match the version-gated shapes.
 
