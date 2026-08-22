@@ -34,13 +34,142 @@ def _new_road(**kw) -> Change:
     return Change(**base)
 
 
-def test_validate_new_road_refuses_via() -> None:
-    """V2.6c: via is CONTRACT CAPACITY only — the pipeline refuses it loudly (an ignored via
-    would build a road the change description lies about; netconvert threading is BACKLOG)."""
-    ch = _new_road()
-    ch.via = ["J_mid"]
-    with pytest.raises(ValueError, match="via"):
-        network_edit.validate_new_road(ch)
+def _canon_net():
+    return sumolib.net.readNet(str(run_sim.NET))
+
+
+def _via_str(net, x: float, y: float) -> str:
+    lon, lat = net.convertXY2LonLat(x, y)
+    return f"{lon:.6f},{lat:.6f}"
+
+
+def test_new_road_via_reason_matrix() -> None:
+    """V2.6d — the four geometry rules, ONE source (`new_road_via_reason`), the SAME sentence at
+    POST 400 / harness SystemExit / patch_network ValueError. Coordinates are derived from the
+    real junction coords at test time (regen-proof). Check order pinned by construction: the
+    lat/lon-SWAP case is caught by bbox containment (never a confusing distance sentence)."""
+    import math
+    net = _canon_net()
+    if _A not in {n.getID() for n in net.getNodes()}:
+        pytest.skip("known junction pair absent (net regenerated)")
+    ax, ay = net.getNode(_A).getCoord()
+    bx, by = net.getNode(_B).getCoord()
+    dx, dy = bx - ax, by - ay
+    ln = math.hypot(dx, dy)
+    ux, uy = dx / ln, dy / ln          # along A->B
+    px, py = -dy / ln, dx / ln         # perpendicular
+
+    reason = network_edit.new_road_via_reason
+
+    # unknown junction -> patch_network's own sentence, reused verbatim
+    r = reason("NOPE", _B, [_via_str(net, ax + 100 * ux, ay + 100 * uy)], net)
+    assert r == "junction 'NOPE' is not in the canonical net — pick an existing junction id"
+
+    # cap: 9 points spaced along the line (each far apart; only the count trips)
+    nine = [_via_str(net, ax + f * dx, ay + f * dy) for f in
+            (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)]
+    assert reason(_A, _B, nine, net) == "a new road takes at most 8 via points (got 9)"
+
+    # bbox containment: a point far west of the study area
+    assert reason(_A, _B, ["-80.5,43.75"], net) == "via point 1 is outside the study area"
+
+    # the lat/lon SWAP class: a legitimate interior point, coordinates transposed
+    mid_lon, mid_lat = net.convertXY2LonLat(ax + 0.5 * dx, ay + 0.5 * dy)
+    swapped = f"{mid_lat:.6f},{mid_lon:.6f}"
+    assert reason(_A, _B, [swapped], net) == "via point 1 is outside the study area"
+
+    # min-segment: a via ~3 m from the from-node -> segment 1 is short
+    r = reason(_A, _B, [_via_str(net, ax + 3 * ux, ay + 3 * uy)], net)
+    assert r is not None and "must be at least 10 m apart" in r and "segment 1 is 3" in r
+
+    # self-intersection: the bowtie — segment 1 (A->v1) properly crosses segment 3 (v2->B)
+    v1 = _via_str(net, ax + 0.8 * dx + 500 * px, ay + 0.8 * dy + 500 * py)
+    v2 = _via_str(net, ax + 0.2 * dx + 500 * px, ay + 0.2 * dy + 500 * py)
+    assert reason(_A, _B, [v1, v2], net) == "the road crosses itself (segment 1 intersects segment 3)"
+
+    # a valid gentle curve -> None
+    ok = _via_str(net, ax + 0.5 * dx + 60 * px, ay + 0.5 * dy + 60 * py)
+    assert reason(_A, _B, [ok], net) is None
+
+
+def test_proper_crossing_pure() -> None:
+    """The crossing predicate is PROPER (strict interiors): shared endpoints and collinear
+    touches are NOT crossings — mutation-effective against a >=-style orientation test."""
+    x = network_edit._proper_crossing
+    assert x((0, 0), (10, 10), (0, 10), (10, 0)) is True       # clean crossing
+    assert x((0, 0), (10, 0), (10, 0), (20, 10)) is False      # shared endpoint
+    assert x((0, 0), (10, 0), (5, 0), (15, 0)) is False        # collinear overlap — not proper
+    assert x((0, 0), (10, 0), (5, 5), (15, 5)) is False        # disjoint
+
+
+def test_write_edg_xml_via_less_byte_pin(tmp_path: Path) -> None:
+    """The no-regression pin: WITHOUT via, the .edg.xml is BYTE-IDENTICAL to today's output
+    (a via-less new_road must not change behavior in any way)."""
+    p = tmp_path / "x.edg.xml"
+    network_edit._write_edg_xml(_new_road(bidirectional=True, lanes=2, speed_mps=20.0),
+                                ["nr_A_B", "nr_B_A"], p)
+    expected = (
+        "<edges>\n"
+        '  <edge id="nr_A_B" from="A" to="B" numLanes="2" speed="20.000" allow="passenger"/>\n'
+        '  <edge id="nr_B_A" from="B" to="A" numLanes="2" speed="20.000" allow="passenger"/>\n'
+        "</edges>\n"
+    )
+    assert p.read_text(encoding="utf-8") == expected
+
+
+def test_write_edg_xml_with_shapes(tmp_path: Path) -> None:
+    """With shapes, each edge gains ONLY a shape attribute (reverse = the reversed polyline,
+    pinned at the writer — the readback centerlines sit on opposite sides by spreadType)."""
+    p = tmp_path / "x.edg.xml"
+    shapes = ["1.00,2.00 3.00,4.00 5.00,6.00", "5.00,6.00 3.00,4.00 1.00,2.00"]
+    network_edit._write_edg_xml(_new_road(bidirectional=True, lanes=2, speed_mps=20.0),
+                                ["nr_A_B", "nr_B_A"], p, shapes)
+    expected = (
+        "<edges>\n"
+        '  <edge id="nr_A_B" from="A" to="B" numLanes="2" speed="20.000" allow="passenger" '
+        'shape="1.00,2.00 3.00,4.00 5.00,6.00"/>\n'
+        '  <edge id="nr_B_A" from="B" to="A" numLanes="2" speed="20.000" allow="passenger" '
+        'shape="5.00,6.00 3.00,4.00 1.00,2.00"/>\n'
+        "</edges>\n"
+    )
+    assert p.read_text(encoding="utf-8") == expected
+
+
+def test_patch_curved_road_shape_and_length() -> None:
+    """The LIVE curved patch (netconvert ~10s): one via ~400 m off the midpoint. Pins the whole
+    point of V2.6d — edge length derives from the POLYLINE, not the chord — plus the probe's
+    verdicts: 3 shape points survive (no pruning) and the gauntlet stays green under a shape.
+    Chord = SHAPE endpoints (never node coords — SUMO trims ~13.5 m per end at junctions)."""
+    import math
+    net = _canon_net()
+    if _A not in {n.getID() for n in net.getNodes()}:
+        pytest.skip("known junction pair absent (net regenerated)")
+    ax, ay = net.getNode(_A).getCoord()
+    bx, by = net.getNode(_B).getCoord()
+    dx, dy = bx - ax, by - ay
+    ln = math.hypot(dx, dy)
+    via = _via_str(net, (ax + bx) / 2 - dy / ln * 400, (ay + by) / 2 + dx / ln * 400)
+    change = _new_road(target_edge=f"nr_{_A}_{_B}", from_junction=_A, to_junction=_B,
+                       bidirectional=True, lanes=2, speed_mps=20.0, via=[via],
+                       description="pytest curve")
+    out_path, edge_ids, stats = network_edit.patch_network(change, "pytest-curve")
+    try:
+        assert stats["geo_ref_identical"]
+        pn = sumolib.net.readNet(str(out_path))
+        lengths = []
+        for eid in edge_ids:
+            e = pn.getEdge(eid)
+            sh = e.getShape()
+            assert len(sh) == 3, "SHAPE-FAITHFUL: one via -> exactly 3 shape points (probe: no pruning)"
+            chord = math.dist(sh[0], sh[-1])
+            poly = sum(math.dist(sh[i], sh[i + 1]) for i in range(len(sh) - 1))
+            assert e.getLength() / chord > 1.02, "the whole point: a curve's length exceeds its chord"
+            assert abs(e.getLength() - poly) / e.getLength() < 0.01, "length derives from the polyline"
+            lengths.append(e.getLength())
+        assert abs(lengths[0] - lengths[1]) / lengths[0] < 0.01, "reverse edge rides the same curve"
+    finally:
+        for suffix in (".net.xml", ".edg.xml", ".con.xml", ".loadprobe.log"):
+            (out_path.parent / f"pytest-curve{suffix}").unlink(missing_ok=True)
 
 
 def test_validate_new_road_requires_geometry() -> None:

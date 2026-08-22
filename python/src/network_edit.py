@@ -8,19 +8,21 @@ build the connections. Never hand-edit a ``.net.xml`` (SUMO's own guidance).
 
 netconvert patch (MINIMAL — every guessing flag omitted; any of --junctions.join / --geometry.remove /
 --ramps.guess / --roundabouts.guess would re-split existing edges and break the additive invariant):
-    netconvert --sumo-net-file <canonical>.net.xml --edge-files <run_id>.edg.xml -o <run_id>.net.xml
+    netconvert --sumo-net-file <canonical>.net.xml --edge-files <run_id>.edg.xml
+               --connection-files <run_id>.con.xml --tls.rebuild -o <run_id>.net.xml
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import run_sim  # wires SUMO_HOME/tools onto sys.path so sumolib imports; exposes NET / SUMO_HOME
 import sumolib
-from contract_models import Change
+from contract_models import Change, parse_via_item
 
 NETCONVERT = run_sim.SUMO_HOME / "bin" / "netconvert.exe"
 NETS_DIR = run_sim.ROOT / "contract" / "runs" / "nets"
@@ -31,17 +33,89 @@ ROUTES = run_sim.ROOT / "python" / "scenario" / "corridor.rou.xml"  # car routes
 # minting + validation
 # ==================================================================================================
 def validate_new_road(change: Change) -> None:
-    """Pipeline-level (NOT schema) validation: a new_road MUST carry geometry. Raises loudly otherwise."""
+    """Pipeline-level (NOT schema) validation: a new_road MUST carry geometry. Raises loudly otherwise.
+    (V2.6d consumed the via capacity — via GEOMETRY rules live in ``new_road_via_reason``, net-bound.)"""
     if change.type != "new_road":
         raise ValueError(f"network_edit only patches new_road changes, got {change.type!r}")
-    if change.via:
-        # V2.6c: via is CONTRACT CAPACITY only — building the road while ignoring via would make
-        # the artifact lie about the simulated geometry. Netconvert threading is BACKLOG.
-        raise ValueError("new_road.via is contract capacity only (V2.6c) — netconvert threading "
-                         "is not implemented; remove via")
     missing = [f for f in ("from_junction", "to_junction", "lanes", "speed_mps") if getattr(change, f) is None]
     if missing:
         raise ValueError(f"new_road change is missing required geometry: {missing}")
+
+
+# ==================================================================================================
+# V2.6d — via geometry rules (ONE source; the SAME sentence at POST 400 / harness SystemExit /
+# patch_network ValueError — the assignment_rejection_reason precedent)
+# ==================================================================================================
+VIA_CAP = 8
+MIN_SEGMENT_M = 10.0
+
+_CANONICAL_NET = None
+
+
+def canonical_net():
+    """Lazy module-cached sumolib read of the canonical net — POST-time via validation only.
+    ``patch_network`` keeps its own fresh read (deliberate: the patch must see the disk truth)."""
+    global _CANONICAL_NET
+    if _CANONICAL_NET is None:
+        _CANONICAL_NET = sumolib.net.readNet(str(run_sim.NET))
+    return _CANONICAL_NET
+
+
+def _net_lonlat_bbox(net) -> list[float]:
+    """``run_sim.net_bbox`` math on an already-read net — these ARE the artifact's meta.bbox
+    numbers, so the client mirror (which reads meta.bbox) agrees by construction."""
+    xmin, ymin, xmax, ymax = net.getBoundary()
+    lon0, lat0 = net.convertXY2LonLat(xmin, ymin)
+    lon1, lat1 = net.convertXY2LonLat(xmax, ymax)
+    return [min(lon0, lon1), min(lat0, lat1), max(lon0, lon1), max(lat0, lat1)]
+
+
+def _proper_crossing(p, q, r, s) -> bool:
+    """PROPER segment crossing (strict interiors): shared endpoints and collinear touches are
+    NOT crossings. Strict ``< 0`` orientation products — a ``<=`` variant would false-flag the
+    touching polylines the LIFO boundary convention treats as legal."""
+    def orient(a, b, c) -> float:
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    return (orient(p, q, r) * orient(p, q, s) < 0
+            and orient(r, s, p) * orient(r, s, q) < 0)
+
+
+def new_road_via_reason(from_junction: str, to_junction: str, via: list[str], net) -> str | None:
+    """The V2.6d four-rule via geometry matrix. Returns the rejection SENTENCE or None.
+    Check order (the client mirror runs the same order, so the same click yields the same
+    sentence): junction existence -> cap -> per-point bbox -> min-segment -> self-intersection.
+    Bbox runs BEFORE distances so a lat/lon swap gets the study-area sentence, never a
+    confusing distance one. Items are assumed parseable (callers run parse_via_item first);
+    a malformed item raises its plain parse ValueError here, same severity."""
+    nodes = []
+    for j in (from_junction, to_junction):
+        try:
+            nodes.append(net.getNode(j))
+        except KeyError:
+            return f"junction {j!r} is not in the canonical net — pick an existing junction id"
+    if len(via) > VIA_CAP:
+        return f"a new road takes at most {VIA_CAP} via points (got {len(via)})"
+    bbox = _net_lonlat_bbox(net)
+    via_xy: list[tuple[float, float]] = []
+    for i, item in enumerate(via, start=1):
+        lon, lat = parse_via_item(item)
+        if not (bbox[0] <= lon <= bbox[2] and bbox[1] <= lat <= bbox[3]):
+            # an exterior waypoint would widen the net boundary and die as a mid-run gauntlet
+            # AssertionError — this sentence fires BEFORE netconvert ever runs.
+            return f"via point {i} is outside the study area"
+        via_xy.append(net.convertLonLat2XY(lon, lat))
+    pts = [nodes[0].getCoord(), *via_xy, nodes[1].getCoord()]
+    for i in range(len(pts) - 1):
+        d = math.dist(pts[i], pts[i + 1])
+        if d < MIN_SEGMENT_M:
+            return (f"consecutive points on a new road must be at least {MIN_SEGMENT_M:.0f} m "
+                    f"apart (segment {i + 1} is {d:.1f} m)")
+    n_seg = len(pts) - 1
+    for i in range(n_seg):
+        for j in range(i + 2, n_seg):  # adjacent segments share a point — never "cross"
+            if _proper_crossing(pts[i], pts[i + 1], pts[j], pts[j + 1]):
+                return f"the road crosses itself (segment {i + 1} intersects segment {j + 1})"
+    return None
 
 
 def minted_edge_ids(change: Change) -> list[str]:
@@ -50,16 +124,23 @@ def minted_edge_ids(change: Change) -> list[str]:
     return [fwd, f"nr_{change.to_junction}_{change.from_junction}"] if change.bidirectional else [fwd]
 
 
-def _write_edg_xml(change: Change, edge_ids: list[str], path: Path) -> None:
+def _write_edg_xml(change: Change, edge_ids: list[str], path: Path,
+                   shapes: list[str] | None = None) -> None:
+    """V2.6d: ``shapes`` (parallel to edge_ids; netconvert plain-XML ``x,y x,y`` in the net's own
+    projected metres) threads a curve. NO ``length`` attribute ever — netconvert sums the shape
+    segments (PlainXML: "the distances of the shape elements will be summed"), so simulated travel
+    distance IS the drawn geometry; NO ``spreadType`` — the default matches today's chord edges.
+    Without shapes the output is byte-identical to the pre-V2.6d writer (test-pinned)."""
     lanes, speed = int(change.lanes), float(change.speed_mps)
     edges = ["<edges>"]
     # forward: from -> to; reverse (if any): to -> from
     ends = [(change.from_junction, change.to_junction)]
     if len(edge_ids) == 2:
         ends.append((change.to_junction, change.from_junction))
-    for eid, (a, b) in zip(edge_ids, ends):
+    for i, (eid, (a, b)) in enumerate(zip(edge_ids, ends)):
+        shape_attr = f' shape="{shapes[i]}"' if shapes else ""
         edges.append(f'  <edge id="{eid}" from="{a}" to="{b}" numLanes="{lanes}" '
-                     f'speed="{speed:.3f}" allow="passenger"/>')
+                     f'speed="{speed:.3f}" allow="passenger"{shape_attr}/>')
     edges.append("</edges>\n")
     path.write_text("\n".join(edges), encoding="utf-8")
 
@@ -178,6 +259,24 @@ def patch_network(change: Change, run_id: str) -> tuple[Path, list[str], dict]:
         except KeyError:
             raise ValueError(f"junction {j!r} is not in the canonical net — pick an existing junction id")
 
+    # V2.6d: via geometry rules gate here too (the backstop for direct callers; POST + harness
+    # validate earlier with the SAME sentences). Shape = [from-node, *via, to-node] in the net's
+    # own projected metres — the probe confirmed a plain-XML shape survives --sumo-net-file
+    # re-import unshifted (gauntlet geo-ref + convBoundary byte-identical).
+    shapes: list[str] | None = None
+    if change.via:
+        reason = new_road_via_reason(change.from_junction, change.to_junction, change.via, can_net)
+        if reason is not None:
+            raise ValueError(reason)
+        via_xy = [can_net.convertLonLat2XY(*parse_via_item(v)) for v in change.via]
+        fwd_pts = [can_net.getNode(change.from_junction).getCoord(), *via_xy,
+                   can_net.getNode(change.to_junction).getCoord()]
+        def _fmt(pts) -> str:
+            return " ".join(f"{x:.2f},{y:.2f}" for x, y in pts)
+        shapes = [_fmt(fwd_pts)]
+        if change.bidirectional:
+            shapes.append(_fmt(list(reversed(fwd_pts))))
+
     edge_ids = minted_edge_ids(change)
     NETS_DIR.mkdir(parents=True, exist_ok=True)
     edg_path = NETS_DIR / f"{run_id}.edg.xml"
@@ -188,7 +287,7 @@ def patch_network(change: Change, run_id: str) -> tuple[Path, list[str], dict]:
         raise AssertionError("refusing to write the patched net over the canonical corridor.net.xml")
     before = (canonical.stat().st_mtime_ns, canonical.stat().st_size)
 
-    _write_edg_xml(change, edge_ids, edg_path)
+    _write_edg_xml(change, edge_ids, edg_path, shapes)
     con_path = NETS_DIR / f"{run_id}.con.xml"
     _write_con_xml(can_net, change, edge_ids, con_path)
     # --tls.rebuild: a new road onto a SIGNALIZED junction adds connections/links; the loaded tlLogic still
@@ -211,6 +310,18 @@ def patch_network(change: Change, run_id: str) -> tuple[Path, list[str], dict]:
 
     stats = run_gauntlet(canonical, out_path, edge_ids)
     _sumo_load_probe(out_path)  # SUMO's loader is stricter than sumolib — catch what the gauntlet can't (TLS etc.)
+    if change.via:
+        # SHAPE-FAITHFUL readback: every via point must survive as a shape point. The probe showed
+        # netconvert prunes NOTHING (even an exactly-collinear point), so the strict count holds;
+        # positions are deliberately NOT compared — the readback centerline sits half a road-width
+        # off the written line (spreadType-right semantics, a property today's chords share).
+        pn = sumolib.net.readNet(str(out_path))
+        want = len(change.via) + 2
+        for eid in edge_ids:
+            got = len(pn.getEdge(eid).getShape())
+            if got != want:
+                raise AssertionError(f"SHAPE-FAITHFUL: minted edge {eid!r} has {got} shape points, "
+                                     f"expected {want} (netconvert dropped the curve?)")
     if nc_warnings:
         stats["netconvert_warnings"] = nc_warnings[-1000:]
     return out_path, edge_ids, stats
@@ -388,6 +499,7 @@ def _change_from_args(args) -> Change:
     a, b = args.from_junction, args.to_junction
     return Change(type="new_road", target_edge=f"nr_{a}_{b}", from_junction=a, to_junction=b,
                   lanes=args.lanes, speed_mps=args.speed, bidirectional=args.bidirectional,
+                  via=args.via or None,
                   description=args.description or f"New road from junction {a} to {b}")
 
 
@@ -400,6 +512,9 @@ def main() -> None:
     ap.add_argument("--lanes", type=int, default=1)
     ap.add_argument("--speed", type=float, default=13.9)  # ~50 km/h
     ap.add_argument("--bidirectional", action="store_true")
+    ap.add_argument("--via", action="append", default=None,
+                    help="V2.6d: repeatable 'lon,lat' via waypoint (use --via=-79.2,43.7 — the "
+                         "=form; a negative lon starts with '-')")
     ap.add_argument("--description", default=None)
     ap.add_argument("--run-id", default="edit-test")
     args = ap.parse_args()
