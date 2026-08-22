@@ -59,7 +59,7 @@ function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_
     case 'new_road':
       base =
         `New road · ${c.from_junction} → ${c.to_junction}` +
-        (c.via?.length ? ` · ${c.via.length} bend(s)` : '');
+        (c.via?.length ? ` · ${c.via.length} bend${c.via.length === 1 ? '' : 's'}` : '');
       break;
   }
   const w = memberWindow(c);

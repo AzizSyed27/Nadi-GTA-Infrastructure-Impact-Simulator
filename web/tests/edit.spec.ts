@@ -302,7 +302,7 @@ test('draw a curved road — bends render, the wire carries via, the shape stays
   await page.getByTestId('simulate-btn').click();
 
   // the captured overlay polyline carries the bends: A + 2 vias + B
-  await expect(page.getByTestId('draft-panel')).toContainText('2 bend(s)');
+  await expect(page.getByTestId('draft-panel')).toContainText('2 bends');
   const vertices = await page.evaluate(
     () => (window as unknown as { __nadiDraftOverlay?: { items: { vertices: number | null }[] } }).__nadiDraftOverlay?.items[0]?.vertices,
   );
@@ -425,4 +425,34 @@ test('playback: the change overlay renders the curve through via', async ({ page
 test('playback: a legacy junction-id via degrades to the chord (tolerant parse)', async ({ page }) => {
   const v = await overlayVertices(page, curvedRunBody(['J_mid']));
   expect(v).toBe(2); // the item is skipped, never a crash — today's two-junction chord
+});
+
+test('a straight road wire shape is byte-identical — no via key (review catch)', async ({ page }) => {
+  await mockBackend(page);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route('**/api/simulate', (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill({ json: { run_id: RUN_ID } });
+  });
+  await enterEditAndLoadJunctions(page);
+  await seamClick(page, J1.lon, J1.lat);
+  await expect(page.getByTestId('draw-card')).toContainText('Start:');
+  await seamClick(page, J2.lon, J2.lat);
+  await expect(page.getByTestId('params-form')).toBeVisible();
+  await page.getByTestId('simulate-btn').click();
+  await page.getByTestId('draft-run').click();
+  await expect(page.getByTestId('run-card')).toBeVisible();
+  expect(bodies).toHaveLength(1);
+  // toEqual, not toMatchObject: the exact pre-V2.6d wire bytes — no via key, no stray options
+  expect(bodies[0]).toEqual({
+    change: {
+      type: 'new_road',
+      from_junction: 'J1',
+      to_junction: 'J2',
+      lanes: 2,
+      speed_mps: 13.9,
+      bidirectional: true,
+      description: 'New road J1->J2',
+    },
+  });
 });

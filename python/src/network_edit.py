@@ -49,6 +49,13 @@ def validate_new_road(change: Change) -> None:
 VIA_CAP = 8
 MIN_SEGMENT_M = 10.0
 
+
+def junction_missing_reason(j: str) -> str:
+    """ONE copy of the unknown-junction sentence (review catch: new_road_via_reason and
+    patch_network carried independently-maintained twins that could silently drift)."""
+    return f"junction {j!r} is not in the canonical net — pick an existing junction id"
+
+
 _CANONICAL_NET = None
 
 
@@ -92,7 +99,7 @@ def new_road_via_reason(from_junction: str, to_junction: str, via: list[str], ne
         try:
             nodes.append(net.getNode(j))
         except KeyError:
-            return f"junction {j!r} is not in the canonical net — pick an existing junction id"
+            return junction_missing_reason(j)
     if len(via) > VIA_CAP:
         return f"a new road takes at most {VIA_CAP} via points (got {len(via)})"
     bbox = _net_lonlat_bbox(net)
@@ -257,7 +264,7 @@ def patch_network(change: Change, run_id: str) -> tuple[Path, list[str], dict]:
         try:
             can_net.getNode(j)
         except KeyError:
-            raise ValueError(f"junction {j!r} is not in the canonical net — pick an existing junction id")
+            raise ValueError(junction_missing_reason(j))
 
     # V2.6d: via geometry rules gate here too (the backstop for direct callers; POST + harness
     # validate earlier with the SAME sentences). Shape = [from-node, *via, to-node] in the net's

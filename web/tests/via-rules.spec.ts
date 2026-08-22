@@ -19,9 +19,9 @@ import type { Change, LonLat } from '../lib/types';
  * V2.6d — function-level pins for web/lib/viaRules.ts, the TS mirror of
  * python/src/network_edit.py's via geometry rules (the draftBlockers half-1 convention: no
  * page). Literals are pinned HERE as strings/numbers — never via the imported constant alone
- * (a tautological pin can't catch drift) — with the SAME example numbers as the Python matrix
- * (test_network_edit.test_new_road_via_reason_matrix), so the two languages can't drift apart
- * silently. The client/server metric gap (equirectangular vs UTM) is a RATIFIED residual —
+ * (a tautological pin can't catch drift) — with the same STRUCTURAL cases as the Python matrix
+ * (test_network_edit.test_new_road_via_reason_matrix: cap 9-refused/8-legal, bbox-before-
+ * distance order, the bowtie), so the two languages can't drift apart silently. The client/server metric gap (equirectangular vs UTM) is a RATIFIED residual —
  * see the viaRules.ts header; these pins assert the literals, not cross-metric equality.
  */
 
@@ -70,6 +70,9 @@ test('viaClickReason: cap, min-segment, crossing', () => {
   expect(viaClickReason(anchors, [0.095, 0], null)).toBe(
     'a new road takes at most 8 via points (got 9)',
   );
+  // THE BOUNDARY (review catch): the 8th via is LEGAL — a >=-for-> port typo makes a FALSE
+  // client blocker the server backstop can never catch (the LIFO t=499/500/501 precedent)
+  expect(viaClickReason(anchors.slice(0, 8), [0.085, 0], null)).toBeNull();
 
   // min-segment: the new tail segment is ~5.6 m
   const tooClose = viaClickReason([[0, 43.75]], [0, 43.75005], null);

@@ -1160,16 +1160,12 @@ export default function MapView() {
     if (!(mode === 'edit' && activeRunId == null && ptA && !ptB)) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (vias.length > 0) {
-        setVias((v) => v.slice(0, -1));
-        setDrawHint(null);
-      } else {
-        resetDraw();
-      }
+      if (vias.length > 0) onUndoBend();
+      else resetDraw();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mode, activeRunId, ptA, ptB, vias, resetDraw]);
+  }, [mode, activeRunId, ptA, ptB, vias, onUndoBend, resetDraw]);
 
   const drawAnother = useCallback(() => {
     setActiveRunId(null);

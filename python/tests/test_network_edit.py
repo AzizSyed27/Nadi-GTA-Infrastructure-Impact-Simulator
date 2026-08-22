@@ -69,6 +69,9 @@ def test_new_road_via_reason_matrix() -> None:
     nine = [_via_str(net, ax + f * dx, ay + f * dy) for f in
             (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)]
     assert reason(_A, _B, nine, net) == "a new road takes at most 8 via points (got 9)"
+    # THE BOUNDARY (review catch): exactly 8 vias is LEGAL — a >=-for-> mutant makes a FALSE
+    # blocker the server backstop can never catch (the cross-language boundary-pin rule)
+    assert reason(_A, _B, nine[:8], net) is None
 
     # bbox containment: a point far west of the study area
     assert reason(_A, _B, ["-80.5,43.75"], net) == "via point 1 is outside the study area"
