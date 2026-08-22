@@ -37,7 +37,7 @@ import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
 import { loadCompareSide, slimFromArtifact, type CompareSide } from '@/lib/compare';
 import { activeAt, agentId, materializeTimestamps, nearestWithin, positionAt, positionAtCached, sentimentColor, type Materialized } from '@/lib/viz';
-import { viaClickReason, viaCloseReason, type Bbox } from '@/lib/viaRules';
+import { parseVia, viaClickReason, viaCloseReason, type Bbox } from '@/lib/viaRules';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
 // Token-free CARTO positron style (no API key). V2.0b: the NO-LABELS variant — the exported network is now the
@@ -399,7 +399,9 @@ export default function MapView() {
         if (change.type === 'new_road' && change.from_junction && change.to_junction) {
           const a = junctionById[change.from_junction];
           const b = junctionById[change.to_junction];
-          if (a && b) geom = [a, b];
+          // V2.6d: the curve rides via ('lon,lat' strings, tolerant parse — a legacy
+          // junction-id via degrades to today's two-junction chord, never a crash)
+          if (a && b) geom = [a, ...parseVia(change.via), b];
         } else if (change.target_edge) {
           geom = networkLookup[change.target_edge]?.geometry ?? null; // canonical edge → network map
         }
@@ -1267,6 +1269,8 @@ export default function MapView() {
         type: d.type,
         windowed: !!d.window,
         active: !d.window || !playbackNow || (currentTime >= d.window.start_s && currentTime <= d.window.end_s),
+        // V2.6d: the rendered polyline's vertex count (a curved new_road = 2 + via points)
+        vertices: d.path.length,
       })),
     };
   }, [changeGeom, artifact, currentTime, mode, socialIds]);

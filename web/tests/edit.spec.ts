@@ -376,3 +376,53 @@ test('Escape pops bends, undo-bend mirrors it, a bare Escape cancels the draw', 
   await page.keyboard.press('Escape'); // no bends left -> cancels the whole draw
   await expect(page.getByTestId('draw-card')).toContainText('Click a junction on the map to start.');
 });
+
+// ---- V2.6d C5: playback renders the curve (the change overlay carries via vertices) ----
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { mockDefaultArtifactBody } from './support/default-artifact';
+
+function curvedRunBody(via: string[]): string {
+  const raw = JSON.parse(
+    fs.readFileSync(path.join(__dirname, 'fixtures', 'school-zone-run.json'), 'utf-8'),
+  );
+  raw.meta.scenario.changes = [
+    {
+      type: 'new_road',
+      target_edge: `nr_${J_A.id}_${J_B.id}`,
+      from_junction: J_A.id,
+      to_junction: J_B.id,
+      lanes: 2,
+      speed_mps: 13.9,
+      bidirectional: true,
+      via,
+      description: 'curved road',
+    },
+  ];
+  delete raw.meta.scenario.tags;
+  return JSON.stringify(raw);
+}
+
+async function overlayVertices(page: Page, body: string): Promise<number | undefined> {
+  await mockBackend(page);
+  await mockDefaultArtifactBody(page, body); // later registration wins — replaces the default body
+  await page.goto('/');
+  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
+  await expect(page.getByTestId('change-legend')).toContainText('proposed road', { timeout: 20_000 });
+  return page.evaluate(
+    () =>
+      (window as unknown as { __nadiChangeOverlay?: { items: { vertices?: number }[] } })
+        .__nadiChangeOverlay?.items[0]?.vertices,
+  );
+}
+
+test('playback: the change overlay renders the curve through via', async ({ page }) => {
+  const v = await overlayVertices(page, curvedRunBody(['-79.2200,43.7460', '-79.2180,43.7480']));
+  expect(v).toBe(4); // A + 2 vias + B — the drawn curve, not the chord
+});
+
+test('playback: a legacy junction-id via degrades to the chord (tolerant parse)', async ({ page }) => {
+  const v = await overlayVertices(page, curvedRunBody(['J_mid']));
+  expect(v).toBe(2); // the item is skipped, never a crash — today's two-junction chord
+});
