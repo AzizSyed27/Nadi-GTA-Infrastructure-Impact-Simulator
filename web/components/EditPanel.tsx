@@ -20,6 +20,8 @@ export interface DrawParams {
 interface EditPanelProps {
   ptA: Junction | null;
   ptB: Junction | null;
+  viaCount: number; // V2.6d — bends placed so far (empty-map clicks mid-draw)
+  onUndoBend: () => void; // pop the last bend (the visible mirror of Escape)
   hint: string | null;
   junctionsDown: boolean; // backend unreachable while loading snap targets → show the start-the-server hint
   submitting: boolean;
@@ -337,7 +339,15 @@ export function EditPanel(props: EditPanelProps) {
             <div style={step}>
               Start: <code>{ptA.id}</code>
               <br />
-              Click a second junction to finish.
+              Click a second junction to finish — or click along a street to bend the road.
+              {props.viaCount > 0 && (
+                <div data-testid="bend-count">
+                  {props.viaCount} bend{props.viaCount === 1 ? '' : 's'} (Esc removes the last)
+                  <button style={linkBtn} onClick={props.onUndoBend} data-testid="undo-bend">
+                    undo bend
+                  </button>
+                </div>
+              )}
               <button style={linkBtn} onClick={onReset} data-testid="draw-cancel">
                 cancel
               </button>

@@ -86,6 +86,9 @@ export function changeSetKey(changes: Change[]): string {
       target_lane: c.target_lane ?? null,
       target_lanes: c.target_lanes ?? null,
       window: c.window ? { start_s: c.window.start_s, end_s: c.window.end_s } : undefined,
+      // V2.6d: a curve is physics — two new_roads differing only in via must not compare
+      // identical. Via-less serializes undefined (dropped), keeping every old key byte-identical.
+      via: c.via && c.via.length ? c.via : undefined,
     }))
     .sort((x, y) => `${x.type}|${x.target_edge}`.localeCompare(`${y.type}|${y.target_edge}`));
   return JSON.stringify(projected);

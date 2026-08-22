@@ -46,6 +46,9 @@ export interface NewRoadChange {
   lanes: number;
   speed_mps: number;
   bidirectional: boolean;
+  /** V2.6d: 'lon,lat' coord-pair strings — via WAYPOINTS the road's shape bends through (see
+   *  the recorded decision at types.ts Change.via). Omit for a straight road. */
+  via?: string[];
   description?: string;
 }
 export interface SpeedLimitChange {

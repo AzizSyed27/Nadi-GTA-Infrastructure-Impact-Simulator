@@ -264,3 +264,115 @@ test('the exported network renders as the base road layer (all modes)', async ({
   expect(arrows).toBeGreaterThan(0);
   await page.screenshot({ path: 'test-results/network-base.png' });
 });
+
+// ---- V2.6d: the curve drawn (via bends; validation click-time; Escape/undo) ----
+// The via sentences are pinned as literals in via-rules.spec.ts (the TS mirror of
+// network_edit.py); here we pin that the EDITOR refuses invalid clicks with those sentences,
+// that bends ride the wire as 'lon,lat' strings, and that the single-change {change} wire
+// shape survives via (a curved new_road is still a single-member draft). The 9th-via cap case
+// is function-pinned (via-rules.spec) — the hint-rendering path is proven by the three cases
+// here without a 9-click flake surface.
+
+// Bends for the happy path — inside the fixture bbox, >60 m (SNAP_M) from every mocked junction.
+const V1 = [-79.2185, 43.7465] as const;
+const V2 = [-79.2135, 43.7515] as const;
+
+test('draw a curved road — bends render, the wire carries via, the shape stays {change}', async ({ page }) => {
+  await mockBackend(page);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route('**/api/simulate', (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill({ json: { run_id: RUN_ID } });
+  });
+  await enterEditAndLoadJunctions(page);
+
+  // GATE between seam clicks (the canonical test's own convention): the seam re-registers only
+  // after React commits, so a back-to-back click runs a stale closure and is silently swallowed
+  // — assert each click's UI reflection before the next.
+  await seamClick(page, J1.lon, J1.lat);
+  await expect(page.getByTestId('draw-card')).toContainText('Start:');
+  await seamClick(page, V1[0], V1[1]);
+  await expect(page.getByTestId('bend-count')).toContainText('1 bend');
+  await seamClick(page, V2[0], V2[1]);
+  await expect(page.getByTestId('bend-count')).toContainText('2 bends');
+  await page.screenshot({ path: 'test-results/edit-curved-draw.png' });
+
+  await seamClick(page, J2.lon, J2.lat);
+  await expect(page.getByTestId('params-form')).toBeVisible();
+  await page.getByTestId('simulate-btn').click();
+
+  // the captured overlay polyline carries the bends: A + 2 vias + B
+  await expect(page.getByTestId('draft-panel')).toContainText('2 bend(s)');
+  const vertices = await page.evaluate(
+    () => (window as unknown as { __nadiDraftOverlay?: { items: { vertices: number | null }[] } }).__nadiDraftOverlay?.items[0]?.vertices,
+  );
+  expect(vertices).toBe(4);
+
+  await page.getByTestId('draft-run').click();
+  await expect(page.getByTestId('run-card')).toBeVisible();
+  expect(bodies).toHaveLength(1);
+  const body = bodies[0] as { change?: Record<string, unknown>; changes?: unknown };
+  expect(body.changes).toBeUndefined(); // a curved new_road is still the SINGLE-change wire shape
+  expect(body.change).toMatchObject({
+    type: 'new_road',
+    from_junction: 'J1',
+    to_junction: 'J2',
+    lanes: 2,
+    speed_mps: 13.9,
+    bidirectional: true,
+    via: ['-79.218500,43.746500', '-79.213500,43.751500'], // 6-dp 'lon,lat' strings, in click order
+  });
+});
+
+test('invalid via clicks are refused with the server sentences — no bend added', async ({ page }) => {
+  await mockBackend(page);
+  await enterEditAndLoadJunctions(page);
+  await seamClick(page, J1.lon, J1.lat);
+  await expect(page.getByTestId('draw-card')).toContainText('Start:'); // commit-gate (see above)
+
+  // out-of-bbox (also the lat/lon-swap class): the study-area sentence, verbatim
+  await seamClick(page, -79.5, 43.75);
+  await expect(page.getByTestId('draw-hint')).toHaveText('via point 1 is outside the study area');
+  await expect(page.getByTestId('bend-count')).toBeHidden();
+
+  // a valid bend, then a second click ~5 m from it -> the min-segment sentence
+  await seamClick(page, -79.22, 43.7443);
+  await expect(page.getByTestId('bend-count')).toContainText('1 bend');
+  await seamClick(page, -79.22006, 43.7443);
+  await expect(page.getByTestId('draw-hint')).toHaveText(
+    /^consecutive points on a new road must be at least 10 m apart \(segment 2 is \d+\.\d m\)$/,
+  );
+  await expect(page.getByTestId('bend-count')).toContainText('1 bend');
+
+  // the bowtie: a bend whose closing click would cross segment 1 -> the crossing sentence
+  await seamClick(page, -79.22, 43.7458);
+  await expect(page.getByTestId('bend-count')).toContainText('2 bends');
+  await seamClick(page, -79.2214, 43.7428);
+  await expect(page.getByTestId('draw-hint')).toHaveText(
+    'the road crosses itself (segment 1 intersects segment 3)',
+  );
+  await expect(page.getByTestId('bend-count')).toContainText('2 bends');
+
+  // referendum guard over the new copy (bend hints + counts)
+  const body = await page.locator('body').innerText();
+  expect(body).not.toMatch(BANNED);
+  expect(body).not.toMatch(STANCE_TALLY);
+});
+
+test('Escape pops bends, undo-bend mirrors it, a bare Escape cancels the draw', async ({ page }) => {
+  await mockBackend(page);
+  await enterEditAndLoadJunctions(page);
+  await seamClick(page, J1.lon, J1.lat);
+  await expect(page.getByTestId('draw-card')).toContainText('Start:'); // commit-gate (see above)
+  await seamClick(page, V1[0], V1[1]);
+  await expect(page.getByTestId('bend-count')).toContainText('1 bend');
+  await seamClick(page, V2[0], V2[1]);
+  await expect(page.getByTestId('bend-count')).toContainText('2 bends');
+
+  await page.keyboard.press('Escape'); // the suite's first keyboard event — pops the last bend
+  await expect(page.getByTestId('bend-count')).toContainText('1 bend');
+  await page.getByTestId('undo-bend').click(); // the visible mirror
+  await expect(page.getByTestId('bend-count')).toBeHidden();
+  await page.keyboard.press('Escape'); // no bends left -> cancels the whole draw
+  await expect(page.getByTestId('draw-card')).toContainText('Click a junction on the map to start.');
+});

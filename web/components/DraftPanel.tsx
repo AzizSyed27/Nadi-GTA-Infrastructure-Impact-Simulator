@@ -57,7 +57,9 @@ function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_
         (c.effect?.speed_factor != null ? ` · slowed to ${Math.round(c.effect.speed_factor * 100)}%` : '');
       break;
     case 'new_road':
-      base = `New road · ${c.from_junction} → ${c.to_junction}`;
+      base =
+        `New road · ${c.from_junction} → ${c.to_junction}` +
+        (c.via?.length ? ` · ${c.via.length} bend(s)` : '');
       break;
   }
   const w = memberWindow(c);

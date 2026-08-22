@@ -7,7 +7,7 @@ import { PathStyleExtension } from '@deck.gl/extensions';
 import { fmtWindowRange } from '@/lib/simTime';
 import { ARTIFACT_CACHE, DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer, LineLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -37,6 +37,7 @@ import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
 import { loadCompareSide, slimFromArtifact, type CompareSide } from '@/lib/compare';
 import { activeAt, agentId, materializeTimestamps, nearestWithin, positionAt, positionAtCached, sentimentColor, type Materialized } from '@/lib/viz';
+import { viaClickReason, viaCloseReason, type Bbox } from '@/lib/viaRules';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
 // Token-free CARTO positron style (no API key). V2.0b: the NO-LABELS variant — the exported network is now the
@@ -218,6 +219,9 @@ export default function MapView() {
   const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
   const [ptA, setPtA] = useState<Junction | null>(null); // first clicked junction
   const [ptB, setPtB] = useState<Junction | null>(null); // second clicked junction → opens the params form
+  // V2.6d — via BEND points (empty-map clicks mid-draw), validated incrementally at click time
+  // with the server's own sentences (an invalid curve never enters the basket).
+  const [vias, setVias] = useState<LonLat[]>([]);
   // V2.2d — the school-zone flow: zone-select mode accumulates clicked edges (toggle to remove);
   // submit posts N windowed speed_limit primitives + tags=["school_zone"] as ONE composite run.
   const [zoneMode, setZoneMode] = useState(false);
@@ -888,7 +892,18 @@ export default function MapView() {
       let j: Junction | null = lid === 'snap-targets' ? (info.object as Junction) : null;
       if (!j && coord) j = nearestWithin(coord, junctions, SNAP_M);
       if (!j) {
-        if (ptA) setDrawHint('Click nearer a junction.');
+        if (ptA && !ptB && coord) {
+          // V2.6d: an empty-map click mid-draw adds a BEND — validated incrementally with the
+          // server's own sentences (too-close / out-of-bbox / crossing / over-cap clicks are
+          // refused as the drawHint; the POST 400 stays the backstop for API callers).
+          const bbox = (artifact?.meta.bbox as Bbox | undefined) ?? null;
+          const reason = viaClickReason([[ptA.lon, ptA.lat], ...vias], coord, bbox);
+          if (reason) setDrawHint(reason);
+          else {
+            setVias((v) => [...v, coord]);
+            setDrawHint(null);
+          }
+        } else if (ptA) setDrawHint('Click nearer a junction.');
         else setSelectedEdge(null); // empty-space click dismisses an open palette
         return;
       }
@@ -899,13 +914,20 @@ export default function MapView() {
         setPtB(null);
         setHoverCoord(null);
       } else if (j.id !== ptA.id) {
+        // V2.6d: the CLOSING segment (last bend -> B) is validated here too — this branch also
+        // REPLACES ptB mid-form, so a crossing/short close is caught on both paths.
+        const closeReason = viaCloseReason([[ptA.lon, ptA.lat], ...vias], [j.lon, j.lat]);
+        if (closeReason) {
+          setDrawHint(closeReason);
+          return;
+        }
         setDrawHint(null);
         setPtB(j);
       } else {
         setDrawHint('Pick a different junction for the end point.');
       }
     },
-    [ptA, junctions, mergeEdge, zoneMode],
+    [ptA, ptB, vias, artifact, junctions, mergeEdge, zoneMode],
   );
 
   // Overlay-level hover: drive the rubber-band only while placing the second point (bounds re-renders).
@@ -945,6 +967,7 @@ export default function MapView() {
     // close the contributing tool — the same clears the old submit-on-apply did on success
     setPtA(null);
     setPtB(null);
+    setVias([]);
     setHoverCoord(null);
     setDrawHint(null);
     setSelectedEdge(null);
@@ -995,13 +1018,16 @@ export default function MapView() {
           lanes: p.lanes,
           speed_mps: p.speed_mps,
           bidirectional: p.bidirectional,
+          // V2.6d: bends ride the wire as 'lon,lat' coord-pair strings (6-dp, the coordinate
+          // convention); a straight road omits via — the single-change wire pin stays byte-equal
+          ...(vias.length ? { via: vias.map(([lo, la]) => `${lo.toFixed(6)},${la.toFixed(6)}`) } : {}),
           description: `New road ${ptA.id}->${ptB.id}`,
         },
         // a minted road is absent from the canonical net — capture its overlay geometry now
-        { path: [[ptA.lon, ptA.lat], [ptB.lon, ptB.lat]] },
+        { path: [[ptA.lon, ptA.lat], ...vias, [ptB.lon, ptB.lat]] },
       );
     },
-    [ptA, ptB, addToDraft],
+    [ptA, ptB, vias, addToDraft],
   );
 
   const onEdgeSpeed = useCallback(
@@ -1114,11 +1140,34 @@ export default function MapView() {
   const resetDraw = useCallback(() => {
     setPtA(null);
     setPtB(null);
+    setVias([]);
     setHoverCoord(null);
     setDrawHint(null);
     setDraftError(null);
     setSelectedEdge(null);
   }, []);
+
+  // V2.6d — the app's first keyboard surface, mounted only mid-draw: Escape pops the last bend;
+  // with none left it cancels the draw (the visible undo-bend button mirrors the pop for
+  // discoverability, the zone-remove idiom).
+  const onUndoBend = useCallback(() => {
+    setVias((v) => v.slice(0, -1));
+    setDrawHint(null);
+  }, []);
+  useEffect(() => {
+    if (!(mode === 'edit' && activeRunId == null && ptA && !ptB)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (vias.length > 0) {
+        setVias((v) => v.slice(0, -1));
+        setDrawHint(null);
+      } else {
+        resetDraw();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, activeRunId, ptA, ptB, vias, resetDraw]);
 
   const drawAnother = useCallback(() => {
     setActiveRunId(null);
@@ -1231,7 +1280,13 @@ export default function MapView() {
       count: draft.length,
       zoneTagged: draftTags.includes('school_zone'),
       hoveredId: hoveredDraftId,
-      items: draft.map((m) => ({ id: m.id, type: m.change.type, windowed: memberWindow(m.change) !== null })),
+      items: draft.map((m) => ({
+        id: m.id,
+        type: m.change.type,
+        windowed: memberWindow(m.change) !== null,
+        // V2.6d: the captured overlay polyline's vertex count (a curved new_road member = 2 + bends)
+        vertices: m.path?.length ?? null,
+      })),
     };
   }, [draft, draftTags, hoveredDraftId]);
 
@@ -1442,15 +1497,20 @@ export default function MapView() {
     pickable: true,
     updateTriggers: { getFillColor: [ptA?.id, ptB?.id], getRadius: [ptA?.id, ptB?.id] },
   });
+  // V2.6d: the working line BENDS at via points — a PathLayer over [A, ...bends, rubber-band tip]
+  // (the same orange idiom; the V2.7 grey/striping restyle is explicitly deferred).
   const previewTo: LonLat | null = ptB ? [ptB.lon, ptB.lat] : hoverCoord;
-  const drawPreview = new LineLayer<{ from: LonLat; to: LonLat }>({
+  const previewPath: LonLat[] = ptA
+    ? [[ptA.lon, ptA.lat], ...vias, ...(previewTo ? [previewTo] : [])]
+    : [];
+  const drawPreview = new PathLayer<{ path: LonLat[] }>({
     id: 'draw-preview',
-    data: ptA && previewTo ? [{ from: [ptA.lon, ptA.lat], to: previewTo }] : [],
-    getSourcePosition: (d) => d.from,
-    getTargetPosition: (d) => d.to,
+    data: previewPath.length >= 2 ? [{ path: previewPath }] : [],
+    getPath: (d) => d.path,
     getColor: [240, 130, 30, 230],
     getWidth: 3,
     widthUnits: 'pixels',
+    jointRounded: true,
   });
 
   // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
@@ -1736,6 +1796,8 @@ export default function MapView() {
         <EditPanel
           ptA={ptA}
           ptB={ptB}
+          viaCount={vias.length}
+          onUndoBend={onUndoBend}
           hint={drawHint}
           junctionsDown={junctionsDown}
           submitting={submitting}
