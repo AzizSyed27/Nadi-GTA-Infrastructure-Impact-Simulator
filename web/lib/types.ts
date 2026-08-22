@@ -80,8 +80,14 @@ export interface Change {
   lanes?: number;
   speed_mps?: number;
   bidirectional?: boolean;
-  /** V2.6c: ordered intermediate junction ids for a new_road — CONTRACT CAPACITY only (the
-   *  pipeline refuses it until netconvert threading lands; readers tolerate presence/absence). */
+  /** V2.6d RECORDED DECISION: 'lon,lat' COORDINATE-PAIR strings, NOT junction ids, despite
+   *  string[] — 0.10.0 shipped via capacity-only (no producer ever emitted a junction-id via),
+   *  so coordinate semantics is the field's FIRST meaning; a 0.11.0 bump to number pairs was
+   *  deliberately declined (a full ceremony for one field's type honesty). The SAME decision
+   *  comment rides the schema description and contract_models.Change.via (all three mirrors).
+   *  Readers parse TOLERANTLY: an item that isn't two finite numbers is skipped (a legacy
+   *  junction-id via degrades to the two-junction chord). Via points are shape geometry, not
+   *  junctions — nothing can connect mid-curve. */
   via?: string[];
 }
 

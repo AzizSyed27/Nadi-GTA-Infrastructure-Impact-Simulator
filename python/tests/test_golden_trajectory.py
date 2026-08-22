@@ -1005,7 +1005,7 @@ def test_v0_10_0_sample() -> None:
     car = next(g for g in art.scorecard.groups if g.group == "car_commuter")
     assert car.travel_time_delta.range is not None  # 0.8.0 carries
     nr = next(c for c in contract_models.changes_of(art) if c.type == "new_road")
-    assert nr.via == ["J_mid"]  # V2.6c capacity
+    assert nr.via == ["-79.25,43.745"]  # V2.6d: a coord-pair STRING — the consumed capacity
 
 
 def test_pre_0_10_0_carrying_t0_dt_fails() -> None:
@@ -1159,6 +1159,42 @@ def test_compact_rule_lockstep_with_ts() -> None:
     ts_src = (REPO_ROOT / "web" / "lib" / "compactTime.ts").read_text(encoding="utf-8")
     assert "COMPACT_DT_EPS = 1e-6" in ts_src, "TS eps literal must match the python constant"
     assert "t0 + i * dt" in ts_src, "TS expansion must use the identical closed-form formula"
+
+
+# ===================================================================================================
+# V2.6d — via means coordinate-pair strings (the consumed capacity; the RECORDED DECISION rides
+# the schema description, the Change field comment, and types.ts — all three mirrors)
+# ===================================================================================================
+
+
+def test_parse_via_item_matrix() -> None:
+    """V2.6d STRICT parse — the only thing between a malformed via and netconvert (the schema
+    stays loose: array of string). Every ratified failure form pinned; the sentences are plain
+    because the POST 400 and the harness SystemExit render them verbatim."""
+    assert contract_models.parse_via_item("-79.25,43.745") == (-79.25, 43.745)
+    with pytest.raises(ValueError, match="got 3"):
+        contract_models.parse_via_item("43.7,-79.2,0")
+    with pytest.raises(ValueError, match="got 1"):
+        contract_models.parse_via_item("J_mid")  # the V2.6c-era junction-id form dies at parts
+    with pytest.raises(ValueError, match="is not a number"):
+        contract_models.parse_via_item("J_a,J_b")
+    with pytest.raises(ValueError, match="two finite numbers"):
+        contract_models.parse_via_item("nan,43.7")
+    with pytest.raises(ValueError, match="two finite numbers"):
+        contract_models.parse_via_item("-79.25,inf")
+    with pytest.raises(ValueError, match="got 1"):
+        contract_models.parse_via_item("")
+
+
+def test_change_via_validator_rejects_malformed() -> None:
+    """The via field_validator gates CONSTRUCTION — NB Change sets no validate_assignment, so a
+    post-construction assignment bypasses validators; via tests must construct through kwargs."""
+    kw = dict(type="new_road", target_edge="nr_A_B", from_junction="A", to_junction="B",
+              lanes=1, speed_mps=13.9, bidirectional=False, description="x")
+    with pytest.raises(ModelValidationError, match="J_mid"):
+        contract_models.Change(**kw, via=["J_mid"])
+    ch = contract_models.Change(**kw, via=["-79.25,43.745", "-79.24,43.75"])
+    assert ch.via == ["-79.25,43.745", "-79.24,43.75"]
 
 
 def _write_golden() -> None:

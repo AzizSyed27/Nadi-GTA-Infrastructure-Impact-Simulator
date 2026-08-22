@@ -22,12 +22,12 @@
      "from_junction": "JA",
      "to_junction": "JB",
      "via": [
-      "J_mid"
+      "-79.25,43.745"
      ],
      "lanes": 1,
      "speed_mps": 13.9,
      "bidirectional": false,
-     "description": "A drawn connector road routed via the mid junction (via = V2.6c contract capacity)"
+     "description": "A drawn connector road bending through one via waypoint (via = 'lon,lat' coord-pair strings, consumed V2.6d)"
     },
     {
      "type": "speed_limit",

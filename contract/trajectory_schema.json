@@ -117,7 +117,7 @@
           "type": "boolean"
         },
         "via": {
-          "description": "OPTIONAL (V2.6c). For a new_road: ordered INTERMEDIATE junction ids the road routes through. CONTRACT CAPACITY only — the 5.1 sibling pattern (schema-loose; pipeline semantics elsewhere): runtime netconvert threading is NOT implemented, and the pipeline REFUSES via loudly until it lands (BACKLOG'd; an ignored via would emit an artifact whose change lies about the simulated geometry).",
+          "description": "OPTIONAL (V2.6c capacity; CONSUMED V2.6d). For a new_road: ordered intermediate WAYPOINTS the road's shape bends through — each item is a 'lon,lat' COORDINATE-PAIR STRING (WGS84), NOT a junction id, despite the string type. RECORDED DECISION: 0.10.0 shipped via capacity-only with no producer ever emitting a junction-id via, so coordinate semantics is the field's FIRST meaning; a 0.11.0 bump to arrays of numbers was deliberately declined (a full ceremony for one field's type honesty). Schema stays loose (the 5.1 sibling pattern); the strict parse is contract_models.parse_via_item and the geometry rules (cap / min-segment / self-intersection / bbox containment) live in network_edit. Via points are SHAPE geometry, not junctions — nothing can connect mid-curve. The SAME decision comment rides contract_models.Change.via and web/lib/types.ts (all three mirrors).",
           "type": "array",
           "minItems": 1,
           "items": {"type": "string", "minLength": 1}

@@ -19,9 +19,10 @@ argument reach). A PREVIEW, never a verdict. All v0.3.0 artifacts still load.
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Current contract version emitted by new runs. The schema also accepts "0.1.0".."0.9.0" for back-compat reads.
 SCHEMA_VERSION: Literal["0.10.0"] = "0.10.0"
@@ -110,6 +111,34 @@ class Effect(BaseModel):
     blocked: bool | None = None
 
 
+def parse_via_item(item: str) -> tuple[float, float]:
+    """V2.6d STRICT parse of one new_road.via item — the only gate between a malformed via and
+    netconvert (the schema stays loose: array of string). Exactly two comma-separated finite
+    floats, lon then lat. Raises ValueError with a plain sentence — the POST 400 and the harness
+    SystemExit render it verbatim. A lat/lon SWAP parses here by design; the bbox-containment
+    geometry rule (network_edit) catches it with the study-area sentence."""
+    parts = item.split(",")
+    if len(parts) != 2:
+        raise ValueError(f"via item {item!r} must be 'lon,lat' — exactly two comma-separated "
+                         f"numbers (got {len(parts)})")
+    try:
+        lon, lat = float(parts[0]), float(parts[1])
+    except ValueError:
+        bad = next(p for p in parts if not _is_float(p))
+        raise ValueError(f"via item {item!r} must be 'lon,lat' — {bad.strip()!r} is not a number") from None
+    if not (math.isfinite(lon) and math.isfinite(lat)):
+        raise ValueError(f"via item {item!r} must be two finite numbers")
+    return (lon, lat)
+
+
+def _is_float(s: str) -> bool:
+    try:
+        float(s)
+    except ValueError:
+        return False
+    return True
+
+
 class Change(BaseModel):
     """The proposed infrastructure change. ``value_mps`` is optional (no scalar for e.g. a signal);
     ``target_lane`` (v0.3.0+) is optional (a lane index, e.g. the car lane converted to a bike lane).
@@ -140,11 +169,26 @@ class Change(BaseModel):
     lanes: int | None = Field(default=None, ge=1)
     speed_mps: float | None = Field(default=None, ge=0)
     bidirectional: bool | None = None
-    # V2.6c: ordered intermediate junction ids for a new_road — CONTRACT CAPACITY only (the 5.1
-    # sibling pattern: schema-loose, semantics in the pipeline). Runtime netconvert threading is
-    # NOT implemented; the pipeline REFUSES via loudly (an ignored via would emit an artifact
-    # whose change lies about the simulated geometry). BACKLOG'd for threading.
+    # V2.6d RECORDED DECISION: via carries 'lon,lat' COORDINATE-PAIR strings, NOT junction ids,
+    # despite list[str] — 0.10.0 shipped via capacity-only (no producer ever emitted a
+    # junction-id via), so coordinate semantics is the field's FIRST meaning, arriving when
+    # V2.6d consumed the capacity; a 0.11.0 bump to list[list[float]] was deliberately declined
+    # (a full contract ceremony for one field's type honesty). Strict parse = parse_via_item
+    # (field-validated below); the geometry rules (cap / min-segment / self-intersection / bbox)
+    # live in network_edit. Via points are SHAPE geometry, not junctions — nothing can connect
+    # mid-curve. The SAME decision comment rides the schema description and web/lib/types.ts
+    # (all three mirrors — a reader may hit any one first).
     via: list[str] | None = None
+
+    @field_validator("via")
+    @classmethod
+    def _via_items_parse(cls, v: list[str] | None) -> list[str] | None:
+        # Construction-time only — this model sets no validate_assignment, so tests must build
+        # via kwargs, never assign after construction.
+        if v:
+            for item in v:
+                parse_via_item(item)
+        return v
 
     @model_validator(mode="after")
     def _check_semantics(self) -> "Change":
