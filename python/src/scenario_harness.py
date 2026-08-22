@@ -56,6 +56,7 @@ from contract_models import (
     Scenario,
     TrajectoryArtifact,
     COORD_DECIMALS,
+    parse_via_item,
     Vehicle,
     Window,
     encode_trajectory_fields,
@@ -1980,8 +1981,22 @@ def _run_new_road(args) -> None:
     a, b = args.from_junction, args.to_junction
     if not (a and b):
         raise SystemExit("new_road needs --from-junction and --to-junction")
+    via = getattr(args, "via", None) or None
+    if via:
+        # V2.6d: validate BEFORE the try/run-state below — `except Exception` can't catch a
+        # SystemExit, so a failure here must precede any state write (the assignment_rejection
+        # position). Sentences are IDENTICAL to the POST 400's (single source).
+        try:
+            for item in via:
+                parse_via_item(item)
+        except ValueError as e:
+            raise SystemExit(str(e)) from None
+        reason = network_edit.new_road_via_reason(a, b, via, network_edit.canonical_net())
+        if reason is not None:
+            raise SystemExit(reason)
     change = Change(type="new_road", target_edge=f"nr_{a}_{b}", from_junction=a, to_junction=b,
                     lanes=args.lanes, speed_mps=args.speed_mps, bidirectional=args.bidirectional,
+                    via=via,
                     description=args.description or f"New road from junction {a} to {b}")
     ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"
@@ -2030,6 +2045,9 @@ def main() -> None:
     ap.add_argument("--to-junction", default=None, help="new_road: existing junction id the road arrives at")
     ap.add_argument("--lanes", type=int, default=1, help="new_road: lanes per direction")
     ap.add_argument("--bidirectional", action="store_true", help="new_road: build both directions")
+    ap.add_argument("--via", action="append", default=None,
+                    help="V2.6d new_road: repeatable 'lon,lat' via waypoint (use the =form — "
+                         "--via=-79.2,43.7 — a negative lon starts with '-')")
     ap.add_argument("--description", default=None)
     ap.add_argument("--composite", default=None,
                     help="V2.2d/V2.4b: path to a composite spec file ({changes:[...], tags:[...]}) — the "

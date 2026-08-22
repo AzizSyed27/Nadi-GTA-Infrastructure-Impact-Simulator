@@ -39,6 +39,16 @@ def test_bike_lane_and_new_road_cmds() -> None:
     c2 = server._build_harness_cmd(nr, "TS", "d")
     assert "--from-junction" in c2 and "--to-junction" in c2 and "--bidirectional" in c2
     assert c2[c2.index("--from-junction") + 1] == "A"
+    assert not any(t.startswith("--via") for t in c2), "via-less argv must be byte-stable"
+
+    # V2.6d: via rides as repeatable =form tokens, IN ORDER — a coord string starts with '-'
+    # (the reverse-edge argparse bug class), so the space-separated form is banned.
+    nrv = server.SimChange(type="new_road", from_junction="A", to_junction="B", lanes=2,
+                           speed_mps=13.9, bidirectional=True,
+                           via=["-79.22,43.76", "-79.21,43.75"])
+    c3 = server._build_harness_cmd(nrv, "TS", "d")
+    via_tokens = [t for t in c3 if t.startswith("--via")]
+    assert via_tokens == ["--via=-79.22,43.76", "--via=-79.21,43.75"]
 
 
 def test_unsupported_type_raises() -> None:
@@ -257,17 +267,95 @@ def test_n_seeds_flag() -> None:
 
 # ---------------------------------------------------------------- V2.2d: the composite POST
 
-def test_new_road_via_rejected_400() -> None:
-    """V2.6c: via is CONTRACT CAPACITY only — the POST refuses it loudly BEFORE any junction
-    resolution (an ignored via would emit an artifact whose change lies about the simulated
-    geometry; netconvert threading is BACKLOG)."""
+def test_new_road_via_malformed_400() -> None:
+    """V2.6d: a malformed via item 400s with parse_via_item's OWN sentence — computed here, not
+    copied, so the POST and the parser can never drift apart (the literals are pinned in
+    test_golden_trajectory's parse matrix)."""
+    import contract_models
     from fastapi import HTTPException
 
+    try:
+        contract_models.parse_via_item("J_mid")
+        raise AssertionError("J_mid must not parse")
+    except ValueError as e:
+        expected = str(e)
     with pytest.raises(HTTPException) as ei:
         _post_simulate({"type": "new_road", "target_edge": "nr_A_B", "from_junction": "A",
                         "to_junction": "B", "lanes": 1, "speed_mps": 13.9, "via": ["J_mid"]})
     assert ei.value.status_code == 400
-    assert "via" in str(ei.value.detail)
+    assert str(ei.value.detail) == expected
+
+
+def test_new_road_via_geometry_routing(monkeypatch) -> None:
+    """Routing proof (per-call-site rule): the POST calls network_edit.new_road_via_reason with
+    the request's OWN (from, to, via) + the cached canonical net, 400s with the returned
+    sentence VERBATIM, and mints a run id when the reason is None (valid via accepted)."""
+    import network_edit
+    import run_state
+    from fastapi import HTTPException
+
+    fake_net = object()
+    seen: dict = {}
+    monkeypatch.setattr(network_edit, "canonical_net", lambda: fake_net)
+
+    def fake_reason(a, b, via, net):
+        seen["args"] = (a, b, tuple(via), net)
+        return "SENTINEL geometry sentence"
+
+    monkeypatch.setattr(network_edit, "new_road_via_reason", fake_reason)
+    body = {"type": "new_road", "target_edge": "nr_A_B", "from_junction": "A",
+            "to_junction": "B", "lanes": 1, "speed_mps": 13.9, "via": ["-79.22,43.76"]}
+    with pytest.raises(HTTPException) as ei:
+        _post_simulate(dict(body))
+    assert ei.value.status_code == 400 and str(ei.value.detail) == "SENTINEL geometry sentence"
+    assert seen["args"] == ("A", "B", ("-79.22,43.76",), fake_net)
+
+    monkeypatch.setattr(network_edit, "new_road_via_reason", lambda a, b, v, n: None)
+    out = None
+    try:
+        out = _post_simulate(dict(body))
+        assert out["run_id"]
+    finally:
+        run_state.release()
+        if out:
+            (run_state.STATE_DIR / f"{out['run_id']}.json").unlink(missing_ok=True)
+
+
+def test_run_new_road_via_systemexit_before_run_state(monkeypatch) -> None:
+    """The harness CLI shares the SAME sentences, at SystemExit severity, BEFORE any run-state
+    write (the assignment_rejection position: `except Exception` at the try can't catch a
+    SystemExit, so validation must precede set_stage or a failed state is never written)."""
+    import argparse
+
+    import contract_models
+    import network_edit
+    import run_state
+    import scenario_harness
+
+    stages: list = []
+    monkeypatch.setattr(run_state, "set_stage", lambda *a, **k: stages.append(a))
+
+    def args_with(via):
+        return argparse.Namespace(from_junction="A", to_junction="B", lanes=1, speed_mps=13.9,
+                                  bidirectional=False, description=None, via=via, run_ts="TESTTS")
+
+    # malformed item -> the parse sentence (fires before any net read)
+    try:
+        contract_models.parse_via_item("J_mid")
+        raise AssertionError("J_mid must not parse")
+    except ValueError as e:
+        parse_sentence = str(e)
+    with pytest.raises(SystemExit) as ei:
+        scenario_harness._run_new_road(args_with(["J_mid"]))
+    assert str(ei.value) == parse_sentence
+
+    # geometry rejection -> the shared sentence verbatim
+    monkeypatch.setattr(network_edit, "canonical_net", lambda: object())
+    monkeypatch.setattr(network_edit, "new_road_via_reason", lambda a, b, v, n: "SENTINEL geometry sentence")
+    with pytest.raises(SystemExit) as ei:
+        scenario_harness._run_new_road(args_with(["-79.22,43.76"]))
+    assert str(ei.value) == "SENTINEL geometry sentence"
+    assert stages == [], "via validation must run BEFORE any run-state write"
 
 
 def _post_composite(changes_kw: list[dict], tags=None, **req_kw):

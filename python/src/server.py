@@ -410,9 +410,9 @@ class SimChange(BaseModel):
     lanes: int = 1
     speed_mps: float = 13.9
     bidirectional: bool = False
-    # V2.6c: contract capacity only — the POST 400s on via until netconvert threading lands
-    # (BACKLOG). Must exist HERE or pydantic's extra-ignore silently drops it and the 400 is
-    # unreachable.
+    # V2.6d: 'lon,lat' coord-pair VIA WAYPOINTS (consumed capacity — see the recorded decision at
+    # contract_models.Change.via). Must exist HERE or pydantic's extra-ignore silently drops it
+    # and the POST validation is unreachable.
     via: list[str] | None = None
     # runtime-change fields (speed_limit / bike_lane / closures / incident)
     target_edge: str | None = None
@@ -534,6 +534,9 @@ def _build_harness_cmd(ch: SimChange, ts: str, desc: str, demand_profile: str = 
                       "--lanes", str(ch.lanes), "--speed-mps", str(ch.speed_mps), "--description", desc]
         if ch.bidirectional:
             cmd.append("--bidirectional")
+        if ch.via:
+            # V2.6d: the =form — a 'lon,lat' value starts with '-' (the reverse-edge argparse bug class)
+            cmd += [f"--via={v}" for v in ch.via]
     elif ch.type == "speed_limit":
         cmd = base + [f"--target-edge={ch.target_edge}", "--speed-mps", str(ch.value_mps), "--description", desc]
     elif ch.type == "bike_lane":
@@ -718,11 +721,21 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
     run_id = f"multimodal-scenario-{ts}"
 
     if ch.type == "new_road":
-        if ch.via:
-            raise HTTPException(400, "new_road.via is contract capacity only (V2.6c) — netconvert "
-                                     "threading is not implemented; remove via")
         if not (ch.from_junction and ch.to_junction and ch.lanes and ch.speed_mps):
             raise HTTPException(400, "new_road requires from_junction, to_junction, lanes, speed_mps")
+        if ch.via:
+            # V2.6d: parse strictly, then the four geometry rules — the harness re-validates with
+            # the SAME sentences at SystemExit severity (crash loud in a CLI, plain 400 here).
+            import contract_models
+            try:
+                for item in ch.via:
+                    contract_models.parse_via_item(item)
+            except ValueError as e:
+                raise HTTPException(400, str(e)) from None
+            reason = network_edit.new_road_via_reason(ch.from_junction, ch.to_junction, ch.via,
+                                                      network_edit.canonical_net())
+            if reason is not None:
+                raise HTTPException(400, reason)
         desc = ch.description or f"New road {ch.from_junction}->{ch.to_junction}"
     elif ch.type == "speed_limit":
         if not (ch.target_edge and ch.value_mps):
