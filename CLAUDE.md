@@ -105,8 +105,9 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.10.0**. Phases 0–5 and V2.0–V2.5 are COMPLETE: the ✏️ editor fronts the whole pipeline
-(draw a road / speed / bike lane / lane- & road-closures / incidents / 🏫 school-zone COMPOSITES —
+Contract **v0.10.0**. Phases 0–5 and V2.0–V2.6 are COMPLETE: the ✏️ editor fronts the whole pipeline
+(draw a road — straight or BENT through via points (V2.6d) — / speed / bike lane / lane- & road-closures /
+incidents / 🏫 school-zone COMPOSITES —
 windowed changes apply+revert in-sim with proof logs), demand is synthetic or calibrated AM-peak,
 assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
 "ask the report" chat → OASIS discourse; ⇄ Compare with the provenance-mismatch guard. The calibrated
@@ -234,10 +235,41 @@ iteration dirs sort NUMERICALLY (string-sort took iteration 9 of 0..11 — the V
 deliverable's re-verification decision is OPEN in BACKLOG). Both old fix candidates were
 counterexampled (strptime by the SEED1 probe; mtime by OneDrive resync). Suites: **567 pytest +
 91 Playwright**.
-Open threads: **V2.7 network styling** + `BACKLOG.md` (bbox expansion, student demand, mandate
-re-verification, the calibrated composite exemplar, the settled-basis re-verification, per-window
-probing at rung 3, the V2.7 legacy-fallback removal, new_road.via runtime threading, the room's
-prompt-side sibling-label ambiguity — its UI half closed in V2.6b).
+**V2.6d IS COMPLETE (the curve drawn, run, and rendered) — V2.6 IS CLOSED and TAGGED `v2.6`:**
+the 0.10.0 `new_road.via` capacity is CONSUMED — via = `'lon,lat'` COORDINATE-PAIR STRINGS in the
+existing `list[str]` (RECORDED DECISION at all three mirrors: schema description +
+`contract_models.Change.via` + `types.ts`; no bump — 0.10.0 shipped the field capacity-only, so
+this is its FIRST meaning; a 0.11.0 `list[list[float]]` bump deliberately declined). Strict
+`parse_via_item`; the FOUR geometry rules in ONE source (`network_edit.new_road_via_reason`: cap 8
+/ bbox containment / min-segment 10 m / proper self-intersection) with IDENTICAL sentences at
+POST 400, harness SystemExit (pre-run-state) and `patch_network`; the producer threads
+`shape="x,y …"` ([from-node, *via, to-node], reverse edge reversed, length auto-summed — never a
+`length` attr; via-less `.edg.xml` byte-identical) + a SHAPE-FAITHFUL readback (strict
+`len(via)+2`: the pre-code probe showed netconvert prunes NOTHING, even collinear points, and the
+geo-ref gauntlet passes under a shape; the readback centerline sits half a road-width right of
+the written line — spreadType-right, shared with today's chords, positions deliberately not
+compared). Editor: empty-map clicks mid-draw add BENDS validated at click time against
+`web/lib/viaRules.ts` (the server's literals, rule ORDER mirrored, boundary-pinned; an invalid
+curve never enters the basket; the equirectangular-vs-UTM gap is a RATIFIED residual recorded
+at the top of viaRules.ts — do not tighten); the working line is a PathLayer bending at vias
+(orange idiom; V2.7 restyle deferred); Escape pops the last bend / bare Escape cancels (the
+app's first keyboard surface, mirrored by undo-bend); `changeSetKey` projects via; playback
+resolves `[a, …parseVia(via), b]` (tolerant — a legacy junction-id via degrades to the chord).
+ONE edge with a shape polyline (the BACKLOG sketch's per-segment edges deliberately diverged
+from): mid-curve junctions are STRUCTURALLY absent — stated, not a bug. **Accepted live on
+`multimodal-scenario-20260823T020424Z`** (3-bend connector 8721888314→11747314439: 5-point
+shape both edges, length == polyline (953.7 / 960.1 m), length/chord 1.05, **4 cars on the new
+road**, 7 rerouted; draw + playback screenshots `docs-assets/v26d-curved-{draw,playback}.png`
+looked at). Two earlier live curves were HONEST ZEROS kept as findings (BACKLOG): a 6-bend
+trace of winding `25372703#0` (8-point shape, length/chord 4.2 — parallels the street it
+follows) and a 3-bend shortcut on the ×11 far-NW detour pair (sumolib proves the router takes
+it; the synthetic demo has no trips through that pocket) — a curve changes geometry, not demand.
+Suites: **575 pytest + 106 Playwright**.
+Open threads: **V2.7 network styling (incl. the curved-road grey/striping restyle)** +
+`BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
+exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
+legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
+V2.6b).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1304,6 +1336,74 @@ seven commits C1–C7, every one leaving the full suite green).**
   trajectory-contract SKILL.md is refreshed (was stale at "Current: 0.5.0"; cardinal rule 3 was
   turned actively false by this bump; the recipe now documents the REAL ceremony).
 
+**V2.6 Step d — the CURVE drawn, run, and rendered — COMPLETE; V2.6 CLOSED and TAGGED `v2.6`
+(no contract bump — the 0.10.0 via capacity consumed; six commits C1–C6 + a review-catch commit).**
+- **Via encoding (ratified):** `'lon,lat'` coord-pair strings in the existing `via: list[str]` —
+  the schema SHAPE is untouched (array of string, the 5.1 schema-loose pattern) and the RECORDED
+  DECISION rides ALL THREE mirrors (schema field description + `contract_models.Change.via` +
+  `web/lib/types.ts`; the user hold: a type that lies slightly is kept honest by the comment at
+  every surface a reader might hit first). `parse_via_item` is STRICT (exactly two finite floats,
+  lon first; three-float / non-numeric / NaN pinned; the lat-lon SWAP class is caught downstream
+  by bbox containment) and field-validated at construction (NB `Change` has no
+  `validate_assignment` — tests construct via kwargs).
+- **The four geometry rules, ONE source:** `network_edit.new_road_via_reason(from, to, via, net)`
+  — junction existence → `VIA_CAP=8` → per-point bbox (BEFORE distances, so a swap gets the
+  study-area sentence) → `MIN_SEGMENT_M=10` along `[from,*via,to]` → proper self-intersection
+  (strict orientation products; shared endpoints/collinear touches are NOT crossings). IDENTICAL
+  sentences at POST 400 (parse first, then rules against the lazily-cached `canonical_net()`),
+  harness `SystemExit` (BEFORE the try/run-state — `except Exception` can't catch a SystemExit),
+  and `patch_network` ValueError (the direct-caller backstop). The bbox rule is the one that
+  earns the design: an exterior waypoint would widen the net boundary and die as a mid-run
+  gauntlet AssertionError — it becomes a sentence before netconvert ever runs.
+- **Producer:** `_write_edg_xml(…, shapes)` emits `shape="x,y x,y …"` ([from-node coord, *via
+  → `convertLonLat2XY`, to-node coord], reverse edge = reversed) — NO `length` attr (netconvert
+  sums the shape: simulated distance IS the drawn geometry), NO `spreadType`; via-less output
+  BYTE-identical (pinned). **The empirical probe ran BEFORE code locked** (scratch, real net): a
+  plain-XML shape survives `--sumo-net-file` re-import UNSHIFTED (geo-ref + convBoundary
+  byte-identical), netconvert prunes NOTHING (an exactly-collinear point survives), and the
+  readback centerline sits half a road-width right of the written line (spreadType-right —
+  today's chords share it) → the SHAPE-FAITHFUL readback asserts the strict point COUNT
+  (`len(via)+2`), never positions. `--via=` is the =form everywhere (a 'lon,lat' value starts
+  with '-': the reverse-edge argparse class). Harness/server/network_edit CLIs all take it.
+- **Editor:** empty-map clicks mid-draw add BENDS; `web/lib/viaRules.ts` mirrors the server's
+  literals + rule order (`via-rules.spec.ts` pins them as strings with the Python matrix's
+  structural cases, incl. the 8th-via-LEGAL boundary — a >=-for-> port typo makes a false client
+  blocker the server backstop can never catch); a refused click shows the server's sentence as
+  the drawHint and adds nothing; the closing segment is checked at the B click AND the mid-form B
+  replacement. **The equirectangular-vs-UTM threshold gap is a RATIFIED residual** (recorded at
+  the top of viaRules.ts): within centimetres of a threshold a client-accepted click can still
+  400 at Run and draft-error renders the verbatim sentence — tightening the client would reject
+  valid clicks to dodge a rare, handled rejection. Working line = PathLayer `[A, …vias, tip]`
+  (orange idiom; V2.7 restyle deferred); Escape pops the last bend, a bare Escape cancels (the
+  app's first keyboard surface; `undo-bend` mirrors it); the wire carries via as 6-dp strings
+  while the straight road's `{change}` is byte-identical (toEqual-pinned); `changeSetKey` projects
+  via (BACKLOG paid); the draft overlay renders the bent captured path; playback resolves
+  `[a, …parseVia(via), b]` (tolerant: a legacy junction-id via degrades to the chord). new_road
+  stays composite-EXCLUDED.
+- **Spec lesson (caught live):** `__nadiEdit` re-registers only after a React commit — back-to-
+  back seam clicks run a stale closure and are silently swallowed; every via spec gates each
+  click on its UI reflection (the canonical draw test's own convention). The headed acceptance
+  driver needed the same gate live (the whole-corridor junctions fetch lands after the seam).
+- **Acceptance (`multimodal-scenario-20260823T020424Z`, synthetic, the real UI against the live
+  backend):** 3-bend connector 8721888314→11747314439 (the 5.1 demo pair): both minted edges
+  5-point shapes, length == polyline (953.7 / 960.1 m), length/chord 1.0505/1.0507, **4 cars on
+  the new road**, 7 rerouted; `docs-assets/v26d-curved-draw.png` (orange polyline bending
+  through three vias, form open) + `v26d-curved-playback.png` (teal curve in playback) looked
+  at. **Two honest-zero curves preceded it and are kept as findings** (BACKLOG): the 6-bend
+  trace of winding `25372703#0` (8-point shape, length/chord 4.2 — it parallels the street it
+  follows, so no trip benefits) and a 3-bend shortcut on the ×11 far-NW detour pair (sumolib:
+  fastest path takes the curve at 59.6 s vs 277 s canonical, the reverse direction canonically
+  unreachable — but the synthetic demo has no trips through that pocket). Even straight demo
+  roads draw 0–5 riders on synthetic demand; a curve changes geometry, not demand — pick the
+  pair with demand first, bend second. Screenshot navigation was closed-loop (find the
+  polyline's own pixels, drag the centroid to center, zoom) after geographic screen math
+  drifted twice — seams can't see pixels, and neither can arithmetic.
+- **Review catches (folded in):** boundary pins both languages (8 vias LEGAL); the straight
+  road's wire shape toEqual-pinned; the schema's TOP-LEVEL version-history line no longer
+  contradicts the field's own description; `junction_missing_reason` single-sourced; DraftPanel
+  pluralizes like EditPanel; the Escape handler calls `onUndoBend`. Suites: **575 pytest + 106
+  Playwright**.
+
 ## Run commands
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
@@ -1328,6 +1428,9 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   (csv, car-lane indices) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable: speed_limit
   + closures + incident) + incident effects `--blocked` / `--speed-factor 0.5` / `--position-m` (stored, unused).
   Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings.
+  **V2.6d curved roads:** a new_road takes repeatable `--via=-79.229276,43.772793` waypoints (the =form — a
+  'lon,lat' value starts with '-'; ≤8, ≥10 m apart, inside the study area, non-self-crossing — the same four
+  sentences at the POST 400 and the harness SystemExit; the ✏️ editor adds bends with empty-map clicks mid-draw).
   **V2.2d composites (the 🏫 school-zone palette flow):** `POST /api/simulate {changes:[...], tags:["school_zone"]}`
   → the server writes `contract/runs/state/<run_id>.composite.json` and hands off via `--composite=<spec>`
   (V2.4b: members may be any of the four windowable types; settled+composite rejected; the harness
@@ -1411,7 +1514,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (567 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (575 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
@@ -1419,11 +1522,12 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
   sections + the V2.6a/b group-interview room/endpoint/speak sections + the V2.6 follow-up
   conjunction pins + the V2.6c 0.10.0 ceremony/compact/worst_t/coord sections + the
-  resolver-family sections) and
+  resolver-family sections + the V2.6d via parse/geometry-rules/shape-producer/POST+harness sections) and
   `cd web && npx playwright test`
-  (91 tests across 19 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  (106 tests across 20 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
-  compact-run, the V2.5b ends rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
+  compact-run, via-rules, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
+  rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.

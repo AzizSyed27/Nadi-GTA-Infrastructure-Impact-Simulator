@@ -114,13 +114,26 @@ backstop. Timestamps were NOT all regular either: 2-10 calibrated vehicles per r
 construction. Render-side levers (eager-slim split, typed arrays) stay unindicted and recorded
 for V2.7.
 
-## V2.6c follow-on — new_road.via runtime threading (contract capacity landed)
-`Change.via` (ordered intermediate junction ids) exists on the 0.10.0 wire, models and TS types —
-CAPACITY only: the POST and `network_edit.validate_new_road` REFUSE it loudly (an ignored via
-would emit an artifact whose change lies about the simulated geometry). Threading = netconvert
-multi-segment building (minted ids, node/edge pairs multiply per waypoint) + the draft-overlay
-path capture + adding via to `changeSetKey`'s mechanical projection. Until then via is
-schema-loose like its five 5.1 siblings (not type-restricted at the model — precedented).
+## V2.6c follow-on — new_road.via runtime threading — SHIPPED (V2.6d, 2026-08-22)
+Curved drawn roads landed end to end (acceptance run `multimodal-scenario-20260823T020424Z`:
+a 3-bend connector between the 5.1 demo pair 8721888314→11747314439, minted edges carry the
+5-point shape, length == polyline exactly, length/chord 1.05). Two earlier live curves were
+HONEST ZEROS worth keeping: `…20260822T055343Z` (6 bends tracing the winding street
+`25372703#0` — 8-point shape, length/chord 4.2, but it PARALLELS the street it follows, so no
+trip benefits) and `…20260822T060211Z` (a 3-bend shortcut on the ×11 detour pair at the far-NW
+corner — sumolib proves the router takes it, 59.6 s vs 277 s, the reverse direction canonically
+unreachable — but the synthetic demo has no trips through that pocket). Lesson for the demo
+recipe: a curve changes GEOMETRY, not demand; pick the pair with demand first, bend second.
+**The recorded threading sketch was DIVERGED from
+deliberately**: this entry's "node/edge pairs multiply per waypoint" (one edge per segment,
+junction-id vias) became ONE edge with a `shape` polyline — materially simpler (minted ids stay
+1-or-2, the edge-count gauntlet + `count_on_new_edges` unchanged, no minted nodes) — and via's
+wire meaning became 'lon,lat' COORDINATE-PAIR strings (free waypoints, not junctions; the
+recorded decision rides the schema description + `contract_models.Change.via` + `types.ts`).
+`changeSetKey` gained via; the draft overlay captures the bent path. **Mid-curve junctions are
+STRUCTURALLY absent — stated, not a bug**: via points are shape geometry, so no other road can
+connect at a bend (connect at real junctions instead). Remaining curved-road work = the V2.7
+grey/striping visual restyle (the working line + overlays keep the orange/teal idiom).
 
 ## The lexicographic newest-pick family — FIXED (2026-08-21, after firing twice)
 The `sorted(glob)[-1]` bug ('V' > '2') fired twice with real cost (the V2.5a two-day stale-index
