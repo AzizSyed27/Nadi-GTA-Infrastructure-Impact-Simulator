@@ -267,6 +267,17 @@ never a drive-by reword. No mechanism until it hurts.
   object-identity self-detection) — only the prompt-side rendered label collides. Decide
   deliberately if a room of same-label siblings becomes a real use pattern.
 
+## Static-demo DEPLOY + the README "See it live" link swap (blocked on the user's click)
+The V2.5d demo bundle is BUILT and smoke-verified (`node scripts/build-static-demo.mjs` →
+`web/out/`, 43.9 MB, every file <25 MiB — regenerate freely, it's untracked) but **NOT deployed**:
+the Cloudflare Pages click is deliberately the user's (`DEPLOY.md` has the wrangler commands and
+the connect-repo alternative). When the live `*.pages.dev` URL exists, it replaces the "deploy in
+flight" placeholder in README "See it live" — the ONE pending README edit, deliberately blocked
+on the deploy. NB the bundle predates V2.6 (pinned triple + the `…20260814T063253Z` run at their
+committed vintages — still valid; the 0.10.0 back-compat readers render them); rebuilding before
+deploying would fold in the V2.6 UI (room buttons, curved-draw affordances render disabled-with-
+why in the demo) but is optional, not required.
+
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
 - **Side-by-side run compare** — SHIPPED V2.1d as ⇄ Compare (two slim scorecard sides, the
