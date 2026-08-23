@@ -276,7 +276,9 @@ regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is th
 (DEPLOY.md has the wrangler commands). When the live `*.pages.dev` URL exists, it replaces the
 "deploy in flight" placeholder in README "See it live" — the ONE pending README edit,
 deliberately blocked on the deploy. `main` + all five annotated tags (v2.2–v2.5) are pushed to
-origin as of this handoff.
+origin as of this handoff; `v2.6` pushed with the V2.6 closeout (2026-08-23), README refreshed
+to the v2.6 vintage the same day (status/counts/contract v0.10.0, the room + curve + payload
+rung in History, the stale payload-thinning Open item retired).
 
 **Phase 1 — COMPLETE (contract v0.2.0).** Two-run baseline-vs-scenario harness on one corridor edge,
 per-vehicle outcome join, ~12 persona agents pinned to winner/loser travelers, provider-agnostic LLM

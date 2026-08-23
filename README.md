@@ -1,17 +1,18 @@
 # Nadi — GTA Infrastructure Impact Simulator
 
-Nadi lets a city planner **preview** the impact of a proposed street change — a new road, a bike
-lane, a speed limit, a lane or road closure, a timed incident, a school zone — on a Toronto
-corridor *before* public consultation. It couples a real SUMO traffic microsimulation with an
-LLM-driven stakeholder-reaction layer: moving dots on a map, a per-stakeholder scorecard, ~212
-interviewable persona voices, an audited report you can question, and a simulated-discourse view —
-built so that **the tool arranges evidence and the planner concludes**, never the other way around.
+Nadi lets a city planner **preview** the impact of a proposed street change — a new road (straight
+or curved), a bike lane, a speed limit, a lane or road closure, a timed incident, a school zone —
+on a Toronto corridor *before* public consultation. It couples a real SUMO traffic microsimulation
+with an LLM-driven stakeholder-reaction layer: moving dots on a map, a per-stakeholder scorecard,
+~212 persona voices interviewable one-on-one or in a small group room, an audited report you can
+question, and a simulated-discourse view — built so that **the tool arranges evidence and the
+planner concludes**, never the other way around.
 
 ![The pinned 212-voice run mid-playback: dots, the reaction feed, the per-stakeholder scorecard](docs-assets/v25d-hero-playback.png)
 
-**Status:** Phases 0–5 and V2.0–**V2.5** complete (tags `v2.2` … `v2.5`) · trajectory contract
-**v0.9.0** · **471 pytest + 79 Playwright** tests · study corridor: Scarborough / Pickering / Ajax.
-The *simulation* is bounded to one corridor, even though the framing is "the GTA."
+**Status:** Phases 0–5 and V2.0–**V2.6** complete (tags `v2.2` … `v2.6`) · trajectory contract
+**v0.10.0** · **575 pytest + 106 Playwright** tests · study corridor: Scarborough / Pickering /
+Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
 
@@ -40,9 +41,10 @@ etiquette. The locked decisions:
 
 - **Preview, never verdict.** The agent layer anticipates *who wins, who loses, and what each
   objection sounds like*. It is not a referendum: no stance tallies, no sentiment averages, no
-  winner, anywhere. This is test-enforced — a banned-language sweep rides **14 of the 17
+  winner, anywhere. This is test-enforced — a banned-language sweep rides **16 of the 20
   Playwright specs** plus a python-side sweep, so a regression toward "62% support" fails CI, not
-  a code review.
+  a code review. The group room states it on its own surface: *"voices you picked, answering one
+  at a time — a conversation preview, not a poll or a sample of opinion."*
 - **No LLM per simulated vehicle.** SUMO runs *all* traffic as cheap physics; only a few hundred
   sampled persona agents reason, each pinned to a specific simulated traveler's own measured trip.
 - **Safety = surrogate measures.** Near-miss measures (time-to-collision, hard braking, blocked
@@ -99,15 +101,24 @@ it. Scenario-vs-baseline comparisons stay like-for-like regardless.
 
 Open ✏️ Edit and *compose*: every palette action — a new road between junctions, a speed limit, a
 bike lane, a lane/road closure, a timed incident — **adds a member to a draft** rather than firing
-a run. Members window independently; blockers surface *before* you run, speaking the server's own
-rejection strings verbatim. One **Run** submits the draft as a composite; a staged job
-(baseline → scenario → analysis) fills the map in as results land. Afterwards: enrich with voices
-(they stream in live), an audited report, and an OASIS discourse pass; **⧉ clone** any past run
-into a fresh draft to iterate; name the runs you keep. Compare two finished runs; interview any
-voice 🎤 in character — answers grounded server-side in that one agent's own recorded trip,
-passing the same live honesty guard, ephemeral by construction.
+a run. A new road can **bend**: click along a street mid-draw and each click adds a via point to
+the working polyline (Escape removes the last one), each click validated on the spot with the
+server's own rejection sentences — too close, self-crossing, outside the study area — so an
+invalid curve never reaches the simulator, and the built edge's *simulated length is the drawn
+polyline's*, not the straight-line shortcut. Members window independently; blockers surface
+*before* you run, speaking the server's own rejection strings verbatim. One **Run** submits the
+draft as a composite; a staged job (baseline → scenario → analysis) fills the map in as results
+land. Afterwards: enrich with voices (they stream in live), an audited report, and an OASIS
+discourse pass; **⧉ clone** any past run into a fresh draft to iterate; name the runs you keep.
+Compare two finished runs; interview any voice 🎤 in character — answers grounded server-side in
+that one agent's own recorded trip, passing the same live honesty guard, ephemeral by
+construction — or put **3–5 voices in a room 👥**: they answer one at a time, each hearing only
+the others' *actual words* (never each other's data), with a per-speaker guard and a visible cost
+estimate that never understates.
 
 ![A 3-member mixed draft — road closure, speed limit, and incident — ready to run](docs-assets/v24b-draft-3member.png)
+
+![Drawing a curved road: the working polyline bends through via points, mid-draw](docs-assets/v26d-curved-draw.png)
 
 ## The two graphs
 
@@ -135,7 +146,7 @@ chat agent knows* (the LightRAG entity graph, with its staleness relative to the
 ┌──────────────────────────────┐    frozen trajectory contract     ┌──────────────────────────┐
 │ python/  (simulation+agents) │ ─► contract/trajectory_schema.json ─► web/  (frontend)        │
 │ SUMO · staged harness ·      │    (JSON Schema + pydantic + TS)  │  Next.js · deck.gl ·      │
-│ scorecard · voices · report+ │           v0.9.0, versioned       │  MapLibre                 │
+│ scorecard · voices · report+ │           v0.10.0, versioned      │  MapLibre                 │
 │ chat (LightRAG) · OASIS ·    │                                   └────────────┬─────────────┘
 │ institutions · graph layouts │   web/public/latest.json = a POINTER           │
 └──────────────┬───────────────┘   {"run_id"} written only on quant completion; │
@@ -147,7 +158,10 @@ chat agent knows* (the LightRAG entity graph, with its staleness relative to the
 
 The boundary is a **frozen contract**: changing its schema means bumping the version and updating
 both sides, and a hook guards the directory. Since v0.5.0 a scenario is a *list* of changes (+
-tags); v0.9.0 added mandate-grounded institutional agents.
+tags); v0.9.0 added mandate-grounded institutional agents; v0.10.0 paid the payload rung —
+per-entity compact-or-explicit timestamps (real teleport gaps stay explicit), per-point speeds
+moved off the wire, 6-decimal coordinates — measured on the largest run as **−72% gzip transfer
+and nav→first-render 3.7 s → 1.8 s** — and gave `new_road` its via waypoints.
 
 ```
 python/src/
@@ -161,7 +175,7 @@ python/src/
   response_probe.py       # per-end response reachability (4 real TFS stations, free-flow)
   zone_lens.py / propagation.py / graph_export.py   # school-zone lens · OASIS · graph layouts
 web/                      # Next.js + deck.gl/MapLibre; the exported network IS the base layer
-contract/                 # trajectory_schema.json (v0.9.0) + runs/
+contract/                 # trajectory_schema.json (v0.10.0) + runs/
 data/                     # counts / demand / schools — open-data provenance records
 scripts/                  # build-static-demo.mjs · perf-harness.mjs (measured frame budgets)
 ```
@@ -181,8 +195,8 @@ chat + interviews, discourse) unlocks with one. The repo ships two complete pre-
 the map renders before you ever run SUMO.
 
 ```bash
-python -m pytest python/tests        # 471 tests
-cd web && npx playwright test        # 79 tests, 17 specs
+python -m pytest python/tests        # 575 tests
+cd web && npx playwright test        # 106 tests, 20 specs
 ```
 
 ## History
@@ -203,9 +217,18 @@ cd web && npx playwright test        # 79 tests, 17 specs
 - **V2.5 ✅ (`v2.5`)** — the presentable core: disclosure debts paid, **per-end response
   reachability** (the fire-station fact above), the `latest.json` pointer split + the first
   measured frame budgets, the static demo, this README.
+- **V2.6 ✅ (`v2.6`)** — the **group-interview room** (3–5 voices, sequential, each hearing only
+  the others' actual words; a per-speaker guard; "a conversation preview, not a poll"); the
+  **v0.10.0 payload rung** (−72% gzip, nav→render 3.7 s → 1.8 s on the largest run, back-compat
+  readers); the twice-fired newest-pick resolver family fixed; and **curved drawn roads** — via
+  waypoints become the SUMO edge's shape, so a curve's simulated length exceeds its chord
+  (accepted live: a 3-bend connector, length/chord 1.05, 4 vehicles rerouted onto it; two
+  earlier curves drew honest zeros and are kept as findings — a curve changes geometry, not
+  demand).
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
-  changes the saturation finding), network styling (V2.7), a real student-demand segment,
-  periodic mandate re-verification, contract payload thinning.
+  changes the saturation finding), network styling incl. the curved-road restyle (V2.7), a real
+  student-demand segment, periodic mandate re-verification, the settled-basis re-verification
+  rerun.
 
 **Stack:** SUMO 1.27 (TraCI) · FastAPI · a provider-agnostic LLM layer (DeepSeek for the
 report/agent spine, Groq for voices) · LightRAG + local MiniLM embeddings · OASIS/CAMEL ·
