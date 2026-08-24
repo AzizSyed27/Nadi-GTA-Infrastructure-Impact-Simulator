@@ -130,6 +130,7 @@ The order follows the architecture phases. The governing principle, from how Cla
 - **Phase 3 (report/GraphRAG): mostly sequential** on Phase 2 outputs — do it after the corpus schema is stable, or parallelize only once that schema is frozen too.
 - **Phase 4 (editor ladder): rung 1 (snap-to-existing) can run a frontend toy early in parallel; rungs 2–3 (the `netconvert` surgery) are the danger zone — single session, Plan Mode, `docs-researcher` first, NOT parallel.** Subtle correctness the output won't reveal.
 
+
 ### The worktree gotcha that will bite this project specifically
 
 Worktrees do **not** isolate shared *runtime* resources — the **SUMO server/ports, the Postgres dev DB, and env vars are shared**. Two parallel sessions both spinning up SUMO or hitting the same DB will collide. Mitigations:

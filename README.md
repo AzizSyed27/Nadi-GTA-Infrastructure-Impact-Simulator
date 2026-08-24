@@ -230,6 +230,7 @@ cd web && npx playwright test        # 106 tests, 20 specs
   student-demand segment, periodic mandate re-verification, the settled-basis re-verification
   rerun.
 
+
 **Stack:** SUMO 1.27 (TraCI) · FastAPI · a provider-agnostic LLM layer (DeepSeek for the
 report/agent spine, Groq for voices) · LightRAG + local MiniLM embeddings · OASIS/CAMEL ·
 networkx · Next.js · React · TypeScript · deck.gl · MapLibre.

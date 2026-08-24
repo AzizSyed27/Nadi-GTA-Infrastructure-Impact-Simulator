@@ -24,6 +24,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - Reuse libraries; the custom work is the GLUE (SUMO<->web, edit<->network-regen). Don't
   rebuild what SUMO / deck.gl / OASIS already do.
 
+
 ## Architecture (two worlds, one contract)
 - `python/` — simulation + agents. SUMO via TraCI (the libsumo wheel is absent on this box — TraCI
   fallback; see the sumo-env memory), FastAPI, the sampler, OASIS/CAMEL, LightRAG.
@@ -40,6 +41,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
     Bash/Python (that bypasses this guard)."*
   - **Known limitation:** Bash/runtime writes to `contract/` bypass the hook (its matcher only covers
     Write/Edit/MultiEdit) — conventionally BANNED, policed by plan review.
+
 
 ## Conventions
 - Python: base miniconda (3.13), ruff (format + lint), pyright (types), pytest. Windows-native dev.
