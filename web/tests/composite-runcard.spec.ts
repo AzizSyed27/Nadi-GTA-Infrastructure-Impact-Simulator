@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -90,7 +91,7 @@ test('untagged mixed composite: composite chip + spanning window; no member-0 wi
 
   // the RunCard mounts when a run is selected in the edit rail (the edit.spec switcher pattern)
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-card')).toBeVisible();
 
   // the composite chip: member count + the SPANNING active window (600–1800), mechanical
@@ -155,7 +156,7 @@ test('V2.5b members shape: the chip counts ENDS, worst added time, honesty sente
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-card')).toBeVisible();
 
   // ends are the counted noun (never M×4 probes); the number is labeled as the worst
@@ -186,7 +187,7 @@ test('a shapeless response payload renders the labeled fallback, never a crash',
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('response-access-chip')).toContainText(
     'response detour not computable — see the report',

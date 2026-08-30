@@ -5,7 +5,7 @@
  *
  * Runs `next build` with NEXT_STATIC_EXPORT=1 + NEXT_PUBLIC_STATIC_DEMO=1 (fully static out/,
  * live affordances disabled-with-why, default caching for immutable files), prunes out/ to the
- * demo file set, and WRITES out/latest.json as the pointer to the pinned run — the pointer is
+ * demo file set, and WRITES out/latest.json as the pointer to the EXAMPLE run — the pointer is
  * build-written, never committed (local runs rewrite the real one at will).
  *
  * Demo set: the pinned social run triple (artifact + graphs sidecar + latest-report) — playback,
@@ -58,8 +58,9 @@ for (const entry of fs.readdirSync(OUT)) {
   pruned++;
 }
 
-// the pointer: build-written, aimed at the pinned run (report + graphs + playback coherent)
-fs.writeFileSync(path.join(OUT, 'latest.json'), JSON.stringify({ run_id: PINNED }) + '\n');
+// the pointer: build-written — V2.7a aims it at the EXAMPLE run (the ratified cold landing);
+// the pinned run stays reachable via ?run= (every pinned spec deep-links).
+fs.writeFileSync(path.join(OUT, 'latest.json'), JSON.stringify({ run_id: MODERN }) + '\n');
 
 let total = 0;
 const manifest = [];

@@ -24,6 +24,8 @@ export function ShellHeader({
   runLabelText,
   buildLocked,
   onBuildYourOwn,
+  runsOpen,
+  onToggleRuns,
 }: {
   stage: Stage;
   onStage: (s: Stage) => void;
@@ -33,6 +35,8 @@ export function ShellHeader({
   runLabelText: string | null;
   buildLocked: boolean; // STATIC_DEMO — editing needs the local backend
   onBuildYourOwn: () => void;
+  runsOpen: boolean;
+  onToggleRuns: () => void;
 }) {
   return (
     <div className="nadi-shell">
@@ -90,9 +94,15 @@ export function ShellHeader({
         </nav>
         <div style={right}>
           {runLabelText && (
-            <span className="tag tag-outline" style={{ whiteSpace: 'nowrap', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }} data-testid="shell-run-tag">
-              run: {runLabelText}
-            </span>
+            <button
+              className="tag tag-outline"
+              style={{ whiteSpace: 'nowrap', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer', background: 'transparent', font: 'inherit' }}
+              onClick={onToggleRuns}
+              title="the run inventory — open, clone, compare"
+              data-testid="shell-run-tag"
+            >
+              run: {runLabelText} {runsOpen ? '▴' : '▾'}
+            </button>
           )}
           <button
             className="btn btn-primary"

@@ -11,6 +11,7 @@
 // Strict-mode scoping: a room multi-matches every per-member/per-message testid — .nth() always.
 
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -98,8 +99,10 @@ async function mockBackend(page: Page, captured: CapturedPost[], respond?: Respo
 
 async function openPlayback(page: Page) {
   await page.goto('/');
-  await page.getByTestId('comment-feed').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 20_000 });
   // scrub to sim end so the sim row (trigger_t 450) and both community rows have popped
   await page.locator('input[type=range]').first().fill('1800');
@@ -371,7 +374,7 @@ test('ephemerality: a run swap kills the room; a reload loses it too; nothing pe
 
   // run swap via the edit-rail switcher (the composite-runcard pattern) → loadRun clears the room
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption('swap-target');
+  await openRunFromList(page, 'swap-target');
   await page.getByTestId('stage-watch').click();
   await expect(page.getByTestId('room-drawer')).toHaveCount(0); // the session died with the swap
   expect(captured).toHaveLength(3); // the swap itself posted nothing
@@ -385,6 +388,8 @@ test('ephemerality: a run swap kills the room; a reload loses it too; nothing pe
 
   // and a plain reload loses everything — session-only by construction (no persistence surface)
   await page.reload();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('room-drawer')).toHaveCount(0);
 });

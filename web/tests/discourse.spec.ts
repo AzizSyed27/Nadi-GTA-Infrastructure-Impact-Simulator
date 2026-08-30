@@ -98,6 +98,9 @@ test('the pinned specs are independent of latest.json (repoint it and they still
     // the LABELED empty state (V2.7a replaced the disabled 💬 toggle: enterable, honest).
     // DISCRIMINATING: the repointed run carries no social block — if the pointer were ignored,
     // the pinned run's feed would render instead. The header run tag names the resolved id too.
+    // V2.7a: goto(PINNED_URL) above persisted the pinned run as nadi:lastRun — clear it so
+    // this stays the COLD default path (the pointer hop), not the returning-user hop.
+    await page.evaluate(() => window.localStorage.clear());
     await page.goto('/');
     // 20s-class budget: the resolved artifact is a real ~20 MB fetch+parse on '/' in dev mode
     await gate(page);

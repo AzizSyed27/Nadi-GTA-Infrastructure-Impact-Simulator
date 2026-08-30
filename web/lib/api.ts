@@ -111,6 +111,13 @@ export interface RunSummary {
   stage: string | null;
   started_at: number | null;
   name?: string; // V2.4c — the user-supplied run name (identity sidecar), present only when set
+  // V2.7a — the run-list fingerprint (an INVENTORY, never a ranking: no deltas, no scores).
+  // All optional: an older server omits them and the list renders what it has.
+  demand_profile?: string | null;
+  assignment?: string | null;
+  n_seeds?: number | null;
+  changes?: { type?: string; target_edge?: string; window?: ChangeWindow; [k: string]: unknown }[] | null;
+  tags?: string[] | null;
 }
 
 /** The run-state JSON from GET /api/runs/<id>/status (superset; fields depend on stage reached). */

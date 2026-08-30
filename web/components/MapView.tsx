@@ -5,7 +5,7 @@ import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { PathStyleExtension } from '@deck.gl/extensions';
 import { fmtWindowRange } from '@/lib/simTime';
-import { ARTIFACT_CACHE, STATIC_DEMO } from '@/lib/demo';
+import { ARTIFACT_CACHE, EXAMPLE_RUN_ID, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
@@ -37,7 +37,8 @@ import { DocumentPanel } from '@/components/DocumentPanel';
 import { ChatPanel } from '@/components/ChatPanel';
 import { stageAvailability, type ExploreSub, type Stage } from '@/lib/shell';
 import { windowedScope } from '@/lib/windowedScope';
-import { RunDocument, type ReportState } from '@/components/RunDocument';
+import { ExampleBuildView, RunDocument, type ReportState } from '@/components/RunDocument';
+import { RunListPopover } from '@/components/RunListPopover';
 import { reportRunId, reportUrl, type PerRunReport } from '@/lib/reportData';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
@@ -62,6 +63,9 @@ const ROAD_FILL_BIKE = [208, 216, 211, 255] as [number, number, number, number];
 // ONLY on quant-run completion (enriches never repoint the default). The mount effect resolves it
 // then fetches /<run_id>.json.
 const ARTIFACT_URL = '/latest.json';
+// V2.7a — the returning user's last-viewed run (client-side only; loadRun + the mount commit
+// both write it; the persisted id restores ONLY the run pointer — never session state).
+const LAST_RUN_KEY = 'nadi:lastRun';
 
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
 const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-seconds, then rests as a dot
@@ -170,10 +174,14 @@ export default function MapView() {
   const [stage, setStage] = useState<Stage>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare')
       ? 'explore'
-      : 'watch',
+      : 'read',
   );
   const [exploreSub, setExploreSub] = useState<ExploreSub>('compare');
   const [docCollapsed, setDocCollapsed] = useState(false); // the run-document panel's collapse strip
+  const [runsOpen, setRunsOpen] = useState(false); // the header run tag's inventory popover
+  // true once the user explicitly starts/clones a draft — gates the EXAMPLE's read-only Build
+  // view (without it, opening Build on the example shows composition, never an editable rail).
+  const [freshDraft, setFreshDraft] = useState(false);
   const [playbackBarHidden, setPlaybackBarHidden] = useState(false); // Watch: the bar is toggleable, shown by default
   const [cascadeId, setCascadeId] = useState<string | null>(null); // selected cascade in discourse mode
   // --- edit mode (5.2): draw-a-road + job runner ---
@@ -223,55 +231,120 @@ export default function MapView() {
 
   useEffect(() => {
     let cancelled = false;
-    // `?run=<id>` deep-links a specific run (used by tests to pin a fixture); default is the editor pointer.
+    // V2.7a — the LANDING PRECEDENCE CHAIN (every hop validated; failure falls THROUGH, so the
+    // ratified cold landing — the committed EXAMPLE run — is always reachable):
+    //   ?run= (explicit; failure = labeled error, never a silent fallback)
+    //   → localStorage last-viewed run (the returning user)
+    //   → the latest.json POINTER (most-recently-RUN on this box; the demo build aims it at the
+    //     example) — a payload-shaped or unrecognized pointer ABORTS with the labeled error
+    //     (ride-along 6a: the V2.5c legacy-payload fallback EXPIRED; loading it silently would
+    //     resurrect the compat branch as invisible behavior)
+    //   → EXAMPLE_RUN_ID (committed).
     // Caching is ARTIFACT_CACHE (web/lib/demo.ts): no-store in live builds — large (~20MB),
-    // frequently-rewritten aliases (avoids stale reads + chromium ERR_CACHE_WRITE_FAILURE on the
-    // large body) — but default caching in the static demo, whose files are immutable.
+    // frequently-rewritten aliases — but default caching in the static demo (immutable files).
     const run = new URLSearchParams(window.location.search).get('run');
-    const load = async () => {
-      let url = run ? `/${run}.json` : ARTIFACT_URL;
+    const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+    const fetchArtifact = async (url: string): Promise<TrajectoryArtifact> => {
+      const r = await fetch(url, { cache: ARTIFACT_CACHE });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      // V2.5c perf marks (permanent, read by scripts/perf-harness.mjs): fetch-to-parse split
+      performance.mark('nadi:parse:start');
+      const data = (await r.json()) as TrajectoryArtifact;
+      performance.mark('nadi:parse:end');
+      return data;
+    };
+    const commit = (art: TrajectoryArtifact, url: string): boolean => {
+      if (!art?.meta) {
+        // labeled degradation, never a render crash: well-formed JSON of the WRONG shape must
+        // not commit a bogus artifact (it would blow up at the meta.bbox destructure in render)
+        console.error(`failed to load ${url}: unrecognized artifact/pointer shape`);
+        setLoadError(`${url} — unrecognized artifact/pointer shape`);
+        return false;
+      }
+      setCurrentTime(art.meta.sim_start);
+      setArtifact(art);
       try {
-        let r = await fetch(url, { cache: ARTIFACT_CACHE });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        // V2.5c perf marks (permanent, read by scripts/perf-harness.mjs): fetch-to-parse split
-        performance.mark('nadi:parse:start');
-        let data = (await r.json()) as TrajectoryArtifact & { run_id?: string };
-        performance.mark('nadi:parse:end');
-        if (!run && data && typeof data.run_id === 'string' && !data.meta) {
-          // V2.5c: latest.json is the POINTER — resolve it to the per-run artifact
-          if (cancelled) return; // don't issue the (large) second fetch for a dead mount
-          url = `/${data.run_id}.json`;
-          r = await fetch(url, { cache: ARTIFACT_CACHE });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          performance.mark('nadi:parse:start');
-          data = (await r.json()) as TrajectoryArtifact;
-          performance.mark('nadi:parse:end');
-        } else if (!run && data?.meta) {
-          // TRANSITIONAL, expires LOUDLY (remove at V2.7 — BACKLOG): a pre-V2.5c latest.json
-          // still carrying a full artifact payload works, but must announce itself — a compat
-          // branch that works silently is the kind that lives forever.
-          console.warn(
-            'latest.json is a legacy full-artifact payload — rerun any scenario to regenerate ' +
-              'the pointer; this fallback is removed at V2.7',
-          );
+        window.localStorage.setItem(LAST_RUN_KEY, art.meta.run_id);
+      } catch {
+        /* storage unavailable (private mode) — the landing chain simply starts one hop later */
+      }
+      return true;
+    };
+    const load = async () => {
+      // 1) explicit deep link — its failure is ITS error (no fallback: a pinned spec or a
+      //    shared link must never silently show a different run)
+      if (run) {
+        const url = `/${run}.json`;
+        try {
+          const art = await fetchArtifact(url);
+          if (!cancelled) commit(art, url);
+        } catch (e) {
+          console.error(`failed to load ${url}`, e);
+          if (!cancelled) setLoadError(`${url} — ${msg(e)}`);
+        }
+        return;
+      }
+      // 2) the returning user's last-viewed run (validated; unresolvable → fall through)
+      let last: string | null = null;
+      try {
+        last = window.localStorage.getItem(LAST_RUN_KEY);
+      } catch {
+        last = null;
+      }
+      if (last) {
+        try {
+          const art = await fetchArtifact(`/${last}.json`);
+          if (cancelled) return;
+          if (art?.meta && commit(art, `/${last}.json`)) return;
+        } catch {
+          /* pruned or renamed run — fall through */
         }
         if (cancelled) return;
-        const art = data as TrajectoryArtifact;
-        if (!art?.meta) {
-          // labeled degradation, never a render crash (review-caught): well-formed JSON of the
-          // WRONG shape (neither {run_id} nor an artifact) must not commit a bogus artifact —
-          // it would blow up at the meta.bbox destructure in render, eating the app shell.
-          console.error(`failed to load ${url}: unrecognized artifact/pointer shape`);
-          setLoadError(`${url} — unrecognized artifact/pointer shape`);
-          return;
+      }
+      // 3) the pointer
+      try {
+        const r = await fetch(ARTIFACT_URL, { cache: ARTIFACT_CACHE });
+        if (r.ok) {
+          const data = (await r.json()) as { run_id?: string; meta?: unknown };
+          if (data && typeof data.run_id === 'string' && !data.meta) {
+            if (cancelled) return;
+            const url = `/${data.run_id}.json`;
+            try {
+              const art = await fetchArtifact(url);
+              if (cancelled) return;
+              if (art?.meta && commit(art, url)) return;
+            } catch {
+              /* the pointer's target was pruned — fall through to the example */
+            }
+            if (cancelled) return;
+          } else if (data && typeof data === 'object' && (data as { meta?: unknown }).meta) {
+            // ride-along 6a (V2.5c expiry): the legacy full-artifact payload takes the LABELED
+            // error path now — deleting only the console.warn would have LOADED it silently.
+            console.error('latest.json is a legacy full-artifact payload — the pointer contract expired at V2.7');
+            setLoadError(
+              `${ARTIFACT_URL} — legacy full-artifact payload; the V2.5c pointer contract ` +
+                'expired at V2.7 — rerun any scenario to regenerate the {"run_id"} pointer',
+            );
+            return;
+          } else {
+            console.error(`failed to load ${ARTIFACT_URL}: unrecognized artifact/pointer shape`);
+            setLoadError(`${ARTIFACT_URL} — unrecognized artifact/pointer shape`);
+            return;
+          }
         }
-        setCurrentTime(art.meta.sim_start);
-        setArtifact(art);
+        /* 404 → fall through */
+      } catch {
+        /* network failure on the pointer — fall through */
+      }
+      if (cancelled) return;
+      // 4) the committed example (the ratified cold landing)
+      const url = `/${EXAMPLE_RUN_ID}.json`;
+      try {
+        const art = await fetchArtifact(url);
+        if (!cancelled) commit(art, url);
       } catch (e) {
-        // V2.5d: the landing page was the app's ONE unlabeled failure (a 404 left an eternal
-        // silent spinner) — name the condition instead.
         console.error(`failed to load ${url}`, e);
-        if (!cancelled) setLoadError(`${url} — ${e instanceof Error ? e.message : String(e)}`);
+        if (!cancelled) setLoadError(`${url} — ${msg(e)} (the default pointer and the committed example both failed)`);
       }
     };
     void load();
@@ -740,12 +813,19 @@ export default function MapView() {
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
     setReportData(null); // the Read stage refetches the new run's report
+    setFreshDraft(false); // viewing a run again — a future Build click shows its composition/watcher
     try {
       const r = await fetch(`/${id}.json`, { cache: ARTIFACT_CACHE });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
       const data = (await r.json()) as TrajectoryArtifact;
       setArtifact(data);
       setCurrentTime(data.meta.sim_start);
+      // V2.7a: the returning user lands on their most recently VIEWED run
+      try {
+        window.localStorage.setItem(LAST_RUN_KEY, data.meta.run_id);
+      } catch {
+        /* storage unavailable — landing simply starts one hop later */
+      }
     } catch (e) {
       console.error('failed to load run', id, e);
     }
@@ -1183,7 +1263,15 @@ export default function MapView() {
   // cloned new_road members get no draft overlay (the path is captured at ADD time only), and a
   // new_road inside a multi-member draft 400s verbatim on Run (the existing convention).
   const cloneToDraft = useCallback(
-    (st: RunStatus) => {
+    // structural subset: RunCard's RunStatus AND a V2.7a run-list row both satisfy it
+    (st: {
+      changes?: RunStatus['changes'] | null;
+      change?: RunStatus['change'] | null;
+      tags?: string[] | null;
+      demand_profile?: string | null;
+      assignment?: string | null;
+      n_seeds?: number | null;
+    }) => {
       const changes = (st.changes ?? (st.change ? [st.change] : [])) as SimChange[];
       if (changes.length === 0) return;
       const zone = st.tags?.includes('school_zone') ?? false;
@@ -1650,6 +1738,10 @@ export default function MapView() {
   const drawing = editing && activeRunId == null;
   // Honesty flags for the active run's empty states (only trustworthy once its artifact is the one shown).
   const runLoaded = activeRunId != null && meta.run_id === activeRunId;
+  const isExample = meta.run_id === EXAMPLE_RUN_ID;
+  // the run-document panel is open in Read, and in Build for the example's read-only
+  // composition view — the top-left map chrome hides under it either way (looked-at catch)
+  const docPanelOpen = stage === 'read' || (stage === 'build' && isExample && !freshDraft);
   const hasVoices = (artifact.agents?.length ?? 0) > 0;
   const hasSocial = socialIds.length > 0;
 
@@ -1687,7 +1779,7 @@ export default function MapView() {
           full SHEET covers it (compare and the V2.3d graph split-view both occlude the map). */}
       {/* V2.7a: Read hides the top-left map chrome too — the run document IS the description
           there, and the floating header/legend collide with the panel. */}
-      {!sheetMode && stage !== 'read' && <ScenarioHeader scenario={meta.scenario} />}
+      {!sheetMode && !docPanelOpen && <ScenarioHeader scenario={meta.scenario} />}
 
       {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
           fewer dots than the simulated population must never read as the population itself. */}
@@ -1704,7 +1796,7 @@ export default function MapView() {
 
       {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
           v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
-      {!sheetMode && stage !== 'read' && changeGeom?.runId === meta.run_id && (
+      {!sheetMode && !docPanelOpen && changeGeom?.runId === meta.run_id && (
         overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
             {overlayItems.length === 1 && CAPACITY_TYPES.has(overlayItems[0].type) ? (
@@ -1747,7 +1839,24 @@ export default function MapView() {
       )}
 
 
-      {editing ? (
+      {editing && isExample && !freshDraft ? (
+        <DocumentPanel
+          title={`RUN DOCUMENT — ${meta.run_id.replace('multimodal-scenario-', '')}`}
+          collapsed={docCollapsed}
+          onToggle={setDocCollapsed}
+          topOffset={78}
+        >
+          <ExampleBuildView
+            changes={changesOf(artifact)}
+            profile={meta.demand_profile}
+            demoLocked={STATIC_DEMO}
+            onStartDraft={() => {
+              setFreshDraft(true);
+              drawAnother();
+            }}
+          />
+        </DocumentPanel>
+      ) : editing ? (
         <EditPanel
           ptA={ptA}
           ptB={ptB}
@@ -1766,7 +1875,6 @@ export default function MapView() {
           onLoaded={loadRun}
           onVoice={handleVoice}
           streamedVoices={streamedAgents}
-          onLoadRun={setActiveRunId}
           runLoaded={runLoaded}
           hasVoices={hasVoices}
           hasSocial={hasSocial}
@@ -1909,6 +2017,7 @@ export default function MapView() {
             artifact={artifact}
             report={reportData?.runId === meta.run_id ? reportData.report : null}
             reportState={reportData?.runId === meta.run_id ? reportData.state : 'loading'}
+            isExample={isExample}
             onGroupDoorway={(g) => {
               // the 2.4 doorway: this group's voices, in Watch (the existing scorecard→feed join)
               setFeedGroup(g);
@@ -1975,11 +2084,69 @@ export default function MapView() {
         buildLocked={STATIC_DEMO}
         onBuildYourOwn={() => {
           // "Build your own scenario" starts a FRESH draft (the watched run keeps computing
-          // server-side and stays reopenable from the run picker).
+          // server-side and stays reopenable from the run list).
+          setFreshDraft(true);
           setStage('build');
           drawAnother();
         }}
+        runsOpen={runsOpen}
+        onToggleRuns={() => setRunsOpen((o) => !o)}
       />
+      {runsOpen && (
+        <RunListPopover
+          currentRunId={activeRunId}
+          exampleLoaded={isExample}
+          onOpen={(id, computing) => {
+            setRunsOpen(false);
+            if (computing) {
+              // "a computing run opens in its current state" — the Build stage's watcher card
+              setActiveRunId(id);
+              setFreshDraft(false);
+              setStage('build');
+            } else {
+              void loadRun(id);
+              setStage('read'); // the document is the anchor surface for a finished run
+            }
+          }}
+          onClone={(r) => {
+            setRunsOpen(false);
+            cloneToDraft(r);
+            setFreshDraft(true);
+            setStage('build');
+          }}
+          onCloneExample={() => {
+            // the example's members come from the LOADED artifact (it has no local run-state)
+            setRunsOpen(false);
+            cloneToDraft({
+              changes: changesOf(artifact) as unknown as RunStatus['changes'],
+              tags: meta.scenario?.tags ?? undefined,
+              demand_profile: meta.demand_profile,
+              assignment: meta.assignment?.mode,
+            });
+            setFreshDraft(true);
+            setStage('build');
+          }}
+          onCompareA={(id) => {
+            setRunsOpen(false);
+            pickCompareA(id);
+            setStage('explore');
+            setExploreSub('compare');
+          }}
+          onCompareB={(id) => {
+            setRunsOpen(false);
+            pickCompareB(id);
+            setStage('explore');
+            setExploreSub('compare');
+          }}
+          onNewDraft={() => {
+            setRunsOpen(false);
+            setFreshDraft(true);
+            setStage('build');
+            drawAnother();
+          }}
+          onClose={() => setRunsOpen(false)}
+        />
+      )}
     </div>
   );
 }

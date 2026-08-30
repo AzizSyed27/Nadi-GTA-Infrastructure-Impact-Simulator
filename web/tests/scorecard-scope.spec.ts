@@ -38,6 +38,7 @@ async function warmOpen(page: Page) {
     const s = (window as unknown as { __nadiChangeOverlay?: OverlaySeam }).__nadiChangeOverlay;
     return (s?.count ?? 0) > 0;
   }, undefined, { timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read
 }
 
 test('windowed run: the scorecard scope line renders with the window range', async ({ page }) => {

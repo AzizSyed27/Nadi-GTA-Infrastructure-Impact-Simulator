@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -58,6 +59,7 @@ async function warmOpen(page: Page) {
     const s = (window as unknown as { __nadiChangeOverlay?: OverlaySeam }).__nadiChangeOverlay;
     return (s?.count ?? 0) > 0;
   }, undefined, { timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read
 }
 
 async function seamState(page: Page): Promise<OverlaySeam> {
@@ -223,7 +225,7 @@ test('the RunCard shows the zone chip (streets + window) and not a duplicate win
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('zone-chip')).toHaveText('School zone · 3 streets · t=600–1200 s');
   await expect(page.getByTestId('window-chip')).toHaveCount(0); // the zone chip carries the range

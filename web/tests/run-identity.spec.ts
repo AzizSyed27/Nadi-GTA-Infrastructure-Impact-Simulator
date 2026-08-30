@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -15,8 +16,8 @@ const BANNED = /\b(majority|minority|referendum|consensus|unanimous|plurality)\b
 
 const PINNED_IDENTITY_REASON =
   'multimodal-scenario-20260702T044134Z is the PINNED Playwright/report anchor: a name or note ' +
-  'on it changes the runLabel output on every spec-pinned run-picker surface (the edit rail + ' +
-  'both compare pickers) and breaks the spec suite hours later with no obvious cause. Refusing ' +
+  'on it changes the runLabel output on every spec-pinned name-rendering surface (the run list ' +
+  '+ both compare pickers) and breaks the spec suite hours later with no obvious cause. Refusing ' +
   'the identity write (clone-to-draft stays open — it only reads). For a deliberate re-pin set ' +
   'NADI_ALLOW_PINNED_ENRICH=1.';
 
@@ -82,7 +83,7 @@ async function openRunCard(page: Page) {
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-card')).toBeVisible();
 }
 
@@ -127,14 +128,17 @@ test('rename renders on the card + picker and survives reload; note round-trips'
   await expect(page.getByTestId('run-note')).toHaveText('the almost-worked variant');
 
   // the picker label carries the name after a refresh (the ↻ affordance)
-  await page.getByTestId('run-refresh').click();
-  await expect(page.getByTestId('run-select')).toContainText('Kingston pilot v2');
+  // V2.7a: the name-precedence pin RELOCATED to the run list (the edit-rail picker retired)
+  await page.getByTestId('shell-run-tag').click();
+  await page.getByTestId('run-list-refresh').click();
+  await expect(page.getByTestId(`run-row-${RUN_ID}`)).toContainText('Kingston pilot v2');
+  await page.getByTestId('run-list-close').click();
 
   // and a full reload re-reads it from the (mock-persisted) sidecar
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-name')).toHaveText('Kingston pilot v2');
 
   // clearing through the UI (review-caught gap): an empty save removes the name AND the note —
@@ -180,8 +184,11 @@ test('an injection name renders INERT on BOTH surfaces it reaches (card + picker
   await page.getByTestId('identity-save').click();
 
   await expect(page.getByTestId('run-name')).toHaveText(evil); // the LITERAL string, as text
-  await page.getByTestId('run-refresh').click();
-  await expect(page.getByTestId('run-select')).toContainText('<img src=x'); // picker option: literal too
+  // V2.7a: the XSS-inert pin RELOCATED to the run list — the name-rendering-surface invariant
+  // (any new surface rendering names inherits a failing test if markup ever executed)
+  await page.getByTestId('shell-run-tag').click();
+  await page.getByTestId('run-list-refresh').click();
+  await expect(page.getByTestId(`run-row-${RUN_ID}`)).toContainText('<img src=x'); // row name: literal too
   expect(await page.locator('img[src="x"]').count()).toBe(0); // never an element
   expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   expect(await page.locator('[data-testid="run-name"] b, [data-testid="run-name"] strong').count()).toBe(0);

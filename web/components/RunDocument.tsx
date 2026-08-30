@@ -57,11 +57,13 @@ export function RunDocument({
   artifact,
   report,
   reportState,
+  isExample = false,
   onGroupDoorway,
 }: {
   artifact: TrajectoryArtifact;
   report: PerRunReport | null;
   reportState: ReportState;
+  isExample?: boolean;
   onGroupDoorway: (group: string) => void;
 }) {
   const [showAudit, setShowAudit] = useState(false);
@@ -152,7 +154,13 @@ export function RunDocument({
 
   return (
     <article data-testid="run-document" style={wrap}>
-      <h6 style={kicker}>ANTICIPATED IMPACT PREVIEW — a preview, not a verdict</h6>
+      {isExample ? (
+        <h6 style={kicker} data-testid="example-kicker">
+          EXAMPLE RUN · LOADED READ-ONLY · A PREVIEW, NOT A VERDICT
+        </h6>
+      ) : (
+        <h6 style={kicker}>ANTICIPATED IMPACT PREVIEW — a preview, not a verdict</h6>
+      )}
       <h2 style={{ marginBottom: 'var(--space-4)', textWrap: 'pretty' } as React.CSSProperties}>{title}</h2>
       <div style={subtle}>Safety figures are surrogate near-miss measures, not crash predictions.</div>
 
@@ -788,3 +796,75 @@ const auditRow: React.CSSProperties = { marginTop: 2 };
 const auditClean: React.CSSProperties = { color: '#3caa5a', fontWeight: 600 };
 const auditFixed: React.CSSProperties = { color: '#b7791f', fontWeight: 600 };
 const auditViol: React.CSSProperties = { color: 'var(--color-neutral-600)' };
+
+/** V2.7a C4 — the EXAMPLE run's Build stage: the read-only draft-composition view (the ratified
+ *  Shell v2 article). Members render as they were run; editing the example is disabled with the
+ *  reason — cloning into a fresh draft is the iteration path. */
+export function ExampleBuildView({
+  changes,
+  profile,
+  demoLocked,
+  onStartDraft,
+}: {
+  changes: { type?: string; target_edge?: string; description?: string; window?: { start_s: number; end_s: number } | null }[];
+  profile: string | undefined;
+  demoLocked: boolean;
+  onStartDraft: () => void;
+}) {
+  return (
+    <article data-testid="example-build" style={wrap}>
+      <h6 style={kicker}>Example run · build stage, read-only</h6>
+      <h2 style={{ marginBottom: 'var(--space-4)', textWrap: 'pretty' } as React.CSSProperties}>
+        How this run&rsquo;s draft was composed
+      </h2>
+      <p style={findingProse}>
+        This run began as a draft. Each palette action added a member; one Run submitted the
+        composite as a staged baseline → scenario → analysis job. The members below are shown as
+        they were drawn.
+      </p>
+      <h6 style={secKicker}>Draft basket — {changes.length} member{changes.length === 1 ? '' : 's'}, as run</h6>
+      <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+        {changes.map((c, i) => (
+          <div key={i} className="blueprint" style={memberCard} data-testid="example-member">
+            <i className="corner tl" /><i className="corner tr" /><i className="corner bl" /><i className="corner br" />
+            <span style={memberName}>{(c.type ?? 'change').replace(/_/g, ' ').toUpperCase()}</span>
+            <span style={memberMeta}>
+              {c.description ??
+                `${c.target_edge ?? ''}${c.window ? ` · ${fmtWindowRange(c.window, profile)}` : ''}`}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 'var(--space-8)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <button
+          className="btn btn-primary"
+          onClick={onStartDraft}
+          disabled={demoLocked}
+          title={demoLocked ? undefined : undefined}
+          data-testid="example-start-draft"
+        >
+          Start a new draft
+        </button>
+        <span style={{ fontSize: 13, color: 'var(--color-neutral-600)', fontStyle: 'italic' }}>
+          editing this example is disabled — clone it into a fresh draft to iterate
+        </span>
+      </div>
+    </article>
+  );
+}
+
+const memberCard: React.CSSProperties = {
+  padding: '10px 16px',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'baseline',
+  gap: 10,
+  background: 'var(--color-bg)',
+};
+const memberName: React.CSSProperties = {
+  fontFamily: 'var(--font-heading)',
+  fontWeight: 600,
+  fontSize: 15,
+  letterSpacing: '0.03em',
+};
+const memberMeta: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-600)' };

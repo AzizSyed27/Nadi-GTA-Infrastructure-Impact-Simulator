@@ -42,8 +42,10 @@ async function mockBackend(page: Page) {
 
 async function openRun(page: Page) {
   await page.goto(`/?run=${RUN_ID}`);
-  await page.getByTestId('comment-feed').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 20_000 });
 }
 

@@ -5,7 +5,6 @@ import type { ChangeWindow, Junction, Edge, RunOptions, RunStatus } from '@/lib/
 import type { VoiceEvent } from '@/lib/enrichStream';
 import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
-import { RunSwitcher } from '@/components/RunSwitcher';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { EdgePalette } from '@/components/EdgePalette';
 import { ZonePalette } from '@/components/ZonePalette';
@@ -38,7 +37,6 @@ interface EditPanelProps {
   // V2.3a: voices streamed so far (arrival order) — the live ticker while enrich generates; cleared by
   // the parent when the done-edge reload swaps in the authoritative artifact.
   streamedVoices: Agent[];
-  onLoadRun: (id: string) => void; // RunSwitcher picked a run → parent switches active run
   runLoaded: boolean; // the active run's artifact is the one currently shown (honesty flags are trustworthy)
   hasVoices: boolean;
   hasSocial: boolean;
@@ -225,7 +223,8 @@ export function EditPanel(props: EditPanelProps) {
 
   return (
     <div style={rail} data-testid="edit-panel">
-      <RunSwitcher activeRunId={activeRunId} onLoad={props.onLoadRun} />
+      {/* V2.7a: the edit-rail run picker retired — the header's run list (RunListPopover) is
+          the one open/clone/compare surface; Compare keeps its two RunSwitcher instances. */}
       {!activeRunId && (
         <RunOptionsBlock options={props.runOptions} onChange={props.onRunOptions} windowLocked={props.windowLocked} />
       )}

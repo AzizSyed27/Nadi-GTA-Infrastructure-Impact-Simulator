@@ -20,3 +20,8 @@ export const DEMO_READONLY_NOTE =
  * IMMUTABLE files, where `no-store` would re-pull ~20 MB per visit past the CDN edge.
  */
 export const ARTIFACT_CACHE: RequestCache | undefined = STATIC_DEMO ? undefined : 'no-store';
+
+// V2.7a — the committed EXAMPLE run (the fire-station doorstep composite): the landing's final
+// fallback and the demo pointer's target. Its artifact + per-run report are committed; the
+// python mirror is trajectory_io.EXAMPLE_RUN_ID (the protected-runs set).
+export const EXAMPLE_RUN_ID = 'multimodal-scenario-20260814T063253Z';

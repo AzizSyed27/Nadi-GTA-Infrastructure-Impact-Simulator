@@ -843,6 +843,14 @@ async def runs():
         ident = run_state.identity(s["run_id"])
         out.append({"id": s["run_id"], "description": s.get("description", ""), "status": s.get("status"),
                     "stage": s.get("stage"), "started_at": s.get("started_at"),
+                    # V2.7a — the run LIST is an inventory (names, dates, a plain-terms option
+                    # fingerprint, a change summary): pass the state file's own fields through.
+                    # Deltas/scores stay OUT by design — comparison lives behind the provenance
+                    # guard in Compare, never on the list.
+                    "demand_profile": s.get("demand_profile"), "assignment": s.get("assignment"),
+                    "n_seeds": s.get("n_seeds"),
+                    "changes": s.get("changes") or ([s["change"]] if s.get("change") else None),
+                    "tags": s.get("tags"),
                     **({"name": ident["name"]} if ident.get("name") else {})})
     return {"runs": out}
 
@@ -899,7 +907,7 @@ async def set_run_identity(run_id: str, req: IdentityReq):
     RENDERING is the single deliberate defense layer (web-spec-pinned end to end)."""
     # the pinned guard FIRST (the enrich precedent: after the 404 it would be dead code)
     if trajectory_io.pinned_identity_blocked(run_id):
-        raise HTTPException(403, trajectory_io.PINNED_IDENTITY_REASON)
+        raise HTTPException(403, trajectory_io.identity_refusal_reason(run_id))
     if run_state.read(run_id) is None:
         raise HTTPException(404, f"no such run {run_id!r}")
     name = (req.name or "").strip()
@@ -928,7 +936,7 @@ async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     # allowed (the documented singleton-maintenance path). 403 is unused elsewhere in this handler —
     # a distinct signal. The CLIs carry the same guard (trajectory_io.guard_pinned_enrich).
     if req.stage in ("voices", "discourse") and trajectory_io.pinned_enrich_blocked(run_id):
-        raise HTTPException(403, trajectory_io.PINNED_REASON)
+        raise HTTPException(403, trajectory_io.enrich_refusal_reason(run_id))
     st = run_state.read(run_id)
     if st is None:
         raise HTTPException(404, f"no such run {run_id!r}")

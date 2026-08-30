@@ -36,3 +36,15 @@ export async function openStage(page: Page, stage: Stage, sub?: ExploreSub) {
   await page.getByTestId(`stage-${stage}`).click();
   if (sub) await page.getByTestId(`explore-${sub}`).click();
 }
+
+/**
+ * V2.7a C4 — open a run from the header's run-list popover (the edit-rail <select> retired).
+ * Opening a finished run lands at Read (the document anchor); pass `stage` to continue to the
+ * surface the spec drives (usually 'build' for the old edit-rail flows).
+ */
+export async function openRunFromList(page: Page, id: string, stage?: Stage) {
+  await page.getByTestId('shell-run-tag').click();
+  await page.getByTestId(`run-row-open-${id}`).click();
+  await expect(page.getByTestId('run-list')).toHaveCount(0); // the popover closes on open
+  if (stage) await openStage(page, stage);
+}

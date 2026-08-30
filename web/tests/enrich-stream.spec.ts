@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -170,8 +171,8 @@ async function openRun(page: Page) {
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await expect(page.getByTestId('run-switcher')).toBeVisible();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await expect(page.getByTestId('edit-panel')).toBeVisible();
+  await openRunFromList(page, RUN_ID, 'build');
   await page.waitForResponse((r) => r.url().includes(`${RUN_ID}.json`));
   await expect(page.getByTestId('run-card')).toBeVisible();
   // the fixture has NO voices — the honest empty state is the genuine starting point

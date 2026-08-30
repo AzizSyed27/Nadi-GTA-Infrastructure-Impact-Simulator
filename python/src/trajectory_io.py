@@ -31,6 +31,12 @@ RUNS_DIR = CONTRACT_DIR / "runs"
 # allowed — it never touches the artifact and is the documented singleton-maintenance path.
 # ---------------------------------------------------------------------------------------------
 PINNED_RUN_ID = "multimodal-scenario-20260702T044134Z"
+# V2.7a — the landing's committed EXAMPLE run (the fire-station doorstep composite): its artifact
+# AND its per-run report are committed, landing-load-bearing files — singleton-class by the same
+# definition as the pinned run, so it JOINS the protected set below. Client-side read-only guards
+# the UI only; this is the layer that stops a bare CLI enrich (which resolves the local
+# latest.json default) from silently mutating the committed example.
+EXAMPLE_RUN_ID = "multimodal-scenario-20260814T063253Z"
 ALLOW_PINNED_ENV = "NADI_ALLOW_PINNED_ENRICH"
 PINNED_REASON = (
     f"{PINNED_RUN_ID} is the PINNED Playwright/report anchor: a voices or discourse enrich "
@@ -38,34 +44,70 @@ PINNED_REASON = (
     "spec suite + latest-report singleton hours later with no obvious cause. Refusing. For a "
     f"deliberate re-pin set {ALLOW_PINNED_ENV}=1."
 )
+EXAMPLE_ENRICH_REASON = (
+    f"{EXAMPLE_RUN_ID} is the committed EXAMPLE run: the landing renders its artifact and per-run "
+    "report from COMMITTED files, and a voices or discourse enrich REWRITES the artifact — the "
+    "cold landing and the rendered-equals-file pins break hours later with no obvious cause. "
+    f"Refusing. For a deliberate refresh set {ALLOW_PINNED_ENV}=1."
+)
+
+# The protected set: run id → role-specific enrich-refusal reason. The `report` enrich stays
+# EXEMPT for every member (it never touches the artifact — the documented maintenance path;
+# C6's example-report regen depends on it).
+_PROTECTED_ENRICH_REASONS = {
+    PINNED_RUN_ID: PINNED_REASON,
+    EXAMPLE_RUN_ID: EXAMPLE_ENRICH_REASON,
+}
 
 
 def pinned_enrich_blocked(run_id: str) -> bool:
-    """True when an artifact-rewriting enrich targets the pinned run (env escape hatch honored)."""
-    return run_id == PINNED_RUN_ID and not os.environ.get(ALLOW_PINNED_ENV)
+    """True when an artifact-rewriting enrich targets a PROTECTED run (env escape hatch honored)."""
+    return run_id in _PROTECTED_ENRICH_REASONS and not os.environ.get(ALLOW_PINNED_ENV)
+
+
+def enrich_refusal_reason(run_id: str) -> str:
+    """The role-specific refusal for a protected run (callers check membership first)."""
+    return _PROTECTED_ENRICH_REASONS[run_id]
 
 
 def guard_pinned_enrich(run_id: str) -> None:
-    """CLI form: refuse an artifact-rewriting enrich of the pinned run LOUDLY, before any work."""
+    """CLI form: refuse an artifact-rewriting enrich of a protected run LOUDLY, before any work."""
     if pinned_enrich_blocked(run_id):
-        raise SystemExit(PINNED_REASON)
+        raise SystemExit(_PROTECTED_ENRICH_REASONS[run_id])
 
 
-# V2.4c — the sibling guard for IDENTITY writes (user name/note). A name on the pinned run changes
-# the runLabel output on every spec-pinned run-picker surface — the same breaks-hours-later class
-# the enrich guard exists for. No CLI twin: only the identity endpoint writes the sidecar.
+# V2.4c — the sibling guard for IDENTITY writes (user name/note). A name on a protected run
+# changes the runLabel output on every spec-pinned name-rendering surface — the same
+# breaks-hours-later class the enrich guard exists for. No CLI twin: only the identity endpoint
+# writes the sidecar. (V2.7a reworded: the edit-rail picker retired; the run list replaced it.)
 PINNED_IDENTITY_REASON = (
     f"{PINNED_RUN_ID} is the PINNED Playwright/report anchor: a name or note on it changes the "
-    "runLabel output on every spec-pinned run-picker surface (the edit rail + both compare "
+    "runLabel output on every spec-pinned name-rendering surface (the run list + both compare "
     "pickers) and breaks the spec suite hours later with no obvious cause. Refusing the identity "
     f"write (clone-to-draft stays open — it only reads). For a deliberate re-pin set "
     f"{ALLOW_PINNED_ENV}=1."
 )
+EXAMPLE_IDENTITY_REASON = (
+    f"{EXAMPLE_RUN_ID} is the committed EXAMPLE run: a name or note on it changes the labels the "
+    "landing and the run list render for the example, and the run-document pins break hours "
+    "later with no obvious cause. Refusing the identity write (clone-to-draft stays open — it "
+    f"only reads). For a deliberate change set {ALLOW_PINNED_ENV}=1."
+)
+
+_PROTECTED_IDENTITY_REASONS = {
+    PINNED_RUN_ID: PINNED_IDENTITY_REASON,
+    EXAMPLE_RUN_ID: EXAMPLE_IDENTITY_REASON,
+}
 
 
 def pinned_identity_blocked(run_id: str) -> bool:
-    """True when an identity (name/note) write targets the pinned run (env escape hatch honored)."""
-    return run_id == PINNED_RUN_ID and not os.environ.get(ALLOW_PINNED_ENV)
+    """True when an identity (name/note) write targets a PROTECTED run (env escape hatch honored)."""
+    return run_id in _PROTECTED_IDENTITY_REASONS and not os.environ.get(ALLOW_PINNED_ENV)
+
+
+def identity_refusal_reason(run_id: str) -> str:
+    """The role-specific identity refusal for a protected run (callers check membership first)."""
+    return _PROTECTED_IDENTITY_REASONS[run_id]
 
 
 @lru_cache(maxsize=1)

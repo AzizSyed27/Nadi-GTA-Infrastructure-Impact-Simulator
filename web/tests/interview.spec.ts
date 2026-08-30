@@ -87,8 +87,10 @@ function reply(bodyIn: Record<string, unknown>, answer: string, status = 'clean'
 /** Open playback on the fixture (warm reload) and scrub to sim end so every voice has fired. */
 async function openPlayback(page: Page) {
   await page.goto('/');
-  await page.getByTestId('comment-feed').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 20_000 });
   await page.locator('input[type=range]').first().fill('1800');
   await expect(page.getByTestId('comment-row')).toHaveCount(1, { timeout: 10_000 });

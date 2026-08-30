@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -72,7 +73,7 @@ test('the windowed lane_closure run card shows the chip + THE numbers with neutr
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await expect(page.getByTestId('run-card')).toBeVisible();
 
   // the windowed-change chip — clock times on calibrated (t=0 == 07:00)

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -100,7 +101,7 @@ test('ranged cells render ranges; sign-unstable cells are neutral with the SIGN?
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(SEED_RUN_ID);
+  await openRunFromList(page, SEED_RUN_ID, 'build');
   await page.waitForResponse((r) => r.url().includes(`${SEED_RUN_ID}.json`));
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
 

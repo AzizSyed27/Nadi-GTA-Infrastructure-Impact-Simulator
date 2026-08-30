@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 
 // Phase 5.2 — the editor UI. Backend is MOCKED (page.route) for determinism + speed; the two map clicks are
@@ -138,7 +139,9 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
   await expect(page.getByTestId('enrich-voices')).toBeVisible();
   await expect(page.getByTestId('enrich-discourse')).toBeVisible();
   await expect(page.getByTestId('no-voices')).toBeVisible(); // fresh run has no voices — say so plainly
-  // 5.3: the change-visibility overlay resolved the new_road location → the "proposed road" legend shows.
+  // 5.3: the change-visibility overlay resolved the new_road location → the "proposed road"
+  // legend shows (V2.7a: the top-left map chrome hides in Read — assert from Watch).
+  await page.getByTestId('stage-watch').click();
   await expect(page.getByTestId('change-legend')).toContainText('proposed road');
   await page.screenshot({ path: 'test-results/edit-finished.png' });
 
@@ -160,10 +163,10 @@ test('the run switcher restores a prior run', async ({ page }) => {
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await page.getByTestId('stage-build').click();
-  await expect(page.getByTestId('run-switcher')).toBeVisible();
+  await expect(page.getByTestId('edit-panel')).toBeVisible();
 
   // Pick the prior run → its artifact reloads and its (completed) run card shows.
-  await page.getByTestId('run-select').selectOption(PRIOR_ID);
+  await openRunFromList(page, PRIOR_ID, 'build');
   await page.waitForResponse((r) => r.url().includes(`${PRIOR_ID}.json`));
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('reroute-number')).toBeVisible({ timeout: 15_000 });
@@ -181,7 +184,7 @@ test('discourse mode is locked until a run carries a social block', async ({ pag
   // Load a new_road run (no social) explicitly, then assert Discourse is locked — independent of latest.json,
   // which is now an arbitrary editor pointer.
   await page.getByTestId('stage-build').click();
-  await page.getByTestId('run-select').selectOption(RUN_ID);
+  await openRunFromList(page, RUN_ID, 'build');
   await page.waitForResponse((r) => r.url().includes(`${RUN_ID}.json`));
   // The loaded new_road run has no social → Explore·Discourse renders the LABELED empty
   // state (V2.7a replaced the disabled 💬 toggle — enterable, honest about why).
@@ -413,6 +416,8 @@ async function overlayVertices(page: Page, body: string): Promise<number | undef
   await page.goto('/');
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-watch').click(); // V2.7a: the landing defaults to Read (legend = map chrome)
   await expect(page.getByTestId('change-legend')).toContainText('proposed road', { timeout: 20_000 });
   return page.evaluate(
     () =>
