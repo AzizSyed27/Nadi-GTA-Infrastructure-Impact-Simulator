@@ -41,9 +41,9 @@ async function openPalette(page: Page) {
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await page.waitForFunction(() => typeof (window as unknown as { __nadiEditEdge?: unknown }).__nadiEditEdge === 'function');
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   await page.evaluate((eid) => (window as unknown as { __nadiEditEdge: (x: string) => void }).__nadiEditEdge(eid), E.id);

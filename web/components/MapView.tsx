@@ -5,7 +5,7 @@ import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { PathStyleExtension } from '@deck.gl/extensions';
 import { fmtWindowRange } from '@/lib/simTime';
-import { ARTIFACT_CACHE, DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
+import { ARTIFACT_CACHE, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
@@ -32,6 +32,10 @@ import { ArgumentEngagementPanel } from '@/components/ArgumentEngagementPanel';
 import { AgentPanel } from '@/components/AgentPanel';
 import { InstitutionPanel } from '@/components/InstitutionPanel';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
+import { ShellHeader } from '@/components/ShellHeader';
+import { DocumentPanel } from '@/components/DocumentPanel';
+import { ChatPanel } from '@/components/ChatPanel';
+import { stageAvailability, type ExploreSub, type Stage } from '@/lib/shell';
 import { ReportPanel } from '@/components/ReportPanel';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
@@ -200,14 +204,19 @@ export default function MapView() {
   const [showAllConflicts, setShowAllConflicts] = useState(true);
   const [feedGroup, setFeedGroup] = useState<string | null>(null); // scorecard→feed join filter
   const [flashId, setFlashId] = useState<string | null>(null); // reverse join: briefly ring a located dot
-  const [showReport, setShowReport] = useState(false); // full-screen Report view (toggled from the map)
-  // playback ⇄ discourse ⇄ edit ⇄ compare. `?compare=` deep-links straight into compare mode — read in
-  // the initializer (hydration-safe: the pre-artifact shell renders identically whatever the mode).
-  const [mode, setMode] = useState<'playback' | 'discourse' | 'edit' | 'compare' | 'graphs'>(() =>
+  // V2.7a — the four-stage shell: Build → Watch → Read → Explore (one workflow, not tabs; a run
+  // moves through them). `?compare=` deep-links into Explore·Compare — read in the initializer
+  // (hydration-safe: the pre-artifact shell renders identically whatever the stage). The default
+  // stage flips to Read with the C4 landing logic; until then Watch = behavioral parity with the
+  // old playback default.
+  const [stage, setStage] = useState<Stage>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('compare')
-      ? 'compare'
-      : 'playback',
+      ? 'explore'
+      : 'watch',
   );
+  const [exploreSub, setExploreSub] = useState<ExploreSub>('compare');
+  const [docCollapsed, setDocCollapsed] = useState(false); // the run-document panel's collapse strip
+  const [playbackBarHidden, setPlaybackBarHidden] = useState(false); // Watch: the bar is toggleable, shown by default
   const [cascadeId, setCascadeId] = useState<string | null>(null); // selected cascade in discourse mode
   // --- edit mode (5.2): draw-a-road + job runner ---
   const [junctions, setJunctions] = useState<Junction[]>([]); // snap targets in the viewport
@@ -434,7 +443,7 @@ export default function MapView() {
     error: boolean;
   } | null>(null);
   useEffect(() => {
-    if (mode !== 'graphs' || !artifact) return;
+    if (!(stage === 'explore' && exploreSub === 'graphs') || !artifact) return;
     const runId = artifact.meta.run_id;
     if (graphsSidecar?.runId === runId) return; // fetched, fetching, or errored — loadRun clears to refresh
     // queueMicrotask: the loading-state flip must not run synchronously inside the effect body
@@ -457,7 +466,7 @@ export default function MapView() {
         settle({ runId, data: null, loading: false, error: true });
       }
     })();
-  }, [mode, artifact, graphsSidecar]);
+  }, [stage, exploreSub, artifact, graphsSidecar]);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
@@ -684,7 +693,7 @@ export default function MapView() {
   // V2.0b: the whole-net bike-lane eligibility map (id → metadata) is fetched ONCE here (geometry comes from the
   // base network layer — no per-viewport geometry fetch). Inline async IIFE so the setState is post-await.
   useEffect(() => {
-    if (mode !== 'edit') return;
+    if (stage !== 'build') return;
     fetchJunctions();
     let cancelled = false;
     (async () => {
@@ -711,7 +720,7 @@ export default function MapView() {
       cancelled = true;
       m.off('moveend', onMoveEnd);
     };
-  }, [mode, fetchJunctions]);
+  }, [stage, fetchJunctions]);
 
   // V2.3a — voices streamed so far this enrich (arrival order): the EditPanel live ticker's data.
   // Cleared by loadRun — the done-edge reload swaps in the authoritative artifact and the ticker yields
@@ -1157,7 +1166,7 @@ export default function MapView() {
     setDrawHint(null);
   }, []);
   useEffect(() => {
-    if (!(mode === 'edit' && activeRunId == null && ptA && !ptB)) return;
+    if (!(stage === 'build' && activeRunId == null && ptA && !ptB)) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (vias.length > 0) onUndoBend();
@@ -1165,7 +1174,7 @@ export default function MapView() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mode, activeRunId, ptA, ptB, vias, onUndoBend, resetDraw]);
+  }, [stage, activeRunId, ptA, ptB, vias, onUndoBend, resetDraw]);
 
   const drawAnother = useCallback(() => {
     setActiveRunId(null);
@@ -1210,7 +1219,7 @@ export default function MapView() {
   // Test seam (Playwright): inject a map click / hover at [lon,lat] so the real snap→preview→form→submit path
   // runs without fighting the WebGL canvas hit-test. Present only while in edit mode; inert in production.
   useEffect(() => {
-    if (mode !== 'edit') return;
+    if (stage !== 'build') return;
     const w = window as unknown as {
       __nadiEdit?: (lon: number, lat: number) => void;
       __nadiEditHover?: (lon: number, lat: number) => void;
@@ -1228,7 +1237,7 @@ export default function MapView() {
       delete w.__nadiEditHover;
       delete w.__nadiEditEdge;
     };
-  }, [mode, onEditClick, onEditHover, networkLookup]);
+  }, [stage, onEditClick, onEditHover, networkLookup]);
 
   // Near-miss tooltip — hover on a conflict dot/pulse. Ordinal framing ONLY (never a rate/probability).
   const getTooltip = useCallback((info: PickingInfo) => {
@@ -1254,7 +1263,7 @@ export default function MapView() {
   // __nadiSeek jumps the clock deterministically (playback only; the Timeline keeps advancing
   // from the seeked value — assert promptly or poll the seam).
   useEffect(() => {
-    const playbackNow = mode === 'playback' || (mode === 'discourse' && socialIds.length === 0);
+    const playbackNow = stage === 'watch';
     const items = changeGeom && artifact && changeGeom.runId === artifact.meta.run_id ? changeGeom.items : [];
     (window as unknown as { __nadiChangeOverlay?: unknown }).__nadiChangeOverlay = {
       count: items.length,
@@ -1269,7 +1278,7 @@ export default function MapView() {
         vertices: d.path.length,
       })),
     };
-  }, [changeGeom, artifact, currentTime, mode, socialIds]);
+  }, [changeGeom, artifact, currentTime, stage, socialIds]);
   // (No __nadiSeek seam: a raw setState seek loses races against the Timeline's rAF loop —
   // specs scrub the Timeline slider instead, the app's own pause-and-seek path.)
 
@@ -1513,10 +1522,11 @@ export default function MapView() {
     jointRounded: true,
   });
 
-  // Discourse is only meaningful once a run carries a social block; fall back to playback if it's empty.
-  const effectiveMode = mode === 'discourse' && socialIds.length === 0 ? 'playback' : mode;
-  // V2.3d — the two full-sheet modes occlude the map, so the map chrome hides for both
-  const sheetMode = effectiveMode === 'compare' || effectiveMode === 'graphs';
+  // V2.7a: the Explore SHEETS (compare / graphs / chat) occlude the map, so its chrome hides for
+  // them; Explore·Discourse keeps the map visible behind the feed like the old discourse mode.
+  // The old silent discourse→playback degrade is gone — a run with no social block renders the
+  // LABELED discourse-empty state instead (the graphs precedent: enterable, honest, never dead).
+  const sheetMode = stage === 'explore' && exploreSub !== 'discourse';
 
   // 5.3 CHANGE-VISIBILITY overlay (persistent, ALL modes) — the loaded run's change LOCATION so rerouting cars
   // don't appear to drive through empty space. Derived from the artifact (via the geometry fetch), NOT draw-state.
@@ -1526,7 +1536,7 @@ export default function MapView() {
   // pattern: CPU filter on t, arrays rebuilt per frame). Legacy types keep change-overlay pixel-identical.
   const overlayItems = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.items : [];
   const isOverlayActive = (d: OverlayItem): boolean =>
-    !d.window || effectiveMode !== 'playback' || (t >= d.window.start_s && t <= d.window.end_s);
+    !d.window || stage !== 'watch' || (t >= d.window.start_s && t <= d.window.end_s);
   // V2.2d: time-gating now covers ANY windowed item — a windowed speed_limit (the school zone's
   // members) appears/disappears at its window during playback exactly like the capacity types.
   // Unwindowed legacy items pass isOverlayActive unconditionally (pixel-identical to before).
@@ -1638,9 +1648,9 @@ export default function MapView() {
     incidentMarkerDot,
     incidentMarkerGlyph,
     windowBadge,
-    ...(mode === 'edit' ? [editEdges, draftOverlay, snapTargets, drawPreview] : []),
+    ...(stage === 'build' ? [editEdges, draftOverlay, snapTargets, drawPreview] : []),
   ];
-  const editing = effectiveMode === 'edit';
+  const editing = stage === 'build';
   // Draw interactions are live only while actually drawing — NOT while a run card is shown (else background
   // map clicks would silently mutate ptA/ptB and the snap highlight). "Draw another" clears activeRunId.
   const drawing = editing && activeRunId == null;
@@ -1681,7 +1691,9 @@ export default function MapView() {
 
       {/* Map chrome (header / sample note / change legend) belongs to the MAP — hidden while a
           full SHEET covers it (compare and the V2.3d graph split-view both occlude the map). */}
-      {!sheetMode && <ScenarioHeader scenario={meta.scenario} />}
+      {/* V2.7a: Read hides the top-left map chrome too — the run document IS the description
+          there, and the floating header/legend collide with the panel. */}
+      {!sheetMode && stage !== 'read' && <ScenarioHeader scenario={meta.scenario} />}
 
       {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
           fewer dots than the simulated population must never read as the population itself. */}
@@ -1698,7 +1710,7 @@ export default function MapView() {
 
       {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
           v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
-      {!sheetMode && changeGeom?.runId === meta.run_id && (
+      {!sheetMode && stage !== 'read' && changeGeom?.runId === meta.run_id && (
         overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
             {overlayItems.length === 1 && CAPACITY_TYPES.has(overlayItems[0].type) ? (
@@ -1740,57 +1752,6 @@ export default function MapView() {
         ) : null
       )}
 
-      <div style={modeToggle} data-testid="mode-toggle">
-        <button
-          style={{ ...modeBtn, ...(effectiveMode === 'playback' ? modeBtnActive : null) }}
-          onClick={() => setMode('playback')}
-          data-testid="mode-playback"
-        >
-          ▶ Playback
-        </button>
-        <button
-          style={{
-            ...modeBtn,
-            ...(effectiveMode === 'discourse' ? modeBtnActive : null),
-            ...(hasSocial ? null : modeBtnDisabled),
-          }}
-          onClick={() => hasSocial && setMode('discourse')}
-          disabled={!hasSocial}
-          title={hasSocial ? undefined : 'Run discourse on a run to unlock the cascade view'}
-          data-testid="mode-discourse"
-        >
-          💬 Discourse
-        </button>
-        <button
-          style={{
-            ...modeBtn,
-            ...(effectiveMode === 'edit' ? modeBtnActive : null),
-            ...(STATIC_DEMO ? modeBtnDisabled : null),
-          }}
-          onClick={() => !STATIC_DEMO && setMode('edit')}
-          disabled={STATIC_DEMO}
-          title={STATIC_DEMO ? DEMO_READONLY_NOTE : undefined}
-          data-testid="mode-edit"
-        >
-          ✏️ Edit
-        </button>
-        <button
-          style={{ ...modeBtn, ...(effectiveMode === 'compare' ? modeBtnActive : null) }}
-          onClick={() => setMode('compare')}
-          data-testid="mode-compare"
-        >
-          ⇄ Compare
-        </button>
-        {/* V2.3d — NEVER disabled (unlike discourse): the split-view degrades per panel with
-            honest empty states, so it is enterable on any loaded run. */}
-        <button
-          style={{ ...modeBtn, ...(effectiveMode === 'graphs' ? modeBtnActive : null) }}
-          onClick={() => setMode('graphs')}
-          data-testid="mode-graphs"
-        >
-          🕸 Graphs
-        </button>
-      </div>
 
       {editing ? (
         <EditPanel
@@ -1841,7 +1802,7 @@ export default function MapView() {
           onDraftHover={setHoveredDraftId}
           onClone={cloneToDraft}
         />
-      ) : effectiveMode === 'playback' ? (
+      ) : stage === 'watch' ? (
         <>
           <CommentFeed
             agents={pinnedAgents}
@@ -1923,22 +1884,43 @@ export default function MapView() {
             showAll={showAllConflicts}
             onToggle={() => setShowAllConflicts((s) => !s)}
           />
-          <Timeline
-            simStart={meta.sim_start}
-            simEnd={meta.sim_end}
-            currentTime={t}
-            onSeek={setCurrentTime}
-            vehicleCount={artifact.vehicles.length}
-          />
+          <button
+            style={pbToggle}
+            data-testid="playback-bar-toggle"
+            onClick={() => setPlaybackBarHidden((h) => !h)}
+            title="hiding the bar pauses playback — the clock lives in the bar"
+          >
+            {playbackBarHidden ? 'show playback bar' : 'hide playback bar'}
+          </button>
+          {!playbackBarHidden && (
+            <Timeline
+              simStart={meta.sim_start}
+              simEnd={meta.sim_end}
+              currentTime={t}
+              onSeek={setCurrentTime}
+              vehicleCount={artifact.vehicles.length}
+            />
+          )}
         </>
-      ) : effectiveMode === 'graphs' ? (
+      ) : stage === 'read' ? (
+        // V2.7a interim Read: the report content inside the run-document panel (RunDocument
+        // replaces it wholesale in C3; the panel frame + collapse strip are the keepers).
+        <DocumentPanel
+          title={`RUN DOCUMENT — ${meta.run_id.replace('multimodal-scenario-', '')}`}
+          collapsed={docCollapsed}
+          onToggle={setDocCollapsed}
+          topOffset={78}
+        >
+          <ReportPanel />
+        </DocumentPanel>
+      ) : exploreSub === 'graphs' ? (
         // V2.3d — the two graphs, visibly two graphs (a full sheet; Timeline unmounted → rAF stops)
         <GraphSplitView
           graphs={graphsSidecar?.runId === meta.run_id ? graphsSidecar.data : null}
           loading={graphsSidecar?.runId === meta.run_id ? graphsSidecar.loading : true}
           error={graphsSidecar?.runId === meta.run_id ? graphsSidecar.error : false}
         />
-      ) : effectiveMode === 'compare' ? (
+      ) : exploreSub === 'compare' ? (
         // V2.1d part ii — the sheet occludes the (static) map; Timeline is unmounted so playback's
         // rAF loop stops for free. Picks live in MapView state and survive mode switches.
         <CompareView
@@ -1949,7 +1931,9 @@ export default function MapView() {
           onPickA={pickCompareA}
           onPickB={pickCompareB}
         />
-      ) : (
+      ) : exploreSub === 'chat' ? (
+        <ChatPanel />
+      ) : hasSocial ? (
         <>
           <DiscourseFeed
             cascade={selCascade}
@@ -1962,12 +1946,37 @@ export default function MapView() {
             <ArgumentEngagementPanel rows={selReach} />
           </div>
         </>
+      ) : (
+        // V2.7a — the labeled empty state REPLACES the old disabled 💬 toggle AND the silent
+        // discourse→playback degrade: enterable, honest about why, names the recovery path
+        // (the graphs-panel convention).
+        <div style={discourseEmpty} data-testid="discourse-empty">
+          No simulated discourse on this run yet — the discourse enrich hasn&apos;t run for it. Run it
+          from the run card in the Build stage (voices, then discourse), or open a run that
+          carries a discourse cascade.
+        </div>
       )}
 
-      <button style={reportBtn} onClick={() => setShowReport(true)} data-testid="open-report">
-        📄 Report
-      </button>
-      {showReport && <ReportPanel onClose={() => setShowReport(false)} />}
+      <ShellHeader
+        stage={stage}
+        onStage={setStage}
+        stageState={stageAvailability({
+          hasArtifact: true, // past the early return — the artifact is loaded
+          hasReport: false, // C2 interim: wired to the per-run report's presence in C3
+          hasSocial,
+          hasGraphs: graphsSidecar?.runId === meta.run_id && !!graphsSidecar.data,
+        })}
+        exploreSub={exploreSub}
+        onExploreSub={setExploreSub}
+        runLabelText={meta.run_id.replace('multimodal-scenario-', '')}
+        buildLocked={STATIC_DEMO}
+        onBuildYourOwn={() => {
+          // "Build your own scenario" starts a FRESH draft (the watched run keeps computing
+          // server-side and stays reopenable from the run picker).
+          setStage('build');
+          drawAnother();
+        }}
+      />
     </div>
   );
 }
@@ -1975,8 +1984,8 @@ export default function MapView() {
 // 5.3 change-visibility legend / offline note — top-left, beside the Report button.
 const changeLegend: React.CSSProperties = {
   position: 'absolute',
-  top: 16,
-  left: 132,
+  top: 68, // below the 54px shell header
+  left: 16,
   zIndex: 25,
   display: 'flex',
   alignItems: 'center',
@@ -2034,55 +2043,41 @@ const changeOfflineNote: React.CSSProperties = {
 };
 
 // Top-left affordance to open the full-screen Report view (the generated per-run report).
-const reportBtn: React.CSSProperties = {
-  position: 'absolute',
-  top: 16,
-  left: 16,
-  zIndex: 25,
-  border: '1px solid #d7dbe0',
-  background: 'rgba(255,255,255,0.96)',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
-  padding: '8px 12px',
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#374151',
-  fontFamily: 'system-ui, sans-serif',
-  cursor: 'pointer',
-};
 
 // Mode toggle (Playback ⇄ Discourse ⇄ Edit) — top center, always shown. Discourse is disabled until a run
 // carries a social{} block; Edit is always available (draw a road / run the job runner).
-const modeToggle: React.CSSProperties = {
-  position: 'absolute',
-  top: 16,
-  left: '50%',
-  transform: 'translateX(-50%)',
-  zIndex: 25,
-  display: 'flex',
-  gap: 4,
-  background: 'rgba(255,255,255,0.96)',
-  border: '1px solid #d7dbe0',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
-  padding: 3,
-};
-const modeBtn: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  borderRadius: 8,
-  padding: '6px 12px',
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#6b7280',
-  fontFamily: 'system-ui, sans-serif',
-  cursor: 'pointer',
-};
-const modeBtnActive: React.CSSProperties = { background: '#1f4e9c', color: '#fff' };
-const modeBtnDisabled: React.CSSProperties = { color: '#c2c7cf', cursor: 'not-allowed' };
 
 // Top-right rail: scorecard stacked ABOVE the agent panel. Pointer-transparent so map clicks pass
 // through the gaps; each child card re-enables pointer events on itself.
+const pbToggle: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 88, // beside (left of) the conflict legend, above the bar
+  right: 270,
+  zIndex: 21,
+  border: '1px solid #d7dbe0',
+  background: 'rgba(255,255,255,0.92)',
+  borderRadius: 6,
+  padding: '3px 9px',
+  fontSize: 11,
+  color: '#5d6470',
+  cursor: 'pointer',
+};
+const discourseEmpty: React.CSSProperties = {
+  position: 'absolute',
+  top: 130,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  maxWidth: 460,
+  background: 'rgba(255,255,255,0.97)',
+  border: '1px solid #d7dbe0',
+  borderRadius: 10,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
+  padding: '14px 18px',
+  fontSize: 13.5,
+  lineHeight: 1.6,
+  color: '#374151',
+  zIndex: 20,
+};
 const rightRail: React.CSSProperties = {
   position: 'absolute',
   top: 70,

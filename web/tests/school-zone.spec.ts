@@ -51,9 +51,9 @@ async function mockLoadedRun(page: Page, artifactBody: string, extraRuns: { id: 
 }
 
 async function warmOpen(page: Page) {
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.waitForFunction(() => {
     const s = (window as unknown as { __nadiChangeOverlay?: OverlaySeam }).__nadiChangeOverlay;
     return (s?.count ?? 0) > 0;
@@ -88,10 +88,10 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
 
   await page.goto('/');
   // warm-reload convention (compare.spec.ts): cold dev compile + StrictMode detaches first paint
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.waitForFunction(() => typeof (window as unknown as { __nadiEditEdge?: unknown }).__nadiEditEdge === 'function');
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   await page.getByTestId('option-assignment').check(); // settled BEFORE the zone → must be forced back
@@ -219,10 +219,10 @@ test('the RunCard shows the zone chip (streets + window) and not a duplicate win
       demand_profile: 'synthetic_demo', cars_rerouted: 12, car_median_delta_s: 0.4,
     } }));
   await page.goto('/');
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('zone-chip')).toHaveText('School zone · 3 streets · t=600–1200 s');
@@ -250,7 +250,7 @@ test('compare: composite vs single-change mismatches; vs itself silent; window d
   ]);
   await page.goto(`/?run=${RUN_ID}`);
   await warmOpen(page);
-  await page.getByTestId('mode-compare').click();
+  await page.getByTestId('stage-explore').click();
   await expect(page.getByTestId('compare-view')).toBeVisible();
 
   const pickB = async (id: string) => {

@@ -166,10 +166,10 @@ async function scrubToEnd(page: Page) {
 /** Open '/', warm-reload (StrictMode convention), enter edit mode, select the fixture run. */
 async function openRun(page: Page) {
   await page.goto('/');
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await expect(page.getByTestId('run-switcher')).toBeVisible();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await page.waitForResponse((r) => r.url().includes(`${RUN_ID}.json`));
@@ -203,7 +203,7 @@ test('streamed voices render incrementally while the enrich job is still running
 
   // Playback shows exactly the artifact voices (1 sim + 3 community; the mandate voice renders in
   // its own pinned institutional sub-block, never a community row) — no stream duplicates.
-  await page.getByTestId('mode-playback').click();
+  await page.getByTestId('stage-watch').click();
   await scrubToEnd(page); // all voices fired by sim end
   await expect(page.getByTestId('comment-row')).toHaveCount(1);
   await expect(page.getByTestId('community-row')).toHaveCount(3);
@@ -290,7 +290,7 @@ test('a mid-stream disconnect degrades to the poll without corrupting the panel'
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 25_000 });
   await expect(page.getByTestId('enrich-stream-degraded')).toBeHidden();
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
-  await page.getByTestId('mode-playback').click();
+  await page.getByTestId('stage-watch').click();
   await scrubToEnd(page);
   await expect(page.getByTestId('comment-row')).toHaveCount(1);
   await expect(page.getByTestId('community-row')).toHaveCount(3);

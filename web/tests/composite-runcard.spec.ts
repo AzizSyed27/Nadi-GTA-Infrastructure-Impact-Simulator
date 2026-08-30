@@ -84,12 +84,12 @@ test('untagged mixed composite: composite chip + spanning window; no member-0 wi
   const { body, changes } = mixedArtifact();
   await mockBackend(page, body, changes);
   await page.goto(`/?run=${RUN_ID}`);
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
 
   // the RunCard mounts when a run is selected in the edit rail (the edit.spec switcher pattern)
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
 
@@ -151,10 +151,10 @@ test('V2.5b members shape: the chip counts ENDS, worst added time, honesty sente
   const { body, changes } = mixedArtifact();
   await mockBackend(page, body, changes, MEMBERS_DETOUR);
   await page.goto(`/?run=${RUN_ID}`);
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
 
@@ -182,10 +182,10 @@ test('a shapeless response payload renders the labeled fallback, never a crash',
       'free-flow estimate; does not include congestion the incident induces — a lower bound on added response time',
   });
   await page.goto(`/?run=${RUN_ID}`);
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('response-access-chip')).toContainText(

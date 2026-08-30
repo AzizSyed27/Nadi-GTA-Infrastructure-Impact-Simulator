@@ -68,10 +68,10 @@ test('the windowed lane_closure run card shows the chip + THE numbers with neutr
   await page.goto('/');
   // warm-reload convention (compare.spec.ts): the tiny fixture can land inside StrictMode's
   // double-mount window on a cold dev compile — reload once, then interact.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
 

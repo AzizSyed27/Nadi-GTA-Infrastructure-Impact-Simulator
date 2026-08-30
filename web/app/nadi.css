@@ -1,0 +1,159 @@
+/* V2.7a — the Industry design system, vendored from the ratified Claude Design project
+   ("Nadi traffic simulation redesign" → _ds/industry-…/styles.css). Tokens verbatim; the
+   Google-Fonts @import is replaced by next/font variables (--font-barlow /
+   --font-barlow-condensed, set on <html> in layout.tsx). Only the component classes the
+   V2.7a shell surfaces use are vendored (blueprint / btn / tag / table + base type);
+   carried components keep their inline styles until their own restyle steps (V2.7b–e). */
+
+:root {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-accent-2: #728fab;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale. */
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --font-heading: var(--font-barlow-condensed, "Barlow Condensed"), system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: var(--font-barlow, "Barlow"), system-ui, sans-serif;
+
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-6: 20.4px;
+  --space-8: 27.2px;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+}
+
+/* ── The blueprint frame: square, hairline-bordered, with + registration marks ─────────── */
+.blueprint {
+  position: relative;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+}
+.blueprint > .corner {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.blueprint > .corner::before,
+.blueprint > .corner::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+.blueprint > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.blueprint > .corner::after  { top: 5px; left: 0; width: 100%; height: 1px; }
+.blueprint > .corner.tl { top: -6px; left: -6px; }
+.blueprint > .corner.tr { top: -6px; right: -6px; }
+.blueprint > .corner.bl { bottom: -6px; left: -6px; }
+.blueprint > .corner.br { bottom: -6px; right: -6px; }
+
+/* ── Base type for the new shell surfaces (element styles scope to .nadi-doc so carried
+      components keep today's rendering untouched) ─────────────────────────────────────── */
+.nadi-doc h1, .nadi-doc h2, .nadi-doc h3, .nadi-doc h4, .nadi-doc h5, .nadi-doc h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-2);
+}
+.nadi-doc h1 { font-size: 42px; }
+.nadi-doc h2 { font-size: 32px; }
+.nadi-doc h3 { font-size: 25px; }
+.nadi-doc h4 { font-size: 20px; }
+.nadi-doc h5 { font-size: 16px; }
+.nadi-doc h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.nadi-doc p { margin: 0 0 var(--space-3); }
+.nadi-doc a { color: var(--color-accent); text-underline-offset: 3px; }
+
+.nadi-shell :focus { outline: none; }
+.nadi-shell :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.nadi-shell ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* ── Buttons (blueprint variant: square corners) ───────────────────────────────────────── */
+.nadi-shell .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: 0;
+}
+.nadi-shell .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.nadi-shell .btn-primary { background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); }
+.nadi-shell .btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
+.nadi-shell .btn-primary:active:not(:disabled) { background: var(--color-accent-700); }
+.nadi-shell .btn-secondary { border-color: var(--color-divider); }
+.nadi-shell .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.nadi-shell .btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.nadi-shell .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); border-color: transparent; }
+.nadi-shell .btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+
+/* ── Tags ──────────────────────────────────────────────────────────────────────────────── */
+.nadi-shell .tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: 0;
+}
+.nadi-shell .tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.nadi-shell .tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.nadi-shell .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* ── Tables (the run document's spec table) ────────────────────────────────────────────── */
+.nadi-doc .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.nadi-doc .table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+}
+.nadi-doc .table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}

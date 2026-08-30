@@ -146,7 +146,7 @@ test('the report view renders the institutional section (producer-real fixture)'
   await page.route('**/latest-report.json', (route) => route.fulfill({ json: report }));
   await page.route('**/api/report', (route) => route.fulfill({ json: { report, run_id: 'institutions-fixture' } }));
   await openPlayback(page);
-  await page.getByTestId('open-report').click();
+  await page.getByTestId('stage-read').click(); // V2.7a: the Read stage IS the report surface
 
   const section = page.getByTestId('report-institutional');
   await expect(section).toBeVisible({ timeout: 10_000 });

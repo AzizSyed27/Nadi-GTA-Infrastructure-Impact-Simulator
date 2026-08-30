@@ -21,7 +21,7 @@ export function ScenarioHeader({ scenario }: { scenario?: Scenario }) {
 
 const bar: React.CSSProperties = {
   position: 'absolute',
-  top: 14,
+  top: 68, // below the V2.7a shell header
   left: 16,
   right: 16,
   margin: '0 auto',

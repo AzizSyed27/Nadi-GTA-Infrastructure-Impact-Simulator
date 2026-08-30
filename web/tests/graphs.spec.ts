@@ -140,9 +140,9 @@ async function mockLoadedRun(page: Page, sidecar: Record<string, unknown> | null
 async function warmOpen(page: Page) {
   await page.goto(`/?run=${RUN_ID}`);
   // warm-reload convention: cold dev compile + StrictMode detaches first paint
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   // artifact loaded (the change overlay seam fires once changes resolve against the network)
   await page.waitForFunction(
     () => ((window as unknown as { __nadiChangeOverlay?: { count: number } }).__nadiChangeOverlay?.count ?? 0) > 0,
@@ -151,7 +151,8 @@ async function warmOpen(page: Page) {
 }
 
 async function openGraphs(page: Page) {
-  await page.getByTestId('mode-graphs').click();
+  await page.getByTestId('stage-explore').click();
+  await page.getByTestId('explore-graphs').click();
   await expect(page.getByTestId('graph-split-view')).toBeVisible();
 }
 
@@ -327,8 +328,9 @@ test('pinned run, real fetch: the committed sidecar lands with its EXACT OASIS n
   expect(expectedOasisNodes).toBeGreaterThan(100); // the 212-voice run — sanity on the fixture itself
 
   await page.goto(`/?run=${PINNED}`);
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId('mode-graphs').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('stage-explore').click();
+  await page.getByTestId('explore-graphs').click();
   await expect(page.getByTestId('graph-split-view')).toBeVisible();
   await page.waitForFunction(() => {
     const s = (window as unknown as { __nadiGraphs?: GraphsSeam }).__nadiGraphs;

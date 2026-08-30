@@ -63,9 +63,9 @@ test('the seeds option posts n_seeds=3 and the run shows the seeds chip with pro
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await expect(page.getByTestId('run-options')).toBeVisible();
 
   // Toggle the robustness probe on -> the POST body carries n_seeds: 3.
@@ -97,9 +97,9 @@ test('ranged cells render ranges; sign-unstable cells are neutral with the SIGN?
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(SEED_RUN_ID);
   await page.waitForResponse((r) => r.url().includes(`${SEED_RUN_ID}.json`));
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });

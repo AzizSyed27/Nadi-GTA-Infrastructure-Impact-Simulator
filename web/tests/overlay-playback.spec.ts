@@ -48,9 +48,9 @@ async function mockBackend(page: Page, artifactBody: string) {
 
 async function warmOpen(page: Page) {
   // one warm reload after first paint (cold-compile + StrictMode; see compare.spec.ts)
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.waitForFunction(() => {
     const s = (window as unknown as { __nadiChangeOverlay?: OverlaySeam }).__nadiChangeOverlay;
     return (s?.count ?? 0) > 0;
@@ -103,7 +103,7 @@ test('per-type legend row renders mechanically; edit mode shows windowed overlay
   expect(await legend.innerText()).not.toContain('t=');
 
   // outside playback the overlay always shows (space-truth; time-truth is playback's job)
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   const inEdit = await seamState(page);
   expect(inEdit.items[0].active).toBe(true);
 

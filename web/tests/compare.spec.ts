@@ -135,12 +135,12 @@ async function openCompare(page: Page, runA = 'cmp-settled') {
   // error overlay replaces the app). One warm reload after first paint sidesteps it — production
   // builds have no StrictMode double-mount, and real artifacts (tens of MB) never hit the window.
   await page.goto(`/?run=${runA}`);
-  await page.getByTestId('mode-compare').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-explore').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-compare')).toBeVisible({ timeout: 20_000 }); // same budget as the deep-link path (:245)
+  await expect(page.getByTestId('stage-explore')).toBeVisible({ timeout: 20_000 }); // same budget as the deep-link path (:245)
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   await expect(async () => {
-    await page.getByTestId('mode-compare').click({ timeout: 2000 });
+    await page.getByTestId('stage-explore').click({ timeout: 2000 });
     await expect(page.getByTestId('compare-view')).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 20_000 });
 }

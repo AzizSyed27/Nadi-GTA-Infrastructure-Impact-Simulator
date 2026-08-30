@@ -78,10 +78,10 @@ async function mockBackend(
 
 async function openRunCard(page: Page) {
   await page.goto(`/?run=${RUN_ID}`);
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-card')).toBeVisible();
 }
@@ -132,8 +132,8 @@ test('rename renders on the card + picker and survives reload; note round-trips'
 
   // and a full reload re-reads it from the (mock-persisted) sidecar
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await expect(page.getByTestId('run-name')).toHaveText('Kingston pilot v2');
 

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 
 import type { Scorecard, ScorecardGroup } from '@/lib/types';
 import { GROUP_LABEL, SCORECARD_GROUP_ORDER } from '@/lib/personaGroups';
-import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import { badgeLow, badgeMeas, chipInferred, chipSim, ScoreCell } from '@/lib/scorecardStyles';
 
 // The report is a SEPARATE artifact (not on the frozen trajectory contract), written by python/src/report.py
@@ -95,12 +94,13 @@ interface Report {
 }
 
 /**
- * Full-screen Report view (toggled from the map). Renders the STRUCTURED report JSON — not raw markdown —
- * so the scorecard keeps the map panel's exact badge/muting/± treatment (a flat markdown table couldn't).
- * The companion /latest-report.md stays the portable/export artifact. Framing stays anticipation, never a
- * verdict; nothing here tallies stance.
+ * The report content — V2.7a interim: rendered INSIDE the Read stage's DocumentPanel (the old
+ * full-screen overlay + 📄 button died with the mode toggle; the chat moved to Explore · Chat).
+ * Renders the STRUCTURED report JSON — not raw markdown — so the scorecard keeps the map panel's
+ * exact badge/muting/± treatment. Framing stays anticipation, never a verdict; nothing here
+ * tallies stance. Replaced wholesale by RunDocument in V2.7a C3.
  */
-export function ReportPanel({ onClose }: { onClose: () => void }) {
+export function ReportPanel() {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAudit, setShowAudit] = useState(false);
@@ -124,12 +124,8 @@ export function ReportPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <div style={overlay} data-testid="report-panel">
-      <div style={sheet}>
-        <button style={close} onClick={onClose} aria-label="Close report">
-          ×
-        </button>
-
+    <div style={sheet} data-testid="report-panel">
+      <div>
         {error && <div style={muted}>Could not load the report ({error}). Generate it with report.py.</div>}
         {!report && !error && <div style={muted}>Loading report…</div>}
 
@@ -364,130 +360,9 @@ export function ReportPanel({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             )}
-
-            <ChatSection />
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-const API_BASE = 'http://localhost:8000';
-const STARTERS = ['What would business owners object to?', 'Who is hit hardest?', 'Did the street get safer?'];
-
-interface ChatMsg {
-  role: 'user' | 'agent';
-  text: string;
-  sources?: string[];
-  audit?: string;
-  down?: boolean;
-}
-
-/**
- * Ask-the-report chat. Every answer is grounded in this run's corpus and passes the SAME honesty audit the
- * report obeys (server-side) — anticipation, never a verdict, no safety direction, no vote tally. Answers are
- * qualitative (numbers live in the tables above). Degrades gracefully if the agent server isn't running.
- */
-function ChatSection() {
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function ask(q: string) {
-    const question = q.trim();
-    if (!question || loading) return;
-    setMessages((m) => [...m, { role: 'user', text: question }]);
-    setInput('');
-    setLoading(true);
-    try {
-      const r = await fetch(`${API_BASE}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
-      setMessages((m) => [...m, { role: 'agent', text: d.answer, sources: d.sources, audit: d.audit?.status }]);
-    } catch {
-      setMessages((m) => [...m, { role: 'agent', text: '', down: true }]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div style={{ marginTop: 26 }} data-testid="chat-panel">
-      <h2 style={h2}>Ask the report</h2>
-      <div style={subtle}>
-        Grounded in this run only — anticipation, never a verdict. Answers are qualitative; for exact figures,
-        read the tables above.
-      </div>
-
-      {messages.length === 0 && !STATIC_DEMO && (
-        <div style={starterWrap}>
-          {STARTERS.map((s) => (
-            <button key={s} style={starterBtn} data-testid="chat-starter" onClick={() => ask(s)}>
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div style={chatLog}>
-        {messages.map((m, i) =>
-          m.role === 'user' ? (
-            <div key={i} style={userMsg} data-testid="chat-message">
-              {m.text}
-            </div>
-          ) : (
-            <div key={i} style={agentMsg} data-testid="chat-message">
-              {m.down ? (
-                <span style={{ color: '#b45309' }}>
-                  Couldn&apos;t reach the report agent. Start it with{' '}
-                  <code>uvicorn server:app --port 8000</code> (from <code>python/src</code>), then retry.
-                </span>
-              ) : (
-                <>
-                  <div>{m.text}</div>
-                  {m.sources && m.sources.length > 0 && (
-                    <div style={chatSources} data-testid="chat-sources">
-                      drew on: {m.sources.slice(0, 6).join(' · ')}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ),
-        )}
-        {loading && <div style={{ ...agentMsg, color: '#9aa0a6' }}>…thinking</div>}
-      </div>
-
-      {STATIC_DEMO ? (
-        // V2.5d demo: the chat needs the live agent — say so as a property, never a failure
-        <div style={{ ...agentMsg, color: '#9aa0a6' }} data-testid="demo-readonly-note">
-          {DEMO_READONLY_NOTE}
-        </div>
-      ) : (
-        <form
-          style={chatForm}
-          onSubmit={(e) => {
-            e.preventDefault();
-            ask(input);
-          }}
-        >
-          <input
-            style={chatInput}
-            data-testid="chat-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about this run — a group, the scorecard, the limits…"
-          />
-          <button style={chatSend} data-testid="chat-send" type="submit" disabled={loading}>
-            Ask
-          </button>
-        </form>
-      )}
     </div>
   );
 }
@@ -520,16 +395,6 @@ function Scorecards({ scorecard }: { scorecard: Scorecard }) {
   );
 }
 
-const overlay: React.CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  zIndex: 50,
-  background: 'rgba(30,33,40,0.45)',
-  display: 'grid',
-  placeItems: 'start center',
-  overflowY: 'auto',
-  padding: '32px 16px 64px',
-};
 const sheet: React.CSSProperties = {
   position: 'relative',
   width: 'min(860px, 100%)',
@@ -540,17 +405,6 @@ const sheet: React.CSSProperties = {
   fontFamily: 'system-ui, sans-serif',
   color: '#1f2937',
   lineHeight: 1.5,
-};
-const close: React.CSSProperties = {
-  position: 'absolute',
-  top: 14,
-  right: 18,
-  border: 'none',
-  background: 'transparent',
-  fontSize: 26,
-  lineHeight: 1,
-  color: '#9aa0a6',
-  cursor: 'pointer',
 };
 const kicker: React.CSSProperties = {
   fontSize: 10,
@@ -675,61 +529,3 @@ const auditClean: React.CSSProperties = { color: '#5fd58a', fontWeight: 700 };
 const auditFixed: React.CSSProperties = { color: '#e6b64c', fontWeight: 700 };
 const auditViol: React.CSSProperties = { color: '#9aa0a6' };
 
-const starterWrap: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, margin: '10px 0 4px' };
-const starterBtn: React.CSSProperties = {
-  border: '1px solid #d7dbe0',
-  background: '#f7f9fc',
-  borderRadius: 16,
-  padding: '6px 12px',
-  fontSize: 12.5,
-  color: '#374151',
-  cursor: 'pointer',
-  fontFamily: 'system-ui, sans-serif',
-};
-const chatLog: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8, margin: '10px 0' };
-const userMsg: React.CSSProperties = {
-  alignSelf: 'flex-end',
-  maxWidth: '85%',
-  background: '#e8f0fe',
-  color: '#1f2937',
-  borderRadius: '12px 12px 2px 12px',
-  padding: '8px 12px',
-  fontSize: 13.5,
-};
-const agentMsg: React.CSSProperties = {
-  alignSelf: 'flex-start',
-  maxWidth: '92%',
-  background: '#f3f4f6',
-  color: '#1f2937',
-  borderRadius: '12px 12px 12px 2px',
-  padding: '9px 13px',
-  fontSize: 13.5,
-  lineHeight: 1.5,
-};
-const chatSources: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 11,
-  color: '#7c5aa8',
-  borderTop: '1px solid #e4e0ee',
-  paddingTop: 5,
-};
-const chatForm: React.CSSProperties = { display: 'flex', gap: 8, marginTop: 4 };
-const chatInput: React.CSSProperties = {
-  flex: 1,
-  border: '1px solid #d7dbe0',
-  borderRadius: 8,
-  padding: '9px 12px',
-  fontSize: 13.5,
-  fontFamily: 'system-ui, sans-serif',
-  outline: 'none',
-};
-const chatSend: React.CSSProperties = {
-  border: 'none',
-  background: '#1f4e9c',
-  color: '#fff',
-  borderRadius: 8,
-  padding: '0 18px',
-  fontSize: 13.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

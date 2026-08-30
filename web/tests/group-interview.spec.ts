@@ -370,9 +370,9 @@ test('ephemerality: a run swap kills the room; a reload loses it too; nothing pe
   expect(captured).toHaveLength(3);
 
   // run swap via the edit-rail switcher (the composite-runcard pattern) → loadRun clears the room
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption('swap-target');
-  await page.getByTestId('mode-playback').click();
+  await page.getByTestId('stage-watch').click();
   await expect(page.getByTestId('room-drawer')).toHaveCount(0); // the session died with the swap
   expect(captured).toHaveLength(3); // the swap itself posted nothing
 

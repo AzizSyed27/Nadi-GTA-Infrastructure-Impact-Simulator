@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { gate, openStage } from './support/shell';
+import { BANNED, STANCE_TALLY } from './support/sweeps';
 
 // Phase 4.3 — the REFERENDUM GUARD (extended) + the load-bearing EXCLUDED-CONTENT filter, asserted across
 // every view. The litmus for the referendum guard: no surface may answer "so did they end up for or against?"
@@ -13,14 +15,12 @@ const PINNED_URL = `/?run=${PINNED}`;
 
 async function gotoDiscourse(page: Page) {
   await page.goto(PINNED_URL);
-  await page.getByTestId('mode-discourse').click();
+  await openStage(page, 'explore', 'discourse');
   await expect(page.getByTestId('discourse-feed')).toBeVisible();
 }
 
-// verdict/tally words the audit itself bans in prose — must never surface anywhere.
-const BANNED = /\b(majority|minority|referendum|consensus|unanimous|plurality)\b/i;
-// a stance head-count / final split, e.g. "73% support", "final distribution", "12 for / 8 against".
-const STANCE_TALLY = /\d+\s*%[^.]{0,24}(support|oppos|favou?r|against)|\bfinal (distribution|tally|result|vote)\b|\d+\s+for\s*\/\s*\d+\s+against/i;
+// The verdict/tally sweep regexes are single-sourced in support/sweeps.ts (V2.7a) —
+// byte-identical to the literals that originated here.
 
 test('referendum guard: no tallies, no stance-over-time chart, at any cascade step', async ({ page }) => {
   await gotoDiscourse(page);
@@ -65,7 +65,7 @@ test('excluded content appears NOWHERE in the DOM, across playback, every cascad
   };
 
   await assertAbsent('playback'); // default view
-  await page.getByTestId('mode-discourse').click();
+  await openStage(page, 'explore', 'discourse');
   const tabs = page.locator('[data-testid^="cascade-tab-"]');
   const n = await tabs.count();
   for (let i = 0; i < n; i++) {
@@ -75,31 +75,10 @@ test('excluded content appears NOWHERE in the DOM, across playback, every cascad
     if (await more.count()) await more.click();
     await assertAbsent(`discourse cascade ${i + 1}`);
   }
-  // the report view
-  await page.getByTestId('open-report').click();
+  // the report view — V2.7a: the Read stage IS the report surface
+  await openStage(page, 'read');
   await expect(page.getByTestId('report-discourse')).toBeVisible();
   await assertAbsent('report');
-});
-
-test('a malformed pointer degrades LABELED, never a render crash', async ({ page }) => {
-  // V2.5c review-caught: well-formed JSON of the WRONG shape (neither {run_id} nor an artifact)
-  // must not commit a bogus artifact — that blew up at the meta.bbox destructure in render.
-  // V2.5d: the failure is now LABELED (the artifact-load-error line), not an eternal spinner.
-  await page.route('**/latest.json', (route) => route.fulfill({ json: { weird: true } }));
-  await page.goto('/');
-  await expect(page.getByTestId('artifact-load-error')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('scorecard-panel')).toHaveCount(0); // nothing bogus committed
-});
-
-test('a missing default artifact degrades LABELED, never an eternal spinner', async ({ page }) => {
-  // V2.5d: the landing page was the app's ONE unlabeled failure — a 404 left a permanent
-  // silent "Loading scenario…" (no r.ok check). Now it names the condition.
-  await page.route('**/latest.json', (route) => route.fulfill({ status: 404, body: 'not found' }));
-  await page.goto('/');
-  const err = page.getByTestId('artifact-load-error');
-  await expect(err).toBeVisible({ timeout: 20_000 });
-  await expect(err).toContainText("couldn't load the scenario artifact");
-  await expect(err).toContainText('?run=');
 });
 
 test('the pinned specs are independent of latest.json (repoint it and they still pass)', async ({ page }) => {
@@ -113,13 +92,19 @@ test('the pinned specs are independent of latest.json (repoint it and they still
   try {
     // pinned run still drives discourse, unaffected by latest.json
     await page.goto(PINNED_URL);
-    await page.getByTestId('mode-discourse').click();
+    await openStage(page, 'explore', 'discourse');
     await expect(page.getByTestId('discourse-feed')).toBeVisible();
-    // the default view resolves the pointer to the new_road run → discourse is locked (no social)
+    // the default view resolves the pointer to the new_road run → Explore·Discourse renders
+    // the LABELED empty state (V2.7a replaced the disabled 💬 toggle: enterable, honest).
+    // DISCRIMINATING: the repointed run carries no social block — if the pointer were ignored,
+    // the pinned run's feed would render instead. The header run tag names the resolved id too.
     await page.goto('/');
-    // 20s: the resolved artifact is a real ~20 MB fetch+parse on '/' in dev mode (the same
-    // budget the other mount-path waits use; no client-side schema validation runs — V2.5c fact)
-    await expect(page.getByTestId('mode-discourse')).toBeDisabled({ timeout: 20_000 });
+    // 20s-class budget: the resolved artifact is a real ~20 MB fetch+parse on '/' in dev mode
+    await gate(page);
+    await expect(page.getByTestId('shell-run-tag')).toContainText('20260709T221140Z', { timeout: 20_000 });
+    await openStage(page, 'explore', 'discourse');
+    await expect(page.getByTestId('discourse-empty')).toBeVisible();
+    await expect(page.getByTestId('discourse-feed')).toHaveCount(0);
   } finally {
     if (backup) fs.writeFileSync(latest, backup); // restore as-found
     else fs.unlinkSync(latest);

@@ -79,15 +79,15 @@ async function enterEditAndLoadJunctions(page: Page) {
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 }); // artifact loaded → map mounted → getBounds works
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 }); // artifact loaded → map mounted → getBounds works
   // Hydration guard (the sibling tests' own convention, :176): the button can be VISIBLE before
   // React attaches handlers on a cold dev compile — a pre-hydration click fires no junctions fetch.
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   // Arm the response wait BEFORE the click so a fast junctions fetch can't slip past it.
   const jResp = page.waitForResponse((r) => r.url().includes('/api/junctions'));
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await expect(page.getByTestId('edit-panel')).toBeVisible();
   await expect(page.getByTestId('draw-card')).toBeVisible();
   await jResp;
@@ -157,9 +157,9 @@ test('the run switcher restores a prior run', async ({ page }) => {
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await expect(page.getByTestId('run-switcher')).toBeVisible();
 
   // Pick the prior run → its artifact reloads and its (completed) run card shows.
@@ -176,15 +176,19 @@ test('discourse mode is locked until a run carries a social block', async ({ pag
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   // Load a new_road run (no social) explicitly, then assert Discourse is locked — independent of latest.json,
   // which is now an arbitrary editor pointer.
-  await page.getByTestId('mode-edit').click();
+  await page.getByTestId('stage-build').click();
   await page.getByTestId('run-select').selectOption(RUN_ID);
   await page.waitForResponse((r) => r.url().includes(`${RUN_ID}.json`));
-  // The loaded new_road run has no social → the Discourse toggle is disabled.
-  await expect(page.getByTestId('mode-discourse')).toBeDisabled();
+  // The loaded new_road run has no social → Explore·Discourse renders the LABELED empty
+  // state (V2.7a replaced the disabled 💬 toggle — enterable, honest about why).
+  await page.getByTestId('stage-explore').click();
+  await page.getByTestId('explore-discourse').click();
+  await expect(page.getByTestId('discourse-empty')).toBeVisible();
+  await expect(page.getByTestId('discourse-feed')).toHaveCount(0);
 });
 
 // ---- 5.2b: edit an existing edge ----
@@ -193,11 +197,11 @@ async function enterEditForEdges(page: Page) {
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   // 20s: generous first-paint budget (the default artifact is the mocked pointer pair since V2.5c).
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId('mode-edit').click();
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('stage-build').click();
   await expect(page.getByTestId('edit-panel')).toBeVisible();
   await page.waitForFunction(() => typeof (window as unknown as { __nadiEditEdge?: unknown }).__nadiEditEdge === 'function');
   // V2.0b: the seam looks the edge up in the loaded network map — wait for network.json to land first.
@@ -251,10 +255,10 @@ test('the exported network renders as the base road layer (all modes)', async ({
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   // map mounted — 20s: generous first-paint budget (mocked pointer pair since V2.5c)
-  await expect(page.getByTestId('mode-edit')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   // The network loaded and set the deterministic seam — the drawn roads ARE the simulation's roads.
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   const count = await page.evaluate(() => (window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges);
@@ -407,7 +411,7 @@ async function overlayVertices(page: Page, body: string): Promise<number | undef
   await mockBackend(page);
   await mockDefaultArtifactBody(page, body); // later registration wins — replaces the default body
   await page.goto('/');
-  await page.getByTestId('mode-edit').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('change-legend')).toContainText('proposed road', { timeout: 20_000 });
   return page.evaluate(
