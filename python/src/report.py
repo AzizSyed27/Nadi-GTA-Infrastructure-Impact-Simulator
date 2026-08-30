@@ -1802,6 +1802,88 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
 # Orchestration
 # ===================================================================================================
 
+def _report_json_facts(facts: dict) -> dict:
+    """V2.7a — the CODE-DERIVED facts block for the run document: every fact that previously
+    reached only the markdown, structured. Every key is ALWAYS present; a null value is an
+    honest absence for this run (absence must stay distinguishable from omission)."""
+    def _jsonable(v):
+        # vintage-dependent fields: meta.assignment (0.7.0+) / meta.render_sample (0.6.0+) are
+        # pydantic MODELS on modern artifacts and None/absent on older ones — emit plain JSON.
+        return v.model_dump(mode="json", exclude_none=True) if isinstance(v, BaseModel) else v
+
+    return {
+        "changes": [c.model_dump(mode="json", exclude_none=True) for c in facts["changes"]],
+        "assignment": _jsonable(facts["assignment"]),
+        "demand_profile": facts["demand_profile"],
+        "sim_end": facts["sim_end"],
+        "tags": facts["tags"],
+        "n_seeds": facts["n_seeds"],
+        "seed_basis": facts["seed_basis"],
+        "sign_unstable_cells": facts["sign_unstable_cells"],
+        "non_completions": facts["non_completions"],
+        "non_completions_split": facts["non_completions_split"],
+        "insertion_backlog": facts["insertion_backlog"],
+        "window_events": facts["window_events"],
+        "response_detour": facts["response_detour"],
+        "zone_facts": facts["zone_facts"],
+        "scope_disclosure": facts["scope_disclosure"],
+        "calibration": facts["calibration"],
+        "render_sample": _jsonable(facts["render_sample"]),
+    }
+
+
+def _assemble_report_json(facts: dict, artifact: TrajectoryArtifact, verdict: dict | None,
+                          dfacts: dict | None, caveats: list[dict], *,
+                          framing: str, glosses: dict, what_they_say: dict,
+                          discourse_prose: dict | None, caveat_intro: str,
+                          audit_block: dict, provenance: dict, sources: list[str]) -> dict:
+    """The ONE report_json builder — generate() (fresh LLM prose) and refresh_facts() (stored
+    prose) both route through it, so the code-derived shape can never fork between the two
+    (the V2.3a single-builder mechanic)."""
+    report_json = {
+        "report_version": REPORT_VERSION,
+        "generated_at": provenance["generated_at"],
+        "provider": provenance["provider"], "model": provenance["model"],
+        "usage": provenance.get("usage"),
+        # V2.7a: top-level run id — reconstructing it from the report FILENAME is a silent-no-op
+        # trap (str.replace on an unprefixed stem); consumers read this, then cross-check.
+        "run_id": facts["scenario_run_id"],
+        "run": {
+            "scenario_run_id": facts["scenario_run_id"], "baseline_run_id": facts["baseline_run_id"],
+            "network": facts["network"], "seeds": facts["seeds"], "thresholds": facts["thresholds"],
+            "demand": facts["demand"], "cars_rerouted": facts["cars_rerouted"],
+            "severed_edges": facts["severed_edges"],
+        },
+        "scenario_change": facts["change"].model_dump(mode="json"),
+        "facts": _report_json_facts(facts),
+        "scorecard": artifact.scorecard.model_dump(mode="json", exclude_none=True),
+        "car_tail": {
+            "median_s": facts["tail_median_s"], "share_gt30_pct": facts["tail_share_pct"],
+            "cross_seed": verdict, "cross_seed_available": verdict is not None,
+            "sentence": _cross_seed_sentence(facts),
+        },
+        "sections": {
+            "what_tested": {"framing": framing},
+            "who_affected": {"group_order": GROUP_ORDER, "group_labels": GROUP_LABEL, "glosses": glosses},
+            "what_they_say": what_they_say,
+            # V2.3c — code-rendered; None on pre-0.9.0 artifacts (the web view renders nothing)
+            "institutional": build_institutional_section(facts),
+            "discourse": ({"synthesis": discourse_prose["synthesis"], "quotes": discourse_prose["quotes"],
+                           "cascade_ids": dfacts["cascade_ids"], "reach": dfacts["reach"],
+                           "dominant": dfacts["dominant"], "diverge": dfacts["diverge"],
+                           "shifts": dfacts["shifts"], "excluded_count": dfacts["excluded_count"],
+                           "excluded_by": dfacts["excluded_by"]}
+                          if (dfacts and discourse_prose) else None),
+            "cannot_tell": {"intro": caveat_intro, "caveats": caveats},
+        },
+        "audit": audit_block,
+        "sources": sources,
+    }
+    if provenance.get("facts_refreshed_at"):
+        report_json["facts_refreshed_at"] = provenance["facts_refreshed_at"]
+    return report_json
+
+
 async def generate(run_id: str | None) -> tuple[Path, Path]:
     art_path, ts = _resolve(run_id)
     artifact = trajectory_io.load_artifact(art_path)
@@ -1863,42 +1945,17 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     if verdict:
         sources.append(f"robustness-verdict-{ts}.json")
 
-    report_json = {
-        "report_version": REPORT_VERSION,
-        "generated_at": generated_at,
-        "provider": provider, "model": model, "usage": getattr(client, "usage", None),
-        "run": {
-            "scenario_run_id": facts["scenario_run_id"], "baseline_run_id": facts["baseline_run_id"],
-            "network": facts["network"], "seeds": facts["seeds"], "thresholds": facts["thresholds"],
-            "demand": facts["demand"], "cars_rerouted": facts["cars_rerouted"],
-            "severed_edges": facts["severed_edges"],
-        },
-        "scenario_change": facts["change"].model_dump(mode="json"),
-        "scorecard": artifact.scorecard.model_dump(mode="json", exclude_none=True),
-        "car_tail": {
-            "median_s": facts["tail_median_s"], "share_gt30_pct": facts["tail_share_pct"],
-            "cross_seed": verdict, "cross_seed_available": verdict is not None,
-            "sentence": _cross_seed_sentence(facts),
-        },
-        "sections": {
-            "what_tested": {"framing": framing},
-            "who_affected": {"group_order": GROUP_ORDER, "group_labels": GROUP_LABEL, "glosses": glosses},
-            "what_they_say": {
-                "groups": [{"key": bk, "label": BUCKET_LABEL[bk], **syntheses[bk]}
-                           for bk in BUCKET_ORDER if bk in syntheses],
-            },
-            # V2.3c — code-rendered; None on pre-0.9.0 artifacts (the web view renders nothing)
-            "institutional": build_institutional_section(facts),
-            "discourse": ({"synthesis": discourse["synthesis"], "quotes": discourse["quotes"],
-                           "cascade_ids": dfacts["cascade_ids"], "reach": dfacts["reach"],
-                           "dominant": dfacts["dominant"], "diverge": dfacts["diverge"],
-                           "shifts": dfacts["shifts"], "excluded_count": dfacts["excluded_count"],
-                           "excluded_by": dfacts["excluded_by"]} if dfacts else None),
-            "cannot_tell": {"intro": caveat_intro, "caveats": caveats},
-        },
-        "audit": {"passed": True, "slots_checked": len(audit_log), "summary": audit_summary, "log": audit_log},
-        "sources": sources,
-    }
+    report_json = _assemble_report_json(
+        facts, artifact, verdict, dfacts, caveats,
+        framing=framing, glosses=glosses,
+        what_they_say={"groups": [{"key": bk, "label": BUCKET_LABEL[bk], **syntheses[bk]}
+                                  for bk in BUCKET_ORDER if bk in syntheses]},
+        discourse_prose=discourse, caveat_intro=caveat_intro,
+        audit_block={"passed": True, "slots_checked": len(audit_log), "summary": audit_summary,
+                     "log": audit_log},
+        provenance={"generated_at": generated_at, "provider": provider, "model": model,
+                    "usage": getattr(client, "usage", None)},
+        sources=sources)
 
     md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
                          dfacts=dfacts, discourse=discourse)
@@ -1910,6 +1967,9 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(md_path, WEB_PUBLIC / "latest-report.md")
     shutil.copyfile(json_path, WEB_PUBLIC / "latest-report.json")
+    # V2.7a — the per-run web copy (the graphs-sidecar pattern): the run document resolves
+    # /<run_id>-report.json by the run id it already holds; no pointer of its own.
+    shutil.copyfile(json_path, WEB_PUBLIC / f"{facts['scenario_run_id']}-report.json")
 
     # audit log to stdout (a caught-then-corrected violation is the system working)
     print("\n=== AUDIT LOG ===")
@@ -1923,11 +1983,95 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     return md_path, json_path
 
 
+def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
+    """V2.7a — re-derive every CODE-RENDERED field of an existing report from the run's artifact
+    + sidecars, REUSING the stored LLM prose and audit block byte-identically. ZERO LLM calls.
+
+    Writes report-<ts>.{md,json} + the per-run web copy, and NEVER latest-report.* — a refresh
+    of an old run silently repointing the served singleton is the recorded 2026-08-13 incident
+    class. EXPLICIT run id only: a newest-run default here is the resolver-family bug class."""
+    if not run_id:
+        raise SystemExit("--refresh-facts requires an explicit --run-id (no newest-run default).")
+    art_path, ts = _resolve(run_id)
+    artifact = trajectory_io.load_artifact(art_path)
+    if artifact.scorecard is None or not artifact.scorecard.groups:
+        raise SystemExit(f"{art_path.name} has no scorecard — run scorecard.py first.")
+    outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
+    if outcomes.get("scenario_run_id") != artifact.meta.run_id:
+        raise SystemExit(f"run-id mismatch: outcomes {outcomes.get('scenario_run_id')!r} != "
+                         f"artifact {artifact.meta.run_id!r}")
+    old_path = RUNS_DIR / f"report-{ts}.json"
+    if not old_path.is_file():
+        raise SystemExit(f"stored report not found: {old_path.name} — a refresh reuses stored LLM "
+                         f"prose; generate the report first.")
+    old = json.loads(old_path.read_text(encoding="utf-8"))
+    stored_run = (old.get("run") or {}).get("scenario_run_id") or old.get("run_id")
+    if stored_run != artifact.meta.run_id:
+        raise SystemExit(f"stored {old_path.name} is for {stored_run!r}, not "
+                         f"{artifact.meta.run_id!r} — refusing to refresh across runs.")
+
+    verdict = _load_verdict(ts, artifact)
+    facts = gather_facts(artifact, outcomes, verdict)
+    verify_facts(facts, artifact, outcomes)  # A4b — the refreshed facts obey the same fact check
+
+    dfacts = discourse_facts(artifact)
+    caveats = build_caveats(facts, has_discourse=dfacts is not None)
+    sections = old.get("sections") or {}
+    framing = (sections.get("what_tested") or {}).get("framing") or ""
+    glosses = (sections.get("who_affected") or {}).get("glosses") or {}
+    what_they_say = sections.get("what_they_say") or {"groups": []}
+    stored_discourse = sections.get("discourse")
+    # discourse prose exists only if the ORIGINAL generation produced it AND the artifact still
+    # carries a social block — a refresh never fabricates a section the original didn't have.
+    discourse_prose = ({"synthesis": stored_discourse["synthesis"],
+                        "quotes": stored_discourse.get("quotes", [])}
+                       if (stored_discourse and dfacts) else None)
+    caveat_intro = (sections.get("cannot_tell") or {}).get("intro") or ""
+    audit_block = old.get("audit") or {}
+
+    sources = [art_path.name, f"outcomes-{ts}.json", f"conflicts-baseline-{ts}.json"]
+    if verdict:
+        sources.append(f"robustness-verdict-{ts}.json")
+
+    report_json = _assemble_report_json(
+        facts, artifact, verdict, dfacts, caveats,
+        framing=framing, glosses=glosses, what_they_say=what_they_say,
+        discourse_prose=discourse_prose, caveat_intro=caveat_intro, audit_block=audit_block,
+        provenance={"generated_at": old.get("generated_at"), "provider": old.get("provider"),
+                    "model": old.get("model"), "usage": old.get("usage"),
+                    "facts_refreshed_at": datetime.now(timezone.utc).isoformat()},
+        sources=sources)
+
+    syntheses = {g["key"]: {k: v for k, v in g.items() if k not in ("key", "label")}
+                 for g in what_they_say.get("groups", [])}
+    meta = {"generated_at": old.get("generated_at"), "provider": old.get("provider"),
+            "model": old.get("model"), "audit_summary": audit_block.get("summary", "")}
+    md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
+                         dfacts=dfacts if discourse_prose else None, discourse=discourse_prose)
+
+    md_path = RUNS_DIR / f"report-{ts}.md"
+    json_path = RUNS_DIR / f"report-{ts}.json"
+    md_path.write_text(md, encoding="utf-8")
+    json_path.write_text(json.dumps(report_json, indent=2, ensure_ascii=False), encoding="utf-8")
+    WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(json_path, WEB_PUBLIC / f"{facts['scenario_run_id']}-report.json")
+    print(f"[report] refreshed facts for {facts['scenario_run_id']} — wrote {md_path.name} + "
+          f"{json_path.name} + web/public/{facts['scenario_run_id']}-report.json "
+          f"(latest-report.* deliberately untouched; prose + audit reused verbatim)")
+    return md_path, json_path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate the credibility-first run report (Phase 3.1).")
     ap.add_argument("--run-id", default=None, help="artifact stem (default: newest multimodal-scenario)")
+    ap.add_argument("--refresh-facts", action="store_true",
+                    help="re-derive the code-rendered facts of an EXISTING report (stored LLM prose "
+                         "reused verbatim, zero LLM calls, latest-report.* untouched); requires --run-id")
     args = ap.parse_args()
-    asyncio.run(generate(args.run_id))
+    if args.refresh_facts:
+        refresh_facts(args.run_id)
+    else:
+        asyncio.run(generate(args.run_id))
 
 
 if __name__ == "__main__":

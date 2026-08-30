@@ -1,0 +1,743 @@
+{
+  "report_version": "3.1",
+  "generated_at": "2026-08-14T06:51:04.116049+00:00",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "usage": {
+    "prompt_cache_hit_tokens": 4480,
+    "prompt_cache_miss_tokens": 3735,
+    "completion_tokens": 779,
+    "calls": 10
+  },
+  "run_id": "multimodal-scenario-20260814T063253Z",
+  "run": {
+    "scenario_run_id": "multimodal-scenario-20260814T063253Z",
+    "baseline_run_id": "multimodal-baseline-20260814T063253Z",
+    "network": "corridor.net.xml",
+    "seeds": [
+      42
+    ],
+    "thresholds": {
+      "ttc_s": 3.0,
+      "veh_pet_s": 2.0,
+      "ped_pet_s": 5.0,
+      "materiality_s": 30
+    },
+    "demand": {
+      "car": 300,
+      "bicycle": 82,
+      "pedestrian": 129
+    },
+    "cars_rerouted": 5,
+    "severed_edges": []
+  },
+  "scenario_change": {
+    "type": "road_closure",
+    "target_edge": "-36784353#20",
+    "target_lane": null,
+    "target_lanes": null,
+    "value_mps": null,
+    "window": {
+      "start_s": 600.0,
+      "end_s": 1200.0
+    },
+    "effect": null,
+    "position_m": null,
+    "description": "Closed edge -36784353#20 (all lanes) from t=600 s to t=1200 s",
+    "from_junction": null,
+    "to_junction": null,
+    "lanes": null,
+    "speed_mps": null,
+    "bidirectional": null,
+    "via": null
+  },
+  "facts": {
+    "changes": [
+      {
+        "type": "road_closure",
+        "target_edge": "-36784353#20",
+        "window": {
+          "start_s": 600.0,
+          "end_s": 1200.0
+        },
+        "description": "Closed edge -36784353#20 (all lanes) from t=600 s to t=1200 s"
+      },
+      {
+        "type": "speed_limit",
+        "target_edge": "-1288863201",
+        "value_mps": 8.3,
+        "description": "Reduced max speed on edge -1288863201 to 30 km/h"
+      },
+      {
+        "type": "incident",
+        "target_edge": "-1288863202#6",
+        "window": {
+          "start_s": 600.0,
+          "end_s": 1680.0
+        },
+        "effect": {
+          "speed_factor": 0.5
+        },
+        "description": "Reduced speed to 50% on edge -1288863202#6 (incident) from t=600 s to t=1680 s"
+      }
+    ],
+    "assignment": {
+      "mode": "day_one"
+    },
+    "demand_profile": "synthetic_demo",
+    "sim_end": 4307.0,
+    "tags": null,
+    "n_seeds": 1,
+    "seed_basis": null,
+    "sign_unstable_cells": [],
+    "non_completions": {
+      "car": 0,
+      "bicycle": 0,
+      "pedestrian": 0
+    },
+    "non_completions_split": {
+      "car": {
+        "entered_not_finished": 0,
+        "not_inserted": 0
+      },
+      "bicycle": {
+        "entered_not_finished": 0,
+        "not_inserted": 0
+      },
+      "pedestrian": {
+        "entered_not_finished": 0,
+        "not_inserted": 0
+      }
+    },
+    "insertion_backlog": {
+      "car": {
+        "baseline": 0,
+        "scenario": 0
+      },
+      "bicycle": {
+        "baseline": 0,
+        "scenario": 0
+      },
+      "pedestrian": {
+        "baseline": 0,
+        "scenario": 0
+      }
+    },
+    "window_events": [
+      {
+        "change_idx": 0,
+        "type": "road_closure",
+        "target_edge": "-36784353#20",
+        "window": {
+          "start_s": 600.0,
+          "end_s": 1200.0
+        },
+        "applied_t": 600.0,
+        "reverted_t": 1200.0,
+        "restored_ok": true,
+        "note": null
+      },
+      {
+        "change_idx": 1,
+        "type": "incident",
+        "target_edge": "-1288863202#6",
+        "window": {
+          "start_s": 600.0,
+          "end_s": 1680.0
+        },
+        "applied_t": 600.0,
+        "reverted_t": 1680.0,
+        "restored_ok": true,
+        "note": null
+      }
+    ],
+    "response_detour": {
+      "framing": "estimated added response-route time; free-flow routing, not a dispatch model",
+      "lower_bound_note": "free-flow estimate; does not include congestion the incident induces — a lower bound on added response time",
+      "end_method_note": "cost to a segment end is the fastest available approach to that end in each net; baseline and during-window routes may use different approaches",
+      "modified_edges": [
+        "-1288863201",
+        "-1288863202#6",
+        "-36784353#20"
+      ],
+      "window_coincidence_note": "the during-window estimate applies every change simultaneously; where change windows differ, the figure reflects the most-constrained moment",
+      "origins_note": "probe origins are Toronto Fire Services station locations (Toronto Open Data, retrieved 2026-07-25); routes are computed from every station and do not indicate which station would respond",
+      "probed_members_note": "reachability is probed for capacity-event members (closures and incidents); permanent members shape the routing but are not separately probed",
+      "origins": [
+        {
+          "label": "Fire Station 231 (740 Markham Rd)",
+          "represents": "fire_station",
+          "origin_edge": "-36784353#20",
+          "note": "this station's origin street is closed during the window — no route from it is computable"
+        },
+        {
+          "label": "Fire Station 232 (1550 Midland Ave)",
+          "represents": "fire_station",
+          "origin_edge": "-1266039232#1"
+        },
+        {
+          "label": "Fire Station 234 (40 Coronation Dr)",
+          "represents": "fire_station",
+          "origin_edge": "-36859033#5"
+        },
+        {
+          "label": "Fire Station 243 (4560 Sheppard Ave E)",
+          "represents": "fire_station",
+          "origin_edge": "-874152050#1"
+        }
+      ],
+      "members": [
+        {
+          "edge": "-36784353#20",
+          "type": "road_closure",
+          "window": {
+            "start_s": 600.0,
+            "end_s": 1200.0
+          },
+          "ends": [
+            {
+              "node": "427659366",
+              "label": "east end",
+              "probes": [
+                {
+                  "label": "Fire Station 231 (740 Markham Rd)",
+                  "baseline_s": 11.2,
+                  "scenario_s": null,
+                  "added_s": null,
+                  "note": "this station's origin street is closed during the window — no route from it is computable"
+                },
+                {
+                  "label": "Fire Station 232 (1550 Midland Ave)",
+                  "baseline_s": 226.7,
+                  "scenario_s": 228.4,
+                  "added_s": 1.7
+                },
+                {
+                  "label": "Fire Station 234 (40 Coronation Dr)",
+                  "baseline_s": 214.7,
+                  "scenario_s": 216.4,
+                  "added_s": 1.7
+                },
+                {
+                  "label": "Fire Station 243 (4560 Sheppard Ave E)",
+                  "baseline_s": 298.2,
+                  "scenario_s": 298.2,
+                  "added_s": 0.0,
+                  "note": "no added time under free-flow routing — the fastest approach to this end is unaffected during the window"
+                }
+              ]
+            },
+            {
+              "node": "427658710",
+              "label": "west end",
+              "probes": [
+                {
+                  "label": "Fire Station 231 (740 Markham Rd)",
+                  "baseline_s": 5.7,
+                  "scenario_s": null,
+                  "added_s": null,
+                  "note": "this station's origin street is closed during the window — no route from it is computable"
+                },
+                {
+                  "label": "Fire Station 232 (1550 Midland Ave)",
+                  "baseline_s": 232.4,
+                  "scenario_s": 242.6,
+                  "added_s": 10.2
+                },
+                {
+                  "label": "Fire Station 234 (40 Coronation Dr)",
+                  "baseline_s": 220.4,
+                  "scenario_s": 249.5,
+                  "added_s": 29.1
+                },
+                {
+                  "label": "Fire Station 243 (4560 Sheppard Ave E)",
+                  "baseline_s": 303.9,
+                  "scenario_s": 306.6,
+                  "added_s": 2.7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "edge": "-1288863202#6",
+          "type": "incident",
+          "window": {
+            "start_s": 600.0,
+            "end_s": 1680.0
+          },
+          "ends": [
+            {
+              "node": "427659366",
+              "label": "south end",
+              "probes": [
+                {
+                  "label": "Fire Station 231 (740 Markham Rd)",
+                  "baseline_s": 11.2,
+                  "scenario_s": null,
+                  "added_s": null,
+                  "note": "this station's origin street is closed during the window — no route from it is computable"
+                },
+                {
+                  "label": "Fire Station 232 (1550 Midland Ave)",
+                  "baseline_s": 226.7,
+                  "scenario_s": 228.4,
+                  "added_s": 1.7
+                },
+                {
+                  "label": "Fire Station 234 (40 Coronation Dr)",
+                  "baseline_s": 214.7,
+                  "scenario_s": 216.4,
+                  "added_s": 1.7
+                },
+                {
+                  "label": "Fire Station 243 (4560 Sheppard Ave E)",
+                  "baseline_s": 298.2,
+                  "scenario_s": 298.2,
+                  "added_s": 0.0,
+                  "note": "no added time under free-flow routing — the fastest approach to this end is unaffected during the window"
+                }
+              ]
+            },
+            {
+              "node": "281321879",
+              "label": "north end",
+              "probes": [
+                {
+                  "label": "Fire Station 231 (740 Markham Rd)",
+                  "baseline_s": 15.9,
+                  "scenario_s": null,
+                  "added_s": null,
+                  "note": "this station's origin street is closed during the window — no route from it is computable"
+                },
+                {
+                  "label": "Fire Station 232 (1550 Midland Ave)",
+                  "baseline_s": 231.4,
+                  "scenario_s": 237.8,
+                  "added_s": 6.4
+                },
+                {
+                  "label": "Fire Station 234 (40 Coronation Dr)",
+                  "baseline_s": 216.5,
+                  "scenario_s": 216.5,
+                  "added_s": 0.0,
+                  "note": "no added time under free-flow routing — the fastest approach to this end is unaffected during the window"
+                },
+                {
+                  "label": "Fire Station 243 (4560 Sheppard Ave E)",
+                  "baseline_s": 293.5,
+                  "scenario_s": 293.5,
+                  "added_s": 0.0,
+                  "note": "no added time under free-flow routing — the fastest approach to this end is unaffected during the window"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "zone_facts": null,
+    "scope_disclosure": "Scorecard measures cover the full simulated period (t=0 s–t=4307 s); the windowed changes were active from t=600 s to t=1680 s of it (members carry differing windows; these figures use the spanning window). Effects during the active window are diluted by the periods before and after it.",
+    "calibration": null,
+    "render_sample": null
+  },
+  "scorecard": {
+    "groups": [
+      {
+        "group": "car_commuter",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 0.0,
+          "affected_share": 0.017,
+          "confidence": "measured",
+          "note": "affected_share = fraction of this group's travelers >30s slower"
+        },
+        "safety_delta": {
+          "value": 21.702,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        },
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      },
+      {
+        "group": "cyclist",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 0.0,
+          "affected_share": 0.0,
+          "confidence": "measured",
+          "note": "affected_share = fraction of this group's travelers >30s slower"
+        },
+        "safety_delta": {
+          "value": 5.43,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        },
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      },
+      {
+        "group": "pedestrian",
+        "grounding": "sim",
+        "travel_time_delta": {
+          "value": 0.0,
+          "affected_share": 0.0,
+          "confidence": "measured",
+          "note": "affected_share = fraction of this group's travelers >30s slower"
+        },
+        "safety_delta": {
+          "value": -0.163,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        },
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      },
+      {
+        "group": "local_resident",
+        "grounding": "inferred",
+        "safety_delta": {
+          "value": 24.201,
+          "confidence": "low",
+          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+        },
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      },
+      {
+        "group": "business_owner",
+        "grounding": "inferred",
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      },
+      {
+        "group": "accessibility",
+        "grounding": "inferred",
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      },
+      {
+        "group": "transit_riders",
+        "grounding": "inferred",
+        "access_delta": {
+          "confidence": "low",
+          "note": "road severed/closed — access heuristic not meaningful"
+        }
+      }
+    ]
+  },
+  "car_tail": {
+    "median_s": 0.0,
+    "share_gt30_pct": 1.7,
+    "cross_seed": null,
+    "cross_seed_available": false,
+    "sentence": "This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail with the vast majority of cars unaffected (exact cross-seed range not available for this run)."
+  },
+  "sections": {
+    "what_tested": {
+      "framing": "This report previews a proposed temporary change on one Toronto corridor: the road would be fully closed for a period, with traffic diverted to other streets, while a reduced speed limit and blocked lanes would also be in effect during part of that time. The aim is to show, in advance, how different road users—drivers, transit riders, pedestrians, and local businesses—might be affected by such a disruption, without judging whether the change is good or bad."
+    },
+    "who_affected": {
+      "group_order": [
+        "car_commuter",
+        "cyclist",
+        "pedestrian",
+        "local_resident",
+        "business_owner",
+        "accessibility",
+        "transit_riders"
+      ],
+      "group_labels": {
+        "car_commuter": "Car commuters",
+        "cyclist": "Cyclists",
+        "pedestrian": "Pedestrians",
+        "local_resident": "Local residents",
+        "business_owner": "Business owners",
+        "accessibility": "Accessibility",
+        "transit_riders": "Transit riders"
+      },
+      "glosses": {
+        "car_commuter": "Most car commuters see no change in their typical travel time, but a small group of specific commuters absorbs a real delay.",
+        "cyclist": "Cyclists see no measurable change in typical travel time, though a near-miss magnitude is present without a claimed direction.",
+        "pedestrian": "Pedestrians see no change in typical travel time, though a near-miss magnitude is present without a claimed direction.",
+        "local_resident": "For this group, a near-miss magnitude is present, but its direction is not claimed (not seed-stable) — the table shows the magnitude only.",
+        "business_owner": "There isn't enough measurable signal in this run to characterize how this change affects business owners.",
+        "accessibility": "There isn't enough measurable signal in this run to characterize how this change affects accessibility.",
+        "transit_riders": "There isn't enough measurable signal in this run to characterize how this change affects transit riders."
+      }
+    },
+    "what_they_say": {
+      "groups": [
+        {
+          "key": "drivers",
+          "label": "Drivers",
+          "synthesis": "The recurring texture is a mix of resignation and cautious openness: many note their travel time stays about the same, so they can't complain much, but they still feel the hassle of closures and slowdowns. Some worry about lost earnings or schedule snags, while others welcome the idea of a quieter street near their home or school, hoping the change brings calm rather than just moving the mess elsewhere. A few are pleasantly surprised by a faster trip, but still eye the long-term route impacts with unease.",
+          "quotes": [
+            {
+              "label": "Resident who drives the corridor",
+              "comment": "My commute time is basically the same, so I can't complain too much, but I do wonder if the slower speeds and closures will actually make my street feel calmer or just shift the mess around.",
+              "grounding": "sim"
+            },
+            {
+              "label": "Rideshare / delivery driver",
+              "comment": "Well, my trip's actually getting faster by a minute and a half, so I can squeeze in another fare — that's money in my pocket. But these closures and slowdowns are a headache to weave around, and I worry about the long-term hit to my routes.",
+              "grounding": "sim"
+            }
+          ],
+          "sample_size": 18
+        },
+        {
+          "key": "cyclists",
+          "label": "Cyclists",
+          "synthesis": "Many riders note their trip time stays about the same, which tempers complaints, but there is a recurring wariness about slowdowns and closures creating obstacles or squeezing bikes against traffic. A hopeful thread runs through the reactions: some see the slower speeds and calmer traffic as potentially making the corridor feel more predictable and less stressful, especially for newer riders. The tension is between accepting the changes for potential safety benefits versus lingering unease about the practical disruptions.",
+          "quotes": [
+            {
+              "label": "Daily bike commuter",
+              "comment": "Well, my ride time stays the same, so I can't complain too much, but I'm always wary of these slowdowns and closures making things more dangerous for bikes.",
+              "grounding": "sim"
+            },
+            {
+              "label": "Daily bike commuter",
+              "comment": "As a daily bike commuter, I'm glad my trip time stays about the same, but the speed limit drop and temporary slowdowns might make things feel a bit more predictable and safer next to cars, even if it doesn't speed me up.",
+              "grounding": "sim"
+            }
+          ],
+          "sample_size": 18
+        },
+        {
+          "key": "pedestrians",
+          "label": "Pedestrians",
+          "synthesis": "Many travelers note their own trip time barely changes, so they feel little direct impact, but they welcome slower traffic and calmer streets as a comfort for crossing, especially for children and seniors. Some express mild concern about road closures causing unpredictability or detours pushing faster traffic onto other streets, yet overall the tone leans supportive of the calming effect.",
+          "quotes": [
+            {
+              "label": "Senior who walks everywhere",
+              "comment": "Well, my walk time barely changes, but slower speeds and closures make me feel a bit safer crossing. Still, the full closure and slowdown could be a hassle if I need to get somewhere quickly.",
+              "grounding": "sim"
+            },
+            {
+              "label": "Senior who walks everywhere",
+              "comment": "The slower speed and closure make me feel safer crossing, even if my trip time barely changes. I just hope the temporary slowdown doesn't cause drivers to rush elsewhere.",
+              "grounding": "sim"
+            }
+          ],
+          "sample_size": 18
+        },
+        {
+          "key": "community",
+          "label": "Community voices",
+          "synthesis": "The reactions reveal a deep split between those who depend on the corridor for business, transit, or accessible travel and those who see the change as a chance to reclaim the street for residents. Business owners and transit users worry about lost sales, delivery access, and slower commutes, while accessibility advocates stress the need for fully accessible detours. Longtime residents welcome the prospect of calmer streets and reduced speeding, though some remain skeptical about the cost and effectiveness. A recurring tension is between the desire for a quieter neighborhood and the practical needs of those who must move through it.",
+          "quotes": [
+            {
+              "label": "Transit rider perspective",
+              "comment": "Closing the road and slowing traffic will make my bus trip slower and less reliable — I depend on this route to get to work on time.",
+              "grounding": "inferred"
+            },
+            {
+              "label": "Long-time corridor resident",
+              "comment": "Finally, they're doing something about the speeders tearing down our street—slowing them down and even closing it for a while will make it feel like a neighborhood again, not a highway. I just hope they keep it up long-term.",
+              "grounding": "inferred"
+            }
+          ],
+          "sample_size": 12
+        }
+      ]
+    },
+    "institutional": {
+      "voices": [
+        {
+          "id": "tfs",
+          "label": "Toronto Fire Services",
+          "mandate": {
+            "institution": "Toronto Fire Services",
+            "mission": "Fire Services provides Toronto residents, visitors and businesses with protection against loss of life, property and the environment from the effects of fire, illness, accidents and all other hazards through preparedness, prevention, public education and emergency response, with an emphasis on quality services, efficiency, effectiveness and safety.",
+            "source": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/fire-services/",
+            "retrieved": "2026-08-01"
+          },
+          "citations": [
+            {
+              "key": "response_detour",
+              "text": "Response access (free-flow estimate): Road closure -36784353#20 — east end worst of the reachable +1.7 s (1 of 4 unreachable); west end worst of the reachable +29.1 s (1 of 4 unreachable). Incident -1288863202#6 — south end worst of the reachable +1.7 s (1 of 4 unreachable); north end worst of the reachable +6.4 s (1 of 4 unreachable). Unreachable at every probed end: Fire Station 231 (740 Markham Rd).",
+              "notes": [
+                "estimated added response-route time; free-flow routing, not a dispatch model",
+                "free-flow estimate; does not include congestion the incident induces — a lower bound on added response time",
+                "the during-window estimate applies every change simultaneously; where change windows differ, the figure reflects the most-constrained moment",
+                "probe origins are Toronto Fire Services station locations (Toronto Open Data, retrieved 2026-07-25); routes are computed from every station and do not indicate which station would respond",
+                "cost to a segment end is the fastest available approach to that end in each net; baseline and during-window routes may use different approaches",
+                "reachability is probed for capacity-event members (closures and incidents); permanent members shape the routing but are not separately probed"
+              ]
+            }
+          ],
+          "comment": "Toronto Fire Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes protection against loss of life, property and the environment. Read against that mandate, this run computed: Response access (free-flow estimate): Road closure -36784353#20 — east end worst of the reachable +1.7 s (1 of 4 unreachable); west end worst of the reachable +29.1 s (1 of 4 unreachable). Incident -1288863202#6 — south end worst of the reachable +1.7 s (1 of 4 unreachable); north end worst of the reachable +6.4 s (1 of 4 unreachable). Unreachable at every probed end: Fire Station 231 (740 Markham Rd) (estimated added response-route time; free-flow routing, not a dispatch model)."
+        },
+        {
+          "id": "transport_ops",
+          "label": "City of Toronto Transportation Services",
+          "mandate": {
+            "institution": "City of Toronto Transportation Services",
+            "mission": "to provide a safe, efficient, and effective transportation system that serves our residents, businesses, and visitors in an environmentally, socially and economically sustainable manner.",
+            "source": "https://www.toronto.ca/city-government/accountability-operations-customer-service/city-administration/staff-directory-divisions-and-customer-service/transportation-services/",
+            "retrieved": "2026-08-01"
+          },
+          "citations": [
+            {
+              "key": "reroute",
+              "text": "5 of 300 matched car trips diverted onto other streets during the run.",
+              "notes": []
+            },
+            {
+              "key": "non_completions",
+              "text": "Trips that completed in the baseline but not this scenario: 0 (none). Of these, 0 entered the network and could not finish and 0 did not enter the network (insertion backlog affects baseline runs too: 0 vehicles had not entered by the baseline run's end vs 0 in this run).",
+              "notes": []
+            }
+          ],
+          "comment": "City of Toronto Transportation Services' published mandate (toronto.ca, retrieved 2026-08-01) prioritizes a safe, efficient, and effective transportation system. Read against that mandate, this run computed: 5 of 300 matched car trips diverted onto other streets during the run."
+        }
+      ],
+      "empty_reason": null,
+      "disclaimer": "Generated by this tool from each organization's published mandate and this run's computed facts — not statements by, from, or on behalf of the named organizations."
+    },
+    "discourse": null,
+    "cannot_tell": {
+      "intro": "The following limits bound what this preview can and cannot claim, and should be read alongside the findings.",
+      "caveats": [
+        {
+          "title": "Safety direction is not established",
+          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported”. Do not read the safety column as 'the change made things safer or more dangerous'."
+        },
+        {
+          "title": "Surrogate measures are not crash predictions",
+          "body": "Safety here means trajectory-derived surrogates (time-to-collision, hard braking, blocked junctions), counted as near-miss events observed in this run. They are not crashes, and this tool does not predict crashes, injuries, or their probability."
+        },
+        {
+          "title": "One corridor, one demand level",
+          "body": "The simulation is bounded to a single corridor at a single modelled demand (300 cars, 82 bicycles, 129 pedestrians). It does not model the wider network, other times of day, or induced demand."
+        },
+        {
+          "title": "In-run adaptation is not settled equilibrium",
+          "body": "Travelers do not re-plan across days here: 5 cars rerouted within the run. Real corridors reach a new equilibrium over weeks as people adjust routes, modes, and times — this preview shows the immediate response, not that settled state."
+        },
+        {
+          "title": "A stratified sample, not a census",
+          "body": "The voiced reactions come from a stratified sample of personas pinned to specific simulated travelers (deliberately including the hardest-hit tail), not a poll of everyone. They show the texture of who wins and loses, never a headcount of support or opposition."
+        },
+        {
+          "title": "The access column is a rule-based estimate",
+          "body": "Access impacts are a deterministic heuristic from the change type (e.g. curbside space), labelled low-confidence — an estimate to reason about, not a measurement."
+        },
+        {
+          "title": "A windowed change: scorecard measures cover the whole run",
+          "body": "Scorecard measures cover the full simulated period (t=0 s–t=4307 s); the windowed changes were active from t=600 s to t=1680 s of it (members carry differing windows; these figures use the spanning window). Effects during the active window are diluted by the periods before and after it."
+        },
+        {
+          "title": "A temporary event, previewed as the day-one response only",
+          "body": "The closure or incident applies and is lifted within the simulated period. Temporary events have no settled equilibrium, so no iterated-assignment claim is made — what you see is how travelers respond within the run (diverting, queueing, or not completing), not how the corridor would adapt to a permanent change."
+        },
+        {
+          "title": "A closure can strand trips",
+          "body": "Trips that start or end on the closed road may be unable to complete. Those travelers are counted as non-completions in section 1 — they are deliberately never averaged into the travel-time deltas, which cover only travelers who completed in both runs."
+        },
+        {
+          "title": "Institutional perspectives are generated, not statements",
+          "body": "Institutional perspectives are generated by this tool: each recites the named organization's published mandate (sourced, with its retrieval date) against this run's computed facts. They are not statements by, from, or on behalf of the named organizations, and the mandate quote is only as current as its retrieval date."
+        }
+      ]
+    }
+  },
+  "audit": {
+    "passed": true,
+    "slots_checked": 13,
+    "summary": "passed — 13 slots (9 LLM-audited: 8 clean, 1 corrected on retry, 0 unresolved; 4 code-rendered).",
+    "log": [
+      {
+        "slot": "framing",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:car_commuter",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:cyclist",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:pedestrian",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "gloss:local_resident",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "gloss:business_owner",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "gloss:accessibility",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "gloss:transit_riders",
+        "status": "code_rendered",
+        "violations": []
+      },
+      {
+        "slot": "synthesis:drivers",
+        "status": "resolved_on_retry",
+        "violations": [
+          {
+            "rule": "safety_direction",
+            "sentence": "A recurring hope is that slower speeds and closures will make streets calmer and safer for children, especially near schools, while some worry the closure might just shift traffic problems elsewhere."
+          }
+        ]
+      },
+      {
+        "slot": "synthesis:cyclists",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "synthesis:pedestrians",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "synthesis:community",
+        "status": "clean",
+        "violations": []
+      },
+      {
+        "slot": "caveat_intro",
+        "status": "clean",
+        "violations": []
+      }
+    ]
+  },
+  "sources": [
+    "multimodal-scenario-20260814T063253Z.json",
+    "outcomes-20260814T063253Z.json",
+    "conflicts-baseline-20260814T063253Z.json"
+  ],
+  "facts_refreshed_at": "2026-08-30T04:19:19.917779+00:00"
+}

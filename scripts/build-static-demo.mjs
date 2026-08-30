@@ -32,6 +32,8 @@ const KEEP = new Set([
   `${PINNED}.json`,
   `${PINNED}-graphs.json`,
   `${MODERN}.json`,
+  `${PINNED}-report.json`,
+  `${MODERN}-report.json`,
   'latest-report.json',
   'latest-report.md',
 ]);
