@@ -165,12 +165,14 @@ deliverable (Kingston Rd day-one +5.05 s vs settled +2.31 s) was produced under 
 its settled basis may be iteration 9, not the last. Re-verification = one settled calibrated
 rerun (hours). The fix makes every FUTURE settled run correct regardless.**
 
-## V2.5c follow-on — remove the legacy latest.json payload fallback (scheduled: V2.7)
-MapView's mount tolerates a pre-V2.5c latest.json that still carries a FULL artifact payload
-(the transitional branch), and per the expire-loudly rule it `console.warn`s naming the stale
-shape and this removal. By V2.7 every environment has rerun a scenario (regenerating the
-pointer) — DELETE the `data?.meta` legacy branch in the mount effect then. A compat branch that
-works silently is the kind that lives forever; this line is its scheduled death.
+## V2.5c follow-on — remove the legacy latest.json payload fallback — SHIPPED (V2.7a C4)
+Landed as an INVERSION, not a deletion (the exploration caught that deleting the warn-only
+branch would have LOADED the payload silently — it falls through to the meta-shaped commit):
+a payload-shaped latest.json now takes the LABELED `artifact-load-error` path naming the
+pointer regeneration, spec-pinned in app-shell.spec.ts. NEW SIBLING (scheduled removal):
+`report.served_report_run_id` tolerates a pre-V2.7a latest-report PAYLOAD shape loudly
+(any report generation rewrites the pointer) — delete the payload leg once every environment
+has regenerated a report (V2.8 checkpoint).
 
 ## V2.5d follow-on — STATIC_DEMO gating has no spec coverage (smoke-verified only)
 `NEXT_PUBLIC_STATIC_DEMO` is inlined at BUILD time, so the dev-server Playwright project can never
@@ -193,14 +195,13 @@ live, and each already cost ~2 silent days once.
   Candidate fixes: parse-and-sort by the actual timestamp with a LOUD refusal on unparseable
   names, or resolve the served index FROM the committed `latest-report.json` run id instead of
   newest-anything (kills the misalignment class outright).
-- **The `latest-report.*` singleton is one demo commit from red again:** the pinned-run guard
-  covers artifact-rewriting enriches, but nothing structural stops another committed
-  `latest-report.*` overwrite — commit `0bead19` ("feat: demo run") did exactly this and
-  discourse.spec sat red ~2 days until the V2.5a forensics found it. The recorded LESSON
-  (re-run discourse.spec after touching either singleton) is procedural only. Candidate guards:
-  a spec-side pin that `latest-report.json.run.scenario_run_id` equals the Playwright-pinned run
-  id (a cheap always-on test fails the suite AT the overwriting commit, not days later), or the
-  real fix — a per-run report view retiring the global singleton (V2.7 territory).
+- **The `latest-report.*` singleton — SHIPPED (V2.7a C3/C5, the real fix):** the Read stage's
+  RunDocument resolves the PER-RUN report (`/<run_id>-report.json`, committed for the pinned +
+  example runs) behind a run-id VINTAGE GUARD (mismatch → the labeled `report-mismatch` state);
+  latest-report.json is a server-side POINTER only (never committed, the latest.json symmetry);
+  the payload singletons are deleted and the suite ran green with them absent (the V2.5c
+  double-acceptance form). The 0bead19 two-day-red class cannot recur: no committed global
+  payload exists to overwrite, and another run's report refuses to render.
 
 ## V2.4 follow-on — new_road members in composites (regen-then-runtime; USER-HIT gap)
 A real drafting attempt composed a 3-segment new-road CHAIN plus a 29-street school zone in one
@@ -296,3 +297,24 @@ why in the demo) but is optional, not required.
 - **Vestigial legacy paths** — `scenario_harness.run_pair` / `join_outcomes` / `_print_report` and `sampler.py`'s
   flat-outcomes (`"modes" not in side`) branch are dead since `speed_limit` moved to the multimodal
   `run_quant_runtime` (5.2b). No live producer emits the flat shape; safe to delete in a dedicated cleanup step.
+
+## V2.7a follow-ons (recorded at the C6 closeout)
+- **The two-group room doorway (V2.7e):** 2.4's tray renders single-group doorways only (click →
+  that group's voices in Watch); the ratified "Put A + B in a conversation →" CTA is deliberately
+  NOT rendered — a live-looking button that cannot assemble a 3–5-voice room violates the
+  clickable-then-failing rule. V2.7e wires group→voices selection into the room flow.
+- **Per-stage document-panel articles (V2.7b/d):** the ratified Watch article (near-miss callout +
+  transport inside the panel) is V2.7b's run-experience home; the Build-fresh article (change
+  cards + steps replacing the palette rail) is V2.7d's editor restyle. In V2.7a Watch keeps
+  today's playback layout (panel collapsed) and Build keeps the EditPanel rail (the example's
+  read-only composition view excepted).
+- **Sweep single-sourcing, remainder:** `support/sweeps.ts` is the single source for NEW specs;
+  15 older spec files still carry byte-identical local BANNED/STANCE_TALLY copies — migrate each
+  when a commit touches it anyway (never as a bulk pass).
+- **The marketing front door:** the shell stays at `/`; a front-door route can mount beside it
+  (repeat the `dynamic(..., {ssr:false})` wrapper). Nothing in the shell precludes it — recorded
+  as the 0.1b constraint's standing answer.
+- **run-document findings coverage:** window_events (the revert proof) deliberately renders in
+  the report markdown only, not as a document finding; legacy (pre-V2.5b `probes`-shape) detour
+  payloads render no structured document callouts (the md keeps them) — both honest omissions,
+  revisit if a document surface wants them.

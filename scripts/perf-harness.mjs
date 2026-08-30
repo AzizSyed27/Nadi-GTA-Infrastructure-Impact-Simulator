@@ -82,6 +82,9 @@ const parseControlMs = await page.evaluate(async (runId) => {
 
 // frame profile at the concurrency peak: scrub (pauses playback), then press Play, then sample.
 // The Timeline button's aria-label flips Pause→Play on the scrub-pause; give React a beat.
+// V2.7a: the landing defaults to the Read stage — the playback bar (and its slider) live in
+// Watch, so enter it first. The nav→render marks above already fired on the mount path.
+await page.locator('[data-testid="stage-watch"]').click({ timeout: 15_000 });
 await page.locator('input[type=range]').first().fill(String(SCRUB_T));
 await page.waitForTimeout(300);
 await page.locator('button[aria-label="Play"]').click({ timeout: 15_000 });

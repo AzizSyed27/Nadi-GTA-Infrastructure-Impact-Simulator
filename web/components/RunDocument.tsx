@@ -98,7 +98,9 @@ export function RunDocument({
   // detour notes (verbatim payload sentences) register before the findings render
   const rd = facts?.response_detour ?? null;
   const rdMembers = rd?.members ?? null;
-  if (rd) {
+  // (review) notes register only when the FINDING renders — a legacy probes-shape payload must
+  // not leave orphaned footnotes with no superscript referencing them
+  if (rd && rdMembers && rdMembers.length > 0) {
     note('rd-framing', rd.framing);
     note('rd-lower', rd.lower_bound_note);
     note('rd-origins', rd.origins_note);
@@ -368,7 +370,9 @@ export function RunDocument({
           <GroupRow key={r.gid} gid={r.gid} accent groupsById={groupsById} voiceCounts={voiceCounts}
             gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={onGroupDoorway} sup={sup} />
         ))}
-        {rows.some((r) => r.bucket === 1) && groupsById.size > 0 && (
+        {/* (review) the cross-note fires only when a bucket-1 row actually CARRIES a safety
+            magnitude — "the safety magnitudes above" must never point at nothing */}
+        {rows.some((r) => r.bucket === 1 && groupsById.get(r.gid)?.safety_delta?.value != null) && (
           <div style={crossNote}>also unclaimed: the safety magnitudes above — each rides with its group.</div>
         )}
 

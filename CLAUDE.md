@@ -267,7 +267,56 @@ trace of winding `25372703#0` (8-point shape, length/chord 4.2 — parallels the
 follows) and a 3-bend shortcut on the ×11 far-NW detour pair (sumolib proves the router takes
 it; the synthetic demo has no trips through that pocket) — a curve changes geometry, not demand.
 Suites: **575 pytest + 106 Playwright**.
-Open threads: **V2.7 network styling (incl. the curved-road grey/striping restyle)** +
+**V2.7a IS COMPLETE (the shell, the landing, the run document — six commits C1–C6, every one
+leaving both suites green):** the FOUR-STAGE SHELL (Build → Watch → Read → Explore, one
+workflow with derived done-checks) replaced the mode toggle — appearance from the ratified
+Claude Design import (Industry DS vendored as `web/app/nadi.css`, Barlow/Barlow Condensed via
+next/font; element styles scoped `.nadi-shell`/`.nadi-doc` so carried components are untouched
+by construction). READ IS THE RUN DOCUMENT (`RunDocument.tsx`): spec table + 2.4 render from
+the ARTIFACT (never the report snapshot); stat callouts from the C1-widened `report_json`
+`facts` block (the ~17 markdown-only facts, keys always present, null = honest absence, model
+vintage fields JSON-dumped); prose ONLY from the EXISTING audited LLM slots (abstract =
+what_tested.framing; 2.4 row sentences = the glosses); payload honesty sentences render
+VERBATIM beside their numbers; 2.4 = the ratified three-bucket 1d form (MOVED / DIRECTION
+UNCLAIMED / NOT MEASURED, fixed group order never effect size, span-zero bands, single-group
+doorway → Watch + feed filter; the two-group room CTA deliberately absent → V2.7e); method
+notes numbered with footnote sups (the settled note = the CAVEAT ONLY); the colophon DERIVES
+(no test counts) and keeps the fails-the-test-suite sweep sentence. PER-RUN REPORTS: report.py
+writes `web/public/<run_id>-report.json` (graphs-sidecar pattern) + `--refresh-facts --run-id`
+re-derives code-rendered fields reusing stored LLM prose + audit BYTE-identically (zero LLM;
+never the pointer); committed for the pinned + EXAMPLE runs (gitignore-negated, shape+value
+pinned incl. the example's +1.7/+29.1/origin-closed literals, mutation-checked); the client
+carries a run-id VINTAGE GUARD (labeled `report-mismatch`; 404 → labeled `report-missing`).
+THE LANDING: ?run= → localStorage `nadi:lastRun` (validated) → the latest.json pointer →
+EXAMPLE_RUN_ID (`…20260814T063253Z`, committed; kicker "EXAMPLE RUN · LOADED READ-ONLY · A
+PREVIEW, NOT A VERDICT"; Build = the read-only composition view + "Start a new draft");
+default stage READ; the demo build writes its pointer AT the example; the cold-profile walk
+PASSED live. Ride-along 6a landed as an INVERSION (a payload-shaped latest.json → the LABELED
+error path — deletion alone would have loaded it silently; NEW spec pin). THE RUN LIST
+(`RunListPopover`, the ratified §2b): the header run tag expands into the inventory (plain-terms
+fingerprint via `/api/runs` passing state-file fields through; CLONE TO DRAFT / OPEN / COMPARE
+AS A·B; computing rows show their stage and open in their current state; "viewing" keys on the
+run you explicitly OPENED so the landing run keeps its watcher/enrich path; an inventory NEVER
+a ranking — framing sentences pinned + a rows-only delta/score sweep); the edit-rail RunSwitcher
+retired (Compare keeps both pickers); the runLabel-precedence + XSS-inert pins RELOCATED to the
+list rows. THE SINGLETON RETIRED (C5): latest-report.json is a POINTER written by generate()
+(`report.served_report_run_id` is the ONE tolerant reader — newest_index alignment, the server
+canary, and GET /api/report all ride it; /api/report returns the REPORT'S OWN run id); the
+committed payload singletons are DELETED + gitignored (suite ran green with them absent — the
+V2.5c double-acceptance form; the 2026-08-13 two-day-red class cannot recur). THE PROTECTED-RUNS
+SET: the example joined the pinned run's enrich + identity guards (role-specific refusals, both
+language mirrors in one commit; report enrich stays exempt). The C6 ceremony: the example's
+report REGENERATED under the full realign ceremony — **the conjunction-baseline canary read
+8 clean / 1 corrected / 0 unresolved, IDENTICAL to V2.6c's first reading (no drift)** — index
+rebuilt, alignment + pins + discourse.spec re-proven. The sweep CAUGHT a real pre-existing gap:
+the code-rendered tail sentence said "the vast majority of cars unaffected" (referendum
+vocabulary no old sweep covered) — reworded at both sources (report.py, robustness.py), golden
+regenerated deliberately. Sweeps ride 19 of 23 spec files. ReportPanel is DELETED; chat lives
+at Explore · Chat; shared composers extracted (windowedScope/scopeNoteText, provenance labels,
+nonCompletionsLine) so pinned sentences have ONE source across surfaces. **PERF RE-MEASURED (headed, prod, this box — the V2.5c harness + a stage-watch hop since the landing defaults to Read): 90 MB fat-vintage exemplar nav→render 3.77 s (budget ≤5 s; pre-shell 3.72 — no regression), frames p50 8.1 ms/123 fps · p95 16.1 ms/62 fps · 0 longtasks (pre-shell 122/61 — identical; the document panel never subscribes to the rAF clock); pinned ~20 MB run nav→render 1.14 s (budget ≤2 s), 125/63 fps.** Suites: **595 pytest
++ 123 Playwright**.
+Open threads: **V2.7b run experience · V2.7c/d map + editor styling (incl. the curved-road
+grey/striping restyle) · V2.7e doorways/room** +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
@@ -1074,7 +1123,7 @@ decided, README rewritten for the cold reader, reconciliation; no contract chang
   key table, the fresh-clone netconvert note hoisted from the old README).
 - **README rewrite (the discipline applies to the pitch):** cold-90-second-reader structure —
   plain pitch, demo stops, the honesty-architecture thesis (the referendum guard named as
-  TEST-enforced: the BANNED sweep rides 14 of 17 specs, counted not guessed), three computed
+  TEST-enforced: the BANNED sweep rides 19 of 23 specs, counted not guessed), three computed
   facts EACH with riding caveats (the V2.5b per-end fire-station sentence verified verbatim
   against the committed run's TFS citation, "added time to reach" vocabulary only; the 30-vs-28
   zone pair with variation + population notes quoted; 72%-delivered saturation with the GEH-51.8%
@@ -1413,7 +1462,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
   ```bash
   cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream|/identity] /api/report /api/chat /api/interview
-  cd web && npm run dev                            # http://localhost:3000 → open the ✏️ Edit toggle
+  cd web && npm run dev                            # http://localhost:3000 → the Build stage (V2.7a shell)
   python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
   ```
   The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then, on enrich,
@@ -1484,19 +1533,24 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   python python/src/report_agent.py                # build the per-run LightRAG index (under %LOCALAPPDATA%)
   cd python/src && uvicorn server:app --port 8000  # agent backend: GET /api/report, POST /api/chat
   ```
-  **GOTCHA — `latest-report.*` is a COMMITTED, GLOBAL singleton.** `ReportPanel` reads `/latest-report.json`
-  (`REPORT_URL`) **regardless of the loaded `?run=` artifact** — the report view is NOT per-run. The Playwright
-  specs pin the 212-agent social run `multimodal-scenario-20260702T044134Z` via `?run=`, so `web/public/latest-report.*`
-  **must be generated FOR that run** or `discourse.spec`'s `report-discourse` assertion fails (report view ↔ pinned
-  artifact diverge — a later run's report silently overwrites it). Regenerate with the EXPLICIT run-id — never let
-  `_resolve` pick the newest: `python python/src/report.py --run-id multimodal-scenario-20260702T044134Z`.
-  `report_agent.newest_index()` resolves **ALIGNMENT-FIRST since the resolver-family fix (2026-08-21)**: the
-  served `latest-report.json`'s run id → its `index-<ts>` dir when present (chat and report align by
-  construction); fallback = the digit-first newest timestamp-named index DIR with junk names warned by name
-  (the old lexicographic name sort served `index-V22AACCEPT` for two silent days — that class is dead).
-  The lifespan "index run != report run" warning is the backstop canary now; archiving other indexes at
-  `%LOCALAPPDATA%\nadi-report-agent\archive\` remains good tidiness but is no longer load-bearing for alignment.
-  After any verification report-regen, restore the singleton via `git checkout -- web/public/latest-report.*`.
+  **V2.7a: reports are PER-RUN; the singleton is RETIRED.** Every report generation (and
+  `--refresh-facts --run-id <id>`, the zero-LLM code-fields refresh) writes
+  `web/public/<run_id>-report.json` — the Read stage's RunDocument resolves it by the run id it
+  already holds, behind a run-id VINTAGE GUARD (another run's report renders the labeled
+  `report-mismatch`, never silently). `web/public/latest-report.json` is a server-side POINTER
+  (`{"run_id"}`) written by generate() — NEVER committed (gitignored, the latest.json symmetry);
+  the payload singletons are deleted. `report.served_report_run_id` is the ONE reader
+  (report_agent alignment + the server lifespan canary + `GET /api/report`, which serves the
+  pointer's run's stored report and returns the REPORT'S OWN run id); a pre-V2.7a payload shape
+  is tolerated LOUDLY (scheduled removal — BACKLOG). `report_agent.newest_index()` stays
+  ALIGNMENT-FIRST off the pointer (the resolver-family fix); fallback = the digit-first newest
+  timestamp-named index DIR with junk names warned. The committed per-run reports for the PINNED
+  and EXAMPLE runs are singleton-class: shape+value pytest pins + the run-document runtime pin
+  cover them, and both runs sit in the PROTECTED-RUNS set (`trajectory_io` — enrich + identity
+  guards with role-specific refusals; report enrich stays exempt as the maintenance path).
+  Verification report-regens for the pinned/example runs REPLACE the committed per-run copy
+  deliberately (commit the new bytes; the pins recompute from sidecars) — there is no singleton
+  left to restore.
 - **Graphs sidecar backfill (V2.3d):**
   ```bash
   python python/src/graph_export.py --run-id <id> [--half oasis|entity|both]   # EXPLICIT id — no newest-run default
@@ -1518,7 +1572,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (575 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (595 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
@@ -1526,11 +1580,11 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
   sections + the V2.6a/b group-interview room/endpoint/speak sections + the V2.6 follow-up
   conjunction pins + the V2.6c 0.10.0 ceremony/compact/worst_t/coord sections + the
-  resolver-family sections + the V2.6d via parse/geometry-rules/shape-producer/POST+harness sections) and
+  resolver-family sections + the V2.6d via parse/geometry-rules/shape-producer/POST+harness sections + the V2.7a per-run-report/refresh-facts/committed-pin sections + the protected-runs matrix + the latest-report pointer-reader shapes) and
   `cd web && npx playwright test`
-  (106 tests across 20 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  (123 tests across 23 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
-  compact-run, via-rules, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
+  compact-run, via-rules, the V2.7a run-document/run-list/app-shell (the landing matrix + ride-along 6a) specs, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
   rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once

@@ -1,12 +1,12 @@
 {
   "report_version": "3.1",
-  "generated_at": "2026-08-14T06:51:04.116049+00:00",
+  "generated_at": "2026-08-30T18:40:12.500650+00:00",
   "provider": "deepseek",
   "model": "deepseek-v4-flash",
   "usage": {
-    "prompt_cache_hit_tokens": 4480,
-    "prompt_cache_miss_tokens": 3735,
-    "completion_tokens": 779,
+    "prompt_cache_hit_tokens": 3072,
+    "prompt_cache_miss_tokens": 5140,
+    "completion_tokens": 713,
     "calls": 10
   },
   "run_id": "multimodal-scenario-20260814T063253Z",
@@ -449,7 +449,7 @@
   },
   "sections": {
     "what_tested": {
-      "framing": "This report previews a proposed temporary change on one Toronto corridor: the road would be fully closed for a period, with traffic diverted to other streets, while a reduced speed limit and blocked lanes would also be in effect during part of that time. The aim is to show, in advance, how different road users—drivers, transit riders, pedestrians, and local businesses—might be affected by such a disruption, without judging whether the change is good or bad."
+      "framing": "This report previews a proposed change on one Toronto corridor where the road would be fully closed for a period, with traffic diverted to other streets, and a reduced speed limit would apply on a section of the corridor. Additionally, some lanes would be blocked temporarily, reducing capacity for a time before being restored. The text ahead describes, without judgment, who might be affected by these conditions and what the change could mean for their travel."
     },
     "who_affected": {
       "group_order": [
@@ -471,9 +471,9 @@
         "transit_riders": "Transit riders"
       },
       "glosses": {
-        "car_commuter": "Most car commuters see no change in their typical travel time, but a small group of specific commuters absorbs a real delay.",
+        "car_commuter": "Most car commuters see no change in their usual travel time, but a small group of specific drivers experiences a noticeable slowdown.",
         "cyclist": "Cyclists see no measurable change in typical travel time, though a near-miss magnitude is present without a claimed direction.",
-        "pedestrian": "Pedestrians see no change in typical travel time, though a near-miss magnitude is present without a claimed direction.",
+        "pedestrian": "Pedestrians see no measurable change in typical travel time, though a near-miss magnitude is present without a claimed direction.",
         "local_resident": "For this group, a near-miss magnitude is present, but its direction is not claimed (not seed-stable) — the table shows the magnitude only.",
         "business_owner": "There isn't enough measurable signal in this run to characterize how this change affects business owners.",
         "accessibility": "There isn't enough measurable signal in this run to characterize how this change affects accessibility.",
@@ -485,7 +485,7 @@
         {
           "key": "drivers",
           "label": "Drivers",
-          "synthesis": "The recurring texture is a mix of resignation and cautious openness: many note their travel time stays about the same, so they can't complain much, but they still feel the hassle of closures and slowdowns. Some worry about lost earnings or schedule snags, while others welcome the idea of a quieter street near their home or school, hoping the change brings calm rather than just moving the mess elsewhere. A few are pleasantly surprised by a faster trip, but still eye the long-term route impacts with unease.",
+          "synthesis": "Drivers here mostly focus on their own travel time and earnings, with many noting their trips stay about the same and so they can't complain much. Some worry about the hassle of closures and slowdowns, while others welcome the possibility of a quieter street, especially near the school. A recurring hope is that the change doesn't just push problems onto other roads.",
           "quotes": [
             {
               "label": "Resident who drives the corridor",
@@ -493,8 +493,8 @@
               "grounding": "sim"
             },
             {
-              "label": "Rideshare / delivery driver",
-              "comment": "Well, my trip's actually getting faster by a minute and a half, so I can squeeze in another fare — that's money in my pocket. But these closures and slowdowns are a headache to weave around, and I worry about the long-term hit to my routes.",
+              "label": "Safety-conscious driver-parent",
+              "comment": "I don't mind the extra time since it's about the same, and slower speeds near the school make me feel better about the kids crossing. I just hope the closure doesn't push traffic onto streets where drivers might speed up.",
               "grounding": "sim"
             }
           ],
@@ -503,11 +503,11 @@
         {
           "key": "cyclists",
           "label": "Cyclists",
-          "synthesis": "Many riders note their trip time stays about the same, which tempers complaints, but there is a recurring wariness about slowdowns and closures creating obstacles or squeezing bikes against traffic. A hopeful thread runs through the reactions: some see the slower speeds and calmer traffic as potentially making the corridor feel more predictable and less stressful, especially for newer riders. The tension is between accepting the changes for potential safety benefits versus lingering unease about the practical disruptions.",
+          "synthesis": "The shared texture is a mix of cautious acceptance and conditional support: most note their trip time is unchanged, so they're not losing money or efficiency, but they remain wary of closures and slowdowns as potential obstacles or sources of unease. A recurring hope is that calmer traffic and a protected lane will make the corridor feel more predictable and secure, especially for newer riders, while couriers weigh the lack of time loss against lingering concerns about navigating around cars.",
           "quotes": [
             {
-              "label": "Daily bike commuter",
-              "comment": "Well, my ride time stays the same, so I can't complain too much, but I'm always wary of these slowdowns and closures making things more dangerous for bikes.",
+              "label": "Bicycle delivery courier",
+              "comment": "My time stays the same, so I can't complain—but these closures and slowdowns are just more obstacles to dodge. As long as I'm not losing money, I'll take it.",
               "grounding": "sim"
             },
             {
@@ -521,16 +521,16 @@
         {
           "key": "pedestrians",
           "label": "Pedestrians",
-          "synthesis": "Many travelers note their own trip time barely changes, so they feel little direct impact, but they welcome slower traffic and calmer streets as a comfort for crossing, especially for children and seniors. Some express mild concern about road closures causing unpredictability or detours pushing faster traffic onto other streets, yet overall the tone leans supportive of the calming effect.",
+          "synthesis": "Pedestrians here largely accept the changes because their own travel time barely shifts, and many welcome slower traffic and calmer crossings as a comfort, especially when walking with children or as seniors. Some remain neutral, noting the road closure and slowdowns could create hassles or push faster traffic onto side streets, but the dominant texture is a quiet appreciation for a less hurried street environment.",
           "quotes": [
             {
               "label": "Senior who walks everywhere",
-              "comment": "Well, my walk time barely changes, but slower speeds and closures make me feel a bit safer crossing. Still, the full closure and slowdown could be a hassle if I need to get somewhere quickly.",
+              "comment": "Well, the slower speeds and closures make me feel a bit safer crossing, even if my errands take the same time. I just hope the detours don't lead to more fast traffic on the streets I use.",
               "grounding": "sim"
             },
             {
-              "label": "Senior who walks everywhere",
-              "comment": "The slower speed and closure make me feel safer crossing, even if my trip time barely changes. I just hope the temporary slowdown doesn't cause drivers to rush elsewhere.",
+              "label": "School-run parent on foot",
+              "comment": "Slower traffic and calmer streets sound good to me—I'd feel safer walking the kids to school even if it takes the same time. A few extra seconds don't matter when I'm not dreading the crossing.",
               "grounding": "sim"
             }
           ],
@@ -539,16 +539,16 @@
         {
           "key": "community",
           "label": "Community voices",
-          "synthesis": "The reactions reveal a deep split between those who depend on the corridor for business, transit, or accessible travel and those who see the change as a chance to reclaim the street for residents. Business owners and transit users worry about lost sales, delivery access, and slower commutes, while accessibility advocates stress the need for fully accessible detours. Longtime residents welcome the prospect of calmer streets and reduced speeding, though some remain skeptical about the cost and effectiveness. A recurring tension is between the desire for a quieter neighborhood and the practical needs of those who must move through it.",
+          "synthesis": "The reactions reveal a deep split between those who depend on the corridor for business, accessibility, and reliable transit—who fear disruption to their routines and livelihoods—and those who see the change as a welcome respite from speed and noise. A recurring tension is between the desire for calmer streets and the need for predictable, accessible movement, with some neutral voices hoping for balance. There is also skepticism about the cost and benefit of the change, alongside a hope that any disruption is managed thoughtfully.",
           "quotes": [
             {
-              "label": "Transit rider perspective",
-              "comment": "Closing the road and slowing traffic will make my bus trip slower and less reliable — I depend on this route to get to work on time.",
+              "label": "Accessibility advocate",
+              "comment": "This temporary closure and slowdown will disrupt the only accessible route I rely on, forcing longer detours that may lack proper curb ramps or crossing signals. I need to know that any alternative paths are fully accessible before I can support this.",
               "grounding": "inferred"
             },
             {
               "label": "Long-time corridor resident",
-              "comment": "Finally, they're doing something about the speeders tearing down our street—slowing them down and even closing it for a while will make it feel like a neighborhood again, not a highway. I just hope they keep it up long-term.",
+              "comment": "As someone who's lived here for decades, this sounds like a blessing—less traffic, slower cars, and a break from the constant rush. I just hope it doesn't bring more noise or disruption to our neighborhood.",
               "grounding": "inferred"
             }
           ],
@@ -708,7 +708,7 @@
         "violations": [
           {
             "rule": "safety_direction",
-            "sentence": "A recurring hope is that slower speeds and closures will make streets calmer and safer for children, especially near schools, while some worry the closure might just shift traffic problems elsewhere."
+            "sentence": "Others are more open to the change, especially if it brings calmer streets and safer conditions near the school, though they hope traffic isn't just pushed elsewhere."
           }
         ]
       },
@@ -738,6 +738,5 @@
     "multimodal-scenario-20260814T063253Z.json",
     "outcomes-20260814T063253Z.json",
     "conflicts-baseline-20260814T063253Z.json"
-  ],
-  "facts_refreshed_at": "2026-08-30T14:44:29.107788+00:00"
+  ]
 }

@@ -28,10 +28,12 @@ function craftedScorecard() {
         safety_delta: { value: 43.24, confidence: 'low', note: 'surrogate' },
         access_delta: { value: -0.5, confidence: 'low', note: 'rule' },
       },
-      // bucket 1 via the tail alone (median 0, direction unclaimed elsewhere)
+      // bucket 1 via the TAIL ALONE (review catch: value 0.0 with no range was already
+      // claimable, so the tail disjunct was untested — here travel is SIGN-UNSTABLE and only
+      // the measured tail share puts the group in "moved"; deleting the tail clause fails this)
       {
         group: 'cyclist', grounding: 'sim',
-        travel_time_delta: { value: 0.0, affected_share: 0.23, confidence: 'measured', note: 'tt' },
+        travel_time_delta: { value: 0.5, affected_share: 0.23, confidence: 'measured', note: 'tt', range: { min: -1, max: 2, n_seeds: 3, sign_stable: false } },
         safety_delta: { value: 0.25, confidence: 'low', note: 'surrogate' },
         access_delta: null,
       },

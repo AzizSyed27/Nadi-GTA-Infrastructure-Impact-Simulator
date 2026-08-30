@@ -20,12 +20,14 @@ A **static demo** is the fastest way in — a read-only walkthrough of pre-compu
 flight per [DEPLOY.md](DEPLOY.md); until the link lands here, [SETUP.md](SETUP.md) runs the same
 walkthrough locally in two commands). Three stops:
 
-1. **The bare URL** — the 212-voice run: press play, click dots, open 📄 Report and 🕸 Graphs.
-2. **`/?run=multimodal-scenario-20260814T063253Z`** — a 3-member composite (a road closure at a
-   fire station's doorstep + a speed limit + an incident) where Toronto Fire Services' published
-   mandate is read against the run's computed reachability facts.
+1. **The bare URL** — the EXAMPLE run's RUN DOCUMENT (the Read stage of the V2.7a shell): a
+   3-member composite (a road closure at a fire station's doorstep + a speed limit + an
+   incident), abstract first, every number carrying its caveat. Walk the stages: 02 Watch
+   replays the simulated traffic; 04 Explore holds Compare/Discourse/Graphs/Chat.
+2. **`/?run=multimodal-scenario-20260702T044134Z`** — the 212-voice run: Watch the playback,
+   click dots, open Explore · Discourse and Explore · Graphs.
 3. **`/?run=multimodal-scenario-20260702T044134Z&compare=multimodal-scenario-20260814T063253Z`**
-   — ⇄ Compare, including the provenance-mismatch guard doing its job on a mismatched pair.
+   — Explore · Compare, including the provenance-mismatch guard doing its job on a mismatched pair.
 
 Two things the demo is honest about up front. The runs are **pre-computed and real**: nothing
 simulates in the browser, and these are actual SUMO runs on calibrated Toronto open data — not
@@ -99,7 +101,7 @@ it. Scenario-vs-baseline comparisons stay like-for-like regardless.
 
 ## What using it looks like
 
-Open ✏️ Edit and *compose*: every palette action — a new road between junctions, a speed limit, a
+Open the Build stage and *compose*: every palette action — a new road between junctions, a speed limit, a
 bike lane, a lane/road closure, a timed incident — **adds a member to a draft** rather than firing
 a run. A new road can **bend**: click along a street mid-draw and each click adds a via point to
 the working polyline (Escape removes the last one), each click validated on the spot with the
@@ -187,7 +189,7 @@ Full local setup — SUMO 1.27, the python envs, keys per optional layer — liv
 
 ```bash
 cd python/src && uvicorn server:app --port 8000   # the job-runner API
-cd web && npm run dev                              # → http://localhost:3000 → ✏️ Edit
+cd web && npm run dev                              # → http://localhost:3000 → the Build stage
 ```
 
 The quant pipeline (simulate → scorecard) needs **no keys**; each enrich layer (voices, report +

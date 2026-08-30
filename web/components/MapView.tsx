@@ -320,6 +320,7 @@ export default function MapView() {
           } else if (data && typeof data === 'object' && (data as { meta?: unknown }).meta) {
             // ride-along 6a (V2.5c expiry): the legacy full-artifact payload takes the LABELED
             // error path now — deleting only the console.warn would have LOADED it silently.
+            if (cancelled) return; // (review) a dead StrictMode instance must not clobber live state
             console.error('latest.json is a legacy full-artifact payload — the pointer contract expired at V2.7');
             setLoadError(
               `${ARTIFACT_URL} — legacy full-artifact payload; the V2.5c pointer contract ` +
@@ -327,6 +328,7 @@ export default function MapView() {
             );
             return;
           } else {
+            if (cancelled) return; // (review) same StrictMode guard as every sibling branch
             console.error(`failed to load ${ARTIFACT_URL}: unrecognized artifact/pointer shape`);
             setLoadError(`${ARTIFACT_URL} — unrecognized artifact/pointer shape`);
             return;

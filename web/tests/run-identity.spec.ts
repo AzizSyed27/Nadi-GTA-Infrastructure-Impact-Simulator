@@ -170,7 +170,7 @@ test('the pinned run refuses a rename with the exact shared reason', async ({ pa
   await expect(page.getByTestId('run-name')).toHaveCount(0); // nothing renamed
 });
 
-test('an injection name renders INERT on BOTH surfaces it reaches (card + picker option)', async ({ page }) => {
+test('an injection name renders INERT on BOTH surfaces it reaches (card + run-list row)', async ({ page }) => {
   // React escapes by default so this passes trivially TODAY — the pin exists so any FUTURE surface
   // that renders names (a report header, a chat corpus label) inherits a failing test the moment
   // it renders them un-inertly.
