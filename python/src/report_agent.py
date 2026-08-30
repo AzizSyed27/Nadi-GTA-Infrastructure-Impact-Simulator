@@ -471,16 +471,16 @@ def newest_index() -> tuple[Path, str] | None:
     3. Nothing at all → None (the caller's NO-INDEX message)."""
     if not INDEX_ROOT.exists():
         return None
-    try:
-        served = json.loads(LATEST_REPORT.read_text(encoding="utf-8"))["run"]["scenario_run_id"]
+    served = report.served_report_run_id(LATEST_REPORT)  # V2.7a C5: the POINTER (legacy payload tolerated loudly)
+    if served:
         ts = served.replace("multimodal-scenario-", "")
         aligned = index_dir(ts)
         if aligned.is_dir():
             return aligned, ts
         print(f"[report-agent] no index for the served report ({served}) under {INDEX_ROOT} — "
               "falling back to the newest timestamp-named index (rebuild via report_agent.py)")
-    except Exception as e:  # noqa: BLE001 — missing/unparseable report is a legitimate state
-        print(f"[report-agent] latest-report unreadable ({e.__class__.__name__}) — "
+    else:
+        print("[report-agent] latest-report pointer missing/unreadable — "
               "falling back to the newest timestamp-named index")
     dirs = sorted(d for d in INDEX_ROOT.glob("index-*") if d.is_dir())
     eligible = [d for d in dirs if d.name[len("index-"):][:1].isdigit()]

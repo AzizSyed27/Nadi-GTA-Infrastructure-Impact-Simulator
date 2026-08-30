@@ -172,6 +172,35 @@ def cell_valence(cell: ScorecardCell | None, kind: Literal["travel", "safety", "
 # Gather CODE-RENDERED facts
 # ===================================================================================================
 
+def served_report_run_id(path: Path | None = None) -> str | None:
+    """V2.7a C5 — the run the served report pointer names. latest-report.json is a POINTER
+    ({"run_id"}) written by generate(); a pre-C5 PAYLOAD shape is tolerated LOUDLY (transitional —
+    any report generation rewrites it; scheduled removal in BACKLOG). Missing/garbage → None."""
+    p = path if path is not None else WEB_PUBLIC / "latest-report.json"
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — absent/unparseable is a legitimate no-report state
+        return None
+    if isinstance(data, dict) and isinstance(data.get("run_id"), str) and "run" not in data:
+        return data["run_id"]
+    if isinstance(data, dict) and isinstance(data.get("run"), dict):
+        rid = data["run"].get("scenario_run_id")
+        if isinstance(rid, str):
+            print("[report] latest-report.json is a legacy PAYLOAD — the V2.7a pointer contract "
+                  "replaces it; any report generation rewrites the pointer")
+            return rid
+    return None
+
+
+def _write_latest_report_pointer(run_id: str) -> None:
+    """The report-side analog of trajectory_io.write_latest_pointer: a POINTER, never a payload —
+    it keeps report_agent.newest_index's alignment and the server's canary without a second
+    mutable singleton (the 2026-08-13 drift class)."""
+    WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
+    (WEB_PUBLIC / "latest-report.json").write_text(
+        json.dumps({"run_id": run_id}) + "\n", encoding="utf-8")
+
+
 def _resolve(run_id: str | None) -> tuple[Path, str]:
     """Newest multimodal-scenario artifact by default (mirrors scorecard._resolve)."""
     if run_id:
@@ -1965,11 +1994,12 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     md_path.write_text(md, encoding="utf-8")
     json_path.write_text(json.dumps(report_json, indent=2, ensure_ascii=False), encoding="utf-8")
     WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(md_path, WEB_PUBLIC / "latest-report.md")
-    shutil.copyfile(json_path, WEB_PUBLIC / "latest-report.json")
     # V2.7a — the per-run web copy (the graphs-sidecar pattern): the run document resolves
-    # /<run_id>-report.json by the run id it already holds; no pointer of its own.
+    # /<run_id>-report.json by the run id it already holds. The old latest-report.{md,json}
+    # PAYLOAD singletons are retired (C5): the json becomes a pointer for the server-side
+    # alignment readers; the md web copy had zero fetchers (contract/runs keeps the portable md).
     shutil.copyfile(json_path, WEB_PUBLIC / f"{facts['scenario_run_id']}-report.json")
+    _write_latest_report_pointer(facts["scenario_run_id"])
 
     # audit log to stdout (a caught-then-corrected violation is the system working)
     print("\n=== AUDIT LOG ===")
@@ -1979,7 +2009,7 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
             line += " :: " + "; ".join(f"{v['rule']}:{v['sentence'][:70]}" for v in e["violations"])
         print(line)
     print(f"\n{audit_summary}")
-    print(f"[report] wrote {md_path.name} + {json_path.name}  (+ web/public/latest-report.{{md,json}})")
+    print(f"[report] wrote {md_path.name} + {json_path.name}  (+ web/public/{facts['scenario_run_id']}-report.json + the latest-report pointer)")
     return md_path, json_path
 
 

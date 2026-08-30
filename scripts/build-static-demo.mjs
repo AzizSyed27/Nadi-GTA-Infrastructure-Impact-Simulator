@@ -8,10 +8,10 @@
  * demo file set, and WRITES out/latest.json as the pointer to the EXAMPLE run — the pointer is
  * build-written, never committed (local runs rewrite the real one at will).
  *
- * Demo set: the pinned social run triple (artifact + graphs sidecar + latest-report) — playback,
- * scorecard, feed, discourse, graphs, and the report all describe the SAME run — plus the modern
- * 0.9.0 run (institutional voices + the ends chip; also the compare partner, which deliberately
- * fires the provenance-mismatch lines — the guard IS part of the demo).
+ * Demo set: the pinned social run triple (artifact + graphs sidecar + its per-run report) —
+ * playback, scorecard, feed, discourse, graphs, and the run document all describe the SAME run —
+ * plus the EXAMPLE run (artifact + per-run report; the landing + the compare partner, which
+ * deliberately fires the provenance-mismatch lines — the guard IS part of the demo).
  */
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
@@ -34,8 +34,6 @@ const KEEP = new Set([
   `${MODERN}.json`,
   `${PINNED}-report.json`,
   `${MODERN}-report.json`,
-  'latest-report.json',
-  'latest-report.md',
 ]);
 
 console.log('[demo] next build (static export)…');

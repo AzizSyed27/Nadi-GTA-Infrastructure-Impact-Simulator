@@ -55,3 +55,7 @@ docs/
 # the pinned run anchors discourse.spec's report leg, the MODERN run is the landing's example).
 !web/public/multimodal-scenario-20260702T044134Z-report.json
 !web/public/multimodal-scenario-20260814T063253Z-report.json
+# V2.7a C5: the latest-report POINTER is server-side alignment state, never committed (the
+# latest.json symmetry); the payload singletons are retired — per-run reports are the record.
+web/public/latest-report.json
+web/public/latest-report.md

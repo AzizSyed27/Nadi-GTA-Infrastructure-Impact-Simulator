@@ -101,11 +101,7 @@ async def lifespan(app: FastAPI):
         wd, ts = idx
         run_id = f"multimodal-scenario-{ts}"
         # Cross-run guard: the loaded index must describe the SAME run the report view is showing.
-        served = None
-        try:
-            served = json.loads(LATEST_REPORT.read_text(encoding="utf-8"))["run"]["scenario_run_id"]
-        except Exception:  # noqa: BLE001 — report may not exist yet; not fatal
-            pass
+        served = report.served_report_run_id(LATEST_REPORT)  # V2.7a C5: the pointer (None when absent)
         if served and served != run_id:
             print(f"[server] WARNING: index run {run_id!r} != report run {served!r} — rebuild the index for "
                   f"the current report (python report_agent.py).")
@@ -191,10 +187,19 @@ class GroupInterviewReq(BaseModel):
 
 @app.get("/api/report")
 async def get_report():
-    if not LATEST_REPORT.is_file():
+    # V2.7a C5: resolve the POINTER → that run's stored report, and return the REPORT's OWN run
+    # id (the old wrapper returned the chat index's — wrong exactly when misaligned).
+    served = report.served_report_run_id(LATEST_REPORT)
+    if not served:
         return {"error": "no report yet — run report.py"}
-    report_json = json.loads(LATEST_REPORT.read_text(encoding="utf-8"))
-    return {"report": report_json, "run_id": _STATE["run_id"]}
+    ts = served.replace("multimodal-scenario-", "")
+    path = report.RUNS_DIR / f"report-{ts}.json"
+    if not path.is_file():
+        return {"error": f"the latest-report pointer names {served} but {path.name} is missing — "
+                         f"regenerate with report.py --run-id {served}"}
+    report_json = json.loads(path.read_text(encoding="utf-8"))
+    rid = report_json.get("run_id") or (report_json.get("run") or {}).get("scenario_run_id")
+    return {"report": report_json, "run_id": rid}
 
 
 def _build_context(chunks: list[dict], entities: list[dict], relations: list[dict]) -> str:

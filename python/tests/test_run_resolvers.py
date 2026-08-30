@@ -110,7 +110,21 @@ def _index_root(tmp_path: Path) -> Path:
     return root
 
 
-def test_newest_index_aligns_with_the_served_report(tmp_path: Path, monkeypatch) -> None:
+def test_newest_index_aligns_with_the_served_POINTER(tmp_path: Path, monkeypatch) -> None:
+    # V2.7a C5: latest-report.json is a POINTER ({"run_id"}) — never a second mutable payload.
+    monkeypatch.setattr(report_agent, "INDEX_ROOT", _index_root(tmp_path))
+    rpt = tmp_path / "latest-report.json"
+    rpt.write_text(json.dumps({"run_id": "multimodal-scenario-20260702T044134Z"}), encoding="utf-8")
+    monkeypatch.setattr(report_agent, "LATEST_REPORT", rpt)
+    got = report_agent.newest_index()
+    assert got is not None
+    d, ts = got
+    assert d.name == "index-20260702T044134Z" and ts == "20260702T044134Z"
+
+
+def test_newest_index_tolerates_a_legacy_payload_LOUDLY(tmp_path: Path, monkeypatch, capsys) -> None:
+    # Transitional (expires with a scheduled removal — the V2.5c latest.json precedent): a box
+    # whose latest-report.json still holds the pre-C5 payload aligns correctly, but SAYS SO.
     monkeypatch.setattr(report_agent, "INDEX_ROOT", _index_root(tmp_path))
     rpt = tmp_path / "latest-report.json"
     rpt.write_text(json.dumps({"run": {"scenario_run_id": "multimodal-scenario-20260702T044134Z"}}),
@@ -118,8 +132,32 @@ def test_newest_index_aligns_with_the_served_report(tmp_path: Path, monkeypatch)
     monkeypatch.setattr(report_agent, "LATEST_REPORT", rpt)
     got = report_agent.newest_index()
     assert got is not None
-    d, ts = got
-    assert d.name == "index-20260702T044134Z" and ts == "20260702T044134Z"
+    assert got[0].name == "index-20260702T044134Z"
+    assert "legacy" in capsys.readouterr().out  # the payload shape announces itself
+
+
+def test_served_report_run_id_shapes(tmp_path: Path) -> None:
+    import report
+    p = tmp_path / "latest-report.json"
+    # pointer
+    p.write_text(json.dumps({"run_id": "multimodal-scenario-A"}), encoding="utf-8")
+    assert report.served_report_run_id(p) == "multimodal-scenario-A"
+    # legacy payload (tolerated)
+    p.write_text(json.dumps({"run": {"scenario_run_id": "multimodal-scenario-B"}}), encoding="utf-8")
+    assert report.served_report_run_id(p) == "multimodal-scenario-B"
+    # missing / garbage → None, never a raise
+    assert report.served_report_run_id(tmp_path / "absent.json") is None
+    p.write_text("{not json", encoding="utf-8")
+    assert report.served_report_run_id(p) is None
+
+
+def test_latest_report_pointer_writer(tmp_path: Path, monkeypatch) -> None:
+    import report
+    monkeypatch.setattr(report, "WEB_PUBLIC", tmp_path)
+    report._write_latest_report_pointer("multimodal-scenario-X")
+    data = json.loads((tmp_path / "latest-report.json").read_text(encoding="utf-8"))
+    assert data == {"run_id": "multimodal-scenario-X"}
+    assert not (tmp_path / "latest-report.md").exists()  # the md web copy is retired
 
 
 def test_newest_index_fallback_digit_first_and_is_dir(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -139,8 +177,7 @@ def test_newest_index_fallback_digit_first_and_is_dir(tmp_path: Path, monkeypatc
 def test_newest_index_aligned_report_but_no_matching_index_falls_back(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setattr(report_agent, "INDEX_ROOT", _index_root(tmp_path))
     rpt = tmp_path / "latest-report.json"
-    rpt.write_text(json.dumps({"run": {"scenario_run_id": "multimodal-scenario-19990101T000000Z"}}),
-                   encoding="utf-8")
+    rpt.write_text(json.dumps({"run_id": "multimodal-scenario-19990101T000000Z"}), encoding="utf-8")
     monkeypatch.setattr(report_agent, "LATEST_REPORT", rpt)
     got = report_agent.newest_index()
     assert got is not None
