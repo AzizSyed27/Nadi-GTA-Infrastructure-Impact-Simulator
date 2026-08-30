@@ -1,5 +1,6 @@
 'use client';
 
+import { assignmentLabel, demandLabel } from '@/lib/provenance';
 // V2.1d part ii — two completed runs side by side, per stakeholder. The tool ARRANGES, the planner
 // concludes: no sums, no ranks, no recommendation (the referendum guard extends to this surface).
 // The provenance-mismatch guard renders PROMINENTLY before any delta; a refused delta ("—†", amber)
@@ -109,14 +110,9 @@ function ProvenanceStrip({ side, label, testid, loading, error }: {
   }
   const asn = side.meta.assignment;
   const changes = changesOfSide(side);
-  const demand =
-    side.meta.demand_profile === 'calibrated_am_peak'
-      ? 'calibrated AM peak (07:00–09:00, count-anchored)'
-      : 'synthetic demo demand';
-  const assignment =
-    asn?.mode === 'settled'
-      ? `settled response (iterated assignment, drivers only)${asn.converged != null ? ` · ${asn.converged ? `converged in ${asn.iterations} iterations` : 'iteration cap reached'}` : ''}`
-      : 'day-one response — today’s route habits, no assignment iteration';
+  // V2.7a: labels extracted verbatim to lib/provenance.ts (shared with the run document's spec table)
+  const demand = demandLabel(side.meta.demand_profile);
+  const assignment = assignmentLabel(asn);
   const rs = side.meta.render_sample;
   return (
     <div style={strip} data-testid={testid}>

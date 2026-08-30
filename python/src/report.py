@@ -1320,9 +1320,9 @@ def _cross_seed_sentence(facts: dict) -> str:
     if v:
         lo, hi = v["range_gt30"]
         return (f"Across seeds 42/43/44 this share stays in [{lo * 100:.1f}%, {hi * 100:.1f}%] — a small "
-                f"hard-hit tail, with the vast majority of cars unaffected.")
+                f"hard-hit tail, with almost all cars unaffected.")
     return ("This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail "
-            "with the vast majority of cars unaffected (exact cross-seed range not available for this run).")
+            "with almost all cars unaffected (exact cross-seed range not available for this run).")
 
 
 def render_discourse_md(dfacts: dict, discourse: dict) -> list[str]:

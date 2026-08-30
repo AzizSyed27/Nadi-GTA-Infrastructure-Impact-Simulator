@@ -207,7 +207,7 @@
       "verdict": "across seeds 42/43/44 the car >30 s share sits in [2.3%, 3.3%] — a small hard-hit tail with the vast majority unaffected. The SHAPE (concentrated cost, not broad) is STABLE across seeds, even though the safety-delta SIGN is not."
     },
     "cross_seed_available": true,
-    "sentence": "Across seeds 42/43/44 this share stays in [2.3%, 3.3%] — a small hard-hit tail, with the vast majority of cars unaffected."
+    "sentence": "Across seeds 42/43/44 this share stays in [2.3%, 3.3%] — a small hard-hit tail, with almost all cars unaffected."
   },
   "sections": {
     "what_tested": {
@@ -601,5 +601,5 @@
     "conflicts-baseline-20260702T044134Z.json",
     "robustness-verdict-20260702T044134Z.json"
   ],
-  "facts_refreshed_at": "2026-08-30T04:18:03.271001+00:00"
+  "facts_refreshed_at": "2026-08-30T14:44:10.474886+00:00"
 }

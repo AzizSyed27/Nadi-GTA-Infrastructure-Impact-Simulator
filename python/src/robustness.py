@@ -237,7 +237,7 @@ def cross_seed_car_tail(seed42: dict) -> dict:
     s60s = [r["share_gt60"] for r in per_seed]
     lo, hi = min(s30s), max(s30s)
     verdict = (f"across seeds 42/43/44 the car >30 s share sits in [{lo:.1%}, {hi:.1%}] — a small "
-               f"hard-hit tail with the vast majority unaffected. The SHAPE (concentrated cost, not broad) is "
+               f"hard-hit tail with the vast share of cars unaffected. The SHAPE (concentrated cost, not broad) is "
                f"STABLE across seeds, even though the safety-delta SIGN is not.")
     print(f"\n**Verdict:** {verdict}")
     return {

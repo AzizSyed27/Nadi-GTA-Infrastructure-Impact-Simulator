@@ -142,8 +142,9 @@ test('the report view renders the institutional section (producer-real fixture)'
     audit: { passed: true, slots_checked: 0, summary: 's', log: [] },
     sources: [],
   };
-  // ReportPanel reads /latest-report.json DIRECTLY (the report JSON, unwrapped); only /api/report wraps.
-  await page.route('**/latest-report.json', (route) => route.fulfill({ json: report }));
+  // V2.7a C3: the Read stage resolves the PER-RUN report (/<run_id>-report.json — the singleton
+  // is no longer read); the mock's run.scenario_run_id matches the fixture so the vintage guard passes.
+  await page.route('**/institutions-fixture-report.json', (route) => route.fulfill({ json: report }));
   await page.route('**/api/report', (route) => route.fulfill({ json: { report, run_id: 'institutions-fixture' } }));
   await openPlayback(page);
   await page.getByTestId('stage-read').click(); // V2.7a: the Read stage IS the report surface

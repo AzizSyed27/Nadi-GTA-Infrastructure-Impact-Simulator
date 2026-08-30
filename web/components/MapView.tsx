@@ -36,7 +36,9 @@ import { ShellHeader } from '@/components/ShellHeader';
 import { DocumentPanel } from '@/components/DocumentPanel';
 import { ChatPanel } from '@/components/ChatPanel';
 import { stageAvailability, type ExploreSub, type Stage } from '@/lib/shell';
-import { ReportPanel } from '@/components/ReportPanel';
+import { windowedScope } from '@/lib/windowedScope';
+import { RunDocument, type ReportState } from '@/components/RunDocument';
+import { reportRunId, reportUrl, type PerRunReport } from '@/lib/reportData';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
 import { loadCompareSide, slimFromArtifact, type CompareSide } from '@/lib/compare';
@@ -91,50 +93,6 @@ const BADGE_CHARSET = Array.from('0123456789:–t=s min-'); // ascii '-' too: ne
 const SNAP_M = 60; // edit mode: a click within this many meters of a junction snaps to it
 const EDGE_ZOOM = 14; // edit mode: the zoom at/above which edge selection is precise enough (a palette UX hint)
 
-// V2.2 closeout / V2.4b: the windowed-scope summary for the ScorecardPanel note, or null when
-// nothing is windowed. Windowed members only — a permanent member neither narrows nor widens the
-// span — and DISPLAY bounds clamp to [0, sim_end] (a window may legally end past the sim ceiling;
-// the line must never claim activity outside the run). `differing` (>1 distinct window pair) and
-// the windowed-vs-total counts drive the note's span clause + mechanical subject. `disjoint`
-// (V2.5a, line-faithful port of zone_lens.windows_disjoint) is true iff ALL members are windowed
-// AND the merged window union leaves a gap strictly inside the span — a permanent member fills
-// every gap; touching windows (end === start) are contiguous. Lockstep with the Python
-// convention: report.build_scope_disclosure over zone_lens.resolve_window.
-function windowedScope(
-  changes: { window?: { start_s: number; end_s: number } | null }[],
-  simEnd: number,
-): {
-  span: { start_s: number; end_s: number };
-  differing: boolean;
-  disjoint: boolean;
-  windowedCount: number;
-  total: number;
-} | null {
-  const ws = changes.flatMap((c) => (c.window ? [c.window] : []));
-  if (!ws.length) return null;
-  let disjoint = false;
-  if (ws.length === changes.length && ws.length >= 2) {
-    const sorted = [...ws].sort((a, b) => a.start_s - b.start_s || a.end_s - b.end_s);
-    let end = sorted[0].end_s;
-    for (const w of sorted.slice(1)) {
-      if (w.start_s > end) {
-        disjoint = true;
-        break;
-      }
-      end = Math.max(end, w.end_s);
-    }
-  }
-  return {
-    span: {
-      start_s: Math.max(Math.min(...ws.map((w) => w.start_s)), 0),
-      end_s: Math.min(Math.max(...ws.map((w) => w.end_s)), simEnd),
-    },
-    differing: new Set(ws.map((w) => `${w.start_s}:${w.end_s}`)).size > 1,
-    disjoint,
-    windowedCount: ws.length,
-    total: changes.length,
-  };
-}
 
 /** A sim agent joined to its trajectory (vehicle OR person) — stable across frames; the clickable dots. */
 interface Pinned {
@@ -468,6 +426,41 @@ export default function MapView() {
     })();
   }, [stage, exploreSub, artifact, graphsSidecar]);
 
+  // V2.7a C3 — the per-run REPORT for the Read stage (the graphs-sidecar pattern: lazy, keyed on
+  // the run id, cleared by loadRun). VINTAGE GUARD: a report whose own run id disagrees with the
+  // loaded run renders the labeled report-mismatch state — the document must never carry another
+  // run's findings (the latest-report drift class, dead structurally).
+  const [reportData, setReportData] = useState<{
+    runId: string;
+    report: PerRunReport | null;
+    state: ReportState;
+  } | null>(null);
+  useEffect(() => {
+    if (stage !== 'read' || !artifact) return;
+    const runId = artifact.meta.run_id;
+    if (reportData?.runId === runId) return; // fetched, fetching, or errored — loadRun clears to refresh
+    queueMicrotask(() => setReportData({ runId, report: null, state: 'loading' }));
+    const settle = (next: { runId: string; report: PerRunReport | null; state: ReportState }) =>
+      setReportData((cur) => (cur?.runId === runId && cur.state === 'loading' ? next : cur));
+    (async () => {
+      try {
+        const r = await fetch(reportUrl(runId), { cache: ARTIFACT_CACHE });
+        if (!r.ok) {
+          settle({ runId, report: null, state: 'missing' });
+          return;
+        }
+        const report = (await r.json()) as PerRunReport;
+        settle(
+          reportRunId(report) === runId
+            ? { runId, report, state: 'ready' }
+            : { runId, report: null, state: 'mismatch' },
+        );
+      } catch {
+        settle({ runId, report: null, state: 'missing' });
+      }
+    })();
+  }, [stage, artifact, reportData]);
+
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
   // vehicle/person NOT pinned. Inferred agents have no trip, so they don't appear on the map.
@@ -746,6 +739,7 @@ export default function MapView() {
     // V2.3d: an enrich may have just exported fresh graph layouts for this same run_id — drop the
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
+    setReportData(null); // the Read stage refetches the new run's report
     try {
       const r = await fetch(`/${id}.json`, { cache: ARTIFACT_CACHE });
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
@@ -1911,7 +1905,16 @@ export default function MapView() {
           onToggle={setDocCollapsed}
           topOffset={78}
         >
-          <ReportPanel />
+          <RunDocument
+            artifact={artifact}
+            report={reportData?.runId === meta.run_id ? reportData.report : null}
+            reportState={reportData?.runId === meta.run_id ? reportData.state : 'loading'}
+            onGroupDoorway={(g) => {
+              // the 2.4 doorway: this group's voices, in Watch (the existing scorecard→feed join)
+              setFeedGroup(g);
+              setStage('watch');
+            }}
+          />
         </DocumentPanel>
       ) : exploreSub === 'graphs' ? (
         // V2.3d — the two graphs, visibly two graphs (a full sheet; Timeline unmounted → rAF stops)
@@ -1962,7 +1965,7 @@ export default function MapView() {
         onStage={setStage}
         stageState={stageAvailability({
           hasArtifact: true, // past the early return — the artifact is loaded
-          hasReport: false, // C2 interim: wired to the per-run report's presence in C3
+          hasReport: reportData?.runId === meta.run_id && reportData.state === 'ready',
           hasSocial,
           hasGraphs: graphsSidecar?.runId === meta.run_id && !!graphsSidecar.data,
         })}

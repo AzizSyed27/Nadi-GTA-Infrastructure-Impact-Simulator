@@ -1,5 +1,6 @@
 'use client';
 
+import { nonCompletionsLine } from '@/lib/nonCompletions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRunStatus, postEnrich, postIdentity, type EnrichStage, type RunStatus } from '@/lib/api';
 import { openEnrichStream, type VoiceEvent } from '@/lib/enrichStream';
@@ -284,41 +285,13 @@ export function RunCard({
   // cars — a closure whose whole impact lands on pedestrians must not read "0 cars did not
   // complete". V2.4b: the backlog-attribution parenthetical now rides HERE too (user-ratified —
   // the V2.2c chip exemption ends; the split never renders without the attribution, any surface).
-  const ncTotal = status?.non_completions
-    ? Object.values(status.non_completions).reduce((a, b) => a + b, 0)
-    : null;
-  const ncSplit = status?.non_completions_split;
-  const splitParts = ncSplit
-    ? Object.entries(ncSplit)
-        .filter(([, b]) => b.entered_not_finished + b.not_inserted > 0)
-        .map(([m, b]) => {
-          const bits = [
-            b.entered_not_finished > 0 ? `${b.entered_not_finished} stranded en route` : null,
-            b.not_inserted > 0 ? `${b.not_inserted} not inserted` : null,
-          ].filter(Boolean);
-          return `${m}: ${bits.join(', ')}`;
-        })
-    : [];
-  // Backlog sums SCOPED to the modes the split actually names (review-caught: an all-modes sum
-  // could silently include a mode whose split is zero — the report's per-mode discipline).
-  const namedModes = new Set(
-    ncSplit ? Object.entries(ncSplit).filter(([, b]) => b.entered_not_finished + b.not_inserted > 0).map(([m]) => m) : [],
+  // V2.7a: the sentence is composed by lib/nonCompletions.ts (shared with the run document;
+  // the toHaveText pins ride the shared composer).
+  const ncLine = nonCompletionsLine(
+    status?.non_completions,
+    status?.non_completions_split,
+    status?.insertion_backlog,
   );
-  const bl = status?.insertion_backlog;
-  const blEntries = bl ? Object.entries(bl).filter(([m]) => namedModes.has(m)) : [];
-  const blSums = blEntries.length
-    ? blEntries.reduce<[number, number]>((acc, [, b]) => [acc[0] + b.baseline, acc[1] + b.scenario], [0, 0])
-    : null;
-  const nonCompletionsLine =
-    ncTotal != null && ncTotal > 0
-      ? splitParts.length
-        ? `${ncTotal} travelers did not complete — ${splitParts.join('; ')}${
-            blSums
-              ? ` (insertion backlog affects baseline too: ${blSums[0]} baseline vs ${blSums[1]} scenario)`
-              : ''
-          }`
-        : `${ncTotal} travelers did not complete under the change`
-      : null;
 
   // V2.2b/V2.5b — the emergency-response fact (capacity runs), SHAPE-KEYED. Members shape: ends
   // are the counted noun (E excludes no_approach / all-baseline-unreachable ends — not
@@ -510,8 +483,8 @@ export function RunCard({
         <>
           <div style={theNumber} data-testid="reroute-number">{rerouteLabel}</div>
           {carDelay && <div style={carDelayLine} data-testid="car-delay">{carDelay}</div>}
-          {nonCompletionsLine && (
-            <div style={carDelayLine} data-testid="non-completions">{nonCompletionsLine}</div>
+          {ncLine && (
+            <div style={carDelayLine} data-testid="non-completions">{ncLine}</div>
           )}
           {responseLine && rd && (
             <div style={{ ...sub, opacity: 0.85 }} data-testid="response-access-chip">

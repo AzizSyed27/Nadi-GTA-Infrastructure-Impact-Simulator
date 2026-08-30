@@ -1,11 +1,11 @@
 'use client';
 
+import { scopeNoteText } from '@/lib/windowedScope';
 import { useState } from 'react';
 
 import type { Scorecard, ScorecardGroup } from '@/lib/types';
 import { GROUP_LABEL, OTHER_VOICES_GROUP, SCORECARD_GROUP_ORDER } from '@/lib/personaGroups';
 import { BETTER, chipInferred, chipSim, ScoreCell, WORSE } from '@/lib/scorecardStyles';
-import { fmtWindowRange } from '@/lib/simTime';
 
 /**
  * The per-STAKEHOLDER scorecard (7 groups × travel_time / safety / access). Honesty is the whole point:
@@ -71,25 +71,9 @@ export function ScorecardPanel({
           )}
           {scope && (
             <div style={{ ...legend, opacity: 0.9 }} data-testid="scorecard-scope-note">
-              measures cover the full run;{' '}
-              {scope.windowedCount < scope.total
-                ? scope.windowedCount === 1
-                  ? 'windowed change'
-                  : 'windowed changes'
-                : scope.total === 1
-                  ? 'change'
-                  : 'changes'}{' '}
-              active {fmtWindowRange(scope.span, demandProfile)}
-              {scope.differing
-                ? // client copy of zone_lens.span_note("these figures") + (iff disjoint)
-                  // zone_lens.DISJOINT_SPAN_CLAUSE (python/src/zone_lens.py) — the report's
-                  // disclosure sentence carries the same clauses; keep in lockstep.
-                  ' (members carry differing windows; these figures use the spanning window' +
-                  (scope.disjoint
-                    ? '; the spanning window includes periods where no change was active'
-                    : '') +
-                  ')'
-                : ''}
+              {/* V2.7a: composed by lib/windowedScope.scopeNoteText — shared with the run
+                  document; the scorecard-scope pins ride the shared composer. */}
+              {scopeNoteText(scope, demandProfile)}
             </div>
           )}
           <div style={legend}>
