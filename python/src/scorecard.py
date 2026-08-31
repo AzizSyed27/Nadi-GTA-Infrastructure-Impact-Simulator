@@ -354,8 +354,10 @@ def main() -> None:
               f"{_fmt_cell(g.access_delta):<14}")
     print("-" * 92)
     print("  [MEAS] = measured from the sim | [LOW] = low confidence (heuristic / not seed-robust).")
-    print("  The ENTIRE access column is a heuristic estimate (all groups). SAFETY signs flip across")
-    print("  seeds 42/43/44 — a magnitude, not a directional claim; values are a dimensionless")
+    # V2.7a follow-up: no hardcoded seed tuple in prose — the per-cell notes carry the run's
+    # OWN seed provenance (the V2.1d earned-note mechanic); this summary states the rule only.
+    print("  The ENTIRE access column is a heuristic estimate (all groups). SAFETY signs are not")
+    print("  seed-stable — a magnitude, not a directional claim; values are a dimensionless")
     print("  severity-sum delta (a relative aggregate), never a crash count/rate.")
     print("=" * 92)
     car = next(g for g in reloaded.scorecard.groups if g.group == "car_commuter")

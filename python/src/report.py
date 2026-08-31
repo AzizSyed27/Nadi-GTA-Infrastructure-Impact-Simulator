@@ -39,6 +39,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 import personas as personas_mod
+import run_state
 import trajectory_io
 from contract_models import MANDATE_VERSIONS, ScorecardCell, ScorecardGroup, TrajectoryArtifact, changes_of
 from llm_provider import LLMClient, get_client
@@ -55,7 +56,6 @@ REPORT_MAX_TOKENS = 1000  # narrative synthesis needs more than the reaction lay
 TTC_THRESHOLD_S = 3.0
 VEH_PET_THRESHOLD_S = 2.0
 PED_PET_THRESHOLD_S = 5.0
-DEFAULT_SEEDS = [42, 43, 44]
 
 # Canonical scorecard row order + labels — mirror web/lib/personaGroups.ts (kept in lockstep by hand;
 # the artifact carries the group ids, this only names them for display).
@@ -1345,13 +1345,26 @@ async def slot_discourse(client, dfacts: dict, audit_log: list[dict]) -> dict:
 # ===================================================================================================
 
 def _cross_seed_sentence(facts: dict) -> str:
+    """V2.7a follow-up — the sentence derives from THIS run's seeds (the old template hardcoded
+    the canonical 42/43/44 tuple onto every run, claiming a cross-seed check single-seed runs
+    never had). Three honest shapes: a verdict-backed range, a multi-seed run whose CELL ranges
+    were probed but whose tail range was not, and a single-seed run that makes NO cross-seed
+    claim (the limitation is named, never silent)."""
+    seeds = facts["seeds"]
     v = facts["verdict"]
     if v:
         lo, hi = v["range_gt30"]
-        return (f"Across seeds 42/43/44 this share stays in [{lo * 100:.1f}%, {hi * 100:.1f}%] — a small "
-                f"hard-hit tail, with almost all cars unaffected.")
-    return ("This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail "
-            "with almost all cars unaffected (exact cross-seed range not available for this run).")
+        vseeds = v.get("seeds") or seeds  # legacy verdicts may lack the key — never KeyError
+        return (f"Across seeds {_seed_list(vseeds)} this share stays in [{lo * 100:.1f}%, {hi * 100:.1f}%] — "
+                f"a small hard-hit tail, with almost all cars unaffected.")
+    if len(seeds) > 1:
+        return (f"Seeds {_seed_list(seeds)} probed per-cell ranges for this run; the tail share shown is "
+                f"the canonical seed's figure (no cross-seed tail range was computed).")
+    return f"Single seed ({seeds[0]}) — cross-seed stability of this tail was not probed for this run."
+
+
+def _seed_list(seeds: list) -> str:
+    return "/".join(str(s) for s in seeds)
 
 
 def render_discourse_md(dfacts: dict, discourse: dict) -> list[str]:
@@ -1865,7 +1878,8 @@ def _assemble_report_json(facts: dict, artifact: TrajectoryArtifact, verdict: di
                           dfacts: dict | None, caveats: list[dict], *,
                           framing: str, glosses: dict, what_they_say: dict,
                           discourse_prose: dict | None, caveat_intro: str,
-                          audit_block: dict, provenance: dict, sources: list[str]) -> dict:
+                          audit_block: dict, provenance: dict, sources: list[str],
+                          run_name: str | None = None) -> dict:
     """The ONE report_json builder — generate() (fresh LLM prose) and refresh_facts() (stored
     prose) both route through it, so the code-derived shape can never fork between the two
     (the V2.3a single-builder mechanic)."""
@@ -1882,6 +1896,10 @@ def _assemble_report_json(facts: dict, artifact: TrajectoryArtifact, verdict: di
             "network": facts["network"], "seeds": facts["seeds"], "thresholds": facts["thresholds"],
             "demand": facts["demand"], "cars_rerouted": facts["cars_rerouted"],
             "severed_edges": facts["severed_edges"],
+            # V2.7a follow-up: the identity sidecar's name, stamped at generation/refresh time —
+            # the STATIC demo's document has no identity endpoint, so the committed report is the
+            # carrier; a live endpoint name still wins client-side. Absent = unnamed.
+            **({"name": run_name} if run_name else {}),
         },
         "scenario_change": facts["change"].model_dump(mode="json"),
         "facts": _report_json_facts(facts),
@@ -1974,8 +1992,9 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     if verdict:
         sources.append(f"robustness-verdict-{ts}.json")
 
+    run_name = run_state.identity(facts["scenario_run_id"]).get("name")
     report_json = _assemble_report_json(
-        facts, artifact, verdict, dfacts, caveats,
+        facts, artifact, verdict, dfacts, caveats, run_name=run_name,
         framing=framing, glosses=glosses,
         what_they_say={"groups": [{"key": bk, "label": BUCKET_LABEL[bk], **syntheses[bk]}
                                   for bk in BUCKET_ORDER if bk in syntheses]},
@@ -2063,8 +2082,9 @@ def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
     if verdict:
         sources.append(f"robustness-verdict-{ts}.json")
 
+    run_name = run_state.identity(facts["scenario_run_id"]).get("name")
     report_json = _assemble_report_json(
-        facts, artifact, verdict, dfacts, caveats,
+        facts, artifact, verdict, dfacts, caveats, run_name=run_name,
         framing=framing, glosses=glosses, what_they_say=what_they_say,
         discourse_prose=discourse_prose, caveat_intro=caveat_intro, audit_block=audit_block,
         provenance={"generated_at": old.get("generated_at"), "provider": old.get("provider"),

@@ -270,3 +270,32 @@ def test_committed_example_report_carries_the_per_end_finding():
     # the honesty notes ride the payload wherever its numbers go
     for key in ("end_method_note", "probed_members_note", "window_coincidence_note", "origins_note"):
         assert rd.get(key), f"riding note missing from the committed payload: {key}"
+
+
+# --------------------------------------------------------------------------------------------------
+# V2.7a follow-up — the identity NAME is stamped into report_json (run.name), so the STATIC demo's
+# document can title itself: the committed report is the only carrier where no endpoint exists.
+# --------------------------------------------------------------------------------------------------
+
+def test_refresh_stamps_the_identity_name_when_the_sidecar_has_one(env, monkeypatch, tmp_path):
+    import run_state
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    monkeypatch.setattr(run_state, "STATE_DIR", state_dir)
+    (state_dir / f"{RUN_ID}.identity.json").write_text(
+        json.dumps({"run_id": RUN_ID, "name": "Kingston pilot v2"}), encoding="utf-8")
+    runs, web = env
+    report.refresh_facts(RUN_ID)
+    new = _new_report(runs)
+    assert new["run"]["name"] == "Kingston pilot v2"
+
+
+def test_refresh_emits_no_name_key_for_an_unnamed_run(env, monkeypatch, tmp_path):
+    import run_state
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()  # exists but holds no sidecar — the unnamed case
+    monkeypatch.setattr(run_state, "STATE_DIR", state_dir)
+    runs, _web = env
+    report.refresh_facts(RUN_ID)
+    new = _new_report(runs)
+    assert "name" not in new["run"]  # absence = unnamed (matching run_state.identity's contract)

@@ -30,7 +30,7 @@ Stub framing paragraph.
 - *Safety:* safety unstable
 - *Access:* est
 
-**Travel-time tail (cars):** median about no change; 3.3% of cars are >30s slower. This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail with almost all cars unaffected (exact cross-seed range not available for this run).
+**Travel-time tail (cars):** median about no change; 3.3% of cars are >30s slower. Single seed (42) — cross-seed stability of this tail was not probed for this run.
 
 **Per-group reading:**
 - **Car commuters:** Stub gloss for car_commuter.

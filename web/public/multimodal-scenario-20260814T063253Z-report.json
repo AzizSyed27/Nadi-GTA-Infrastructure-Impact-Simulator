@@ -445,7 +445,7 @@
     "share_gt30_pct": 1.7,
     "cross_seed": null,
     "cross_seed_available": false,
-    "sentence": "This small affected share was checked across seeds 42, 43 and 44 and remains a small, stable tail with almost all cars unaffected (exact cross-seed range not available for this run)."
+    "sentence": "Single seed (42) — cross-seed stability of this tail was not probed for this run."
   },
   "sections": {
     "what_tested": {
@@ -738,5 +738,6 @@
     "multimodal-scenario-20260814T063253Z.json",
     "outcomes-20260814T063253Z.json",
     "conflicts-baseline-20260814T063253Z.json"
-  ]
+  ],
+  "facts_refreshed_at": "2026-08-31T21:58:13.562821+00:00"
 }

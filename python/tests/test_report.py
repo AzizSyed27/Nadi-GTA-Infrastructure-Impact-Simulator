@@ -914,3 +914,48 @@ def test_institutional_md_renders_mission_verbatim_with_retrieved_date():
     assert entry["mandate"]["mission"] in md  # verbatim, uncut
     assert f"retrieved {entry['mandate']['retrieved']}" in md  # the freshness signal renders
     assert "not a dispatch model" in md and "a lower bound" in md
+
+
+# ===================================================================================================
+# V2.7a follow-up — the cross-seed sentence derives from THIS run's seeds (the honesty flag:
+# the old template hardcoded "seeds 42, 43 and 44" onto single-seed runs). Mutation-effective
+# BOTH directions: a single-seed run must FAIL if any cross-seed claim renders; a multi-seed
+# run must fail if the derived form doesn't.
+# ===================================================================================================
+
+def _tail_facts(seeds, verdict=None, n_seeds=None):
+    return {"verdict": verdict, "seeds": seeds, "n_seeds": n_seeds or len(seeds),
+            "tail_share_pct": 3.3, "tail_median_s": 0.0}
+
+
+def test_tail_sentence_single_seed_makes_no_cross_seed_claim():
+    s = report._cross_seed_sentence(_tail_facts([42]))
+    assert "Single seed (42)" in s
+    assert "43" not in s and "44" not in s  # no foreign seed digits, ever
+    assert "checked across" not in s  # the old false claim must not return
+    assert "not probed" in s  # the limitation is NAMED, not silent
+
+
+def test_tail_sentence_multi_seed_native_names_its_seeds_without_the_tail_claim():
+    s = report._cross_seed_sentence(_tail_facts([42, 43, 44], n_seeds=3))
+    assert "42/43/44" in s
+    assert "no cross-seed tail range" in s  # what was NOT computed is said out loud
+    assert "checked across" not in s and "stable tail" not in s  # the old form stays dead
+    # a different seed set derives differently (the anti-hardcode mutation check)
+    s2 = report._cross_seed_sentence(_tail_facts([7, 9], n_seeds=2))
+    assert "7/9" in s2 and "42" not in s2
+
+
+def test_tail_sentence_verdict_branch_derives_its_seed_list():
+    v = {"seeds": [42, 43, 44], "range_gt30": [0.023, 0.033]}
+    s = report._cross_seed_sentence(_tail_facts([42, 43, 44], verdict=v))
+    assert "Across seeds 42/43/44" in s and "[2.3%, 3.3%]" in s
+    v2 = {"seeds": [5, 6, 7], "range_gt30": [0.01, 0.02]}
+    assert "5/6/7" in report._cross_seed_sentence(_tail_facts([5, 6, 7], verdict=v2))
+
+
+def test_tail_sentence_seedless_legacy_verdict_falls_back_to_facts_seeds():
+    # the test_report legacy-verdict shape carries no `seeds` key — must not raise
+    v = {"range_gt30": [0.02, 0.03]}
+    s = report._cross_seed_sentence(_tail_facts([42, 43, 44], verdict=v))
+    assert "Across seeds 42/43/44" in s
