@@ -25,3 +25,7 @@ export const ARTIFACT_CACHE: RequestCache | undefined = STATIC_DEMO ? undefined 
 // fallback and the demo pointer's target. Its artifact + per-run report are committed; the
 // python mirror is trajectory_io.EXAMPLE_RUN_ID (the protected-runs set).
 export const EXAMPLE_RUN_ID = 'multimodal-scenario-20260814T063253Z';
+// The example's ratified display name — THE single source: the run list's synthesized row
+// renders it, and the committed example report's run.name is spec-pinned EQUAL to it (two
+// hardcoded copies of one name is the drift disease).
+export const EXAMPLE_RUN_NAME = 'Closure at the fire station’s doorstep';

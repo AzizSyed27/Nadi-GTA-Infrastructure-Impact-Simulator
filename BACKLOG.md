@@ -318,3 +318,21 @@ why in the demo) but is optional, not required.
   the report markdown only, not as a document finding; legacy (pre-V2.5b `probes`-shape) detour
   payloads render no structured document callouts (the md keeps them) — both honest omissions,
   revisit if a document surface wants them.
+
+## V2.7a follow-up — humanize the document's identifiers (scheduled: V2.7b/d, its own item)
+The document speaks edge-ids and raw sim-seconds; the ratified design speaks street names and
+clock times. Humanization of the spec table + finding headers — street names resolved from
+network data (the exported network.json carries the geometry; name lookup needs the source
+net's street names threaded through network_export), and clock-time windows via the existing
+server-side `demand_profiles.fmt_sim_time` / client `web/lib/simTime.ts` — is scheduled for
+V2.7b/d and named HERE as its own deliverable so it doesn't dissolve into the styling passes.
+
+## V2.7a follow-up — scorecard._SAFETY_NOTE bakes "42/43/44" into single-seed artifacts
+`scorecard.py` `_SAFETY_NOTE` ("sign not stable across seeds 42/43/44; …") is the V1 default
+note written into every SINGLE-seed artifact's safety cells — the same constant-seed-tuple
+disease the V2.7a follow-up fixed in `report._cross_seed_sentence`, but baked into COMMITTED
+artifacts (both the pinned and example runs carry it in cell notes + a caveat body). Multi-seed
+runs already replace it with the V2.1d earned note (derived list). Fixing the single-seed
+default means choosing honest tuple-free wording AND a deliberate scorecard-recompute ceremony
+over the committed artifacts (artifact churn + the test_seed_ranges note pins) — its own step,
+not a drive-by.

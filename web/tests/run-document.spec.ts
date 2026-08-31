@@ -4,6 +4,7 @@ import path from 'node:path';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import { openStage, gate } from './support/shell';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
+import { EXAMPLE_RUN_NAME } from '../lib/demo';
 
 // V2.7a C3 — the RUN DOCUMENT (the Read stage). Pins: the three-bucket assignment + fixed
 // ordering, the scope disclosure riding 2.4 (same literals as scorecard-scope.spec), the copy
@@ -246,4 +247,76 @@ test('the committed example renders ITS OWN report values — the rendered-equal
   await page.getByTestId('doc-group-row').first().click();
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('feed-filter-chip')).toBeVisible();
+});
+
+// ── V2.7a follow-up — the document's NAME (the static-demo identity gap) ──────────────────────
+
+test('title precedence: live identity name → report-carried name → the mechanical title', async ({ page }) => {
+  const art = { ...FIXTURE, scorecard: craftedScorecard() };
+  const named = mkReport(RUN_ID);
+  (named.run as Record<string, unknown>).name = 'Kingston pilot v2';
+  // no live status route → the report-carried name renders
+  await openDoc(page, art, named);
+  await expect(page.getByTestId('run-document').locator('h2').first()).toHaveText('Kingston pilot v2');
+});
+
+test('a LIVE identity name beats the report-carried name', async ({ page }) => {
+  const art = { ...FIXTURE, scorecard: craftedScorecard() };
+  const named = mkReport(RUN_ID);
+  (named.run as Record<string, unknown>).name = 'STALE REPORT NAME';
+  await page.route('**/api/runs', (route) =>
+    route.fulfill({ json: { runs: [{ id: RUN_ID, description: 'd', status: 'done', stage: 'done', started_at: 1, name: 'Fresh live name' }] } }),
+  );
+  await openDoc(page, art, named);
+  await expect(page.getByTestId('run-document').locator('h2').first()).toHaveText('Fresh live name');
+});
+
+test('an unnamed run keeps the mechanical title', async ({ page }) => {
+  const art = { ...FIXTURE, scorecard: craftedScorecard() };
+  await openDoc(page, art, mkReport(RUN_ID)); // no run.name anywhere
+  await expect(page.getByTestId('run-document').locator('h2').first()).not.toHaveText(/^$/);
+  await expect(page.getByTestId('run-document').locator('h2').first()).not.toContainText('Kingston');
+});
+
+test('the document title renders a markup name INERT (the V2.4c name-surface invariant)', async ({ page }) => {
+  const art = { ...FIXTURE, scorecard: craftedScorecard() };
+  const named = mkReport(RUN_ID);
+  (named.run as Record<string, unknown>).name = '<img src=x onerror=alert(1)>';
+  await openDoc(page, art, named);
+  await expect(page.getByTestId('run-document').locator('h2').first()).toContainText('<img src=x'); // the LITERAL
+});
+
+test('the committed example report carries EXAMPLE_RUN_NAME — one source, no drift', async ({ page: _page }) => {
+  // the run list's synthesized row imports the constant; the committed report is spec-pinned
+  // EQUAL to it — two hardcoded copies of one name is the drift disease.
+  const committed = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '..', 'public', `${EXAMPLE}-report.json`), 'utf-8'),
+  );
+  expect(committed.run.name).toBe(EXAMPLE_RUN_NAME);
+});
+
+test('a described AND windowed member renders its description once — no appended window', async ({ page }) => {
+  const art = {
+    ...FIXTURE,
+    scorecard: craftedScorecard(),
+    meta: {
+      ...FIXTURE.meta,
+      scenario: {
+        ...FIXTURE.meta.scenario,
+        changes: [{
+          type: 'lane_closure', target_edge: 'E_A', target_lanes: [1],
+          description: 'Closed 1 lane of edge E_A from t=600 s to t=1200 s',
+          window: { start_s: 600, end_s: 1200 },
+        }],
+      },
+    },
+  };
+  await openDoc(page, art, mkReport(RUN_ID));
+  // scoped to the MEMBERS cell: the scope-disclosure note legitimately carries the en-dash
+  // range elsewhere in the document — the duplication disease lives in this one cell
+  const members = page.getByTestId('doc-members');
+  await expect(members).toContainText('Closed 1 lane of edge E_A from t=600 s to t=1200 s');
+  // the fmtWindowRange en-dash form appearing HERE means the window was appended ON TOP of
+  // the description (the C3 interim-screenshot duplication) — it must not render
+  await expect(members).not.toContainText('t=600–1200 s');
 });

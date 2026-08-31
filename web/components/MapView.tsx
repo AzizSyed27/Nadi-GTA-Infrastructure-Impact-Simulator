@@ -18,7 +18,7 @@ import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
-import { getJunctions, getEdges, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
+import { getJunctions, getEdges, getRuns, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/enrichStream';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { RoomDrawer, type RoomMsg, type RoomPair, type RoomRound } from '@/components/RoomDrawer';
@@ -510,6 +510,22 @@ export default function MapView() {
     report: PerRunReport | null;
     state: ReportState;
   } | null>(null);
+  const [liveIdentity, setLiveIdentity] = useState<{ runId: string; name: string | null } | null>(null);
+  useEffect(() => {
+    if (stage !== 'read' || !artifact || STATIC_DEMO) return; // the demo has no identity endpoint
+    const runId = artifact.meta.run_id;
+    if (liveIdentity?.runId === runId) return;
+    queueMicrotask(() => setLiveIdentity({ runId, name: null }));
+    // the LIST endpoint, not /status: several specs mock /status as a staged SEQUENCE, and an
+    // extra consumer advances their progression (caught live by seeds.spec); /api/runs is the
+    // name surface anyway and statically mocked everywhere.
+    getRuns().then((res) => {
+      if (res.ok) {
+        const name = res.value.runs.find((r) => r.id === runId)?.name ?? null;
+        if (name) setLiveIdentity((cur) => (cur?.runId === runId ? { runId, name } : cur));
+      }
+    });
+  }, [stage, artifact, liveIdentity]);
   useEffect(() => {
     if (stage !== 'read' || !artifact) return;
     const runId = artifact.meta.run_id;
@@ -815,6 +831,7 @@ export default function MapView() {
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
     setReportData(null); // the Read stage refetches the new run's report
+    setLiveIdentity(null);
     setFreshDraft(false); // viewing a run again — a future Build click shows its composition/watcher
     try {
       const r = await fetch(`/${id}.json`, { cache: ARTIFACT_CACHE });
@@ -2020,6 +2037,7 @@ export default function MapView() {
             report={reportData?.runId === meta.run_id ? reportData.report : null}
             reportState={reportData?.runId === meta.run_id ? reportData.state : 'loading'}
             isExample={isExample}
+            liveName={liveIdentity?.runId === meta.run_id ? liveIdentity.name : null}
             onGroupDoorway={(g) => {
               // the 2.4 doorway: this group's voices, in Watch (the existing scorecard→feed join)
               setFeedGroup(g);

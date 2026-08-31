@@ -91,6 +91,10 @@ export interface PerRunReport {
     thresholds: { ttc_s: number; veh_pet_s: number; ped_pet_s: number; materiality_s: number };
     demand: { car: number; bicycle: number; pedestrian: number };
     cars_rerouted: number;
+    severed_edges: string[];
+    /** V2.7a follow-up — the identity sidecar's name, stamped at generation/refresh time (the
+     *  static demo's only name carrier); a LIVE endpoint name still wins client-side. */
+    name?: string;
   };
   scenario_change: { description: string; target_edge: string; target_lane?: number | null };
   facts?: ReportFacts;

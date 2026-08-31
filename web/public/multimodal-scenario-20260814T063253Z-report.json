@@ -29,7 +29,8 @@
       "pedestrian": 129
     },
     "cars_rerouted": 5,
-    "severed_edges": []
+    "severed_edges": [],
+    "name": "Closure at the fire station’s doorstep"
   },
   "scenario_change": {
     "type": "road_closure",
@@ -739,5 +740,5 @@
     "outcomes-20260814T063253Z.json",
     "conflicts-baseline-20260814T063253Z.json"
   ],
-  "facts_refreshed_at": "2026-08-31T21:58:13.562821+00:00"
+  "facts_refreshed_at": "2026-08-31T22:33:10.419087+00:00"
 }

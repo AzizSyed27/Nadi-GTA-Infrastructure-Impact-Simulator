@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getRuns, type RunSummary } from '@/lib/api';
-import { EXAMPLE_RUN_ID } from '@/lib/demo';
+import { EXAMPLE_RUN_ID, EXAMPLE_RUN_NAME } from '@/lib/demo';
 
 const STAGE_LABEL: Record<string, string> = {
   queued: 'queued',
@@ -174,7 +174,7 @@ export function RunListPopover({
               data-testid={`run-row-${EXAMPLE_RUN_ID}`}
             >
               <div style={rowHead}>
-                <span style={rowName} data-testid="run-row-name">Closure at the fire station&rsquo;s doorstep</span>
+                <span style={rowName} data-testid="run-row-name">{EXAMPLE_RUN_NAME}</span>
                 <span style={{ display: 'flex', gap: 6 }}>
                   {currentRunId === EXAMPLE_RUN_ID && (
                     <span className="tag tag-accent" style={tagSmall}>viewing</span>

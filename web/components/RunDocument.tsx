@@ -58,12 +58,16 @@ export function RunDocument({
   report,
   reportState,
   isExample = false,
+  liveName = null,
   onGroupDoorway,
 }: {
   artifact: TrajectoryArtifact;
   report: PerRunReport | null;
   reportState: ReportState;
   isExample?: boolean;
+  /** the identity endpoint's name for this run, when the backend is up — wins over the
+   *  report-carried name (the report's copy is the static demo's carrier) */
+  liveName?: string | null;
   onGroupDoorway: (group: string) => void;
 }) {
   const [showAudit, setShowAudit] = useState(false);
@@ -74,10 +78,13 @@ export function RunDocument({
   const rpt = reportState === 'ready' ? report : null;
   const scope = windowedScope(changes, meta.sim_end);
 
-  const title =
+  // V2.7a follow-up — the document is a NAME-RENDERING surface (runLabel's precedence rule):
+  // live identity name → the report-carried name → the mechanical change title.
+  const mechanicalTitle =
     changes.length === 1
       ? (changes[0].description ?? `${(changes[0].type ?? 'change').replace(/_/g, ' ')} on ${changes[0].target_edge ?? 'the corridor'}`)
       : `${changes.length} changes on the corridor`;
+  const title = liveName ?? (reportState === 'ready' ? report?.run?.name : null) ?? mechanicalTitle;
 
   // ── the method-note registry: notes accumulate in render order; sups reference by key ────────
   const notes: { key: string; text: string }[] = [];
@@ -197,7 +204,7 @@ export function RunDocument({
         <tbody>
           <tr>
             <td style={specKey}>Members</td>
-            <td>
+            <td data-testid="doc-members">
               {changes.map((c, i) => (
                 <div key={i}>
                   {/* server-composed descriptions already carry their window in clock/sim terms —
