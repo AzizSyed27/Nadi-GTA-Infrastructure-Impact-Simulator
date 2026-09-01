@@ -107,12 +107,14 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.10.0**. Phases 0–5 and V2.0–V2.6 are COMPLETE: the ✏️ editor fronts the whole pipeline
+Contract **v0.10.0**. Phases 0–5, V2.0–V2.6, and V2.7a are COMPLETE: the four-stage shell
+(Build → Watch → Read → Explore) fronts the whole pipeline — Build composes
 (draw a road — straight or BENT through via points (V2.6d) — / speed / bike lane / lane- & road-closures /
 incidents / 🏫 school-zone COMPOSITES —
 windowed changes apply+revert in-sim with proof logs), demand is synthetic or calibrated AM-peak,
 assignment day-one or settled, seeds 1–3 with per-cell ranges; enrich = 212 voices → audited report +
-"ask the report" chat → OASIS discourse; ⇄ Compare with the provenance-mismatch guard. The calibrated
+"ask the report" chat → OASIS discourse; Compare (Explore · Compare) with the provenance-mismatch
+guard. The calibrated
 school-hours exemplar LANDED (`multimodal-scenario-20260727T180728Z`: zone pair 30-vs-28, no direction
 claimed; the corridor SATURATES under calibrated AM peak — 72% delivered by 09:00). V2.2 is closed out and
 TAGGED **`v2.2`**: every windowed run renders the WINDOWED-SCOPE DISCLOSURE (run-scoped scorecard vs
@@ -315,12 +317,41 @@ regenerated deliberately. Sweeps ride 19 of 23 spec files. ReportPanel is DELETE
 at Explore · Chat; shared composers extracted (windowedScope/scopeNoteText, provenance labels,
 nonCompletionsLine) so pinned sentences have ONE source across surfaces. **PERF RE-MEASURED (headed, prod, this box — the V2.5c harness + a stage-watch hop since the landing defaults to Read): 90 MB fat-vintage exemplar nav→render 3.77 s (budget ≤5 s; pre-shell 3.72 — no regression), frames p50 8.1 ms/123 fps · p95 16.1 ms/62 fps · 0 longtasks (pre-shell 122/61 — identical; the document panel never subscribes to the rAF clock); pinned ~20 MB run nav→render 1.14 s (budget ≤2 s), 125/63 fps.** Suites: **595 pytest
 + 123 Playwright**.
+**THE V2.7a FOLLOW-UP (the landing document's two flags + three smalls — two commits atop C6;
+no contract change):** **F1 — the cross-seed sentence derives from THIS run's seeds** (honesty
+fix): the example's committed report shipped "checked across seeds 42, 43 and 44 … stable tail"
+beside `cross_seed_available: false` — `report._cross_seed_sentence` hardcoded the canonical
+tuple in both branches. Now THREE derived shapes: verdict-backed (`v.get("seeds") or
+facts["seeds"]` — legacy verdicts lack the key, never KeyError), multi-seed-no-verdict ("no
+cross-seed tail range was computed"), single-seed ("Single seed (42) — cross-seed stability of
+this tail was not probed for this run" — no "checked" language, no foreign seed digits). Golden
+regenerated DELIBERATELY (it now pins the honest single-seed sentence); BOTH committed reports
+refreshed via `--refresh-facts` (zero LLM; prose+audit byte-reused); pins mutation-effective
+BOTH directions; dead `DEFAULT_SEEDS` deleted; scorecard's CLI print derives; the
+`scorecard._SAFETY_NOTE` sibling ("42/43/44" baked into committed single-seed artifacts' cells)
+is a recorded BACKLOG ceremony, not fixed here. **F2 — the document's name (the static-demo
+identity gap):** `report_json.run.name` is stamped from the identity sidecar at BOTH generate +
+refresh (absent key = unnamed) — the static demo's only name carrier; RunDocument title
+precedence = live identity → report `run.name` → mechanical; the live name reads `/api/runs`,
+NOT `/status` (the SEQUENCED-MOCK lesson: a status fetch consumed a step of seeds.spec's staged
+progression — new reads source from statically-mocked endpoints); `EXAMPLE_RUN_NAME` ("Closure
+at the fire station's doorstep", `web/lib/demo.ts`) is THE single source (the run-list row + the
+one-source spec pin reading the committed report's bytes); the example's name was stamped
+through the ONLY sidecar writer (the identity POST) under `NADI_ALLOW_PINNED_ENRICH=1`, then
+`--refresh-facts` (report refresh exempt; override restored after) — the documented
+PROTECTED-RUN identity-maintenance op; markup-inert pin (the V2.4c convention) + the
+`doc-members` no-duplication pin (scoped after a scope-note false positive). Smalls: the Build
+banner/legend overlap confirmed fixed by a looked-at screenshot; the LIVE vintage-guard repro
+rendered the labeled `report-mismatch` refusal verbatim (bytes restored cmp-identical); the cold
+landing re-walked — the ratified title + the single-seed sentence
+(`docs-assets/v27b-followup-*.png`). Suites: **601 pytest + 129 Playwright**.
 Open threads: **V2.7b run experience · V2.7c/d map + editor styling (incl. the curved-road
 grey/striping restyle) · V2.7e doorways/room** +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
-V2.6b).
+V2.6b, the document HUMANIZATION — edge-ids/raw sim-seconds → street names/clock times, V2.7b/d
+— and the `scorecard._SAFETY_NOTE` recompute ceremony).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1476,20 +1507,20 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
 - **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
   {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
   for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a/b/c closures + incidents
-  (since V2.2c the ✏️ Edit palette drives all of this — lane picker / close road / incident + window inputs):**
+  (since V2.2c the edit palette — the Build stage since V2.7a — drives all of this — lane picker / close road / incident + window inputs):**
   `--change-type {lane_closure,road_closure,incident}` + `--target-lanes 1,2`
   (csv, car-lane indices) + `--window-start/--window-end` (sim-seconds, both-or-neither; windowable: speed_limit
   + closures + incident) + incident effects `--blocked` / `--speed-factor 0.5` / `--position-m` (stored, unused).
   Incident REQUIRES a window; windowed/severing settled combos are rejected with the shared reason strings.
   **V2.6d curved roads:** a new_road takes repeatable `--via=-79.229276,43.772793` waypoints (the =form — a
   'lon,lat' value starts with '-'; ≤8, ≥10 m apart, inside the study area, non-self-crossing — the same four
-  sentences at the POST 400 and the harness SystemExit; the ✏️ editor adds bends with empty-map clicks mid-draw).
+  sentences at the POST 400 and the harness SystemExit; the Build stage adds bends with empty-map clicks mid-draw).
   **V2.2d composites (the 🏫 school-zone palette flow):** `POST /api/simulate {changes:[...], tags:["school_zone"]}`
   → the server writes `contract/runs/state/<run_id>.composite.json` and hands off via `--composite=<spec>`
   (V2.4b: members may be any of the four windowable types; settled+composite rejected; the harness
   re-validates against the net). Zone-edge
   selection for the exemplar: `python python/src/school_zone_select.py` → `data/schools/`. Compare two finished
-  runs at `http://localhost:3000/?run=<A>&compare=<B>` (or the ⇄ Compare toggle) — pure frontend, only needs
+  runs at `http://localhost:3000/?run=<A>&compare=<B>` (or Explore · Compare) — pure frontend, only needs
   `/api/runs` for the pickers.
 - **Bounded-calibrated convention (V2.1):** calibrated runs are bounded to the peak hour by launching the SERVER
   with `NADI_MAX_T_OVERRIDE=3600` in its environment (the harness subprocess inherits it); the school-window
@@ -1550,7 +1581,12 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   guards with role-specific refusals; report enrich stays exempt as the maintenance path).
   Verification report-regens for the pinned/example runs REPLACE the committed per-run copy
   deliberately (commit the new bytes; the pins recompute from sidecars) — there is no singleton
-  left to restore.
+  left to restore. Since the follow-up, `report_json.run.name` is stamped from the identity
+  sidecar at generate + refresh (the static demo's only name carrier; the example's single
+  source is `web/lib/demo.ts` `EXAMPLE_RUN_NAME` — naming a PROTECTED run goes through the
+  identity endpoint under `NADI_ALLOW_PINNED_ENRICH=1`, then a `--refresh-facts`), and the
+  cross-seed tail sentence derives from the run's OWN seeds (a single-seed report says
+  "not probed", never "checked").
 - **Graphs sidecar backfill (V2.3d):**
   ```bash
   python python/src/graph_export.py --run-id <id> [--half oasis|entity|both]   # EXPLICIT id — no newest-run default
@@ -1566,13 +1602,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   ```bash
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
-- **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (open 📄 Report → "Ask the report")
+- **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (lands on the run document
+  (Read stage); chat = Explore · Chat)
 - **Perf harness (V2.5c budgets):** `node scripts/perf-harness.mjs --headed` against a prod build
   (`npm run build && npm run start`) — frame numbers are HEADED numbers (headless measures
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (595 tests: golden spine + contract
+- **Tests:** `python -m pytest python/tests` (601 tests: golden spine + contract
   0.6.0–0.9.0 sections + seed-range/report honesty invariants + the unwindowed-report golden + the V2.3a
   enrich-events/builder/SSE sections + the V2.3b interview grounding/guard/endpoint sections + the V2.3c
   institutions roster/gating/composition/verify sections + the V2.3d graph-export/fixture sections + the
@@ -1580,11 +1617,11 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   disclosure/fixture sections + the V2.5b members-probe/report/citation sections + the V2.5c pointer
   sections + the V2.6a/b group-interview room/endpoint/speak sections + the V2.6 follow-up
   conjunction pins + the V2.6c 0.10.0 ceremony/compact/worst_t/coord sections + the
-  resolver-family sections + the V2.6d via parse/geometry-rules/shape-producer/POST+harness sections + the V2.7a per-run-report/refresh-facts/committed-pin sections + the protected-runs matrix + the latest-report pointer-reader shapes) and
+  resolver-family sections + the V2.6d via parse/geometry-rules/shape-producer/POST+harness sections + the V2.7a per-run-report/refresh-facts/committed-pin sections + the protected-runs matrix + the latest-report pointer-reader shapes + the V2.7 follow-up cross-seed-sentence/name-stamp pins) and
   `cd web && npx playwright test`
-  (123 tests across 23 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  (129 tests across 23 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
-  compact-run, via-rules, the V2.7a run-document/run-list/app-shell (the landing matrix + ride-along 6a) specs, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
+  compact-run, via-rules, the V2.7a run-document/run-list/app-shell (the landing matrix + ride-along 6a + the follow-up title-precedence/one-source-name/no-duplication pins) specs, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
   rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once

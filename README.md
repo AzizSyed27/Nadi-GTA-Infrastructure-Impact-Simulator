@@ -10,8 +10,9 @@ planner concludes**, never the other way around.
 
 ![The pinned 212-voice run mid-playback: dots, the reaction feed, the per-stakeholder scorecard](docs-assets/v25d-hero-playback.png)
 
-**Status:** Phases 0–5 and V2.0–**V2.6** complete (tags `v2.2` … `v2.6`) · trajectory contract
-**v0.10.0** · **575 pytest + 106 Playwright** tests · study corridor: Scarborough / Pickering /
+**Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`), and **V2.7a** (the four-stage
+shell + the run document) complete · trajectory contract
+**v0.10.0** · **601 pytest + 129 Playwright** tests · study corridor: Scarborough / Pickering /
 Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
@@ -20,8 +21,9 @@ A **static demo** is the fastest way in — a read-only walkthrough of pre-compu
 flight per [DEPLOY.md](DEPLOY.md); until the link lands here, [SETUP.md](SETUP.md) runs the same
 walkthrough locally in two commands). Three stops:
 
-1. **The bare URL** — the EXAMPLE run's RUN DOCUMENT (the Read stage of the V2.7a shell): a
-   3-member composite (a road closure at a fire station's doorstep + a speed limit + an
+1. **The bare URL** — the EXAMPLE run's RUN DOCUMENT (the Read stage of the V2.7a shell),
+   titled *"Closure at the fire station's doorstep"*: a
+   3-member composite (that road closure + a speed limit + an
    incident), abstract first, every number carrying its caveat. Walk the stages: 02 Watch
    replays the simulated traffic; 04 Explore holds Compare/Discourse/Graphs/Chat.
 2. **`/?run=multimodal-scenario-20260702T044134Z`** — the 212-voice run: Watch the playback,
@@ -43,7 +45,7 @@ etiquette. The locked decisions:
 
 - **Preview, never verdict.** The agent layer anticipates *who wins, who loses, and what each
   objection sounds like*. It is not a referendum: no stance tallies, no sentiment averages, no
-  winner, anywhere. This is test-enforced — a banned-language sweep rides **16 of the 20
+  winner, anywhere. This is test-enforced — a banned-language sweep rides **19 of the 23
   Playwright specs** plus a python-side sweep, so a regression toward "62% support" fails CI, not
   a code review. The group room states it on its own surface: *"voices you picked, answering one
   at a time — a conversation preview, not a poll or a sample of opinion."*
@@ -51,7 +53,8 @@ etiquette. The locked decisions:
   sampled persona agents reason, each pinned to a specific simulated traveler's own measured trip.
 - **Safety = surrogate measures.** Near-miss measures (time-to-collision, hard braking, blocked
   junctions) computed from trajectories, rendered as ±magnitude with the direction explicitly not
-  claimed — it flips across random seeds, and the tool checked. Never crash prediction.
+  claimed — where seeds were probed the sign did flip, and a single-seed run's report says
+  cross-seed stability *was not probed* rather than implying a check. Never crash prediction.
 - **A per-stakeholder scorecard, not a single number.** Travel time / safety surrogate / access,
   per group. No ROI, no aggregate.
 - **Numbers carry their own caveats.** Every LLM sentence passes `audit_prose` (no digits, no
@@ -189,7 +192,7 @@ Full local setup — SUMO 1.27, the python envs, keys per optional layer — liv
 
 ```bash
 cd python/src && uvicorn server:app --port 8000   # the job-runner API
-cd web && npm run dev                              # → http://localhost:3000 → the Build stage
+cd web && npm run dev                              # → http://localhost:3000 → the run document (Read); Build starts a new draft
 ```
 
 The quant pipeline (simulate → scorecard) needs **no keys**; each enrich layer (voices, report +
@@ -197,8 +200,8 @@ chat + interviews, discourse) unlocks with one. The repo ships two complete pre-
 the map renders before you ever run SUMO.
 
 ```bash
-python -m pytest python/tests        # 575 tests
-cd web && npx playwright test        # 106 tests, 20 specs
+python -m pytest python/tests        # 601 tests
+cd web && npx playwright test        # 129 tests, 23 specs
 ```
 
 ## History
@@ -227,10 +230,18 @@ cd web && npx playwright test        # 106 tests, 20 specs
   (accepted live: a 3-bend connector, length/chord 1.05, 4 vehicles rerouted onto it; two
   earlier curves drew honest zeros and are kept as findings — a curve changes geometry, not
   demand).
+- **V2.7a ✅** — the **four-stage shell** (Build → Watch → Read → Explore) replaced the mode
+  toggle, and the Read stage *is* the **run document**: numbers code-composed from the run's
+  artifact, prose only from its audited report slots, per-run reports behind a run-id vintage
+  guard (another run's report renders a labeled mismatch, never silently). The run list is an
+  inventory, never a ranking; the latest-report singleton retired to a pointer; the landing
+  loads the named example — *"Closure at the fire station's doorstep"* — read-only. The
+  follow-up made the cross-seed tail sentence derive from the run's own seeds: a single-seed
+  run says "not probed", never "checked".
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
-  changes the saturation finding), network styling incl. the curved-road restyle (V2.7), a real
-  student-demand segment, periodic mandate re-verification, the settled-basis re-verification
-  rerun.
+  changes the saturation finding), map + editor styling incl. the curved-road restyle (V2.7c/d),
+  a real student-demand segment, periodic mandate re-verification, the settled-basis
+  re-verification rerun.
 
 
 **Stack:** SUMO 1.27 (TraCI) · FastAPI · a provider-agnostic LLM layer (DeepSeek for the
