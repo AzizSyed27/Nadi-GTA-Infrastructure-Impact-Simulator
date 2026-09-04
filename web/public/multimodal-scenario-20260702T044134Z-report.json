@@ -1,5 +1,9 @@
 {
   "report_version": "3.1",
+  "prose": {
+    "status": "composed",
+    "note": ""
+  },
   "generated_at": "2026-08-13T05:00:57.058349+00:00",
   "provider": "deepseek",
   "model": "deepseek-v4-flash",
@@ -485,7 +489,7 @@
       "caveats": [
         {
           "title": "Safety direction is not established",
-          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed: “sign not stable across seeds 42/43/44; directional claim not supported”. Do not read the safety column as 'the change made things safer or more dangerous'."
+          "body": "The safety surrogate is reported as a magnitude only — its direction is not claimed. Seeds 42/43/44 were run for this scenario, but no per-cell sign stability was recorded for the safety column. Do not read the safety column as 'the change made things safer or more dangerous'."
         },
         {
           "title": "Surrogate measures are not crash predictions",
@@ -601,5 +605,5 @@
     "conflicts-baseline-20260702T044134Z.json",
     "robustness-verdict-20260702T044134Z.json"
   ],
-  "facts_refreshed_at": "2026-08-31T21:57:56.991338+00:00"
+  "facts_refreshed_at": "2026-09-04T01:11:35.017118+00:00"
 }

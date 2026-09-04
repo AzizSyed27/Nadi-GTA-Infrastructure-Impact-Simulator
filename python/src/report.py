@@ -39,6 +39,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 import personas as personas_mod
+import run_events
 import run_state
 import trajectory_io
 from contract_models import MANDATE_VERSIONS, ScorecardCell, ScorecardGroup, TrajectoryArtifact, changes_of
@@ -898,14 +899,48 @@ def _json_instr(shape: str) -> str:
     return f"Reply with ONLY a json object of exactly this shape, nothing else:\n{shape}\n\n"
 
 
+# V2.7b — the document's prose states. The FIGURES are complete in every one of them: they are
+# computed in Act I, by the simulator, with no model involved. These say only whether a narrative
+# was composed over them, and if not, why — never faked, never silently blank.
+COMPOSED, NOT_COMPOSED, PARTIAL = "composed", "not_composed", "partial"
+PROSE_NOTES = {
+    COMPOSED: "",
+    NOT_COMPOSED: ("The figures and the full scorecard in this document are complete — they were "
+                   "computed by the simulator. No narrative has been composed for this run."),
+    PARTIAL: ("The figures and the full scorecard in this document are complete — they were computed "
+              "by the simulator. Composition of the narrative ended early; the sections that would "
+              "hold it are labelled, not filled in."),
+}
+
+
+def _emit_event(event: str, **payload) -> None:
+    """V2.7b — append one run event, or no-op when the server didn't set NADI_RUN_EVENTS.
+
+    Env-gated exactly like reactions.py's voice stream, so a CLI `python report.py` writes no file and
+    stays byte-identical. These events are what lets the run experience compose the document section by
+    section with the audit line running live — content, never machinery."""
+    path = run_events.from_env()
+    if path is not None:
+        run_events.emit(path, event, **payload)
+
+
 async def _slot(client, system, user, wire, field, name, audit_log) -> dict:
     """Generate one narrative slot, audit it, retry ONCE on violation with the offending sentence quoted,
-    then fail loudly. Records a single audit-log entry (clean / resolved_on_retry / failed)."""
+    then fail loudly. Records a single audit-log entry (clean / resolved_on_retry / failed).
+
+    V2.7b — the REJECTED DRAFT is kept. The retry used to overwrite `obj` and the draft was gone; only
+    its offending sentences survived, inside `violations`. The run experience shows the correction — the
+    struck-through draft, the retry beside it, the rule that tripped — and that is the credibility
+    moment of the whole AI act: a reader can watch the guard catch an overclaim and fix it. Keeping the
+    text costs one local and one key."""
     obj = await _call(client, system, user, wire)
+    _emit_event("slot_start", slot=name)
     v1 = audit_prose(obj[field])
     if not v1:
         audit_log.append({"slot": name, "status": "clean", "violations": []})
+        _emit_event("slot_landed", slot=name, status="clean", text=obj[field], violations=[], calls=1)
         return obj
+    draft = obj[field]  # the rejected text, kept before the retry rebinds `obj`
     quoted = "; ".join(f'"{s}" (rule: {r})' for r, s in v1)
     retry = (user + "\n\nYOUR PREVIOUS ANSWER BROKE THE RULES — it contained: " + quoted +
              ". Rewrite it WITHOUT any of those, following all four rules. Remember: no digits, no safety "
@@ -914,10 +949,14 @@ async def _slot(client, system, user, wire, field, name, audit_log) -> dict:
     v2 = audit_prose(obj[field])
     caught = [{"rule": r, "sentence": s} for r, s in v1]
     if v2:
-        audit_log.append({"slot": name, "status": "failed", "violations": caught,
+        audit_log.append({"slot": name, "status": "failed", "violations": caught, "draft": draft,
                           "still_present": [{"rule": r, "sentence": s} for r, s in v2]})
+        _emit_event("slot_landed", slot=name, status="failed", text="", violations=caught,
+                    draft=draft, calls=2)
         raise RuntimeError(f"AUDIT FAILED for slot {name!r} after one retry. Still violating: {v2}")
-    audit_log.append({"slot": name, "status": "resolved_on_retry", "violations": caught})
+    audit_log.append({"slot": name, "status": "resolved_on_retry", "violations": caught, "draft": draft})
+    _emit_event("slot_landed", slot=name, status="resolved_on_retry", text=obj[field],
+                violations=caught, draft=draft, calls=2)
     return obj
 
 
@@ -1006,6 +1045,10 @@ async def slot_gloss(client, facts, group_id, audit_log) -> str:
     if len(parts) <= 1:
         gloss = _deterministic_gloss(g, GROUP_LABEL[group_id])
         audit_log.append({"slot": f"gloss:{group_id}", "status": "code_rendered", "violations": []})
+        # a code-rendered slot lands too — it is content the document shows, and its ZERO cost is
+        # part of the honest audit line (never counted as an LLM-audited slot)
+        _emit_event("slot_landed", slot=f"gloss:{group_id}", status="code_rendered", text=gloss,
+                    violations=[], calls=0)
         return gloss
 
     # Only describe dimensions that HAVE a signal — mentioning a null dimension next to a directional one
@@ -1122,15 +1165,46 @@ def build_scope_disclosure(changes: list, sim_end: float, profile: str) -> str |
 # Code-rendered caveat skeleton (Section 4) — MANDATORY, non-trimmable
 # ===================================================================================================
 
+def _safety_direction_body(facts: dict) -> str:
+    """V2.7b — the safety caveat's seed wording derives from THIS run's seeds.
+
+    It used to QUOTE the first group's `safety_delta.note`. On a MULTI-seed run that note is earned
+    (scorecard rewrites it from what the seeds actually showed) and quoting it is honest. On a
+    SINGLE-seed run the note is `scorecard._SAFETY_NOTE` — a V1 default with the canonical 42/43/44
+    tuple baked in — so the caveat claimed a three-seed check the run never ran, in prose, on the
+    landing page, beside `n_seeds: 1`. Same disease `_cross_seed_sentence` was cured of in the V2.7a
+    follow-up; same cure. The calibrated peak-density clause is real content appended AFTER that
+    prefix and survives verbatim (the `removeprefix` idiom scorecard.py:265 already uses).
+
+    The cell NOTES themselves still carry the baked tuple — fixing those means recomputing the
+    scorecard into committed artifacts, a deliberate ceremony recorded in BACKLOG. This cures the
+    one surface where the stale text is READ, not hovered."""
+    import scorecard  # deferred: keeps report ← scorecard acyclic (scorecard never imports report)
+
+    note = next((g.safety_delta.note for g in facts["by_group"].values()
+                 if g.safety_delta and g.safety_delta.note), "")
+    tail = ("The safety surrogate is reported as a magnitude only — its direction is not claimed"
+            "{clause}. Do not read the safety column as 'the change made things safer or "
+            "more dangerous'.")
+    if note and not note.startswith(scorecard._SAFETY_NOTE):
+        # an EARNED note (a multi-seed run measured its own stability) — quote it as before
+        return tail.format(clause=f": “{note}”")
+    seeds = facts["seeds"]
+    appendix = note.removeprefix(scorecard._SAFETY_NOTE) if note else ""
+    if len(seeds) > 1:
+        derived = (f". Seeds {_seed_list(seeds)} were run for this scenario, but no per-cell sign "
+                   f"stability was recorded for the safety column")
+    else:
+        derived = (f". This run used a single seed ({seeds[0]}); cross-seed sign stability was not "
+                   f"probed for it")
+    return tail.format(clause=derived + appendix.rstrip("."))
+
+
 def build_caveats(facts: dict, has_discourse: bool = False) -> list[dict]:
-    safety_note = next((g.safety_delta.note for g in facts["by_group"].values()
-                        if g.safety_delta and g.safety_delta.note), "sign not stable across seeds")
     rerouted = facts["cars_rerouted"]
     caveats = [
         {"title": "Safety direction is not established",
-         "body": f"The safety surrogate is reported as a magnitude only — its direction is not claimed: "
-                 f"“{safety_note}”. Do not read the safety column as 'the change made things safer or "
-                 f"more dangerous'."},
+         "body": _safety_direction_body(facts)},
         {"title": "Surrogate measures are not crash predictions",
          "body": "Safety here means trajectory-derived surrogates (time-to-collision, hard braking, blocked "
                  "junctions), counted as near-miss events observed in this run. They are not crashes, and this "
@@ -1879,12 +1953,16 @@ def _assemble_report_json(facts: dict, artifact: TrajectoryArtifact, verdict: di
                           framing: str, glosses: dict, what_they_say: dict,
                           discourse_prose: dict | None, caveat_intro: str,
                           audit_block: dict, provenance: dict, sources: list[str],
-                          run_name: str | None = None) -> dict:
-    """The ONE report_json builder — generate() (fresh LLM prose) and refresh_facts() (stored
-    prose) both route through it, so the code-derived shape can never fork between the two
-    (the V2.3a single-builder mechanic)."""
+                          run_name: str | None = None, prose_status: str = COMPOSED) -> dict:
+    """The ONE report_json builder — generate() (fresh LLM prose), refresh_facts() (stored prose)
+    and facts_only() (NO prose) all route through it, so the code-derived shape can never fork
+    between them (the V2.3a single-builder mechanic)."""
     report_json = {
         "report_version": REPORT_VERSION,
+        # V2.7b — is there narrative in this document, and if not, WHY not. The figures are complete
+        # either way; a reader must never have to guess whether an empty abstract means "nothing to
+        # say" or "not written yet". The client renders NOT_COMPOSED as a labeled state.
+        "prose": {"status": prose_status, "note": PROSE_NOTES[prose_status]},
         "generated_at": provenance["generated_at"],
         "provider": provenance["provider"], "model": provenance["model"],
         "usage": provenance.get("usage"),
@@ -1931,18 +2009,66 @@ def _assemble_report_json(facts: dict, artifact: TrajectoryArtifact, verdict: di
     return report_json
 
 
-async def generate(run_id: str | None) -> tuple[Path, Path]:
+def _load_for_report(run_id: str | None) -> tuple[Path, str, TrajectoryArtifact, dict, dict | None]:
+    """The shared pre-flight of every report path: resolve, load, cross-check, and refuse loudly.
+
+    generate(), refresh_facts() and facts_only() must agree about what a reportable run IS — a
+    scorecard present, an outcomes sidecar whose run id matches the artifact's. Sharing the checks
+    keeps the three from drifting into three different definitions."""
     art_path, ts = _resolve(run_id)
     artifact = trajectory_io.load_artifact(art_path)
     if artifact.scorecard is None or not artifact.scorecard.groups:
         raise SystemExit(f"{art_path.name} has no scorecard — run scorecard.py first.")
-
     outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
     if outcomes.get("scenario_run_id") != artifact.meta.run_id:
         raise SystemExit(f"run-id mismatch: outcomes {outcomes.get('scenario_run_id')!r} != "
                          f"artifact {artifact.meta.run_id!r}")
+    return art_path, ts, artifact, outcomes, _load_verdict(ts, artifact)
 
-    verdict = _load_verdict(ts, artifact)
+
+def facts_only(run_id: str | None) -> Path:
+    """V2.7b — write the run document's CODE-RENDERED half with ZERO model calls.
+
+    This is what makes 'the results are complete the moment the physics ends' true rather than
+    aspirational: the moment the quant run finishes, this writes a report_json carrying the whole
+    facts block, the scorecard, the cross-seed sentence and the caveats, with the narrative slots
+    absent and labelled NOT_COMPOSED. The reader can open the document and read every number while
+    the interpretation is still streaming — or after skipping it entirely, or after it failed.
+
+    Deliberately does NOT write the markdown (there is no prose to render) and does NOT write the
+    latest-report POINTER: that pointer selects the SERVED report for the chat index alignment, and
+    aiming it at a prose-less document is the 2026-08-13 incident class. Same restraint as
+    refresh_facts, for the same reason."""
+    art_path, ts, artifact, outcomes, verdict = _load_for_report(run_id)
+    facts = gather_facts(artifact, outcomes, verdict)
+    verify_facts(facts, artifact, outcomes)  # the same gate the LLM path passes before spending
+
+    dfacts = discourse_facts(artifact)  # present only if a cascade already ran (resume/re-report)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    report_json = _assemble_report_json(
+        facts, artifact, verdict, dfacts, build_caveats(facts, has_discourse=dfacts is not None),
+        run_name=run_state.identity(facts["scenario_run_id"]).get("name"),
+        framing="", glosses={}, what_they_say={"groups": []},
+        discourse_prose=None, caveat_intro="",
+        audit_block={"passed": None, "slots_checked": 0,
+                     "summary": "no narrative was composed for this run — nothing to audit.",
+                     "log": []},
+        provenance={"generated_at": generated_at, "provider": None, "model": None, "usage": None},
+        sources=[art_path.name, f"outcomes-{ts}.json"],
+        prose_status=NOT_COMPOSED)
+
+    json_path = RUNS_DIR / f"report-{ts}.json"
+    json_path.write_text(json.dumps(report_json, indent=2, ensure_ascii=False), encoding="utf-8")
+    WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(json_path, WEB_PUBLIC / f"{facts['scenario_run_id']}-report.json")
+    _emit_event("results_ready", report_url=f"/{facts['scenario_run_id']}-report.json")
+    print(f"[report] facts-only (0 model calls) → {json_path.name} "
+          f"(+ web/public/{facts['scenario_run_id']}-report.json; no markdown, no pointer)")
+    return json_path
+
+
+async def generate(run_id: str | None) -> tuple[Path, Path]:
+    art_path, ts, artifact, outcomes, verdict = _load_for_report(run_id)
     facts = gather_facts(artifact, outcomes, verdict)
     verify_facts(facts, artifact, outcomes)  # A4b — fail loudly before spending any LLM tokens
 
@@ -2032,7 +2158,7 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     return md_path, json_path
 
 
-def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
+def refresh_facts(run_id: str | None) -> tuple[Path | None, Path]:
     """V2.7a — re-derive every CODE-RENDERED field of an existing report from the run's artifact
     + sidecars, REUSING the stored LLM prose and audit block byte-identically. ZERO LLM calls.
 
@@ -2041,14 +2167,7 @@ def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
     class. EXPLICIT run id only: a newest-run default here is the resolver-family bug class."""
     if not run_id:
         raise SystemExit("--refresh-facts requires an explicit --run-id (no newest-run default).")
-    art_path, ts = _resolve(run_id)
-    artifact = trajectory_io.load_artifact(art_path)
-    if artifact.scorecard is None or not artifact.scorecard.groups:
-        raise SystemExit(f"{art_path.name} has no scorecard — run scorecard.py first.")
-    outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
-    if outcomes.get("scenario_run_id") != artifact.meta.run_id:
-        raise SystemExit(f"run-id mismatch: outcomes {outcomes.get('scenario_run_id')!r} != "
-                         f"artifact {artifact.meta.run_id!r}")
+    art_path, ts, artifact, outcomes, verdict = _load_for_report(run_id)
     old_path = RUNS_DIR / f"report-{ts}.json"
     if not old_path.is_file():
         raise SystemExit(f"stored report not found: {old_path.name} — a refresh reuses stored LLM "
@@ -2059,7 +2178,6 @@ def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
         raise SystemExit(f"stored {old_path.name} is for {stored_run!r}, not "
                          f"{artifact.meta.run_id!r} — refusing to refresh across runs.")
 
-    verdict = _load_verdict(ts, artifact)
     facts = gather_facts(artifact, outcomes, verdict)
     verify_facts(facts, artifact, outcomes)  # A4b — the refreshed facts obey the same fact check
 
@@ -2077,6 +2195,10 @@ def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
                        if (stored_discourse and dfacts) else None)
     caveat_intro = (sections.get("cannot_tell") or {}).get("intro") or ""
     audit_block = old.get("audit") or {}
+    # V2.7b — a refresh must not INVENT prose status: refreshing a facts-only document leaves it
+    # facts-only. Pre-V2.7b reports have no key and legitimately carry prose, hence the COMPOSED
+    # default (never derive it from whether `framing` happens to be non-empty).
+    prose_status = (old.get("prose") or {}).get("status") or COMPOSED
 
     sources = [art_path.name, f"outcomes-{ts}.json", f"conflicts-baseline-{ts}.json"]
     if verdict:
@@ -2090,24 +2212,31 @@ def refresh_facts(run_id: str | None) -> tuple[Path, Path]:
         provenance={"generated_at": old.get("generated_at"), "provider": old.get("provider"),
                     "model": old.get("model"), "usage": old.get("usage"),
                     "facts_refreshed_at": datetime.now(timezone.utc).isoformat()},
-        sources=sources)
+        sources=sources, prose_status=prose_status)
 
-    syntheses = {g["key"]: {k: v for k, v in g.items() if k not in ("key", "label")}
-                 for g in what_they_say.get("groups", [])}
-    meta = {"generated_at": old.get("generated_at"), "provider": old.get("provider"),
-            "model": old.get("model"), "audit_summary": audit_block.get("summary", "")}
-    md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
-                         dfacts=dfacts if discourse_prose else None, discourse=discourse_prose)
-
-    md_path = RUNS_DIR / f"report-{ts}.md"
     json_path = RUNS_DIR / f"report-{ts}.json"
-    md_path.write_text(md, encoding="utf-8")
     json_path.write_text(json.dumps(report_json, indent=2, ensure_ascii=False), encoding="utf-8")
     WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(json_path, WEB_PUBLIC / f"{facts['scenario_run_id']}-report.json")
-    print(f"[report] refreshed facts for {facts['scenario_run_id']} — wrote {md_path.name} + "
-          f"{json_path.name} + web/public/{facts['scenario_run_id']}-report.json "
-          f"(latest-report.* deliberately untouched; prose + audit reused verbatim)")
+
+    # The MARKDOWN is a rendering OF THE PROSE. Refreshing a document that has none (facts-only, or
+    # a skipped/degraded run) must not manufacture one — render_markdown needs a gloss per group and
+    # would KeyError on the empty set, which is the honest signal that there is nothing to render.
+    md_path: Path | None = None
+    if prose_status == COMPOSED:
+        syntheses = {g["key"]: {k: v for k, v in g.items() if k not in ("key", "label")}
+                     for g in what_they_say.get("groups", [])}
+        meta = {"generated_at": old.get("generated_at"), "provider": old.get("provider"),
+                "model": old.get("model"), "audit_summary": audit_block.get("summary", "")}
+        md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
+                             dfacts=dfacts if discourse_prose else None, discourse=discourse_prose)
+        md_path = RUNS_DIR / f"report-{ts}.md"
+        md_path.write_text(md, encoding="utf-8")
+    print(f"[report] refreshed facts for {facts['scenario_run_id']} — wrote "
+          f"{(md_path.name + ' + ') if md_path else ''}{json_path.name} + "
+          f"web/public/{facts['scenario_run_id']}-report.json "
+          f"(latest-report.* deliberately untouched; prose + audit reused verbatim"
+          f"{'' if md_path else '; no prose in this document, so no markdown'})")
     return md_path, json_path
 
 
@@ -2117,9 +2246,17 @@ def main() -> None:
     ap.add_argument("--refresh-facts", action="store_true",
                     help="re-derive the code-rendered facts of an EXISTING report (stored LLM prose "
                          "reused verbatim, zero LLM calls, latest-report.* untouched); requires --run-id")
+    ap.add_argument("--facts-only", action="store_true",
+                    help="V2.7b: write the document's CODE-RENDERED half with zero model calls — the "
+                         "figures are readable the moment the physics ends. No markdown, no pointer.")
     args = ap.parse_args()
+    if args.refresh_facts and args.facts_only:
+        raise SystemExit("--refresh-facts and --facts-only are different jobs: refresh REUSES stored "
+                         "prose, facts-only composes none. Pick one.")
     if args.refresh_facts:
         refresh_facts(args.run_id)
+    elif args.facts_only:
+        facts_only(args.run_id)
     else:
         asyncio.run(generate(args.run_id))
 
