@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ChangeWindow, Junction, Edge, RunOptions, RunStatus } from '@/lib/api';
-import type { VoiceEvent } from '@/lib/runStream';
+import type { RunFeed } from '@/lib/useRunFeed';
 import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
@@ -32,8 +32,8 @@ interface EditPanelProps {
   onRunOptions: (o: RunOptions) => void;
   activeRunId: string | null;
   onDrawAnother: () => void; // clear the active run + draw state, back to drawing
-  onLoaded: (id: string) => void; // RunCard reached done → parent re-fetches the artifact
-  onVoice: (id: string, v: VoiceEvent) => void; // V2.3a: a streamed voice → parent appends it to the artifact
+  // V2.7b C3: the poll + stream live in MapView's useRunFeed; the card renders what the feed holds.
+  feed: RunFeed;
   // V2.3a: voices streamed so far (arrival order) — the live ticker while enrich generates; cleared by
   // the parent when the done-edge reload swaps in the authoritative artifact.
   streamedVoices: Agent[];
@@ -231,8 +231,7 @@ export function EditPanel(props: EditPanelProps) {
 
       {activeRunId ? (
         <>
-          <RunCard key={activeRunId} runId={activeRunId} onLoaded={props.onLoaded} onVoice={props.onVoice}
-                   onClone={props.onClone} />
+          <RunCard key={activeRunId} runId={activeRunId} feed={props.feed} onClone={props.onClone} />
           {props.streamedVoices.length > 0 && (
             <div style={card} data-testid="voice-stream-panel">
               <div style={contains}>

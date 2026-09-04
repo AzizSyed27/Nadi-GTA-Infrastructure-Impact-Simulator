@@ -20,6 +20,7 @@ import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
 import { getJunctions, getEdges, getRuns, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/runStream';
+import { useRunFeed } from '@/lib/useRunFeed';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { RoomDrawer, type RoomMsg, type RoomPair, type RoomRound } from '@/components/RoomDrawer';
 import { GraphSplitView, type GraphsSidecar } from '@/components/GraphSplitView';
@@ -969,6 +970,14 @@ export default function MapView() {
     });
   }, []);
 
+  // V2.7b C3 — THE RUN FEED. One poll and one stream per run, held here rather than inside the run
+  // card, so they survive a stage switch: the run experience watches from Watch and the document
+  // reads results from Read while the same run is still computing. The feed runs on exactly the
+  // condition that used to mount the card (`activeRunId != null`), so request count and cadence are
+  // unchanged for every existing spec — the widening is deliberate and belongs to a later commit.
+  const feedHandlers = useMemo(() => ({ onLoaded: loadRun, onVoice: handleVoice }), [loadRun, handleVoice]);
+  const runFeed = useRunFeed(activeRunId, feedHandlers);
+
   // Overlay-level click: snap to the picked junction, else the nearest within SNAP_M; 1st→A, 2nd→B (opens form).
   const onEditClick = useCallback(
     (info: PickingInfo) => {
@@ -1891,8 +1900,7 @@ export default function MapView() {
           onRunOptions={setRunOptions}
           activeRunId={activeRunId}
           onDrawAnother={drawAnother}
-          onLoaded={loadRun}
-          onVoice={handleVoice}
+          feed={runFeed}
           streamedVoices={streamedAgents}
           runLoaded={runLoaded}
           hasVoices={hasVoices}

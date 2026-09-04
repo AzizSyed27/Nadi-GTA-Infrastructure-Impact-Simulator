@@ -107,7 +107,8 @@ function partialStreamBody(): string {
  */
 async function mockBackend(
   page: Page,
-  opts: { streamBody: (i: number) => string | null; holdPolls: number; polledProgress?: { done: number; total: number } },
+  opts: { streamBody: (i: number) => string | null; holdPolls: number | { polls: number };
+          polledProgress?: { done: number; total: number } },
 ) {
   const base = fs.readFileSync(FIXTURE, 'utf-8');
   const enrichedArt = JSON.parse(base);
@@ -139,7 +140,13 @@ async function mockBackend(
   await page.route('**/api/runs/*/status', (route) => {
     if (enrichPosted && !enrichDone) {
       enrichPolls++;
-      if (enrichPolls <= opts.holdPolls) {
+      // A live box lets a test HOLD the enriching status until it has finished asserting the live
+      // state, then release it — instead of betting that N polls outlast those assertions. The
+      // bet is not safe: rendering five streamed voices blocks the main thread long enough to
+      // stretch one poll gap to ~6 s, so the same count covers wildly different wall time and the
+      // test passes or fails on machine speed rather than on behavior.
+      const limit = typeof opts.holdPolls === 'number' ? opts.holdPolls : opts.holdPolls.polls;
+      if (enrichPolls <= limit) {
         return route.fulfill({
           json: {
             run_id: RUN_ID, stage: 'enrich:voices', status: 'running', description: 'school zone fixture',
@@ -177,23 +184,40 @@ async function openRun(page: Page) {
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('stage-build').click();
   await expect(page.getByTestId('edit-panel')).toBeVisible();
+  // Arm the artifact wait BEFORE the click (edit.spec's junctions convention). V2.7b C3 removed a
+  // REDUNDANT second fetch: RunCard used to remount per run (key={activeRunId}), so its done-edge
+  // detector reset and re-fired loadRun for a run that was ALREADY done. The feed does not remount,
+  // so the artifact is fetched once - which is correct for a multi-MB body, and leaves nothing for a
+  // late-armed wait to catch.
+  const artifactFetched = page.waitForResponse((r) => r.url().includes(`${RUN_ID}.json`));
   await openRunFromList(page, RUN_ID, 'build');
-  await page.waitForResponse((r) => r.url().includes(`${RUN_ID}.json`));
+  await artifactFetched;
   await expect(page.getByTestId('run-card')).toBeVisible();
   // the fixture has NO voices — the honest empty state is the genuine starting point
   await expect(page.getByTestId('no-voices')).toBeVisible({ timeout: 15_000 });
 }
 
 test('streamed voices render incrementally while the enrich job is still running', async ({ page }) => {
-  await mockBackend(page, { streamBody: () => fullStreamBody(), holdPolls: 6 });
+  // The status is HELD at enrich:voices until this test has finished asserting the live state, then
+  // released explicitly. A fixed poll count was a bet that N polls outlast the assertions, and the
+  // probe showed why that bet is unsafe: rendering the five streamed voices blocks the main thread,
+  // stretching one poll gap from 1.5 s to ~6.3 s, so the same count covers very different wall time.
+  // The proof is untouched — voices must still be visible WHILE the status reads enriching.
+  const hold = { polls: 10_000 };
+  await mockBackend(page, { streamBody: () => fullStreamBody(), holdPolls: hold });
   await openRun(page);
 
   await page.getByTestId('enrich-voices').click();
 
   // The whole point: voices are VISIBLE while status still reads enrich:voices — before any
   // done-edge artifact reload could have delivered them.
-  await expect(page.getByTestId('voice-stream-panel')).toBeVisible({ timeout: 5000 });
-  await expect(page.getByTestId('enrich-running')).toBeVisible(); // still enriching
+  await expect(page.getByTestId('voice-stream-panel')).toBeVisible({ timeout: 15_000 });
+  // Explicit 15 s, the same budget (and for the same reason) as the re-enrich test below: under
+  // full-suite dev-server load the FIRST status poll after the enrich POST can exceed the default
+  // 5 s. The default was survivable until V2.7b C3 moved the poll into a hook whose state re-renders
+  // MapView, and rendering the five streamed voices blocks the main thread for ~6 s — measured. The
+  // PROPERTY is unchanged: voices must be visible WHILE the status still reads enriching.
+  await expect(page.getByTestId('enrich-running')).toBeVisible({ timeout: 15_000 }); // still enriching
   await expect(page.getByTestId('enrich-running')).toContainText('5/5'); // live stream counts
   await expect(page.getByTestId('voice-stream-row')).toHaveCount(5);
   await expect(page.getByTestId('voice-stream-panel')).toContainText('community perspective'); // inferred labeled
@@ -202,7 +226,10 @@ test('streamed voices render incrementally while the enrich job is still running
   // hasVoices flipped live from the streamed append (the artifact copy, not the ticker)
   await expect(page.getByTestId('run-contains')).toContainText('voices ✓');
 
-  // Status flips done → the authoritative reload swaps in the enriched artifact; the ticker yields.
+  // …now let the job finish. Status flips done → the authoritative reload swaps in the enriched
+  // artifact; the ticker yields. Releasing here (rather than counting polls) is what makes the
+  // BEFORE and AFTER halves of this test independent of how fast the machine renders.
+  hold.polls = 0;
   await expect(page.getByTestId('enrich-running')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('voice-stream-panel')).toBeHidden();
   await expect(page.getByTestId('run-contains')).toContainText('voices ✓');

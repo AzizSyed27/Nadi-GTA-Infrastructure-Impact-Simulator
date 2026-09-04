@@ -166,8 +166,12 @@ test('the run switcher restores a prior run', async ({ page }) => {
   await expect(page.getByTestId('edit-panel')).toBeVisible();
 
   // Pick the prior run → its artifact reloads and its (completed) run card shows.
+  // Armed BEFORE the click, like the junctions wait above: since V2.7b C3 the artifact is fetched
+  // exactly ONCE per open (the run card no longer remounts and re-fires a done-edge reload), so a
+  // wait armed afterwards has nothing left to catch.
+  const priorFetched = page.waitForResponse((r) => r.url().includes(`${PRIOR_ID}.json`));
   await openRunFromList(page, PRIOR_ID, 'build');
-  await page.waitForResponse((r) => r.url().includes(`${PRIOR_ID}.json`));
+  await priorFetched;
   await expect(page.getByTestId('run-card')).toBeVisible();
   await expect(page.getByTestId('reroute-number')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('scorecard-panel')).toBeVisible();
