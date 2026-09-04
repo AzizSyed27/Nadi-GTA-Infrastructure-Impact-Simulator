@@ -323,6 +323,13 @@ async def generate_reactions(client: LLMClient, records: list[dict], changes: li
                              profile: str = "synthetic_demo",
                              tags: list[str] | None = None,
                              events_path: Path | None = None) -> list[tuple[Reaction, bool]]:
+    """Generate one reaction per record, concurrently, and stream each as it lands.
+
+    V2.7b C6b — CANCELLABLE, and it MUTATES ``records`` when cancelled: records whose generation was
+    skipped are removed in place, so the returned reactions and the caller's records stay matched
+    pairs for ``assemble_in_place``'s zip. That is deliberate and it is why the truncation happens
+    here rather than at the call site — the two lists must never be able to drift apart between the
+    place that knows what was skipped and the place that assembles them."""
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
     # V2.3a stream events (env-gated by the caller; None → byte-identical no-op path). `index` is the
     # record's position in the ORIGINAL order — which is the final artifact's agents[] order — so the
@@ -330,8 +337,15 @@ async def generate_reactions(client: LLMClient, records: list[dict], changes: li
     orig_index = {id(r): i for i, r in enumerate(records)}
     done = 0
 
-    async def _guarded(rec: dict) -> tuple[Reaction, bool]:
+    async def _guarded(rec: dict) -> tuple[Reaction, bool] | None:
         nonlocal done
+        # V2.7b C6b — THE CANCEL CHECKPOINT. Every record fires through one asyncio.gather behind a
+        # semaphore, so there is no sequential loop to break out of: the ones still queued check here
+        # and return None WITHOUT touching the client. Returning None (rather than a placeholder) is
+        # the honest shape — `_fallback()` exists for a model that answered badly, and using it to
+        # paper over a voice that was never generated would fabricate a resident.
+        if run_events.cancelled():
+            return None
         if rec["grounding"] == "mandate":
             # V2.3c — institutional voices are DETERMINISTIC (no LLM, no _ReactionWire): the comment
             # is code-composed from the sourced mandate + the baked sidecar facts, and the citations
@@ -358,8 +372,12 @@ async def generate_reactions(client: LLMClient, records: list[dict], changes: li
     # shared framing+change prefix hits after call #1 regardless; adjacency also warms the persona slice).
     ordered = sorted(records, key=lambda r: (r["grounding"], r["persona"]["id"]))
     results = await asyncio.gather(*(_guarded(r) for r in ordered))
-    by_key = {id(r): res for r, res in zip(ordered, results)}  # map back to the ORIGINAL record order
-    return [by_key[id(r)] for r in records]
+    by_key = {id(r): res for r, res in zip(ordered, results) if res is not None}
+    # Records and reactions stay MATCHED PAIRS: a cancelled record is dropped from BOTH lists, so
+    # assemble_in_place's zip yields a genuinely shorter agents[] rather than a misaligned one.
+    kept = [r for r in records if id(r) in by_key]
+    records[:] = kept
+    return [by_key[id(r)] for r in kept]
 
 
 def build_agent(rec: dict, reaction: Reaction) -> Agent:
@@ -495,6 +513,10 @@ async def run(instrumented_path: Path) -> Path:
     shutil.copyfile(out_path, web_copy)  # non-destructive: leaves run.json alone
 
     _report(artifact, records, results, fallbacks, out_path, web_copy, provider, getattr(client, "usage", None))
+    # V2.7b: this stage's metered calls, for the ledger's cost line. Institutions rode the same pass
+    # and cost NOTHING (deterministic composition over byte-pinned roster text) - the count is the
+    # traveler voices' alone, which is exactly what the UI attributes it to.
+    run_events.stage_usage("voices", (getattr(client, "usage", None) or {}).get("calls"))
     return out_path
 
 

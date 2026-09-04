@@ -33,6 +33,7 @@ from pathlib import Path
 import llm_provider
 import personas as personas_mod
 import report
+import run_events
 import trajectory_io
 from contract_models import TrajectoryArtifact
 
@@ -413,6 +414,9 @@ def check_embedding_pin(working_dir: Path | str) -> None:
 # Index build + resolution (LightRAG / torch imported lazily here)
 # ===================================================================================================
 
+_LLM_CALLS = {"n": 0}  # V2.7b - this process's generations (see llm_func below)
+
+
 def make_rag(working_dir: Path | str):
     """Shared LightRAG factory (used by the index build AND by server.py) — DeepSeek LLM + local MiniLM embed.
     Refuses to open an index whose embedding pin no longer matches (checked BEFORE loading the model)."""
@@ -432,6 +436,10 @@ def make_rag(working_dir: Path | str):
         raise SystemExit(f"{key_env} is not set (put it in python/.env).")
 
     async def llm_func(prompt, system_prompt=None, history_messages=None, keyword_extraction=False, **kwargs):
+        # V2.7b: count them. LightRAG owns the call schedule, so this wrapper is the only place that
+        # can know how many generations an index build actually cost — and the ledger's cost line
+        # must never quietly report a zero for a stage that spent.
+        _LLM_CALLS["n"] += 1
         # deepseek-v4-flash (successor to the retired deepseek-chat) defaults thinking ON — force it off, else the
         # ~230-doc index build is slow + bills reasoning as output. LightRAG forwards **kwargs to the OpenAI SDK.
         eb = dict(kwargs.pop("extra_body", {}) or {})
@@ -507,6 +515,16 @@ def build_index(run_id: str | None = None, rebuild: bool = False) -> tuple[Path,
     verdict = report._load_verdict(ts, artifact)
 
     docs = build_corpus(artifact, outcomes, verdict)
+    # V2.7b C6b — the cancel checkpoint, and it is deliberately ALL-OR-NOTHING rather than the
+    # between-batches check the other stages get. LightRAG owns the insert schedule inside one
+    # `ainsert`, so there is no batch boundary to stop on; and more importantly a HALF-BUILT chat
+    # index is not an honest partial — it would answer questions from an incomplete corpus with no
+    # way to say which half it read. Better to have no index and say so.
+    if run_events.cancelled():
+        print("[report_agent] stop requested — the chat index was not built (a partial index would "
+              "answer from an incomplete corpus without saying so)")
+        run_events.stage_usage("index", 0)
+        return index_dir(ts), 0
     wd = index_dir(ts)
     if rebuild and wd.exists():
         shutil.rmtree(wd)
@@ -525,6 +543,7 @@ def build_index(run_id: str | None = None, rebuild: bool = False) -> tuple[Path,
 
     asyncio.run(run())
     print(f"[report_agent] done — {len(docs)} docs indexed at {wd}")
+    run_events.stage_usage("index", _LLM_CALLS["n"])
 
     # V2.3d — refresh the ENTITY half of the graphs sidecar from the just-built graphml (soft-fail:
     # the index itself is complete; a layout failure must not fail the report enrich). Covers both

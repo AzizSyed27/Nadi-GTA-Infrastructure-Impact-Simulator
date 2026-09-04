@@ -36,6 +36,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+import run_events
 import trajectory_io
 from contract_models import (ArgumentReach, Cascade, CascadeStep, OpinionTrajectory, Social,
                              SocialEdge, SocialEvent, SocialGraph, TrajectoryPoint, changes_of)
@@ -744,6 +745,14 @@ def main() -> None:
     parsed_by_cascade: dict[str, dict] = {}
     cascade_raws: list[dict] = []
     for i in range(args.cascades):
+        # V2.7b C6b — the cancel checkpoint. A cascade is the atomic unit here: it is one
+        # subprocess in the other conda env, so the honest stopping points are BETWEEN cascades.
+        # Everything downstream (audit, scoring, assemble, the graphs export) iterates whatever is
+        # present, so a one-cascade social{} block writes and validates exactly as a three-cascade
+        # one does — the count is a fact the run reports, not an assumption anything makes.
+        if i and run_events.cancelled():
+            print(f"[propagation] stop requested — keeping {i} of {args.cascades} cascade(s)", flush=True)
+            break
         cid = f"c{i + 1}"
         out_path = SCRATCH / f"cascade-{cid}.raw.json"
         if args.reuse_raw and out_path.exists():
@@ -765,8 +774,14 @@ def main() -> None:
     # scoring line of the cost gate), and keeps this consistent with the pinned report/agent pipeline.
     os.environ.setdefault("PROVIDER", "deepseek")
     client, provider, model = get_client()
-    print(f"[propagation] stance scoring via {provider}/{model}", flush=True)
-    trajectories = asyncio.run(score_trajectories(parsed_by_cascade, nodes, client))
+    # The second checkpoint: scoring is the other paid pass. Skipping it leaves the cascades' posts
+    # (already generated and audited) with no stance trajectories — assemble handles that shape.
+    if run_events.cancelled():
+        print("[propagation] stop requested — skipping the stance-scoring pass", flush=True)
+        trajectories = {}
+    else:
+        print(f"[propagation] stance scoring via {provider}/{model}", flush=True)
+        trajectories = asyncio.run(score_trajectories(parsed_by_cascade, nodes, client))
 
     # engaged-reach per cascade (diagnostics for the gate + ArgumentReach for the contract).
     reach_diag: dict[str, list[dict]] = {}
@@ -790,6 +805,11 @@ def main() -> None:
               f"python python/src/graph_export.py --run-id {run_id}", flush=True)
 
     report(cascade_raws, client.usage, graph_stats, assemble_stats, trajectories, reach_diag, nodes)
+
+    # V2.7b: the discourse stage's metered calls = the cascade agents' own LLM calls (reported by the
+    # oasis-env subprocess in its raw output) plus this process's scoring calls.
+    run_events.stage_usage("discourse", sum(r["usage"]["llm_calls"] for r in cascade_raws)
+                           + int(client.usage.get("calls") or 0))
 
     if args.cascades == 1:
         print("\n" + "!" * 88)

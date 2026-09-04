@@ -472,48 +472,290 @@ def _begin_run_events(run_id: str, *, description: str, changes: list[dict],
     return ev
 
 
-def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
-                        events_path: Path | None = None, labels: list[str] | None = None) -> None:
-    """Run one or more subprocesses sequentially under the held lock; reconcile state; always release.
-
-    Every job passes ``events_path`` since V2.7b (the events file is per-RUN, not per-enrich-job): the
-    stage's lifecycle (stage_start/cmd_start/cmd_end/stage_end/run_ended) is appended here and
-    NADI_RUN_EVENTS is exported so the subprocess appends its own content events to the same file.
-    Writers stay temporally disjoint: this process writes only between subprocess lifetimes."""
+def _job_env(events_path: Path | None) -> dict:
     # PIN DeepSeek for the LLM enrich steps (reactions/report/propagation) — else reactions.py defaults to
     # Gemini's tiny free tier (20 req/day) and enrich fails 429. setdefault respects an explicit PROVIDER.
     env = {**os.environ}
     env.setdefault("PROVIDER", "deepseek")
     if events_path is not None:
         env[run_events.ENV_VAR] = str(events_path)
+    return env
+
+
+def _run_cmds(run_id: str, cmds: list[list[str]], label: str, events_path: Path | None,
+              labels: list[str] | None, *, mark_failed: bool = True) -> tuple[bool, str]:
+    """Run subprocesses sequentially. Returns (ok, detail). NO lock release, NO terminal state write.
+
+    V2.7b C6a — extracted so the CHAIN can run six stages under ONE acquire. A per-stage
+    ``_run_subprocess_job`` would release the lock between stages, which opens a steal window, lets
+    the SSE orphan guard inject a terminal mid-chain (it fires when the lock is free and the state is
+    terminal), and writes five ``done`` edges that would each storm the client's artifact reload."""
+    env = _job_env(events_path)
 
     def _emit(event: str, **payload) -> None:
         if events_path is not None:
             run_events.emit(events_path, event, **payload)
 
+    for i, cmd in enumerate(cmds):
+        cmd_label = (labels[i] if labels and i < len(labels) else Path(cmd[1]).stem)
+        _emit("cmd_start", i=i, n=len(cmds), label=cmd_label)
+        proc = subprocess.run(cmd, cwd=str(SRC), capture_output=True, text=True, env=env)
+        _emit("cmd_end", i=i, n=len(cmds), label=cmd_label, returncode=proc.returncode)
+        if proc.returncode != 0:
+            detail = (proc.stderr or "")[-280:]
+            st = run_state.read(run_id)
+            # `mark_failed=False` is for steps whose failure is NOT the run's failure (the results
+            # document): writing "failed" and correcting it a line later would flash a wrong state
+            # at whatever polled in between.
+            if mark_failed and (not st or st.get("status") != "failed"):
+                run_state.set_stage(run_id, "failed", f"{label} failed: {detail}")
+            _emit("stage_end", stage=label, status="failed", detail=detail)
+            return False, detail
+    _emit("stage_end", stage=label, status="done", detail="")
+    return True, ""
+
+
+def _absorb_usage(run_id: str, events_path: Path | None, offset: int) -> int:
+    """Fold every ``stage_usage`` event written since ``offset`` into the ledger. Returns the new EOF.
+
+    Each subprocess reports its own metered calls as it exits, keyed by the PRESENTED stage it
+    produced — so the fold needs no mapping table and cannot drift from the chain's shape. A stage
+    that honestly cannot count itself reports null, which `add_llm_calls` leaves as-is rather than
+    turning into a zero."""
+    if events_path is None:
+        return offset
     try:
-        for i, cmd in enumerate(cmds):
-            cmd_label = (labels[i] if labels and i < len(labels) else Path(cmd[1]).stem)
-            _emit("cmd_start", i=i, n=len(cmds), label=cmd_label)
-            proc = subprocess.run(cmd, cwd=str(SRC), capture_output=True, text=True, env=env)
-            _emit("cmd_end", i=i, n=len(cmds), label=cmd_label, returncode=proc.returncode)
-            if proc.returncode != 0:
-                st = run_state.read(run_id)
-                if not st or st.get("status") != "failed":
-                    run_state.set_stage(run_id, "failed", f"{label} failed: {(proc.stderr or '')[-280:]}")
-                detail = (proc.stderr or "")[-280:]
-                _emit("stage_end", stage=label, status="failed", detail=detail)
-                _emit(run_events.RUN_ENDED, status="failed", detail=detail)
-                return
-        st = run_state.read(run_id)  # the pipeline sets its own terminal "done"; enrich sets it here.
-        if label != "simulate":
+        events, eof = run_events.read_from(events_path, offset)
+    except OSError:
+        return offset
+    for _lineno, ev in events:
+        if ev.get("event") == "stage_usage" and ev.get("calls") is not None:
+            run_ledger.add_llm_calls(run_id, str(ev.get("stage")), int(ev["calls"]))
+    return eof
+
+
+def _stage_was_partial(run_id: str, events_path: Path | None, offset: int) -> bool:
+    """Did this stage stop mid-way, or did it happen to finish before the stop was noticed?
+
+    The difference is what the screen says: "47 of 213 voices, kept" versus "213 voices". Read it
+    off what the stage actually emitted — a voices stage that streamed fewer voices than it declared
+    a total for is partial; anything else is a stage that simply finished first."""
+    if events_path is None:
+        return False
+    try:
+        events, _ = run_events.read_from(events_path, offset)
+    except OSError:
+        return False
+    total: int | None = None
+    done = 0
+    for _lineno, ev in events:
+        if ev.get("event") == "voices_total":
+            total = ev.get("total")
+        elif ev.get("event") == "voice":
+            done = max(done, int(ev.get("done") or 0))
+            total = ev.get("total", total)
+    return total is not None and done < int(total)
+
+
+def _events_eof(events_path: Path | None) -> int:
+    if events_path is None:
+        return 0
+    try:
+        _, eof = run_events.read_from(events_path, 0)
+    except OSError:
+        return 0
+    return eof
+
+
+def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
+                        events_path: Path | None = None, labels: list[str] | None = None) -> None:
+    """The SINGLE-SHOT job: one stage, its own terminal state, its own release.
+
+    Used by POST /api/runs/<id>/enrich (the manual per-stage path, unchanged) and by a simulate whose
+    auto-chain is off. The chain has its own runner below."""
+    def _emit(event: str, **payload) -> None:
+        if events_path is not None:
+            run_events.emit(events_path, event, **payload)
+
+    before = _events_eof(events_path)
+    try:
+        ok, detail = _run_cmds(run_id, cmds, label, events_path, labels)
+        _absorb_usage(run_id, events_path, before)
+        if not ok:
+            _emit(run_events.RUN_ENDED, status="failed", detail=detail)
+            return
+        if label != "simulate":  # the quant pipeline writes its own terminal "done"; enrich sets it here
             run_state.set_stage(run_id, "done", f"{label} complete")
-        _emit("stage_end", stage=label, status="done", detail="")
         _emit(run_events.RUN_ENDED, status="complete", detail="")
     finally:
         # COMPARE-AND-CLEAR (V2.7b): pass the owner id so a late unwind can never clear a LATER
         # job's claim. See run_state.release for the steal this closes.
         run_state.release(run_id)
+
+
+# --------------------------------------------------------------------------------------------------
+# V2.7b C6a — THE STAGE RUNNER. After the physics, the interpretation, automatically, in order.
+# --------------------------------------------------------------------------------------------------
+
+AUTO_ENRICH_ENV = "NADI_AUTO_ENRICH"
+
+
+def auto_enrich_enabled() -> bool:
+    """Is the interpretation chain armed? DEFAULT OFF until the brake exists.
+
+    The chain spends a couple of hundred model calls per Run. Turning it on before there is a skip
+    button and a cost line on screen would mean a window where pressing Run spends that with no way
+    to stop it and no indication it is happening — so the flip rides the brake (V2.7b C10), not the
+    capability. Afterwards this stays the operator's off switch."""
+    return os.environ.get(AUTO_ENRICH_ENV, "0").strip().lower() not in ("", "0", "false", "no")
+
+
+def _chain_steps(run_id: str) -> list[dict]:
+    """The interpretation chain: PRESENTED stages mapped onto the subprocesses that produce them.
+
+    They are not the same list and never will be. ``institutions`` has no subprocess of its own —
+    reactions.py composes those voices deterministically in the same pass that generates the
+    traveler ones — and ``personas``/``voices`` are two presented stages inside what used to be one
+    enrich click. The UI shows the presented stages; a subprocess boundary is machinery."""
+    ts = run_id.replace("multimodal-scenario-", "")
+    py = sys.executable
+    return [
+        {"keys": ["personas"], "state": "enrich:voices", "label": "sampling travelers",
+         "cmd": [py, str(SRC / "sampler.py"), "--outcomes",
+                 str(run_state.RUNS_DIR / f"outcomes-{ts}.json")]},
+        {"keys": ["voices", "institutions"], "state": "enrich:voices", "label": "generating voices",
+         "cmd": [py, str(SRC / "reactions.py"), "--instrumented",
+                 str(run_state.RUNS_DIR / f"instrumented-{ts}.json")]},
+        {"keys": ["discourse"], "state": "enrich:discourse", "label": "running the discourse cascades",
+         "cmd": [py, str(SRC / "propagation.py"), "--run-id", run_id, "--cascades", "3"]},
+        {"keys": ["report"], "state": "enrich:report", "label": "writing the report",
+         "cmd": [py, str(SRC / "report.py"), "--run-id", run_id]},
+        {"keys": ["index"], "state": "enrich:index", "label": "building the chat index",
+         "cmd": [py, str(SRC / "report_agent.py"), "--run-id", run_id, "--rebuild"]},
+    ]
+
+
+def _run_facts_only(run_id: str, events_path: Path | None) -> bool:
+    """ACT I'S TAIL: the zero-LLM results document, written the moment the physics ends.
+
+    This is what makes "the results are complete when the physics ends" true on screen rather than
+    in principle — every figure, the scorecard and the caveats become readable while interpretation
+    is still streaming, or after it was skipped, or after it failed. It runs on EVERY completed
+    quant run, chain or no chain, because it is not interpretation: no model is called.
+
+    SOFT-FAILS. A quant run that produced numbers is a good run; if the document cannot be assembled
+    the run is still complete, and the Read stage already has a labeled state for a missing report."""
+    ok, detail = _run_cmds(run_id, [[sys.executable, str(SRC / "report.py"), "--facts-only",
+                                     "--run-id", run_id]],
+                           "results", events_path, ["computing the results document"],
+                           mark_failed=False)
+    run_ledger.set_facts_report(run_id, run_ledger.DONE if ok else run_ledger.FAILED)
+    if not ok:
+        print(f"[chain] facts-only report failed for {run_id}: {detail}")
+        run_state.set_stage(run_id, "done", "run complete (results document unavailable)")
+    return ok
+
+
+def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> None:
+    """Run the interpretation stages, in order, writing the ledger and the run's terminal state.
+
+    Shared by the auto-chain and by RESUME (which passes the stages its ledger says never ran), so
+    the two can never drift into different definitions of what a stage is or what ending it writes.
+    The CALLER owns the lock and releases it — this function assumes it is already held."""
+    def _emit(event: str, **payload) -> None:
+        run_events.emit(events_path, event, **payload)
+
+    for step in _chain_steps(run_id):
+        # RESUME runs only what never ran. A stage already marked done is stepped over rather than
+        # re-run: re-running it would spend again for an output that already exists, and the copy
+        # promises that resuming re-reads a sealed run rather than redoing it.
+        if only is not None and not (set(step["keys"]) & only):
+            continue
+        # PROTECTED RUNS ARE RE-CHECKED BEFORE EVERY STAGE, not once at the top: the guard is
+        # cheap, the set is small, and a stage that rewrites a landing-load-bearing artifact is
+        # not something to protect only on the first iteration.
+        if trajectory_io.pinned_enrich_blocked(run_id):
+            reason = trajectory_io.enrich_refusal_reason(run_id)
+            run_ledger.end(run_id, run_ledger.SKIPPED_END, reason=reason)
+            _emit(run_events.RUN_ENDED, status="skipped", detail=reason)
+            return
+        for key in step["keys"]:
+            run_ledger.set_stage(run_id, key, run_ledger.RUNNING)
+        run_state.set_stage(run_id, step["state"], step["label"])
+        _emit("stage_start", stage=step["state"], label=step["label"], kind="llm",
+              stages=[step["label"]])
+        before = _events_eof(events_path)
+        ok, detail = _run_cmds(run_id, [step["cmd"]], step["state"], events_path, [step["label"]])
+        _absorb_usage(run_id, events_path, before)
+        # A SKIP looks like a successful stage that stopped early — the subprocess exits 0 having
+        # written what it generated. `end()` then marks every stage that never ran as skipped, so
+        # the screen can say "kept: … / never run: …" from the ledger alone.
+        if run_events.cancelled(run_id):
+            partial = ok and _stage_was_partial(run_id, events_path, before)
+            for key in step["keys"]:
+                run_ledger.set_stage(run_id, key,
+                                     run_ledger.PARTIAL if partial else run_ledger.DONE if ok
+                                     else run_ledger.FAILED, detail=detail)
+            _emit("stage_partial", stage=step["state"], keys=list(step["keys"]))
+            run_ledger.end(run_id, run_ledger.SKIPPED_END, reason="stopped at your request")
+            run_state.set_stage(run_id, "done", "run complete (interpretation stopped early)")
+            _emit(run_events.RUN_ENDED, status="skipped", detail="stopped at your request")
+            return
+        for key in step["keys"]:
+            run_ledger.set_stage(run_id, key,
+                                 run_ledger.DONE if ok else run_ledger.FAILED, detail=detail)
+        if not ok:
+            # DEGRADED: interpretation could not continue. The RUN is unharmed and says so —
+            # every number came from the physics and none of them moves because of this.
+            run_ledger.end(run_id, run_ledger.DEGRADED, reason=detail)
+            run_state.set_stage(run_id, "done", "run complete (interpretation incomplete)")
+            _emit(run_events.RUN_ENDED, status="degraded", detail=detail)
+            return
+
+    run_state.set_stage(run_id, "done", "run complete")
+    run_ledger.end(run_id, run_ledger.COMPLETE)
+    _emit(run_events.RUN_ENDED, status="complete", detail="")
+
+
+def _resume_chain(run_id: str, events_path: Path, pending: list[str]) -> None:
+    """RESUME: the stages the ledger says never ran, against the sealed run. Nothing is
+    re-simulated and no figure can move — the physics act is over and its outputs are on disk."""
+    try:
+        _run_chain(run_id, events_path, only=set(pending))
+    finally:
+        run_state.release(run_id)
+
+
+def _run_quant_then_chain(run_id: str, cmd: list[str], events_path: Path) -> None:
+    """The simulate job: the physics, the results document, then — if armed — the interpretation.
+
+    ONE acquire is held across all of it (released in the finally). That is load-bearing three times:
+    it closes the steal window a per-stage re-acquire would open, it keeps ``run_state.active()``
+    equal to this run so the SSE orphan guard cannot inject a terminal between stages, and it lets
+    the chain write exactly one terminal state instead of one per stage."""
+    def _emit(event: str, **payload) -> None:
+        run_events.emit(events_path, event, **payload)
+
+    try:
+        run_ledger.init(run_id)
+        ok, detail = _run_cmds(run_id, [cmd], "simulate", events_path, list(_SIMULATE_LABELS))
+        run_ledger.set_quant(run_id, run_ledger.DONE if ok else run_ledger.FAILED)
+        if not ok:
+            run_ledger.end(run_id, run_ledger.FAILED_END, reason=detail)
+            _emit(run_events.RUN_ENDED, status="failed", detail=detail)
+            return
+
+        _run_facts_only(run_id, events_path)
+
+        if not auto_enrich_enabled():
+            run_ledger.end(run_id, run_ledger.COMPLETE, reason="interpretation not requested")
+            _emit(run_events.RUN_ENDED, status="complete", detail="")
+            return
+
+        _run_chain(run_id, events_path)
+    finally:
+        run_state.release(run_id)
+
 
 
 @app.get("/api/junctions")
@@ -735,7 +977,7 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
     ev = _begin_run_events(run_id, description=desc, changes=members,
                            demand_profile=req.demand_profile, assignment=req.assignment,
                            n_seeds=req.n_seeds)
-    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate", ev, list(_SIMULATE_LABELS))
+    bg.add_task(_run_quant_then_chain, run_id, cmd, ev)
     return {"run_id": run_id}
 
 
@@ -868,7 +1110,7 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
     ev = _begin_run_events(run_id, description=desc, changes=[change_dump],
                            demand_profile=req.demand_profile, assignment=req.assignment,
                            n_seeds=req.n_seeds)
-    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate", ev, list(_SIMULATE_LABELS))
+    bg.add_task(_run_quant_then_chain, run_id, cmd, ev)
     return {"run_id": run_id}
 
 
@@ -935,6 +1177,47 @@ async def run_status(run_id: str):
             st["enrich_progress"] = prog
     st.update(run_state.identity(run_id))  # V2.4c: name/note merge (keys can't collide with state)
     return st
+
+
+@app.post("/api/runs/{run_id}/skip")
+async def skip_interpretation(run_id: str):
+    """V2.7b C6b — "skip the rest, keep what landed".
+
+    Writes the cancel flag and returns. It DELIBERATELY does not release the lock: the running stage
+    releases it through its own `finally` once it has stopped at a safe point and written what it
+    generated. Releasing here would hand the slot away while a subprocess is still writing into the
+    run's files, which is the lock-stealing shape `release(run_id)` exists to prevent."""
+    if run_state.read(run_id) is None:
+        raise HTTPException(404, f"no such run {run_id!r}")
+    run_events.request_cancel(run_id)
+    return {"run_id": run_id, "cancel_requested": True,
+            "note": "the current stage stops at its next safe point and keeps what it generated"}
+
+
+@app.post("/api/runs/{run_id}/resume")
+async def resume_interpretation(run_id: str, bg: BackgroundTasks):
+    """V2.7b C6b — run the stages the ledger says never ran, against the SEALED run.
+
+    Nothing is re-simulated: every figure was computed in the physics act and none of them can move.
+    Clearing the cancel flag FIRST is not a detail — a resume that leaves it in place instantly
+    cancels its own first stage and looks like a no-op."""
+    if trajectory_io.pinned_enrich_blocked(run_id):
+        raise HTTPException(403, trajectory_io.enrich_refusal_reason(run_id))
+    if run_state.read(run_id) is None:
+        raise HTTPException(404, f"no such run {run_id!r}")
+    led = run_ledger.read(run_id)
+    if led is None:
+        raise HTTPException(409, f"run {run_id!r} has no interpretation ledger to resume from")
+    pending = [s["key"] for s in led["stages"] if s["status"] not in (run_ledger.DONE,)]
+    if not pending:
+        raise HTTPException(409, "every interpretation stage already ran for this run")
+    if not run_state.try_acquire(run_id):
+        raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
+    run_events.clear_cancel(run_id)
+    ev = run_events.events_path(run_id)
+    run_events.ensure_header(ev, run_id, description=(run_state.read(run_id) or {}).get("description"))
+    bg.add_task(_resume_chain, run_id, ev, pending)
+    return {"run_id": run_id, "resuming": pending}
 
 
 @app.get("/api/runs/{run_id}/ledger")

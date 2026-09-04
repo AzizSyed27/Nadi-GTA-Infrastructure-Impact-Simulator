@@ -99,6 +99,61 @@ def ensure_header(path: Path, run_id: str, **payload) -> None:
     emit(path, RUN_START, run_id=run_id, reconstructed=True, **payload)
 
 
+# ---------------------------------------------------------------------------------------------
+# THE CANCEL CHANNEL (V2.7b C6b) — "skip the rest, keep what landed"
+# ---------------------------------------------------------------------------------------------
+# A FILE, not an in-process flag, because the thing that has to notice is a SUBPROCESS the server
+# has already launched and whose environment is fixed. It lives beside the run's events file rather
+# than in STATE_DIR: the events dir is scratch the server already owns and prunes, and STATE_DIR's
+# file classes are read by `list_all`, which should not have to learn about a transient flag.
+#
+# An un-cancellable interpretation turns iteration into a queue: a planner who has seen enough of
+# one variant should not have to wait out ~230 model calls to try the next.
+
+
+def cancel_path(run_id: str) -> Path:
+    return EVENTS_ROOT / f"{run_id}.cancel"
+
+
+def request_cancel(run_id: str) -> Path:
+    """Ask the running stage to stop at its next safe point. Idempotent."""
+    p = cancel_path(run_id)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(str(time.time()), encoding="utf-8")
+    return p
+
+
+def clear_cancel(run_id: str) -> None:
+    """Drop the flag. RESUME MUST CALL THIS FIRST, or it instantly cancels its own first stage."""
+    cancel_path(run_id).unlink(missing_ok=True)
+
+
+def cancelled(run_id: str | None = None) -> bool:
+    """Has a stop been requested? Subprocesses call the no-arg form, which derives the run id from
+    the events path the server handed them — so a stage never needs to be told its own run id."""
+    if run_id is None:
+        path = from_env()
+        if path is None:
+            return False
+        run_id = path.name.removesuffix(".events.jsonl")
+    return cancel_path(run_id).exists()
+
+
+def stage_usage(stage: str, calls: int | None) -> None:
+    """Report a stage's METERED model calls, once, as the stage's process exits.
+
+    The ledger's per-stage cost has no other source: only report.py persists usage today, and the
+    server sees a return code. Each stage is a fresh process, so its adapter's lifetime call count
+    IS that stage's count — exact, not apportioned.
+
+    ``calls=None`` is the honest answer where a stage genuinely cannot count its own calls; the
+    ledger stores the null and the cost line says the total is a floor rather than quietly adding a
+    zero. Understating a spend the user is paying for is the one failure mode this must not have."""
+    path = from_env()
+    if path is not None:
+        emit(path, "stage_usage", stage=stage, calls=calls)
+
+
 def read_from(path: Path, offset: int) -> tuple[list[tuple[int, dict]], int]:
     """Read complete events starting at line ``offset`` (0-based). Returns ([(lineno, event), ...],
     new_offset) — linenos are ABSOLUTE (they become the SSE ``id:``), and new_offset counts COMPLETE

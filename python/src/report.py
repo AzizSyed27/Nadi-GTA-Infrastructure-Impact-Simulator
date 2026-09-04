@@ -2067,7 +2067,7 @@ def facts_only(run_id: str | None) -> Path:
     return json_path
 
 
-async def generate(run_id: str | None) -> tuple[Path, Path]:
+async def generate(run_id: str | None) -> tuple[Path | None, Path]:
     art_path, ts, artifact, outcomes, verdict = _load_for_report(run_id)
     facts = gather_facts(artifact, outcomes, verdict)
     verify_facts(facts, artifact, outcomes)  # A4b — fail loudly before spending any LLM tokens
@@ -2092,16 +2092,30 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
 
     audit_log: list[dict] = []
 
+    # V2.7b C6b — the cancel checkpoint. Slots are already sequential, so the safe points are simply
+    # BETWEEN them: whatever composed stays, the rest is left absent and the document says so. Once
+    # stopped we stay stopped (a flag file could be cleared mid-run by a resume for the NEXT stage).
+    stopped = False
+
+    def _stop() -> bool:
+        nonlocal stopped
+        stopped = stopped or run_events.cancelled()
+        return stopped
+
     # Slots (sequential — DeepSeek prefix cache + simpler audit-retry accounting; the run is small).
-    framing = await slot_framing(client, facts, audit_log)
-    glosses = {gid: await slot_gloss(client, facts, gid, audit_log) for gid in GROUP_ORDER}
+    framing = "" if _stop() else await slot_framing(client, facts, audit_log)
+    glosses: dict[str, str] = {}
+    for gid in GROUP_ORDER:
+        if _stop():
+            break
+        glosses[gid] = await slot_gloss(client, facts, gid, audit_log)
     syntheses: dict[str, dict] = {}
     for bk in BUCKET_ORDER:
-        if buckets[bk]:
+        if buckets[bk] and not _stop():
             syntheses[bk] = await slot_synthesis(client, bk, buckets[bk], audit_log)
     dfacts = discourse_facts(artifact)  # v0.4.0 social cascade — None on older artifacts
-    discourse = await slot_discourse(client, dfacts, audit_log) if dfacts else None
-    caveat_intro = await slot_caveat_intro(client, audit_log)
+    discourse = await slot_discourse(client, dfacts, audit_log) if (dfacts and not _stop()) else None
+    caveat_intro = "" if _stop() else await slot_caveat_intro(client, audit_log)
     caveats = build_caveats(facts, has_discourse=dfacts is not None)
 
     resolved = sum(1 for e in audit_log if e["status"] == "resolved_on_retry")
@@ -2110,6 +2124,10 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     audited = clean + resolved
     audit_summary = (f"passed — {len(audit_log)} slots ({audited} LLM-audited: {clean} clean, {resolved} corrected "
                      f"on retry, 0 unresolved; {code_rendered} code-rendered).")
+    if stopped:
+        audit_summary = (f"composition stopped at your request — {len(audit_log)} slots written "
+                         f"({clean} clean, {resolved} corrected on retry, 0 unresolved; "
+                         f"{code_rendered} code-rendered). The figures are complete.")
 
     generated_at = datetime.now(timezone.utc).isoformat()
     meta = {"generated_at": generated_at, "provider": provider, "model": model, "audit_summary": audit_summary}
@@ -2129,14 +2147,19 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
                      "log": audit_log},
         provenance={"generated_at": generated_at, "provider": provider, "model": model,
                     "usage": getattr(client, "usage", None)},
-        sources=sources)
+        sources=sources, prose_status=PARTIAL if stopped else COMPOSED)
 
-    md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
-                         dfacts=dfacts, discourse=discourse)
-
-    md_path = RUNS_DIR / f"report-{ts}.md"
+    # A STOPPED composition writes NO markdown and NEVER repoints the served report. The markdown is
+    # a rendering of prose that is now partial, and aiming the pointer (which selects the run the chat
+    # index aligns to) at a half-composed document is the 2026-08-13 incident class. Same restraint
+    # facts_only and refresh_facts already show, for the same reason.
+    md_path: Path | None = None
     json_path = RUNS_DIR / f"report-{ts}.json"
-    md_path.write_text(md, encoding="utf-8")
+    if not stopped:
+        md = render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, meta,
+                             dfacts=dfacts, discourse=discourse)
+        md_path = RUNS_DIR / f"report-{ts}.md"
+        md_path.write_text(md, encoding="utf-8")
     json_path.write_text(json.dumps(report_json, indent=2, ensure_ascii=False), encoding="utf-8")
     WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
     # V2.7a — the per-run web copy (the graphs-sidecar pattern): the run document resolves
@@ -2144,7 +2167,8 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
     # PAYLOAD singletons are retired (C5): the json becomes a pointer for the server-side
     # alignment readers; the md web copy had zero fetchers (contract/runs keeps the portable md).
     shutil.copyfile(json_path, WEB_PUBLIC / f"{facts['scenario_run_id']}-report.json")
-    _write_latest_report_pointer(facts["scenario_run_id"])
+    if not stopped:
+        _write_latest_report_pointer(facts["scenario_run_id"])
 
     # audit log to stdout (a caught-then-corrected violation is the system working)
     print("\n=== AUDIT LOG ===")
@@ -2154,7 +2178,10 @@ async def generate(run_id: str | None) -> tuple[Path, Path]:
             line += " :: " + "; ".join(f"{v['rule']}:{v['sentence'][:70]}" for v in e["violations"])
         print(line)
     print(f"\n{audit_summary}")
-    print(f"[report] wrote {md_path.name} + {json_path.name}  (+ web/public/{facts['scenario_run_id']}-report.json + the latest-report pointer)")
+    print(f"[report] wrote {(md_path.name + ' + ') if md_path else ''}{json_path.name}  "
+          f"(+ web/public/{facts['scenario_run_id']}-report.json"
+          f"{'' if stopped else ' + the latest-report pointer'})")
+    run_events.stage_usage("report", (getattr(client, "usage", None) or {}).get("calls"))
     return md_path, json_path
 
 

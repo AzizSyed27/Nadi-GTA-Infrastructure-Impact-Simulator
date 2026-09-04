@@ -541,9 +541,11 @@ def test_post_composite_success_writes_spec_and_composite_cmd(tmp_path, monkeypa
         assert events[1][1]["stage"] == "quant" and events[1][1]["kind"] == "quant"
         # exactly one queued background job whose cmd hands off via --composite
         (task,) = bg.tasks
-        _, cmds, _label, ev_path, _labels = task.args
+        # V2.7b C6a: a simulate POST queues the CHAIN runner (physics → results document → the
+        # interpretation, all under one acquire), not the single-shot job.
+        assert task.func is server._run_quant_then_chain
+        _, cmd, ev_path = task.args
         assert ev_path == run_events.events_path(run_id), "the job must append to the RUN's file"
-        (cmd,) = cmds
         assert "--composite" in cmd and str(spec_path) in cmd
         assert "--change-type" not in cmd  # the composite path never uses the single-change flag
         # run-state carries the school-zone description + the member list + tags
