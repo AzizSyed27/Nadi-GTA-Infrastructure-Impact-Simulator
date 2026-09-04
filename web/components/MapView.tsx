@@ -19,7 +19,7 @@ import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
 import { getJunctions, getEdges, getRuns, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
-import type { VoiceEvent } from '@/lib/enrichStream';
+import type { VoiceEvent } from '@/lib/runStream';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { RoomDrawer, type RoomMsg, type RoomPair, type RoomRound } from '@/components/RoomDrawer';
 import { GraphSplitView, type GraphsSidecar } from '@/components/GraphSplitView';

@@ -16,7 +16,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "python" / "src"))
 
-import enrich_events  # noqa: E402
+import run_events  # noqa: E402
 import reactions  # noqa: E402
 from contract_models import Reaction  # noqa: E402
 
@@ -50,7 +50,7 @@ class _StubClient:
 def test_streamed_agents_equal_assembled_agents(tmp_path: Path) -> None:
     records = _records()
     ev = tmp_path / "r.events.jsonl"
-    enrich_events.truncate(ev)
+    run_events.begin(ev, "r")
 
     results = asyncio.run(
         reactions.generate_reactions(_StubClient(), records, _CHANGES, events_path=ev)
@@ -65,7 +65,7 @@ def test_streamed_agents_equal_assembled_agents(tmp_path: Path) -> None:
     final = [a.model_dump(mode="json", exclude_none=True, by_alias=True) for a in assembled.agents]
 
     # PATH 2 — the streamed events, arriving in completion order, reordered by index
-    events, _ = enrich_events.read_from(ev, 0)
+    events, _ = run_events.read_from(ev, 0)
     voices = [e for _, e in events if e["event"] == "voice"]
     assert len(voices) == len(records)
     assert sorted(v["done"] for v in voices) == [1, 2, 3]
@@ -79,12 +79,12 @@ def test_streamed_agents_equal_assembled_agents(tmp_path: Path) -> None:
 
 
 def test_no_env_no_file(tmp_path: Path, monkeypatch) -> None:
-    """CLI byte-identity: with NADI_ENRICH_EVENTS unset, generate_reactions touches no events file."""
-    monkeypatch.delenv(enrich_events.ENV_VAR, raising=False)
-    monkeypatch.setattr(enrich_events, "EVENTS_ROOT", tmp_path / "root")
-    assert enrich_events.from_env() is None
+    """CLI byte-identity: with NADI_RUN_EVENTS unset, generate_reactions touches no events file."""
+    monkeypatch.delenv(run_events.ENV_VAR, raising=False)
+    monkeypatch.setattr(run_events, "EVENTS_ROOT", tmp_path / "root")
+    assert run_events.from_env() is None
     asyncio.run(reactions.generate_reactions(_StubClient(), _records(), _CHANGES,
-                                             events_path=enrich_events.from_env()))
+                                             events_path=run_events.from_env()))
     assert not (tmp_path / "root").exists(), "no env var → no events dir/file"
 
 
@@ -97,10 +97,10 @@ def test_fallback_voice_still_streams(tmp_path: Path) -> None:
 
     records = _records()[:1]
     ev = tmp_path / "r.events.jsonl"
-    enrich_events.truncate(ev)
+    run_events.begin(ev, "r")
     results = asyncio.run(reactions.generate_reactions(_FailClient(), records, _CHANGES, events_path=ev))
     assert results[0][1] is True, "expected the fallback path"
-    events, _ = enrich_events.read_from(ev, 0)
+    events, _ = run_events.read_from(ev, 0)
     voices = [e for _, e in events if e["event"] == "voice"]
     assert len(voices) == 1 and voices[0]["done"] == 1
     assert voices[0]["agent"]["reaction"] == json.loads(

@@ -73,6 +73,10 @@ def read(run_id: str) -> dict | None:
 # CONSTRUCTION — a rename works even mid-run — and keeps state files harness-only (D5: the
 # artifact/state is the simulation record, the sidecar is the workspace).
 IDENTITY_SUFFIX = ".identity.json"
+# V2.7b — the FOURTH file class in this directory (state / .composite.json / .identity.json /
+# .ledger.json). Declared here beside its siblings so ``list_all`` skips it and any future reader
+# sees the whole set in one place; the ledger itself lives in run_ledger.py.
+LEDGER_SUFFIX = ".ledger.json"
 
 
 def _identity_path(run_id: str):
@@ -124,6 +128,8 @@ def list_all() -> list[dict]:
             continue  # a composite HANDOFF spec (server → harness), not run state
         if p.name.endswith(IDENTITY_SUFFIX):
             continue  # V2.4c: a user identity sidecar (name/note), not run state
+        if p.name.endswith(LEDGER_SUFFIX):
+            continue  # V2.7b: the interpretation ledger, not run state
         s = read(p.stem)
         if s:
             out.append(s)
@@ -140,9 +146,21 @@ def try_acquire(run_id: str) -> bool:
         return True
 
 
-def release() -> None:
+def release(run_id: str | None = None) -> bool:
+    """Release the job slot. Returns True iff this call actually cleared it.
+
+    V2.7b — COMPARE-AND-CLEAR. Clearing unconditionally is correct while exactly one site releases
+    (the job worker's ``finally``). The moment SKIP exists it becomes a lock-STEALING bug: a skipped
+    job's worker unwinds, the user fires variant B, B acquires — and then the cancelled subprocess's
+    late ``finally`` clears B's claim, so a third job can acquire while B is still mid-SUMO. Two jobs,
+    one network, one set of scratch paths, and the corruption shows up once and unreproducibly.
+    Passing the owner's id makes a late release a no-op. Bare ``release()`` keeps the unconditional
+    behavior for test teardown, where "clear whatever is there" is exactly what is wanted."""
     with _LOCK:
+        if run_id is not None and _ACTIVE["run_id"] != run_id:
+            return False
         _ACTIVE["run_id"] = None
+        return True
 
 
 def active() -> str | None:

@@ -3,7 +3,7 @@
 import { nonCompletionsLine } from '@/lib/nonCompletions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRunStatus, postEnrich, postIdentity, type EnrichStage, type RunStatus } from '@/lib/api';
-import { openEnrichStream, type VoiceEvent } from '@/lib/enrichStream';
+import { openRunStream, type VoiceEvent } from '@/lib/runStream';
 import { signedMinutes } from '@/lib/viz';
 import { fmtWindowRange } from '@/lib/simTime';
 
@@ -75,7 +75,7 @@ export function RunCard({
   const streamClose = useRef<(() => void) | null>(null);
   // The current job's stream reached its terminal frame. Without this, the reconnect effect would
   // re-open the finished stream every render until the POLL sees done (the status stays enrich:* for
-  // up to a poll tick after job_done) — an open/replay/close loop. Reset when a new enrich launches.
+  // up to a poll tick after the run ends) — an open/replay/close loop. Reset when a new enrich launches.
   const streamEnded = useRef(false);
   const onLoadedRef = useRef(onLoaded);
   const onVoiceRef = useRef(onVoice);
@@ -125,7 +125,7 @@ export function RunCard({
   const openStream = useCallback(() => {
     if (streamClose.current) return; // already open
     setStreamDegraded(false);
-    streamClose.current = openEnrichStream(runId, {
+    streamClose.current = openRunStream(runId, {
       onVoice: (v) => onVoiceRef.current?.(runId, v),
       onProgress: (p) => setStreamProgress((prev) => ({ ...prev, ...p })),
       onTerminal: () => {
@@ -170,7 +170,7 @@ export function RunCard({
       setNonce((n) => n + 1); // restart polling for the enrich run
       setStreamProgress(null); // a fresh job — never show a previous stage's counts
       streamEnded.current = false;
-      openStream(); // open immediately (job_start is already on disk — the POST wrote it synchronously)
+      openStream(); // open immediately (stage_start is already on disk — the POST wrote it synchronously)
     },
     [runId, openStream],
   );

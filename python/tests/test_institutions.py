@@ -386,7 +386,7 @@ class _CountingClient:
 
 
 def test_mandate_voices_make_zero_llm_calls_and_streamed_equals_assembled(tmp_path: Path, monkeypatch) -> None:
-    import enrich_events
+    import run_events
 
     inferred = {"grounding": "inferred", "mode": "inferred",
                 "persona": {"id": "taxpayer", "label": "Skeptical taxpayer",
@@ -396,7 +396,7 @@ def test_mandate_voices_make_zero_llm_calls_and_streamed_equals_assembled(tmp_pa
     records = [inferred, mandate]
     client = _CountingClient()
     events = tmp_path / "ev.jsonl"
-    enrich_events.truncate(events)
+    run_events.begin(events, "r")
 
     results = asyncio.run(reactions.generate_reactions(
         client, records, changes=[{"type": "speed_limit", "description": "d", "value_mps": 11.1}],
@@ -407,7 +407,7 @@ def test_mandate_voices_make_zero_llm_calls_and_streamed_equals_assembled(tmp_pa
     agents = [reactions.build_agent(r, res[0]) for r, res in zip(records, results)]
     dumped = [a.model_dump(mode="json", exclude_none=True, by_alias=True) for a in agents]
     streamed = {}
-    evs, _ = enrich_events.read_from(events, 0)
+    evs, _ = run_events.read_from(events, 0)
     for _n, e in evs:
         if e["event"] == "voice":
             streamed[e["index"]] = e["agent"]

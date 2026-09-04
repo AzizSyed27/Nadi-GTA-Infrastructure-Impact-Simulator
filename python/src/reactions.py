@@ -32,7 +32,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-import enrich_events
+import run_events
 import trajectory_io
 from contract_models import (
     MANDATE_VERSIONS, Agent, Citation, Mandate, Outcome, Persona, Reaction, TrajectoryArtifact, changes_of,
@@ -349,9 +349,9 @@ async def generate_reactions(client: LLMClient, records: list[dict], changes: li
         if events_path is not None:
             done += 1
             agent = build_agent(rec, res[0])  # the SAME builder as assemble_in_place — transport, not content
-            enrich_events.emit(events_path, "voice", index=orig_index[id(rec)], done=done,
-                               total=len(records),
-                               agent=agent.model_dump(mode="json", exclude_none=True, by_alias=True))
+            run_events.emit(events_path, "voice", index=orig_index[id(rec)], done=done,
+                            total=len(records),
+                            agent=agent.model_dump(mode="json", exclude_none=True, by_alias=True))
         return res
 
     # Order so each persona's calls are ADJACENT — prefix locality for DeepSeek's prompt cache (the
@@ -475,10 +475,10 @@ async def run(instrumented_path: Path) -> Path:
     print(f"[llm] provider={provider} model={model}  agents={len(records)} "
           f"({n_sim} sim + {n_inferred} inferred + {n_mandate} institutional)")
 
-    # V2.3a: stream events ONLY when the server set NADI_ENRICH_EVENTS (CLI runs: None → no file, no change)
-    events_path = enrich_events.from_env()
+    # V2.3a: stream events ONLY when the server set NADI_RUN_EVENTS (CLI runs: None → no file, no change)
+    events_path = run_events.from_env()
     if events_path is not None:
-        enrich_events.emit(events_path, "voices_total", total=len(records))
+        run_events.emit(events_path, "voices_total", total=len(records))
 
     print("[llm] smoke test (warms the shared-prefix cache) ...")
     await smoke_test(client, changes, profile, tags)  # raises here (clear error) if the key/model is bad

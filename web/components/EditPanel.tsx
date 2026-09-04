@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ChangeWindow, Junction, Edge, RunOptions, RunStatus } from '@/lib/api';
-import type { VoiceEvent } from '@/lib/enrichStream';
+import type { VoiceEvent } from '@/lib/runStream';
 import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { ScorecardPanel } from '@/components/ScorecardPanel';

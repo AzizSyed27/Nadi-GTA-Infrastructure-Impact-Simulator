@@ -286,7 +286,7 @@ def test_new_road_via_malformed_400() -> None:
     assert str(ei.value.detail) == expected
 
 
-def test_new_road_via_geometry_routing(monkeypatch) -> None:
+def test_new_road_via_geometry_routing(tmp_path, monkeypatch) -> None:
     """Routing proof (per-call-site rule): the POST calls network_edit.new_road_via_reason with
     the request's OWN (from, to, via) + the cached canonical net, 400s with the returned
     sentence VERBATIM, and mints a run id when the reason is None (valid via accepted)."""
@@ -311,10 +311,19 @@ def test_new_road_via_geometry_routing(monkeypatch) -> None:
     assert seen["args"] == ("A", "B", ("-79.22,43.76",), fake_net)
 
     monkeypatch.setattr(network_edit, "new_road_via_reason", lambda a, b, v, n: None)
+    import run_events
+    monkeypatch.setattr(run_events, "EVENTS_ROOT", tmp_path / "events")
     out = None
     try:
         out = _post_simulate(dict(body))
         assert out["run_id"]
+        # V2.7b — the SINGLE-change simulate site opens the run's events file (the composite site has
+        # its own pin): line 0 is the run header, and the quant stage_start follows it.
+        events, _ = run_events.read_from(run_events.events_path(out["run_id"]), 0)
+        assert [e["event"] for _, e in events] == ["run_start", "stage_start"]
+        (member,) = events[0][1]["changes"]
+        assert member["type"] == "new_road" and member["via"] == ["-79.22,43.76"]
+        assert events[1][1]["stage"] == "quant"
     finally:
         run_state.release()
         if out:
@@ -508,10 +517,12 @@ def test_post_composite_member_window_sanity() -> None:
     assert ei.value.status_code == 400 and "change 0" in ei.value.detail and "end_s" in ei.value.detail
 
 
-def test_post_composite_success_writes_spec_and_composite_cmd() -> None:
+def test_post_composite_success_writes_spec_and_composite_cmd(tmp_path, monkeypatch) -> None:
     import json as _json
 
+    import run_events
     import run_state
+    monkeypatch.setattr(run_events, "EVENTS_ROOT", tmp_path / "events")
     members = _three_zone_members()
     try:
         out, bg = _post_composite(members, tags=["school_zone"])
@@ -522,9 +533,16 @@ def test_post_composite_success_writes_spec_and_composite_cmd() -> None:
         assert len(spec["changes"]) == 3 and spec["tags"] == ["school_zone"]
         # the server fills every member description (Change.description is contract-required)
         assert all(c.get("description") for c in spec["changes"])
+        # V2.7b — the COMPOSITE simulate site opens the run's events file too. Both simulate sites
+        # must: a composite with no run_start would leave every school-zone/windowed run with no Act I.
+        events, _ = run_events.read_from(run_events.events_path(run_id), 0)
+        assert [e["event"] for _, e in events] == ["run_start", "stage_start"]
+        assert events[0][1]["run_id"] == run_id and len(events[0][1]["changes"]) == 3
+        assert events[1][1]["stage"] == "quant" and events[1][1]["kind"] == "quant"
         # exactly one queued background job whose cmd hands off via --composite
         (task,) = bg.tasks
-        _, cmds, _ = task.args
+        _, cmds, _label, ev_path, _labels = task.args
+        assert ev_path == run_events.events_path(run_id), "the job must append to the RUN's file"
         (cmd,) = cmds
         assert "--composite" in cmd and str(spec_path) in cmd
         assert "--change-type" not in cmd  # the composite path never uses the single-change flag

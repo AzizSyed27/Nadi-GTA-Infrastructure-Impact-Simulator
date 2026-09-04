@@ -29,7 +29,8 @@ from pydantic import BaseModel
 
 SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))  # bare imports work regardless of cwd
-import enrich_events  # noqa: E402
+import run_events  # noqa: E402
+import run_ledger  # noqa: E402
 import interview  # noqa: E402
 import llm_provider  # noqa: E402
 import trajectory_io  # noqa: E402  (the pinned-run enrich guard)
@@ -450,25 +451,45 @@ class EnrichReq(BaseModel):
     stage: str  # voices | report | discourse
 
 
+# V2.7b — the quant leg's human label (rides cmd_start; Act I renders its own beats over this).
+_SIMULATE_LABELS = ["simulating both legs"]
+
+
+def _begin_run_events(run_id: str, *, description: str, changes: list[dict],
+                      demand_profile: str, assignment: str, n_seeds: int) -> Path:
+    """THE one truncation point: start this run's events file with ``run_start`` as line 0.
+
+    Called synchronously at both simulate POST sites (single-change and composite) under the held lock,
+    before the subprocess exists — so a client that opens the stream immediately after the POST never
+    404s, and line 0 is structurally the run header the client's fold seeds on. ``prune()`` rides here
+    too: it is the one moment we are already touching the directory."""
+    ev = run_events.events_path(run_id)
+    run_events.prune()
+    run_events.begin(ev, run_id, description=description, changes=changes,
+                     demand_profile=demand_profile, assignment=assignment, n_seeds=n_seeds)
+    run_events.emit(ev, "stage_start", stage="quant", label="simulating both legs", kind="quant",
+                    stages=list(_SIMULATE_LABELS))
+    return ev
+
+
 def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
                         events_path: Path | None = None, labels: list[str] | None = None) -> None:
     """Run one or more subprocesses sequentially under the held lock; reconcile state; always release.
 
-    V2.3a: enrich jobs pass ``events_path`` (+ per-cmd human ``labels``) — lifecycle events (cmd_start/
-    cmd_end/job_done/job_failed) are appended here and NADI_ENRICH_EVENTS is exported so reactions.py
-    streams per-voice events into the same file. Simulate passes neither (no events file → the stream
-    endpoint 404s for simulate runs, correctly). The two writers are temporally disjoint: this process
-    writes only between subprocess lifetimes."""
+    Every job passes ``events_path`` since V2.7b (the events file is per-RUN, not per-enrich-job): the
+    stage's lifecycle (stage_start/cmd_start/cmd_end/stage_end/run_ended) is appended here and
+    NADI_RUN_EVENTS is exported so the subprocess appends its own content events to the same file.
+    Writers stay temporally disjoint: this process writes only between subprocess lifetimes."""
     # PIN DeepSeek for the LLM enrich steps (reactions/report/propagation) — else reactions.py defaults to
     # Gemini's tiny free tier (20 req/day) and enrich fails 429. setdefault respects an explicit PROVIDER.
     env = {**os.environ}
     env.setdefault("PROVIDER", "deepseek")
     if events_path is not None:
-        env[enrich_events.ENV_VAR] = str(events_path)
+        env[run_events.ENV_VAR] = str(events_path)
 
     def _emit(event: str, **payload) -> None:
         if events_path is not None:
-            enrich_events.emit(events_path, event, **payload)
+            run_events.emit(events_path, event, **payload)
 
     try:
         for i, cmd in enumerate(cmds):
@@ -480,14 +501,19 @@ def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
                 st = run_state.read(run_id)
                 if not st or st.get("status") != "failed":
                     run_state.set_stage(run_id, "failed", f"{label} failed: {(proc.stderr or '')[-280:]}")
-                _emit("job_failed", label=label, detail=(proc.stderr or "")[-280:])
+                detail = (proc.stderr or "")[-280:]
+                _emit("stage_end", stage=label, status="failed", detail=detail)
+                _emit(run_events.RUN_ENDED, status="failed", detail=detail)
                 return
         st = run_state.read(run_id)  # the pipeline sets its own terminal "done"; enrich sets it here.
         if label != "simulate":
             run_state.set_stage(run_id, "done", f"{label} complete")
-        _emit("job_done", label=label)
+        _emit("stage_end", stage=label, status="done", detail="")
+        _emit(run_events.RUN_ENDED, status="complete", detail="")
     finally:
-        run_state.release()
+        # COMPARE-AND-CLEAR (V2.7b): pass the owner id so a late unwind can never clear a LATER
+        # job's claim. See run_state.release for the steal this closes.
+        run_state.release(run_id)
 
 
 @app.get("/api/junctions")
@@ -706,7 +732,10 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
                         **({"tags": req.tags} if req.tags else {}),
                         demand_profile=req.demand_profile, assignment=req.assignment,
                         n_seeds=req.n_seeds)
-    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate")
+    ev = _begin_run_events(run_id, description=desc, changes=members,
+                           demand_profile=req.demand_profile, assignment=req.assignment,
+                           n_seeds=req.n_seeds)
+    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate", ev, list(_SIMULATE_LABELS))
     return {"run_id": run_id}
 
 
@@ -832,10 +861,14 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
                              n_seeds=req.n_seeds)
     if not run_state.try_acquire(run_id):  # synchronous, race-free reject-if-active
         raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
-    run_state.set_stage(run_id, "queued", "queued", description=desc, change=ch.model_dump(exclude_none=True),
+    change_dump = ch.model_dump(exclude_none=True)
+    run_state.set_stage(run_id, "queued", "queued", description=desc, change=change_dump,
                         demand_profile=req.demand_profile, assignment=req.assignment,
                         n_seeds=req.n_seeds)
-    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate")
+    ev = _begin_run_events(run_id, description=desc, changes=[change_dump],
+                           demand_profile=req.demand_profile, assignment=req.assignment,
+                           n_seeds=req.n_seeds)
+    bg.add_task(_run_subprocess_job, run_id, [cmd], "simulate", ev, list(_SIMULATE_LABELS))
     return {"run_id": run_id}
 
 
@@ -865,13 +898,21 @@ def _enrich_progress(run_id: str) -> dict | None:
 
     READ-ONLY derivation in the GET handler: the run-state file is never written with progress (its
     ``set_stage`` is an unlocked read-merge-write — a second writer would race the server's own writes).
-    The events file is a few hundred KB at most; parsing it per 1.5 s poll is cheap."""
-    path = enrich_events.events_path(run_id)
-    events, _ = enrich_events.read_from(path, 0)
+    The events file is a few hundred KB at most; parsing it per 1.5 s poll is cheap.
+
+    V2.7b — SCAN FROM THE LAST ``stage_start``, not from line 0. The file is no longer truncated per
+    enrich job, so the PREVIOUS stage's ``voice 212/212`` is still in the file: folding from 0 would open
+    every later stage showing a full progress bar. The current stage's window is the only honest one."""
+    path = run_events.events_path(run_id)
+    events, _ = run_events.read_from(path, 0)
     if not events:
         return None
+    start = 0
+    for i, (_, ev) in enumerate(events):
+        if ev.get("event") == "stage_start":
+            start = i
     out: dict = {}
-    for _, ev in events:
+    for _, ev in events[start:]:
         kind = ev.get("event")
         if kind == "voices_total":
             out["total"] = ev.get("total")
@@ -894,6 +935,19 @@ async def run_status(run_id: str):
             st["enrich_progress"] = prog
     st.update(run_state.identity(run_id))  # V2.4c: name/note merge (keys can't collide with state)
     return st
+
+
+@app.get("/api/runs/{run_id}/ledger")
+async def run_ledger_get(run_id: str):
+    """V2.7b — the interpretation LEDGER: which stages ran, were skipped or failed, what each cost.
+
+    The durable half of the run experience (the events file is the live half). A run with no ledger
+    is not an error — every run before this step, and every CLI-harness run, legitimately has none —
+    so this returns ``{ledger: null}`` rather than 404ing, and the client renders the run without the
+    interpretation panel instead of painting a failure over a perfectly good run."""
+    if run_state.read(run_id) is None:
+        raise HTTPException(404, f"no such run {run_id!r}")
+    return {"run_id": run_id, "ledger": run_ledger.read(run_id)}
 
 
 class IdentityReq(BaseModel):
@@ -960,60 +1014,81 @@ async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     if not run_state.try_acquire(run_id):
         raise HTTPException(409, f"a job is already running ({run_state.active()}); one job at a time")
     run_state.set_stage(run_id, f"enrich:{req.stage}", f"running {req.stage}")
-    # V2.3a INVARIANT — POST-time ordering: truncate → emit job_start → launch. All three run
+    # V2.7b INVARIANT — POST-time ordering: ensure the header → emit stage_start → launch. All three run
     # synchronously HERE (BackgroundTasks fire after the response), under the held lock, BEFORE the
-    # subprocess exists, so: (a) the client's stream GET never 404s in the postEnrich→EventSource gap;
-    # (b) job_start is structurally LINE 0 of every fresh file — clients reset their Last-Event-ID
-    # dedup on job_start, and a stale id past EOF replays from 0, which only recovers because of this.
+    # subprocess exists, so the client's stream GET never 404s in the postEnrich→EventSource gap.
+    # The file is NO LONGER truncated here (V2.3a did): it is the RUN's file, truncated once at the
+    # simulate POST. ``ensure_header`` covers the two cases where it is missing anyway — a run whose
+    # file was pruned at 7 days, and a run that predates V2.7b — so line 0 is always the run header.
     labels = _ENRICH_LABELS[req.stage]
-    ev = enrich_events.events_path(run_id)
-    enrich_events.prune()  # prune's one call site: cheap, bounded, and we're already touching the dir
-    enrich_events.truncate(ev)
-    enrich_events.emit(ev, "job_start", run_id=run_id, label=f"enrich:{req.stage}", stages=labels)
+    ev = run_events.events_path(run_id)
+    run_events.ensure_header(ev, run_id, description=st.get("description"),
+                             changes=st.get("changes") or ([st["change"]] if st.get("change") else None),
+                             demand_profile=st.get("demand_profile"), assignment=st.get("assignment"),
+                             n_seeds=st.get("n_seeds"))
+    run_events.emit(ev, "stage_start", stage=f"enrich:{req.stage}",
+                    label=f"enrich:{req.stage}", kind="llm", stages=labels)
     bg.add_task(_run_subprocess_job, run_id, cmds, f"enrich:{req.stage}", ev, labels)
     return {"run_id": run_id, "stage": req.stage}
 
 
-@app.get("/api/runs/{run_id}/enrich/stream")
-async def enrich_stream(run_id: str, request: Request):
-    """V2.3a — SSE over the run's enrich events file: replay from 0 (or Last-Event-ID), then tail.
+def _run_is_over(run_id: str) -> bool:
+    """The STATE-DRIVEN end-of-stream predicate: run-state is terminal AND no job holds the lock.
+
+    V2.3a closed the stream on a ``job_done``/``job_failed`` LINE. That cannot survive a per-RUN file:
+    under the auto-chain the first stage's terminal would end the client's stream before stage 2 exists,
+    and a skip writes a terminal that a later resume appends AFTER — so every later replay would close
+    early, permanently. Reading the run's actual state instead makes an interior ``run_ended`` line
+    harmless content. ``run_state.read`` already coerces a stale "running" to failed, which also folds
+    the old ORPHAN GUARD (server restart / killed subprocess) into this one predicate."""
+    st = run_state.read(run_id)
+    return bool(st and st.get("status") in ("done", "failed") and run_state.active() != run_id)
+
+
+@app.get("/api/runs/{run_id}/events")
+async def run_event_stream(run_id: str, request: Request):
+    """V2.7b — SSE over the RUN's events file: replay from 0 (or Last-Event-ID), then tail.
 
     The ``id:`` of each frame is the file's absolute line number, so a dropped EventSource resumes via
-    the native Last-Event-ID reconnect; a stale id past EOF (a new job truncated the file) replays from
-    0 and the client's job_start reset handles the rest. Degrade path: no events file → 404 → the client
-    falls back to the poll it never stopped running."""
-    path = enrich_events.events_path(run_id)
+    the native Last-Event-ID reconnect; a stale id past EOF (a fresh run truncated the file) replays from
+    0 and the client's run_start reset handles the rest. The stream closes with a synthesized
+    ``stream_end`` CONTROL frame — never a file line, so it can never be confused with the ``run_ended``
+    content event. Degrade path: no events file → 404 → the client falls back to the poll it never
+    stopped running (and shows nothing at all for an already-finished run, which legitimately has none)."""
+    path = run_events.events_path(run_id)
     if not path.is_file():
-        raise HTTPException(404, f"no enrich event stream for {run_id!r}")
+        raise HTTPException(404, f"no event stream for {run_id!r}")
     raw = request.headers.get("last-event-id", "")
     resume_after = int(raw) if raw.isdigit() else -1
 
     async def gen():
         offset = 0
         start = resume_after + 1
-        _, eof = enrich_events.read_from(path, 0)
-        if start > eof:  # stale Last-Event-ID from a previous job's longer file → replay from 0
+        _, eof = run_events.read_from(path, 0)
+        if start > eof:  # stale Last-Event-ID from a previous run's longer file → replay from 0
             start = 0
         last_beat = time.monotonic()
         while True:
-            events, offset = enrich_events.read_from(path, offset)
+            events, offset = run_events.read_from(path, offset)
             for lineno, ev in events:
                 if lineno < start:
                     continue
                 yield f"id: {lineno}\nevent: {ev.get('event', 'message')}\ndata: {json.dumps(ev)}\n\n"
                 last_beat = time.monotonic()
-                if ev.get("event") in enrich_events.TERMINAL:
-                    return
             if await request.is_disconnected():
                 return
-            # ORPHAN GUARD: the job died without a terminal event (server restart / killed subprocess).
-            # run_state.read already coerces stale "running" to failed; without this, the stream would
-            # heartbeat a dead job forever.
-            st = run_state.read(run_id)
-            if st and st.get("status") in ("done", "failed") and run_state.active() != run_id:
-                synthetic = {"event": "job_done" if st["status"] == "done" else "job_failed",
-                             "ts": time.time(), "synthetic": True, "detail": st.get("detail", "")}
-                yield f"id: {offset}\nevent: {synthetic['event']}\ndata: {json.dumps(synthetic)}\n\n"
+            if _run_is_over(run_id):
+                # Drain once more before closing: the subprocess's last lines and the terminal state
+                # write are not atomic with each other, so a line can land in that window.
+                events, offset = run_events.read_from(path, offset)
+                for lineno, ev in events:
+                    if lineno < start:
+                        continue
+                    yield f"id: {lineno}\nevent: {ev.get('event', 'message')}\ndata: {json.dumps(ev)}\n\n"
+                st = run_state.read(run_id) or {}
+                ctl = {"event": run_events.STREAM_END, "ts": time.time(),
+                       "status": st.get("status", "done"), "detail": st.get("detail", "")}
+                yield f"id: {offset}\nevent: {run_events.STREAM_END}\ndata: {json.dumps(ctl)}\n\n"
                 return
             if time.monotonic() - last_beat > 15:
                 yield ": ping\n\n"

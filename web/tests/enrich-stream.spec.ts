@@ -70,27 +70,32 @@ const TOTAL = VOICES.length; // 5
 const frame = (id: number, event: string, data: Record<string, unknown>) =>
   `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({ event, ts: 0, ...data })}\n\n`;
 
-/** A complete stream: job_start(0) … all voices … job_done. `retry: 100` speeds any reconnect. */
+/** A complete stream: run_start(0) … all voices … stream_end. `retry: 100` speeds any reconnect. */
 function fullStreamBody(): string {
   let b = 'retry: 100\n\n';
-  b += frame(0, 'job_start', { run_id: RUN_ID, label: 'enrich:voices', stages: ['sampling travelers', 'generating voices'] });
-  b += frame(1, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
-  b += frame(2, 'voices_total', { total: TOTAL });
+  b += frame(0, 'run_start', { run_id: RUN_ID, description: 'school zone fixture' });
+  b += frame(1, 'stage_start', { stage: 'enrich:voices', label: 'enrich:voices', kind: 'llm', stages: ['sampling travelers', 'generating voices'] });
+  b += frame(2, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
+  b += frame(3, 'voices_total', { total: TOTAL });
   VOICES.forEach((agent, i) => {
-    b += frame(3 + i, 'voice', { index: i, done: i + 1, total: TOTAL, agent });
+    b += frame(4 + i, 'voice', { index: i, done: i + 1, total: TOTAL, agent });
   });
-  b += frame(3 + TOTAL, 'job_done', { label: 'enrich:voices' });
+  b += frame(4 + TOTAL, 'stage_end', { stage: 'enrich:voices', status: 'done', detail: '' });
+  b += frame(5 + TOTAL, 'run_ended', { status: 'complete', detail: '' });
+  // the CONTROL frame the client closes on — never a file line (V2.7b)
+  b += frame(6 + TOTAL, 'stream_end', { status: 'done', detail: '' });
   return b;
 }
 
-/** A stream that DIES after 2 voices — no terminal frame, so EventSource auto-reconnects. */
+/** A stream that DIES after 2 voices — no stream_end control frame, so EventSource auto-reconnects. */
 function partialStreamBody(): string {
   let b = 'retry: 100\n\n';
-  b += frame(0, 'job_start', { run_id: RUN_ID, label: 'enrich:voices', stages: ['sampling travelers', 'generating voices'] });
-  b += frame(1, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
-  b += frame(2, 'voices_total', { total: TOTAL });
-  b += frame(3, 'voice', { index: 0, done: 1, total: TOTAL, agent: VOICES[0] });
-  b += frame(4, 'voice', { index: 1, done: 2, total: TOTAL, agent: VOICES[1] });
+  b += frame(0, 'run_start', { run_id: RUN_ID, description: 'school zone fixture' });
+  b += frame(1, 'stage_start', { stage: 'enrich:voices', label: 'enrich:voices', kind: 'llm', stages: ['sampling travelers', 'generating voices'] });
+  b += frame(2, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
+  b += frame(3, 'voices_total', { total: TOTAL });
+  b += frame(4, 'voice', { index: 0, done: 1, total: TOTAL, agent: VOICES[0] });
+  b += frame(5, 'voice', { index: 1, done: 2, total: TOTAL, agent: VOICES[1] });
   return b;
 }
 
@@ -126,7 +131,7 @@ async function mockBackend(
     enrichDone = false;
     return route.fulfill({ json: { run_id: RUN_ID, stage: 'voices' } });
   });
-  await page.route('**/api/runs/*/enrich/stream', (route) => {
+  await page.route('**/api/runs/*/events', (route) => {
     const body = opts.streamBody(streamCalls++);
     if (body == null) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"detail":"no stream"}' });
     return route.fulfill({ status: 200, contentType: 'text/event-stream', headers: { 'Cache-Control': 'no-cache' }, body });
@@ -249,7 +254,7 @@ test('a network-level stream failure (never CLOSED) still degrades labeled, not 
   // degradation rule forbids).
   await mockBackend(page, { streamBody: () => null, holdPolls: 8, polledProgress: { done: 2, total: 5 } });
   let streamCalls = 0;
-  await page.route('**/api/runs/*/enrich/stream', (route) => {
+  await page.route('**/api/runs/*/events', (route) => {
     if (streamCalls++ === 0)
       return route.fulfill({ status: 200, contentType: 'text/event-stream', headers: { 'Cache-Control': 'no-cache' }, body: partialStreamBody() });
     return route.abort(); // every reconnect dies at the network level — CONNECTING limbo
