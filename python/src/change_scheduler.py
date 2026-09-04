@@ -297,10 +297,15 @@ class ChangeScheduler:
     sim step: an event fires on the first tick with ``t >= its time``.
     """
 
-    def __init__(self, conn, changes: list[Change], *, max_t: float, log=print):
+    def __init__(self, conn, changes: list[Change], *, max_t: float, log=print, on_event=None):
         self.conn = conn
         self.max_t = max_t
         self.log = log
+        # V2.7b — ``on_event(kind, proof_row)`` fires the instant a change is applied or withdrawn,
+        # with kind in {"applied", "reverted"} and the row this scheduler will later put in the proof
+        # log. It is how Act I's beats land WHILE the scenario leg computes. A CALLBACK, deliberately:
+        # this module drives SUMO and must not know that an events file, a server, or a UI exists.
+        self.on_event = on_event
         self._changes = list(changes)
         self.unwindowed = [c for c in self._changes if c.window is None]
         self._windowed = [(i, c) for i, c in enumerate(self._changes) if c.window is not None]
@@ -413,6 +418,7 @@ class ChangeScheduler:
             assert_closed(self.conn, edge, lanes)
         self._proof[idx]["applied_t"] = t
         self.log(f"[scheduler] t={t:g}s APPLY change {idx}: {change.type} on {edge} lanes {lanes}")
+        self._notify("applied", idx, lanes=lanes)
 
     def _revert(self, idx: int, change: Change, t: float) -> None:
         captured = self.captured.pop(idx)
@@ -424,6 +430,17 @@ class ChangeScheduler:
             f"[scheduler] t={t:g}s REVERT change {idx}: {change.type} on {change.target_edge} — "
             f"restored state verified == captured"
         )
+        self._notify("reverted", idx, lanes=[s.lane_id for s in captured])
+
+    def _notify(self, kind: str, idx: int, **extra) -> None:
+        """Tell the caller a change just landed or was withdrawn. Never let a listener's failure take
+        the simulation down with it — a beat is a narration of the run, not part of it."""
+        if self.on_event is None:
+            return
+        try:
+            self.on_event(kind, dict(self._proof[idx]), **extra)
+        except Exception as e:  # noqa: BLE001
+            self.log(f"[scheduler] beat listener failed ({kind} {idx}): {e!r} — continuing the run")
 
     def finalize(self, sim_end: float) -> list[dict]:
         """No TraCI calls — annotate never-fired reverts and return the proof log (one entry per

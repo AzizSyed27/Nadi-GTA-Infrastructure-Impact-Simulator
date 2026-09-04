@@ -42,6 +42,8 @@ from pathlib import Path
 # Importing run_sim wires SUMO's tools onto sys.path and binds `conn` (libsumo/TraCI). We reuse its
 # extractor, change dispatch, artifact builder, and resolved paths rather than re-implementing them.
 import change_scheduler
+import demand_profiles as _dp_fmt  # V2.7b beats: profile-honest sim-time formatting
+import run_events
 import run_sim  # also puts SUMO_HOME/tools on sys.path, so `sumolib` imports below
 import sumolib
 import trajectory_io
@@ -422,7 +424,8 @@ def simulate_multimodal(changes: list[Change] | None, target_lane: int | None, *
                         route_override: list[Path] | None = None,
                         ignore_route_errors: bool = False,
                         window_events: list[dict] | None = None,
-                        departed_out: set[str] | None = None):
+                        departed_out: set[str] | None = None,
+                        on_change_event=None):
     """Run the multimodal sumocfg headless with rerouting + the SSM safety-surrogate device; record
     cars+bikes (vehicles) AND peds (persons, a separate population). ``changes`` (V2.2d: a LIST — a
     scenario may compose several) splits by window: unwindowed members apply once at sim start
@@ -497,7 +500,8 @@ def simulate_multimodal(changes: list[Change] | None, target_lane: int | None, *
         # V2.2a: windowed changes apply at window.start_s and REVERT at end_s inside the step
         # loop (capture-before-apply; restored == captured asserted at revert). V2.2d: ALL windowed
         # members ride one scheduler (it is list-native + LIFO). The unwindowed path stays byte-identical.
-        scheduler = change_scheduler.ChangeScheduler(conn, windowed_members, max_t=ceiling)
+        scheduler = change_scheduler.ChangeScheduler(conn, windowed_members, max_t=ceiling,
+                                                    on_event=on_change_event)
         scheduler.start()
     step = conn.simulation.getDeltaT()
 
@@ -1012,29 +1016,138 @@ def build_multimodal_artifact(records: dict, conflicts: list[dict], *, run_id: s
     )
 
 
-def _write_provisional(path: Path, *, run_id: str, role: str, change: Change | None, target_lane: int | None,
-                       bbox: list[float], sim_end: float, step: float, records: dict) -> None:
-    """Provisional (UNVALIDATED) per-entity trajectory capture for 2.3/2.6 to formalize. Same per-entity
-    shape as the v0.2.0 vehicles, with type in {car, bicycle, pedestrian}. NOT a contract artifact."""
-    by_mode = Counter(r["type"] for r in records.values())
-    path.write_text(
-        json.dumps(
-            {
-                "provisional": True,
-                "run_id": run_id,
-                "role": role,
-                "network": run_sim.NET.name,
-                "bbox": bbox,
-                "sim_start": 0.0,
-                "sim_end": sim_end,
-                "step_length": step,
-                "change": (change.model_dump(exclude_none=True) | {"target_lane": target_lane}) if change else None,
-                "counts_by_mode": dict(by_mode),
-                "entities": [{"id": eid, **rec} for eid, rec in records.items()],
-            },
-        ),
-        encoding="utf-8",
-    )
+def write_baseline_artifact(path: Path, *, run_id: str, bbox: list[float], sim_end: float, step: float,
+                            records: dict, demand_profile: str, assignment: Assignment | None) -> int:
+    """V2.7b — a CONTRACT-VALID artifact of the BASELINE leg, written the moment that leg finishes.
+
+    Act I plays this while the scenario leg is still computing: the map shows the morning as it runs
+    WITHOUT the change, captioned as exactly that. The alternative — an empty map with a spinner —
+    would tell the planner nothing, and animating the leg being computed would be a lie.
+
+    It replaces the UNVALIDATED debugging dump ``_write_provisional`` used to leave here (grep: it had
+    no readers anywhere). Same path, same moment, now a file the client can actually play, built from
+    the SAME 0.10.0 encoders as the real artifact — `_record` already rounded coordinates to 6 dp and
+    `encode_trajectory_fields` is the write-time regularity check, so a compact entity here means
+    exactly what it means there.
+
+    ``meta.scenario`` is None, which is legal and MEANINGFUL: the schema's version gate reaches
+    scenario through `properties`, not `required`, precisely so a baseline run can exist. A baseline
+    leg has no change — claiming one would be the lie this whole file exists to avoid.
+    Returns the entity count (0 when there was nothing to write)."""
+    vehicles = [Vehicle(id=vid, type=r["type"], path=r["path"],
+                        **encode_trajectory_fields(r["timestamps"], step))
+                for vid, r in records.items() if r["type"] in ("car", "bicycle")]
+    persons = [Person(id=pid, type=r["type"], path=r["path"],
+                      **encode_trajectory_fields(r["timestamps"], step))
+               for pid, r in records.items() if r["type"] == "pedestrian"]
+    if not vehicles:
+        return 0  # nothing to play; the caller renders the labelled empty state
+    artifact = TrajectoryArtifact(
+        schema_version=SCHEMA_VERSION,
+        meta=Meta(run_id=run_id, network=run_sim.NET.name, bbox=bbox, sim_start=0.0, sim_end=sim_end,
+                  step_length=step, created_at=datetime.now(timezone.utc).isoformat(),
+                  demand_profile=demand_profile,
+                  assignment=assignment if assignment is not None else Assignment(mode="day_one"),
+                  scenario=None),
+        vehicles=vehicles, persons=persons, conflicts=[], scorecard=None, agents=[])
+    trajectory_io.dump_artifact(artifact, path)  # validates: a lie would not survive the gate
+    return len(vehicles) + len(persons)
+
+
+class Beats:
+    """V2.7b — ACT I's four beats, emitted as they actually happen.
+
+    The beats are the run narrating itself: demand loaded, the baseline morning finished, your change
+    applied, your change withdrawn and the restoration proved. They exist so a planner watching a run
+    can see what the tool is doing instead of a stage string, and they are emitted from the HARNESS
+    because that is the only place that knows when each thing truly happened.
+
+    THREE HONESTY RULES ARE BUILT IN:
+      * every beat is env-gated — a CLI run emits nothing and stays byte-identical;
+      * a beat fires ONCE (``fired``), so a composite's several members can't turn one moment into
+        four, and a beat that never happened is never invented;
+      * sim-time renders in the PROFILE's honest form. Only calibrated demand has a real clock anchor
+        (07:00); synthetic demand has no time of day, so its beats read ``t=600 s`` and the copy is
+        honest rather than borrowing a clock the run does not have.
+    """
+
+    def __init__(self, profile: str) -> None:
+        self.path = run_events.from_env()
+        self.profile = profile
+        self.fired: set[str] = set()
+
+    @property
+    def on(self) -> bool:
+        return self.path is not None
+
+    def fmt_t(self, t: float | None) -> str | None:
+        return None if t is None else _dp_fmt.fmt_sim_time(t, self.profile)
+
+    def beat(self, n: int, key: str, title: str, detail: str, **extra) -> None:
+        if self.path is None or key in self.fired:
+            return
+        self.fired.add(key)
+        run_events.emit(self.path, "beat", n=n, key=key, title=title, detail=detail, **extra)
+
+    def emit(self, event: str, **payload) -> None:
+        if self.path is not None:
+            run_events.emit(self.path, event, **payload)
+
+    def scheduler_event(self, kind: str, proof: dict, **extra) -> None:
+        """The ChangeScheduler's live callback: beat 3 on the first apply, beat 4 on the last revert.
+
+        Beat 4's claim is written FROM the mechanism it reports. What the harness verifies at revert is
+        `change_scheduler.assert_restored`: for each lane the change touched, the (allowed, disallowed,
+        max-speed) triple after withdrawal equals the triple captured immediately before it was applied.
+        It is not a comparison of the whole network against baseline, and this copy must never say it is.
+        """
+        t = proof.get("applied_t") if kind == "applied" else proof.get("reverted_t")
+        when = self.fmt_t(t)
+        if kind == "applied":
+            self.beat(3, "applied", f"YOUR CHANGE APPLIED AT {when}",
+                      f"{proof['type']} on {proof['target_edge']} is now active in the scenario leg — "
+                      f"computing, not shown", sim_t=t, member_idx=proof.get("change_idx"))
+        else:
+            self.beat(4, "reverted", f"REVERTED AT {when}",
+                      "the change withdrew on schedule; on every lane it touched, the permissions and "
+                      "speed limit after withdrawal matched the values captured immediately before it "
+                      "was applied", sim_t=t, member_idx=proof.get("change_idx"),
+                      lanes=len(extra.get("lanes") or []), restored_ok=proof.get("restored_ok"))
+
+    def settle_change_beats(self, changes: list[Change], window_events: list[dict],
+                            *, geometry: bool) -> None:
+        """After the scenario leg: emit the honest beat-3/4 VARIANT for every run whose change never
+        went through an in-sim apply/revert. Called unconditionally — ``beat`` is fire-once, so a run
+        whose scheduler already narrated itself is untouched here.
+
+        Not every run has a withdrawal to show, and inventing one would be the single worst thing this
+        screen could do: it is the screen that claims the tool cleans up after itself."""
+        if not self.on:
+            return
+        if geometry:
+            self.beat(3, "applied", "YOUR ROAD IS IN THE NETWORK",
+                      "the network was rebuilt with your road before the scenario leg ran — there is "
+                      "nothing to apply or withdraw during the simulation")
+            self.beat(4, "reverted", "NOTHING TO WITHDRAW",
+                      "a drawn road is part of the network for the whole run; no in-sim change was "
+                      "applied, so none was reverted")
+            return
+        if not [c for c in changes if c.window is not None]:
+            self.beat(3, "applied", "YOUR CHANGE APPLIED FOR THE WHOLE RUN",
+                      "an unwindowed change is applied once at the start of the scenario leg and "
+                      "read back to confirm it took effect")
+            self.beat(4, "reverted", "NO WITHDRAWAL — THIS CHANGE HAS NO WINDOW",
+                      "nothing was scheduled to withdraw: the change is in force for the whole "
+                      "scenario leg")
+            return
+        # windowed, but the scheduler recorded why an apply or a revert never fired — its own words
+        for ev in window_events:
+            if ev.get("note") and ev.get("applied_t") is None:
+                self.beat(3, "applied", "YOUR CHANGE WAS NEVER APPLIED", ev["note"],
+                          member_idx=ev.get("change_idx"))
+            if ev.get("note") and ev.get("reverted_t") is None:
+                self.beat(4, "reverted", "YOUR CHANGE WAS NEVER WITHDRAWN", ev["note"],
+                          member_idx=ev.get("change_idx"))
 
 
 def run_pair_multimodal(changes: list[Change], target_lane: int, net, *, ts: str | None = None,
@@ -1137,6 +1250,17 @@ def run_pair_multimodal(changes: list[Change], target_lane: int, net, *, ts: str
         route_ov_s = [scen_settled["routes"], prof.bike_routes, prof.ped_routes]
         settle_stats = {"baseline": base_settled["stats"], "scenario": scen_settled["stats"]}
 
+    # ---- ACT I. The beats narrate what the harness is actually doing, as it does it (env-gated: a
+    # CLI run emits nothing). Beat 1 counts the demand ACTUALLY loaded for this run, from the same
+    # route files the simulation reads — never a profile label standing in for a number.
+    beats = Beats(profile)
+    if beats.on:
+        d = {"car": count_demand(prof.car_routes), "bicycle": count_demand(prof.bike_routes),
+             "pedestrian": count_persons(prof.ped_routes)}
+        beats.beat(1, "demand", "DEMAND LOADED",
+                   f"{d['car']:,} cars, {d['bicycle']:,} bicycles, {d['pedestrian']:,} pedestrians "
+                   f"— {profile} demand", counts=d, demand_profile=profile)
+
     if on_stage:
         on_stage("baseline")
     print(f"\n=== BASELINE run ({base_id}) — no change, {profile} demand, rerouting + SSM ON ===")
@@ -1152,13 +1276,33 @@ def run_pair_multimodal(changes: list[Change], target_lane: int, net, *, ts: str
         conf_b = {"ssm": parse_ssm(paths["base_ssm"], net, bbox), "ped": rec_b.conflicts(net, bbox)}
         n_ents_b = sum(rec_b.counts.values())
         rec_b.discard()  # baseline trajectories are never rendered — free the spill
+        # V2.7b: the spill is freed BY DESIGN to keep memory bounded at calibrated scale, so there
+        # are no baseline trajectories to play. Say that plainly rather than showing an empty map.
+        beats.emit("baseline_unavailable",
+                   reason=("baseline playback is not available for this profile — the baseline "
+                           "trajectories are freed during the run to keep memory bounded. The beats "
+                           "and the results are unaffected."))
     else:
-        _write_provisional(RUNS_DIR / f"{base_id}.json", run_id=base_id, role="baseline", change=None,
-                           target_lane=None, bbox=bbox, sim_end=end_b, step=step_b, records=recs_b)
+        n_written = write_baseline_artifact(
+            RUNS_DIR / f"{base_id}.json", run_id=base_id, bbox=bbox, sim_end=end_b, step=step_b,
+            records=recs_b, demand_profile=profile,
+            assignment=Assignment(mode=assignment) if assignment else None)
+        if n_written and beats.on:
+            # the client resolves sidecars by the SCENARIO run id it already holds (the graphs/report
+            # naming convention), so the web copy is named for the run, not for the baseline leg
+            web_dir = run_sim.ROOT / "web" / "public"
+            web_dir.mkdir(parents=True, exist_ok=True)
+            dest = web_dir / f"{scen_id}-baseline.json"
+            dest.write_text((RUNS_DIR / f"{base_id}.json").read_text(encoding="utf-8"), encoding="utf-8")
+            beats.emit("baseline_ready", url=f"/{dest.name}", entities=n_written)
         conf_b = {"ssm": parse_ssm(paths["base_ssm"], net, bbox), "ped": compute_ped_conflicts(xy_b, net, bbox)}
         n_ents_b = len(recs_b)
     print(f"[baseline] sim_end={end_b:.0f}s remaining={rem_b}  entities={n_ents_b}  wall={wall_b:.0f}s  "
           f"conflicts: {len(conf_b['ssm'])} veh + {len(conf_b['ped'])} ped")
+    beats.beat(2, "baseline", "BASELINE MORNING COMPLETE",
+               f"simulated without your change — the like-for-like reference "
+               f"({n_ents_b:,} travelers, {wall_b:.0f}s of wall clock)",
+               entities=n_ents_b, wall_s=round(wall_b, 1), sim_end=end_b)
 
     if on_stage:
         on_stage("scenario")
@@ -1176,7 +1320,7 @@ def run_pair_multimodal(changes: list[Change], target_lane: int, net, *, ts: str
             changes, target_lane, tripinfo_path=paths["scen_ti"], vehroute_path=paths["scen_vr"],
             ssm_path=paths["scen_ssm"], net_override=micro_scenario_net, seed=seed, recorder=rec_s,
             route_override=route_ov_s, window_events=window_events, departed_out=scen_departed,
-            **profile_kw)
+            on_change_event=beats.scheduler_event, **profile_kw)
     wall_s = _time.perf_counter() - t0
     if rec_s is not None:
         conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": rec_s.conflicts(scen_net, bbox)}
@@ -1184,6 +1328,10 @@ def run_pair_multimodal(changes: list[Change], target_lane: int, net, *, ts: str
     else:
         conf_s = {"ssm": parse_ssm(paths["scen_ssm"], scen_net, bbox), "ped": compute_ped_conflicts(xy_s, scen_net, bbox)}
         n_ents_s = len(recs_s)
+    # Beats 3/4 for every run whose change never went through an in-sim apply/revert (geometry,
+    # unwindowed, or a window the scheduler could not fire). Fire-once: a scheduler that already
+    # narrated the real moments live is untouched.
+    beats.settle_change_beats(changes, window_events, geometry=scenario_net_path is not None)
     print(f"[scenario] sim_end={end_s:.0f}s remaining={rem_s}  entities={n_ents_s}  wall={wall_s:.0f}s  "
           f"conflicts: {len(conf_s['ssm'])} veh + {len(conf_s['ped'])} ped")
 
