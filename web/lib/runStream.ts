@@ -32,9 +32,19 @@ export interface VoiceEvent {
 /** Every event name the server can put in the file. The generic tap subscribes to each: EventSource
  *  has no wildcard, and `onmessage` never fires because every frame carries an explicit `event:`. */
 export const RUN_EVENT_NAMES = [
-  'run_start', 'stage_start', 'stage_end', 'cmd_start', 'cmd_end',
-  'voices_total', 'voice', 'run_ended',
+  // lifecycle
+  'run_start', 'stage_start', 'stage_end', 'cmd_start', 'cmd_end', 'run_ended',
+  // ACT I (V2.7b C4): the beats, and what the map can play while the scenario leg computes
+  'beat', 'baseline_ready', 'baseline_unavailable', 'results_ready',
+  // ACT II (V2.7b C5/C6): streamed content and the ledger's inputs
+  'voices_total', 'voice', 'institutions', 'cascade_step', 'cascade_posts',
+  'slot_start', 'slot_landed', 'index_progress', 'stage_usage',
+  'skip_requested', 'stage_partial',
 ] as const;
+// EventSource dispatches BY NAME — there is no wildcard, and `onmessage` never fires because every
+// frame carries an explicit `event:`. A name missing from this list is silently never delivered,
+// which is exactly how C1's list (written before the Act I/II events existed) swallowed every beat.
+// Anything the server can emit belongs here.
 
 export type RunEventName = (typeof RUN_EVENT_NAMES)[number];
 

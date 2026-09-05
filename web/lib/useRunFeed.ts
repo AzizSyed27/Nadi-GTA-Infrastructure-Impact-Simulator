@@ -27,9 +27,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getRunStatus, type EnrichStage, type RunStatus } from './api';
+import { getLedger, getRunStatus, type EnrichStage, type RunStatus } from './api';
 import { STATIC_DEMO } from './demo';
 import { openRunStream, type RunEvent, type VoiceEvent } from './runStream';
+import { emptyFeedState, foldEvent, resolveEnding, seedFromLedger,
+         type Ledger, type RunFeedState } from './runFeed';
 
 const POLL_MS = 1500;
 
@@ -46,6 +48,9 @@ export interface RunFeed {
   enrichLaunched: (stage: EnrichStage) => void;
   /** Merge a locally-known status change (the identity save — the poll has stopped on a done run). */
   mergeStatus: (patch: Partial<RunStatus>) => void;
+  /** V2.7b C7 — THE PROJECTION. The run experience as a fold over the ledger + the events file, so
+   *  a reload mid-run rebuilds the same screen instead of an empty one. */
+  experience: RunFeedState;
 }
 
 export interface RunFeedHandlers {
@@ -64,6 +69,7 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   const [streamProgress, setStreamProgress] =
     useState<{ done?: number; total?: number; label?: string } | null>(null);
   const [streamDegraded, setStreamDegraded] = useState(false);
+  const [experience, setExperience] = useState<RunFeedState>(() => emptyFeedState(runId));
 
   const lastStage = useRef<string | null>(null);
   const streamClose = useRef<(() => void) | null>(null);
@@ -84,6 +90,7 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     setNotFound(false);
     setStreamProgress(null);
     setStreamDegraded(false);
+    setExperience(emptyFeedState(runId));
     // NOT setNonce(0): the poll effect keys on [runId, nonce], so resetting the counter here would
     // schedule a SECOND immediate poll for the new run on any swap that followed an enrich - an
     // extra /status request, which is exactly what breaks a call-count-sequenced mock. The run-id
@@ -92,6 +99,27 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     streamEnded.current = false;
     streamClose.current?.();
     streamClose.current = null;
+  }, [runId]);
+
+  // Seed the projection from the DURABLE half. A run whose events file was pruned (7 days) still
+  // renders its honest end state from the ledger; the events then fill in the live detail. A run
+  // with NO ledger is the normal case for everything before V2.7b and every CLI run — it is not an
+  // error and paints nothing.
+  useEffect(() => {
+    if (!runId || STATIC_DEMO) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await getLedger(runId);
+      if (cancelled || !res.ok || !res.value.ledger) return;
+      setExperience((prev) => {
+        // seed UNDER whatever the stream already folded: events are the fresher truth
+        const seeded = seedFromLedger(res.value.ledger as Ledger, runId);
+        return prev.beats.length || prev.voices.length ? prev : seeded;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [runId]);
 
   useEffect(() => {
@@ -116,6 +144,9 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
       const st = res.value;
       setStatus(st);
       setNotFound(false);
+      // The client half of the STATE-DRIVEN terminal rule: a crash mid-chain leaves no run_ended
+      // line, and a projection waiting for one would tail forever.
+      setExperience((prev) => resolveEnding(prev, st));
       const terminal = st.status === 'done' || st.status === 'failed';
       // Fire the refresh on the edge INTO done (covers the initial run and each enrich).
       if (st.stage === 'done' && lastStage.current !== 'done') handlers.current.onLoaded?.(runId);
@@ -138,7 +169,10 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     setStreamDegraded(false);
     streamClose.current = openRunStream(runId, {
       onVoice: (v) => handlers.current.onVoice?.(runId, v),
-      onEvent: (ev, id) => handlers.current.onEvent?.(runId, ev, id),
+      onEvent: (ev, id) => {
+        setExperience((prev) => foldEvent(prev, ev));
+        handlers.current.onEvent?.(runId, ev, id);
+      },
       onProgress: (p) => setStreamProgress((prev) => ({ ...prev, ...p })),
       onTerminal: () => {
         streamClose.current = null;
@@ -152,12 +186,20 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   }, [runId]);
 
   const enriching = (status?.stage ?? '').startsWith('enrich:');
+  // V2.7b C7 — the stream now opens for ANY non-terminal run, not only an enriching one. Act I's
+  // beats are emitted during the quant stages (baseline/scenario/analysis), so a stream that waited
+  // for `enrich:*` would miss the entire first act — the run would narrate itself to nobody.
+  //
+  // A TERMINAL run opens nothing: its durable half is the ledger, and its events file may legally
+  // not exist at all (pruned at 7 days, or never written for a CLI run). Not opening is what makes
+  // the done-run 404 silent by construction rather than by a suppression rule.
+  const watchable = status != null && status.status !== 'done' && status.status !== 'failed';
 
-  // Page-reload reconnect: a feed that finds the run already enriching re-opens the stream —
-  // replay-from-0 restores the counts (and re-delivers voices; the consumer dedups by index).
+  // Page-reload reconnect: a feed that finds the run still live re-opens the stream — replay-from-0
+  // restores everything (and re-delivers voices; the fold dedups by index).
   useEffect(() => {
-    if (enriching && !streamDegraded && !streamEnded.current) openStream();
-  }, [enriching, streamDegraded, openStream]);
+    if (watchable && !streamDegraded && !streamEnded.current) openStream();
+  }, [watchable, streamDegraded, openStream]);
 
   // Unmount / run swap: close the EventSource.
   useEffect(
@@ -183,5 +225,5 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     setStatus((s) => (s ? { ...s, ...patch } : s));
   }, []);
 
-  return { status, notFound, streamProgress, streamDegraded, enrichLaunched, mergeStatus };
+  return { status, notFound, streamProgress, streamDegraded, enrichLaunched, mergeStatus, experience };
 }

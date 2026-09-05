@@ -319,6 +319,23 @@ export function getRunStatus(runId: string): Promise<ApiResult<RunStatus>> {
 }
 
 /** POST /api/runs/<id>/enrich — run voices | report | discourse against a completed run. 409 if locked. */
+/** V2.7b — the interpretation LEDGER: what ran, what was skipped, what it cost. `{ledger: null}` is
+ *  a NORMAL answer, not an error: every pre-V2.7b run and every CLI-harness run legitimately has
+ *  none, and the client renders the run without the interpretation panel rather than a failure. */
+export function getLedger(runId: string): Promise<ApiResult<{ run_id: string; ledger: unknown | null }>> {
+  return req(`/api/runs/${encodeURIComponent(runId)}/ledger`);
+}
+
+/** V2.7b — "skip the rest, keep what landed". */
+export function postSkip(runId: string): Promise<ApiResult<{ run_id: string; cancel_requested: boolean }>> {
+  return req(`/api/runs/${encodeURIComponent(runId)}/skip`, { method: 'POST' });
+}
+
+/** V2.7b — run the stages the ledger says never ran, against the SEALED run. */
+export function postResume(runId: string): Promise<ApiResult<{ run_id: string; resuming: string[] }>> {
+  return req(`/api/runs/${encodeURIComponent(runId)}/resume`, { method: 'POST' });
+}
+
 export function postEnrich(runId: string, stage: EnrichStage): Promise<ApiResult<{ run_id: string; stage: string }>> {
   return req(`/api/runs/${encodeURIComponent(runId)}/enrich`, {
     method: 'POST',

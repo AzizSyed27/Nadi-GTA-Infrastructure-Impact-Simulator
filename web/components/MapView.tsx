@@ -978,6 +978,38 @@ export default function MapView() {
   const feedHandlers = useMemo(() => ({ onLoaded: loadRun, onVoice: handleVoice }), [loadRun, handleVoice]);
   const runFeed = useRunFeed(activeRunId, feedHandlers);
 
+  // V2.7b C7 — the experience seam: counts and stage keys, NEVER content. Specs read the fold's
+  // shape from here; the content itself is asserted on the rendered surfaces, where a reader sees it.
+  useEffect(() => {
+    const x = runFeed.experience;
+    (window as unknown as { __nadiRunFeed?: unknown }).__nadiRunFeed = {
+      runId: x.runId,
+      beats: x.beats.map((b) => b.key),
+      stages: x.stages.map((st) => ({ key: st.key, status: st.status, calls: st.calls })),
+      voices: x.voices.length,
+      voicesTotal: x.voicesTotal,
+      slots: x.slots.length,
+      baseline: x.baselineUrl ? 'ready' : x.baselineUnavailable ? 'unavailable' : null,
+      resultsReady: x.resultsReadyAt != null,
+      ended: x.ended?.status ?? (x.endedByState ? 'by-state' : null),
+      llmCalls: x.llmCallsTotal,
+    };
+  }, [runFeed.experience]);
+
+  // V2.7b C7 — the APPEND-COST seam, for scripts/perf-harness.mjs --appends N. It calls the REAL
+  // handleVoice, so the measurement covers the true merge path rather than a stand-in. Published
+  // only once an artifact is loaded; deleted on unmount like every other seam.
+  useEffect(() => {
+    const w = window as unknown as { __nadiAppendVoice?: (v: VoiceEvent) => void };
+    if (!activeRunId && !artifact) return;
+    const runId = artifact?.meta.run_id;
+    if (!runId) return;
+    w.__nadiAppendVoice = (v: VoiceEvent) => handleVoice(runId, v);
+    return () => {
+      delete w.__nadiAppendVoice;
+    };
+  }, [activeRunId, artifact, handleVoice]);
+
   // Overlay-level click: snap to the picked junction, else the nearest within SNAP_M; 1st→A, 2nd→B (opens form).
   const onEditClick = useCallback(
     (info: PickingInfo) => {

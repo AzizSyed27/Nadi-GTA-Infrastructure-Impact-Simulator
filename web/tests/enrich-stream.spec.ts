@@ -141,10 +141,13 @@ async function mockBackend(
     if (enrichPosted && !enrichDone) {
       enrichPolls++;
       // A live box lets a test HOLD the enriching status until it has finished asserting the live
-      // state, then release it — instead of betting that N polls outlast those assertions. The
-      // bet is not safe: rendering five streamed voices blocks the main thread long enough to
-      // stretch one poll gap to ~6 s, so the same count covers wildly different wall time and the
-      // test passes or fails on machine speed rather than on behavior.
+      // state, then release it — instead of betting that N polls outlast those assertions. The bet
+      // is not safe: a probe measured poll gaps stretching from 1.5 s to ~6.3 s under full-suite
+      // dev-server load, so the same count covers wildly different wall time and the test passes or
+      // fails on machine speed rather than on behavior. (C3 ATTRIBUTED that gap to the cost of
+      // rendering the streamed voices. That attribution was wrong and is now measured false — see
+      // the correction on the enrich-running gate below. The hold is still the right mechanism;
+      // only its stated cause was.)
       const limit = typeof opts.holdPolls === 'number' ? opts.holdPolls : opts.holdPolls.polls;
       if (enrichPolls <= limit) {
         return route.fulfill({
@@ -213,9 +216,16 @@ test('streamed voices render incrementally while the enrich job is still running
   // done-edge artifact reload could have delivered them.
   await expect(page.getByTestId('voice-stream-panel')).toBeVisible({ timeout: 15_000 });
   // Explicit 15 s, the same budget (and for the same reason) as the re-enrich test below: under
-  // full-suite dev-server load the FIRST status poll after the enrich POST can exceed the default
-  // 5 s. The default was survivable until V2.7b C3 moved the poll into a hook whose state re-renders
-  // MapView, and rendering the five streamed voices blocks the main thread for ~6 s — measured. The
+  // full-suite dev-server load the FIRST status poll after the enrich POST can exceed the default 5 s.
+  //
+  // CORRECTION (V2.7b C7, measured): C3 attributed that slowness to the cost of rendering streamed
+  // voices — "~6 s of main-thread block". Direct measurement falsifies it. On the 90 MB exemplar in
+  // a prod build, 212 appends cost 157 ms TOTAL (0.7 ms p50, 3.5 ms max), and 60 appends driven at
+  // 4/s DURING playback leave frames at p50 73 fps / p95 70 fps with zero longtasks — versus
+  // 74/71 fps idle. The append path is not slow. What is slow is the dev server under full-suite
+  // load, which is a test-environment fact, not a product one.
+  //
+  // The 15 s budget stays: it is the honest budget for a dev-server first poll either way. The
   // PROPERTY is unchanged: voices must be visible WHILE the status still reads enriching.
   await expect(page.getByTestId('enrich-running')).toBeVisible({ timeout: 15_000 }); // still enriching
   await expect(page.getByTestId('enrich-running')).toContainText('5/5'); // live stream counts

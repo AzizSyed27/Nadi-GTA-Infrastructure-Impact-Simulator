@@ -31,6 +31,12 @@ const URL_BASE = opt('url', 'http://localhost:3000');
 const RUN_ID = opt('run', 'multimodal-scenario-20260727T180728Z');
 const LABEL = opt('label', RUN_ID);
 const SCRUB_T = Number(opt('scrub', '3400')); // the measured concurrency peak on the exemplar
+// V2.7b C7 --appends N: measure the STREAMED-VOICE APPEND cost. Act II streams while the map
+// plays, so an append that blocks the main thread lands exactly where the p95 budget is spent.
+// Every append re-runs the join memo, which already brackets itself with nadi:join marks - so the
+// measurement needs no new instrumentation, only a reader that keeps EVERY pair instead of the
+// last one (the dur() helper above deliberately takes the final entry).
+const APPENDS = Number(opt('appends', '0'));
 
 const pct = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
 
@@ -81,6 +87,49 @@ const parseControlMs = await page.evaluate(async (runId) => {
 }, RUN_ID);
 
 // frame profile at the concurrency peak: scrub (pauses playback), then press Play, then sample.
+// ---------------------------------------------------------------------------------------------
+// APPEND COST (V2.7b C7). Drive N voices through the real client path and read the join marks.
+// ---------------------------------------------------------------------------------------------
+let appendReport = null;
+if (APPENDS > 0) {
+  const before = await page.evaluate(() => performance.getEntriesByName('nadi:join:start').length);
+  // One voice per call through the SAME merge the SSE stream uses. We invoke the client's own
+  // handler rather than faking a stream so the measurement covers the real code path; the seam is
+  // published only for this purpose and only when the page is already loaded.
+  await page.evaluate(async (n) => {
+    const push = window.__nadiAppendVoice;
+    if (!push) throw new Error('no __nadiAppendVoice seam — is this build V2.7b C7 or later?');
+    for (let i = 0; i < n; i++) {
+      push({
+        index: i,
+        done: i + 1,
+        total: n,
+        agent: {
+          grounding: 'inferred',
+          persona: { id: `perf_probe_${i}`, label: `Perf probe ${i}` },
+          reaction: { comment: 'A measured voice.', sentiment: 0, stance: 'neutral' },
+        },
+      });
+      // yield to the event loop between voices, exactly as the EventSource would
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }, APPENDS);
+  await page.waitForTimeout(500); // let the last render commit
+  const joins = await page.evaluate((skip) => {
+    const starts = performance.getEntriesByName('nadi:join:start').slice(skip);
+    const ends = performance.getEntriesByName('nadi:join:end').slice(skip);
+    return starts.map((s, i) => (ends[i] ? ends[i].startTime - s.startTime : null)).filter((d) => d !== null);
+  }, before);
+  const sortedJoins = joins.slice().sort((a, b) => a - b);
+  appendReport = {
+    appends: APPENDS,
+    joins: joins.length,
+    p50: sortedJoins.length ? pct(sortedJoins, 50) : 0,
+    max: sortedJoins.length ? sortedJoins[sortedJoins.length - 1] : 0,
+    totalMs: joins.reduce((a, b) => a + b, 0),
+  };
+}
+
 // The Timeline button's aria-label flips Pause→Play on the scrub-pause; give React a beat.
 // V2.7a: the landing defaults to the Read stage — the playback bar (and its slider) live in
 // Watch, so enter it first. The nav→render marks above already fired on the mount path.
@@ -99,6 +148,23 @@ if (PROFILE) {
   await cdp.send('Profiler.setSamplingInterval', { interval: 200 });
   await cdp.send('Profiler.start');
 }
+// V2.7b C7 — THE REAL ACT II SHAPE: voices append WHILE the map plays. The paused measurement is
+// a floor; this is the scenario the p95 budget is spent in. Kicked off without awaiting so it
+// overlaps the frame window below.
+let livePush = null;
+if (APPENDS > 0 && args.includes('--appends-live')) {
+  livePush = page.evaluate(async (n) => {
+    const push = window.__nadiAppendVoice;
+    if (!push) return;
+    for (let i = 0; i < n; i++) {
+      push({ index: i, done: i + 1, total: n,
+        agent: { grounding: 'inferred', persona: { id: `live_probe_${i}`, label: `Live probe ${i}` },
+                 reaction: { comment: 'A measured voice.', sentiment: 0, stance: 'neutral' } } });
+      await new Promise((r) => setTimeout(r, 250)); // ~4 voices/s, the observed enrich cadence
+    }
+  }, APPENDS).catch(() => {}); // the page may close first on a short window — not a measurement failure
+}
+
 const frames = await page.evaluate(
   () =>
     new Promise((res) => {
@@ -156,5 +222,13 @@ console.log(
   `frames @t≈${SCRUB_T} (600 samples): p50 ${p50.toFixed(1)} ms (${(1000 / p50).toFixed(0)} fps) · ` +
     `p95 ${p95.toFixed(1)} ms (${(1000 / p95).toFixed(0)} fps) · max ${max.toFixed(0)} ms · longtasks ${frames.longTasks}`,
 );
+if (appendReport) {
+  console.log(
+    `append cost (${appendReport.appends} streamed voices): ${appendReport.joins} joins · ` +
+      `p50 ${appendReport.p50.toFixed(1)} ms · max ${appendReport.max.toFixed(1)} ms · ` +
+      `TOTAL BLOCKED ${appendReport.totalMs.toFixed(0)} ms`,
+  );
+}
 
+if (livePush) await livePush; // drain before teardown (an orphaned evaluate throws at close)
 await browser.close();
