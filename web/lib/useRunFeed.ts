@@ -82,10 +82,16 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     handlers.current = h;
   }, [h]);
 
-  // The reset RunCard used to get free from `key={activeRunId}`. It runs BEFORE the poll effect
-  // below on a run-id change (declaration order), so a new run never inherits the previous run's
-  // stage memory, stream dedup floor, or degrade flag.
-  useEffect(() => {
+  // The reset RunCard used to get free from `key={activeRunId}`, in two halves because the two
+  // halves are different KINDS of work. The STATE half is React's documented "adjusting state when
+  // a prop changes": it runs during the render that first sees the new id, so that render already
+  // shows the new run rather than committing the previous run's status under the new id and
+  // correcting it a frame later. The SIDE-EFFECT half (refs, closing the old EventSource) stays in
+  // an effect, where side effects belong, and still runs BEFORE the poll effect below by
+  // declaration order — so a new run never inherits the previous run's stage memory or dedup floor.
+  const [prevRunId, setPrevRunId] = useState(runId);
+  if (runId !== prevRunId) {
+    setPrevRunId(runId);
     setStatus(null);
     setNotFound(false);
     setStreamProgress(null);
@@ -95,6 +101,8 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     // schedule a SECOND immediate poll for the new run on any swap that followed an enrich - an
     // extra /status request, which is exactly what breaks a call-count-sequenced mock. The run-id
     // change already re-runs that effect; the counter only ever needs to move forward.
+  }
+  useEffect(() => {
     lastStage.current = null;
     streamEnded.current = false;
     streamClose.current?.();

@@ -25,6 +25,10 @@ interface RenderStats {
   compactEntities: number;
   explicitEntities: number;
   sampleCompactTimestamps: number[] | null;
+  // V2.7b C8b additions — the map's join state, so Act I's "no agent is pinned to a preview" and
+  // "the loaded run's near-misses are off the map" rules have an observable.
+  pinnedAgents: number;
+  conflicts: number;
 }
 
 async function mockBackend(page: Page) {
@@ -68,6 +72,11 @@ test('a 0.10.0 mixed-shape artifact joins every point of both shapes (the seam p
       personTsPoints: 9,
       compactEntities: 3,
       explicitEntities: 2,
+      // V2.7b C8b: this fixture pins ONE agent to a trip and carries no conflicts. The assertion
+      // stays a whole-object toEqual on purpose — it is what catches a key appearing or vanishing
+      // from the seam without anyone deciding to add it.
+      pinnedAgents: 1,
+      conflicts: 0,
       // HAND-WRITTEN literals (t0=4, dt=1): the TS expansion's ground truth, independent of the
       // python encoder — the two sides cannot agree on a wrong answer
       sampleCompactTimestamps: [4, 5, 6, 7, 8],

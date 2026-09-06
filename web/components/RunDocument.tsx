@@ -190,7 +190,23 @@ export function RunDocument({
         </div>
       )}
 
-      {rpt && (
+      {/* V2.7b — THE PROSE STATE. A facts-only document (Act I's zero-LLM report), a skipped
+          interpretation, or a failed one all produce a report whose FIGURES ARE COMPLETE and whose
+          narrative slots are empty. Rendering that as a blank abstract would read as a broken
+          document; this says which of the three it is, in the server's own sentence
+          (`report.PROSE_NOTES`, rendered verbatim — the client composes none of it). */}
+      {rpt?.prose && rpt.prose.status !== 'composed' && (
+        <div
+          style={degradeNote}
+          data-testid={rpt.prose.status === 'partial' ? 'prose-partial' : 'prose-not-composed'}
+        >
+          {rpt.prose.note}
+        </div>
+      )}
+
+      {/* The abstract is an LLM slot: absent on a prose-less report, where the note above stands in
+          its place. An empty <p> would be a silent blank, which is the state this refuses. */}
+      {rpt && rpt.sections.what_tested.framing && (
         <>
           <h6 style={secKicker}>Abstract</h6>
           <p style={abstract}>{rpt.sections.what_tested.framing}</p>
@@ -532,7 +548,9 @@ export function RunDocument({
       {rpt && (
         <>
           <h6 style={secKicker}>What this run cannot tell you</h6>
-          <p style={para}>{rpt.sections.cannot_tell.intro}</p>
+          {/* the intro is the LLM slot; the CAVEATS below it are code-rendered from the facts, so
+              they stand on a prose-less document while the intro paragraph simply isn't there */}
+          {rpt.sections.cannot_tell.intro && <p style={para}>{rpt.sections.cannot_tell.intro}</p>}
           <div style={caveatWrap} data-testid="report-caveats">
             {rpt.sections.cannot_tell.caveats.map((c, i) => (
               <div key={i} style={caveatCard}>

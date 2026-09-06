@@ -40,6 +40,7 @@ import { stageAvailability, type ExploreSub, type Stage } from '@/lib/shell';
 import { windowedScope } from '@/lib/windowedScope';
 import { ExampleBuildView, RunDocument, type ReportState } from '@/components/RunDocument';
 import { RunListPopover } from '@/components/RunListPopover';
+import { HeldMoment, RunExperience, useHeldMomentSeen } from '@/components/run/RunExperience';
 import { reportRunId, reportUrl, type PerRunReport } from '@/lib/reportData';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
@@ -80,6 +81,64 @@ type OverlayItem = {
   target_lanes?: number[] | null;
   effect?: { blocked?: boolean | null; speed_factor?: number | null } | null;
 };
+/** A change as the OVERLAY needs it. The loaded run supplies typed `Change`s from the artifact; a
+ *  COMPUTING run supplies the same fields from its run-state (`RunStatus.changes`, loosely typed on
+ *  the wire) — the resolver reads only what both carry. */
+type GeomChange = {
+  type?: string;
+  target_edge?: string;
+  from_junction?: string;
+  to_junction?: string;
+  via?: string[] | null;
+  window?: { start_s: number; end_s: number } | null;
+  target_lanes?: number[] | null;
+  effect?: { blocked?: boolean | null; speed_factor?: number | null } | null;
+};
+
+/**
+ * Resolve a change list to map geometry. EXTRACTED in V2.7b C8b because there are now two runs whose
+ * changes can need drawing at once: the loaded run's (the persistent overlay) and, during Act I, the
+ * one still computing — whose member the caption calls "yours", so it must be that run's member and
+ * not the previous run's leftovers. One resolver keeps the two overlays pixel-identical by
+ * construction; two copies would drift the first time a change type gained a field.
+ */
+async function resolveOverlayItems(
+  changes: GeomChange[],
+  bbox: [number, number, number, number],
+  networkLookup: Record<string, { geometry: LonLat[] }>,
+): Promise<{ items: OverlayItem[]; error: boolean }> {
+  let error = false;
+  // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the lookup.
+  const junctionById: Record<string, LonLat> = {};
+  if (changes.some((c) => c.type === 'new_road' && c.from_junction && c.to_junction)) {
+    const res = await getJunctions(bbox); // new_road only: the backend knows minted-road endpoints
+    if (res.ok) for (const j of res.value.junctions) junctionById[j.id] = [j.lon, j.lat];
+    else error = true; // labeled degradation applies to the backend fetch (new_road)
+  }
+  const items: OverlayItem[] = [];
+  for (const change of changes) {
+    let geom: LonLat[] | null = null;
+    if (change.type === 'new_road' && change.from_junction && change.to_junction) {
+      const a = junctionById[change.from_junction];
+      const b = junctionById[change.to_junction];
+      // V2.6d: the curve rides via ('lon,lat' strings, tolerant parse — a legacy junction-id via
+      // degrades to today's two-junction chord, never a crash)
+      if (a && b) geom = [a, ...parseVia(change.via), b];
+    } else if (change.target_edge) {
+      geom = networkLookup[change.target_edge]?.geometry ?? null; // canonical edge → network map
+    }
+    // V2.2c: carry the window/lanes/effect so the overlay can style per type AND tell the truth in
+    // TIME (windowed items appear/disappear at their window during playback).
+    if (geom) items.push({
+      path: geom, type: change.type as ChangeType,
+      window: change.window ?? null,
+      target_lanes: change.target_lanes ?? null,
+      effect: change.effect ?? null,
+    });
+  }
+  return { items, error };
+}
+
 const CAPACITY_TYPES: ReadonlySet<string> = new Set(['lane_closure', 'road_closure', 'incident']);
 const CAP_CASING: Record<string, [number, number, number, number]> = {
   lane_closure: [42, 42, 48, 235], road_closure: [110, 22, 22, 240], incident: [125, 62, 12, 240],
@@ -136,6 +195,13 @@ function DeckOverlay({
 
 export default function MapView() {
   const [artifact, setArtifact] = useState<TrajectoryArtifact | null>(null);
+  // V2.7b C8b — ACT I's map source. While a new run computes, the artifact on screen is still the
+  // PREVIOUS run's; this holds the computing run's baseline leg (emitted by the harness the moment
+  // that leg finishes) so the map plays real recorded traffic instead of freezing on another run.
+  // Kept SEPARATE from `artifact` on purpose: every run-id guard, the report vintage guard, the
+  // scorecard and the panels keep reading the real artifact, so nothing downstream learns about it.
+  const [baselinePreview, setBaselinePreview] =
+    useState<{ runId: string; artifact: TrajectoryArtifact } | null>(null);
   // V2.5d: the default-artifact load failure is LABELED (was the app's one eternal spinner)
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -205,6 +271,15 @@ export default function MapView() {
   const [hoverCoord, setHoverCoord] = useState<LonLat | null>(null); // rubber-band endpoint while drawing
   const [drawHint, setDrawHint] = useState<string | null>(null); // transient "click nearer a junction"
   const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
+  // V2.7b C8b — THE ARTIFACT ON SCREEN IS NOT THE RUN BEING WATCHED. Everything the map draws is
+  // gated on this: entities, the agent join, conflicts, the change overlay and its chrome. The rule
+  // is one sentence — nothing belonging to run A may be drawn under run B's name — and it holds in
+  // both windows where the two diverge (a run still computing, and a finished run whose artifact is
+  // still being fetched). Declared HERE, above every consumer, because the render AND the
+  // __nadiChangeOverlay seam read it: a seam that recomputed its own answer would report an overlay
+  // the map is not drawing, and a seam that disagrees with the pixels is worse than no seam.
+  const watchedRunNotLoaded =
+    activeRunId != null && artifact != null && activeRunId !== artifact.meta.run_id;
   const [submitting, setSubmitting] = useState(false); // V2.4a: true only while runDraft's POST is in flight
   // V2.1d part ii — compare mode: two SLIM sides ({meta, scorecard} only; the 74MB bulk is never
   // retained). Side A defaults to the loaded artifact; both re-pickable. Picks survive mode switches.
@@ -425,38 +500,9 @@ export default function MapView() {
     const runId = artifact?.meta.run_id;
     if (changes.length === 0 || !runId) return;
     const bbox = artifact!.meta.bbox as [number, number, number, number];
-    const needsJunctions = changes.some((c) => c.type === 'new_road' && c.from_junction && c.to_junction);
     let cancelled = false;
     (async () => {
-      let error = false;
-      // NB: `Map` is shadowed by the react-map-gl <Map> import — use a plain Record for the junction lookup.
-      const junctionById: Record<string, LonLat> = {};
-      if (needsJunctions) {
-        const res = await getJunctions(bbox); // new_road only: the backend knows minted-road endpoints
-        if (res.ok) for (const j of res.value.junctions) junctionById[j.id] = [j.lon, j.lat];
-        else error = true; // labeled degradation applies to the backend fetch (new_road)
-      }
-      const items: OverlayItem[] = [];
-      for (const change of changes) {
-        let geom: LonLat[] | null = null;
-        if (change.type === 'new_road' && change.from_junction && change.to_junction) {
-          const a = junctionById[change.from_junction];
-          const b = junctionById[change.to_junction];
-          // V2.6d: the curve rides via ('lon,lat' strings, tolerant parse — a legacy
-          // junction-id via degrades to today's two-junction chord, never a crash)
-          if (a && b) geom = [a, ...parseVia(change.via), b];
-        } else if (change.target_edge) {
-          geom = networkLookup[change.target_edge]?.geometry ?? null; // canonical edge → network map
-        }
-        // V2.2c: carry the window/lanes/effect so the overlay can style per type AND tell the
-        // truth in TIME (windowed items appear/disappear at their window during playback).
-        if (geom) items.push({
-          path: geom, type: change.type,
-          window: change.window ?? null,
-          target_lanes: change.target_lanes ?? null,
-          effect: change.effect ?? null,
-        });
-      }
+      const { items, error } = await resolveOverlayItems(changes, bbox, networkLookup);
       if (!cancelled) setChangeGeom({ runId, items, error });
     })();
     return () => {
@@ -563,8 +609,24 @@ export default function MapView() {
   // the V2.3a voice stream setArtifact-spreads per streamed voice (agents change, entity arrays
   // keep their references), and keying on the artifact would re-allocate every compact array per
   // voice — the V2.5c trails-identity regression class (review-caught).
-  const rawVehicles = artifact?.vehicles;
-  const rawPersons = artifact?.persons;
+  // V2.7b C8b — while Act I plays, the ENTITIES come from the computing run's baseline leg and the
+  // rest of the document keeps coming from `artifact`. The run-id equality is the whole guard: a
+  // preview only ever displaces the entities of the run it belongs to.
+  const preview = baselinePreview?.runId === activeRunId ? baselinePreview.artifact : null;
+  // V2.7b C8b — Act I clears these for the same reason it suppresses the change overlay: they are
+  // the LOADED run's surrogate near-misses, and drawing them over a different run's traffic would
+  // put one run's safety markers on another run's map. The screenshot walk caught them.
+  const conflicts = useMemo(() => (watchedRunNotLoaded ? [] : (artifact?.conflicts ?? [])), [artifact, watchedRunNotLoaded]);
+  // THE MAP'S ENTITY SOURCE, and the gate is `watchedRunNotLoaded` — NOT `preview != null`. A `preview ?? artifact`
+  // fallthrough puts the LOADED run's traffic on the map in every Act I state where the preview is
+  // absent: before `baseline_ready` lands (the baseline leg runs for minutes), on a calibrated run
+  // that frees its spill and emits `baseline_unavailable`, on a failed fetch, on any pre-V2.7b run.
+  // The caption in those states says the map shows the network only — so the fallthrough makes the
+  // caption a lie, and the agent-blanking below can't catch it either (with no preview the join
+  // runs against the loaded run's own vehicles and pins normally). Empty is the honest source.
+  const entitySource = watchedRunNotLoaded ? preview : artifact;
+  const rawVehicles = entitySource?.vehicles;
+  const rawPersons = entitySource?.persons;
   const { normVehicles, normPersons } = useMemo(
     () => ({
       normVehicles: (rawVehicles ?? []).map(materializeTimestamps),
@@ -586,7 +648,12 @@ export default function MapView() {
     const pins: Pinned[] = [];
     const pinnedVeh = new Set<string>();
     const pinnedPer = new Set<string>();
-    for (const a of artifact?.agents ?? []) {
+    // V2.7b C8b — WHILE PREVIEWING, THE JOINED AGENT LIST IS EMPTY, and this is a correctness rule
+    // rather than a tidiness one. Entity ids are per-run ordinals ('0', '1', '139'), so the
+    // computing run's baseline preview reuses the ids the LOADED run's agents pin to — joining them
+    // would silently attach the previous run's voices to this run's trips, with nothing to error on.
+    // It is also the honest state: Act I has run no model, so this run has no voices yet.
+    for (const a of (watchedRunNotLoaded ? [] : (artifact?.agents ?? []))) {
       if (isSimVehicleAgent(a)) {
         const v = vById[a.vehicle_id];
         if (v) {
@@ -614,6 +681,14 @@ export default function MapView() {
       renderStats: {
         vehicles: vehicles.length,
         persons: persons.length,
+        // V2.7b C8b — how many agents are joined to a trip on the map right now. During Act I this
+        // must be 0: entity ids are per-run ordinals, so joining the LOADED run's agents to the
+        // computing run's baseline entities would misattribute voices with nothing to error on.
+        // A count is the only way that rule is observable — the wrong join renders happily.
+        pinnedAgents: pins.length,
+        // and the surrogate near-miss markers, for the same reason: they are the loaded run's, and
+        // during Act I they must not be drawn over a different run's traffic.
+        conflicts: conflicts.length,
         vehiclePathPoints: sumPath(vehicles),
         vehicleTsPoints: sumTs(vehicles),
         personPathPoints: sumPath(persons),
@@ -629,7 +704,7 @@ export default function MapView() {
     };
     performance.mark('nadi:join:end');
     return out;
-  }, [artifact, normVehicles, normPersons, rawVehicles, rawPersons]);
+  }, [artifact, watchedRunNotLoaded, normVehicles, normPersons, rawVehicles, rawPersons]);
 
   // V2.6c — publish the render-stats seam (the __nadiArrowCount convention: a useEffect, never an
   // in-memo window write).
@@ -674,7 +749,6 @@ export default function MapView() {
     for (const p of pinned) m[agentId(p.agent)] = p;
     return m;
   }, [pinned]);
-  const conflicts = useMemo(() => artifact?.conflicts ?? [], [artifact]);
 
   // v0.4.0 social cascade (the discourse phase). All social render paths select via lib/social helpers,
   // which apply the load-bearing clean-filter — excluded content can never reach a component here.
@@ -839,6 +913,11 @@ export default function MapView() {
       if (!r.ok) return; // not ready yet (still running) — the run card keeps showing progress
       const data = (await r.json()) as TrajectoryArtifact;
       setArtifact(data);
+      // V2.7b C8b — the real run has landed, so Act I's stand-in is retired. Dropped AFTER the swap:
+      // clearing it first would flash the PREVIOUS run's traffic between the two commits, and a
+      // failed load above keeps the preview playing, which is the honest state (the run's own
+      // baseline) rather than someone else's trips.
+      setBaselinePreview(null);
       setCurrentTime(data.meta.sim_start);
       // V2.7a: the returning user lands on their most recently VIEWED run
       try {
@@ -978,6 +1057,19 @@ export default function MapView() {
   const feedHandlers = useMemo(() => ({ onLoaded: loadRun, onVoice: handleVoice }), [loadRun, handleVoice]);
   const runFeed = useRunFeed(activeRunId, feedHandlers);
 
+  // ACT I PROPER — the narrative surfaces (the beat ledger and its caption, Watch's computing
+  // split, Read's not-computed state, the header's run tag). Stricter than the map gate above,
+  // because the two predicates answer different questions. The map asks "is anything on screen the
+  // wrong run's?", which is true whenever the ids differ. Act I asks "is a run being simulated in
+  // front of me?", and opening a FINISHED run also sets activeRunId a second or two before its
+  // artifact arrives — without the second clause the caption would announce a baseline leg playing
+  // for a run that finished days ago. Beats keep it true across the swap at the end of the act, so
+  // the surface doesn't blink out and back while the real artifact loads.
+  const watchedRunLive =
+    runFeed.status != null && runFeed.status.status !== 'done' && runFeed.status.status !== 'failed';
+  const actOne =
+    watchedRunNotLoaded && (watchedRunLive || runFeed.experience.beats.length > 0);
+
   // V2.7b C7 — the experience seam: counts and stage keys, NEVER content. Specs read the fold's
   // shape from here; the content itself is asserted on the rendered surfaces, where a reader sees it.
   useEffect(() => {
@@ -995,6 +1087,60 @@ export default function MapView() {
       llmCalls: x.llmCallsTotal,
     };
   }, [runFeed.experience]);
+
+  // V2.7b C8b — THE GHOST: the COMPUTING run's member, resolved from its run-state changes. The
+  // persistent overlay above is keyed to the loaded run, and during Act I that is a DIFFERENT run —
+  // drawing it while the caption says "your member" would label someone else's closure as yours.
+  // Same resolver, so the ghost and the real overlay can never diverge in shape.
+  const [ghostGeom, setGhostGeom] = useState<{ runId: string; items: OverlayItem[] } | null>(null);
+  const watchedChanges = runFeed.status?.changes ?? (runFeed.status?.change ? [runFeed.status.change] : null);
+  const watchedRunId = runFeed.status?.run_id ?? null;
+  useEffect(() => {
+    if (!watchedRunId || !watchedChanges || watchedChanges.length === 0 || !artifact) return;
+    if (watchedRunId === artifact.meta.run_id) return; // it IS the loaded run — the real overlay has it
+    let cancelled = false;
+    (async () => {
+      const bbox = artifact.meta.bbox as [number, number, number, number];
+      const { items } = await resolveOverlayItems(watchedChanges, bbox, networkLookup);
+      if (!cancelled) setGhostGeom({ runId: watchedRunId, items });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // watchedChanges is a fresh array per poll; the run id is the identity that matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedRunId, artifact, networkLookup]);
+
+  // V2.7b C8b — fetch the computing run's BASELINE LEG once its url arrives on the stream. Placed
+  // here because it reads the fold; the entity memos above consume it through `baselinePreview`.
+  // ITS ABSENCE IS SILENT, deliberately and in three ways: a calibrated run frees its baseline
+  // spill mid-run and emits `baseline_unavailable` instead (the caption says so), a run from before
+  // this step has no sidecar at all, and the static demo has no such file for any committed run.
+  // None of those is a failure, so none of them may paint an error.
+  const baselineUrl = runFeed.experience.baselineUrl;
+  const baselineFor = runFeed.experience.runId;
+  useEffect(() => {
+    if (!baselineUrl || !baselineFor) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(baselineUrl, { cache: ARTIFACT_CACHE });
+        if (!r.ok) return; // silent by rule
+        const data = (await r.json()) as TrajectoryArtifact;
+        if (!cancelled && data?.meta) {
+          setBaselinePreview({ runId: baselineFor, artifact: data });
+          // start the preview at ITS beginning: the clock is still wherever the previously-loaded
+          // run left it, which can sit past this leg's end and show an empty map that looks broken
+          setCurrentTime(data.meta.sim_start);
+        }
+      } catch {
+        /* silent by rule — Act I keeps its beats and its honest caption */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [baselineUrl, baselineFor]);
 
   // V2.7b C7 — the APPEND-COST seam, for scripts/perf-harness.mjs --appends N. It calls the REAL
   // handleVoice, so the measurement covers the true merge path rather than a stand-in. Published
@@ -1406,9 +1552,14 @@ export default function MapView() {
   // from the seeked value — assert promptly or poll the seam).
   useEffect(() => {
     const playbackNow = stage === 'watch';
-    const items = changeGeom && artifact && changeGeom.runId === artifact.meta.run_id ? changeGeom.items : [];
+    // V2.7b C8b: during Act I the loaded run's change is SUPPRESSED on the map (it belongs to a
+    // different run) and the computing run's member is drawn as the ghost instead — the seam
+    // mirrors both, so it never claims an overlay that isn't there.
+    const items =
+      !watchedRunNotLoaded && changeGeom && artifact && changeGeom.runId === artifact.meta.run_id ? changeGeom.items : [];
     (window as unknown as { __nadiChangeOverlay?: unknown }).__nadiChangeOverlay = {
       count: items.length,
+      ghost: watchedRunNotLoaded && ghostGeom?.runId === activeRunId ? ghostGeom.items.length : 0,
       // V2.2d: the zone designation flag (the tint is ALWAYS shown for tagged runs; items' active
       // flags carry the time-truth for the speed members themselves).
       zoneTagged: !!artifact?.meta.scenario?.tags?.includes('school_zone'),
@@ -1420,7 +1571,7 @@ export default function MapView() {
         vertices: d.path.length,
       })),
     };
-  }, [changeGeom, artifact, currentTime, stage, socialIds]);
+  }, [changeGeom, artifact, currentTime, stage, socialIds, watchedRunNotLoaded, ghostGeom, activeRunId]);
   // (No __nadiSeek seam: a raw setState seek loses races against the Timeline's rAF loop —
   // specs scrub the Timeline slider instead, the app's own pause-and-seek path.)
 
@@ -1440,6 +1591,19 @@ export default function MapView() {
       })),
     };
   }, [draft, draftTags, hoveredDraftId]);
+
+  // The caption's sim-time, QUANTIZED to whole sim-seconds. Act I's panels must not re-render on
+  // the rAF tick — the map owns that budget — so RunExperience is memo'd and this is the only prop
+  // that moves during playback: it changes once per displayed second instead of ~70×/s. A timer
+  // would have been the other way to throttle it; quantizing keeps the clock exactly truthful
+  // (it is the playback clock, floored) and adds no interval to clean up.
+  const captionTime = Math.floor(currentTime);
+  // Stable, or the memo above can never bail.
+  const goRead = useCallback(() => setStage('read'), []);
+
+  // Shown once per run: the held moment is a MOMENT, not a gate, so re-interrupting on every
+  // reload mid-Act-II would make it a nuisance.
+  const [heldSeen, markHeldSeen] = useHeldMomentSeen(activeRunId);
 
   if (!artifact) {
     return loadError ? (
@@ -1676,7 +1840,14 @@ export default function MapView() {
   // V2.2c: capacity changes (closures/incident) get per-type styling in their own layers; during PLAYBACK a
   // windowed change renders ONLY within its window (the map tells the truth in time — the conflict-pulses
   // pattern: CPU filter on t, arrays rebuilt per frame). Legacy types keep change-overlay pixel-identical.
-  const overlayItems = changeGeom && changeGeom.runId === meta.run_id ? changeGeom.items : [];
+  // V2.7b C8b: during Act I the loaded run's change is SUPPRESSED — it belongs to a run that is not
+  // the one being simulated, and leaving it on the map while the caption talks about "your member"
+  // would attribute a stranger's closure to the reader. The ghost below takes its place.
+  const overlayItems = watchedRunNotLoaded
+    ? []
+    : changeGeom && changeGeom.runId === meta.run_id
+      ? changeGeom.items
+      : [];
   const isOverlayActive = (d: OverlayItem): boolean =>
     !d.window || stage !== 'watch' || (t >= d.window.start_s && t <= d.window.end_s);
   // V2.2d: time-gating now covers ANY windowed item — a windowed speed_limit (the school zone's
@@ -1694,6 +1865,21 @@ export default function MapView() {
     getPath: (d) => d.path,
     getColor: [255, 200, 40, 90], // translucent school-bus yellow
     getWidth: 14,
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+  });
+  // V2.7b C8b — THE GHOST: the computing run's member, drawn as an outline that reads as inactive
+  // because it IS inactive here. It applies to the scenario leg; what is playing is the baseline.
+  // Its label lives in the DOM caption rather than a deck TextLayer on purpose — the sentence
+  // carries an em-dash, which is outside deck's default characterSet (the V2.2c font-atlas trap).
+  const ghostItems = watchedRunNotLoaded && ghostGeom?.runId === activeRunId ? ghostGeom.items : [];
+  const ghostOverlay = new PathLayer<OverlayItem>({
+    id: 'ghost-change',
+    data: ghostItems,
+    getPath: (d) => d.path,
+    getColor: [70, 76, 92, 115], // translucent slate: present, plainly not in force
+    getWidth: 9,
     widthUnits: 'pixels',
     capRounded: true,
     jointRounded: true,
@@ -1778,6 +1964,7 @@ export default function MapView() {
     ...baseNetworkLayers, // V2.0b: the drawn network — z=0, below everything, all modes
     trails,
     zoneTint, // V2.2d: the always-visible zone designation, under the time-gated change overlay
+    ghostOverlay, // V2.7b: Act I only — the computing run's member, not in force in this playback
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
     closureCasing,
     closureDash,
@@ -1839,11 +2026,15 @@ export default function MapView() {
           full SHEET covers it (compare and the V2.3d graph split-view both occlude the map). */}
       {/* V2.7a: Read hides the top-left map chrome too — the run document IS the description
           there, and the floating header/legend collide with the panel. */}
-      {!sheetMode && !docPanelOpen && <ScenarioHeader scenario={meta.scenario} />}
+      {/* V2.7b C8b: hidden during Act I — it names the LOADED run's change, and the caption two
+          inches away is talking about a different one (the screenshot walk caught the collision). */}
+      {!sheetMode && !docPanelOpen && !watchedRunNotLoaded && <ScenarioHeader scenario={meta.scenario} />}
 
       {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
           fewer dots than the simulated population must never read as the population itself. */}
-      {!sheetMode && meta.render_sample && (
+      {/* V2.7b C8b: `meta` is the loaded run's, so during Act I this would describe a sampling
+          decision made for a different artifact than the one on the map. */}
+      {!sheetMode && !watchedRunNotLoaded && meta.render_sample && (
         <div style={renderSampleNote} data-testid="render-sample-note">
           rendering {meta.render_sample.rendered_vehicles.toLocaleString()} of{' '}
           {meta.render_sample.total_vehicles.toLocaleString()} vehicles ·{' '}
@@ -1856,7 +2047,7 @@ export default function MapView() {
 
       {/* 5.3 change-visibility legend / labeled degradation — a change run always says WHERE its change is.
           v0.5.0: a composite scenario summarizes the count; a single change keeps its label. */}
-      {!sheetMode && !docPanelOpen && changeGeom?.runId === meta.run_id && (
+      {!sheetMode && !docPanelOpen && !watchedRunNotLoaded && changeGeom?.runId === meta.run_id && (
         overlayItems.length > 0 ? (
           <div style={changeLegend} data-testid="change-legend">
             {overlayItems.length === 1 && CAPACITY_TYPES.has(overlayItems[0].type) ? (
@@ -1964,6 +2155,44 @@ export default function MapView() {
           onClone={cloneToDraft}
         />
       ) : stage === 'watch' ? (
+        actOne ? (
+          // V2.7b C8b — ACT I. Watch's panels are HIDDEN rather than emptied while a run computes:
+          // CommentFeed, the scorecard and the agent panels all describe the LOADED run, which is
+          // not the run being watched. Showing another run's findings beside a header naming this
+          // one is exactly the confusion the V2.7a vintage guard refuses in the document; it is
+          // refused here too, by the same principle.
+          <>
+            <RunExperience
+              experience={runFeed.experience}
+              // the WATCHED run's profile (it rides run_start), not the loaded run's — Act I is
+              // about the run computing, and only a calibrated profile has a clock to anchor to
+              demandProfile={runFeed.experience.demandProfile ?? undefined}
+              playing={preview != null}
+              simTime={captionTime}
+              onReadResults={goRead}
+            />
+            <button
+              style={pbToggle}
+              data-testid="playback-bar-toggle"
+              onClick={() => setPlaybackBarHidden((h) => !h)}
+              title="hiding the bar pauses playback — the clock lives in the bar"
+            >
+              {playbackBarHidden ? 'show playback bar' : 'hide playback bar'}
+            </button>
+            {!playbackBarHidden && (
+              <Timeline
+                // the clock's DOMAIN is the previewed run's, not the loaded one's — a 2 h exemplar
+                // loaded while a 30 min run computes would otherwise scrub against the wrong scale
+                simStart={preview?.meta.sim_start ?? meta.sim_start}
+                simEnd={preview?.meta.sim_end ?? meta.sim_end}
+                currentTime={t}
+                onSeek={setCurrentTime}
+                // the readout counts what is ACTUALLY on the map: the baseline leg, or nothing
+                vehicleCount={preview?.vehicles.length ?? 0}
+              />
+            )}
+          </>
+        ) : (
         <>
           <CommentFeed
             agents={pinnedAgents}
@@ -2063,6 +2292,36 @@ export default function MapView() {
             />
           )}
         </>
+        )
+      ) : stage === 'read' && actOne ? (
+        // V2.7b C8b — the run being watched has no document yet, and the loaded run's document is
+        // NOT a stand-in for it. A header naming one run above findings describing another is the
+        // confusion the V2.7a vintage guard exists to refuse; refusing it here costs one labeled
+        // state and buys the same guarantee. It is replaced by the real document seconds later,
+        // when the facts-only report lands (which is why the wait is worth naming, not hiding).
+        <DocumentPanel
+          title={`RUN DOCUMENT — ${(activeRunId ?? '').replace('multimodal-scenario-', '')}`}
+          collapsed={docCollapsed}
+          onToggle={setDocCollapsed}
+          topOffset={78}
+        >
+          {/* DocumentPanel already supplies .nadi-doc inside a .nadi-shell, so .btn resolves here */}
+          <div style={notComputedWrap} data-testid="read-not-computed">
+            <h6 style={notComputedKicker}>NOT COMPUTED YET</h6>
+            <p style={notComputedBody}>
+              This run’s physics is still running, so it has no document yet — and the run you were
+              reading is a different run, so its findings are not shown here in its place.
+            </p>
+            <p style={notComputedBody}>
+              The figures land the moment the simulation ends, before any model runs. Watch the run
+              come in, or open another run from the run list.
+            </p>
+            <button className="btn btn-secondary" onClick={() => setStage('watch')}
+                    data-testid="read-not-computed-watch">
+              Watch this run
+            </button>
+          </div>
+        </DocumentPanel>
       ) : stage === 'read' ? (
         // V2.7a interim Read: the report content inside the run-document panel (RunDocument
         // replaces it wholesale in C3; the panel frame + collapse strip are the keepers).
@@ -2135,12 +2394,19 @@ export default function MapView() {
         stageState={stageAvailability({
           hasArtifact: true, // past the early return — the artifact is loaded
           hasReport: reportData?.runId === meta.run_id && reportData.state === 'ready',
+          // V2.7b: Read's ✓ lights when the FACTS-ONLY report lands, not when someone opens Read.
+          // The report is fetched on entering the stage, so hasReport alone leaves the stage that
+          // just became readable marked undone for as long as the reader stays in Watch.
+          resultsReady: runFeed.experience.resultsReadyAt != null,
           hasSocial,
           hasGraphs: graphsSidecar?.runId === meta.run_id && !!graphsSidecar.data,
         })}
         exploreSub={exploreSub}
         onExploreSub={setExploreSub}
-        runLabelText={meta.run_id.replace('multimodal-scenario-', '')}
+        // V2.7b C8b: during Act I every surface on screen is about the run being WATCHED — the map
+        // plays its baseline leg, the beats are its beats, Read names it. The header naming the
+        // still-loaded artifact instead put two different run ids on one screen (looked-at catch).
+        runLabelText={(actOne ? activeRunId! : meta.run_id).replace('multimodal-scenario-', '')}
         buildLocked={STATIC_DEMO}
         onBuildYourOwn={() => {
           // "Build your own scenario" starts a FRESH draft (the watched run keeps computing
@@ -2205,6 +2471,22 @@ export default function MapView() {
             drawAnother();
           }}
           onClose={() => setRunsOpen(false)}
+        />
+      )}
+
+      {/* V2.7b C8b — THE HELD MOMENT. Opens once the physics is done and the run's own artifact has
+          loaded (so `meta` is this run's), and is deliberately NOT stage-gated: it is the one
+          interruption the design ratified, and it should find the reader wherever they are. It can
+          never appear for a finished run opened from the list — beats arrive only on the event
+          stream, and a terminal run opens no stream. */}
+      {!actOne && !heldSeen && runFeed.experience.runId === meta.run_id && (
+        <HeldMoment
+          experience={runFeed.experience}
+          onDismiss={markHeldSeen}
+          onReadResults={() => {
+            markHeldSeen();
+            setStage('read');
+          }}
         />
       )}
     </div>
@@ -2279,6 +2561,14 @@ const changeOfflineNote: React.CSSProperties = {
 
 // Top-right rail: scorecard stacked ABOVE the agent panel. Pointer-transparent so map clicks pass
 // through the gaps; each child card re-enables pointer events on itself.
+// V2.7b C8b — Read's not-computed-yet state (inside DocumentPanel, so .nadi-doc typography applies)
+const notComputedWrap: React.CSSProperties = { maxWidth: 620 };
+const notComputedKicker: React.CSSProperties = {
+  fontFamily: 'var(--font-heading)', fontSize: 12, letterSpacing: '.1em',
+  color: 'var(--color-neutral-600)', margin: '0 0 var(--space-3)',
+};
+const notComputedBody: React.CSSProperties = { fontSize: 14, lineHeight: 1.65, marginBottom: 'var(--space-3)' };
+
 const pbToggle: React.CSSProperties = {
   position: 'absolute',
   bottom: 88, // beside (left of) the conflict legend, above the bar

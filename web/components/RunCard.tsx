@@ -1,7 +1,7 @@
 'use client';
 
 import { nonCompletionsLine } from '@/lib/nonCompletions';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { postEnrich, postIdentity, type EnrichStage, type RunStatus } from '@/lib/api';
 import type { RunFeed } from '@/lib/useRunFeed';
 import { signedMinutes } from '@/lib/viz';
@@ -74,10 +74,16 @@ export function RunCard({
 
   // Clear the busy button on done OR failed - else the buttons stay stuck disabled (B1). The poll
   // used to do this inline; reading it off the polled status keeps the behavior identical.
+  // EDGE-TRIGGERED, and it has to be: a plain `terminal ? null : busy` derivation would un-disable
+  // the buttons for the whole in-flight window of an enrich fired ON a finished run (the common
+  // case), re-opening the double-click it exists to prevent. React's documented "adjusting state
+  // when a prop changes" gives the same edge without an effect, one render pass earlier.
   const terminal = status?.status === 'done' || status?.status === 'failed';
-  useEffect(() => {
+  const [prevTerminal, setPrevTerminal] = useState(terminal);
+  if (terminal !== prevTerminal) {
+    setPrevTerminal(terminal);
     if (terminal) setEnrichBusy(null);
-  }, [terminal]);
+  }
 
   const runEnrich = useCallback(
     async (stage: EnrichStage) => {

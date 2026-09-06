@@ -66,7 +66,7 @@ export function Timeline({ simStart, simEnd, currentTime, onSeek, vehicleCount }
         }}
         style={{ flex: 1 }}
       />
-      <span style={label}>
+      <span style={label} data-testid="timeline-readout">
         t = {fmt(currentTime)} / {fmt(simEnd)} &middot; {vehicleCount} veh
       </span>
     </div>

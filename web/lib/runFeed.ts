@@ -81,6 +81,12 @@ export interface Beat {
   ts: number;
   simT?: number | null;
   note?: string | null;
+  /** Beat 4 only, and only on a run that actually withdrew a change: `change_scheduler`'s own
+   *  restoration verdict. The honest VARIANTS (a drawn road, an unwindowed change, a window that
+   *  never fired) carry no verdict because there was no withdrawal to verify — so this is `null`
+   *  there, and the held moment withholds its ✓ rather than decorating a sentence that claims
+   *  nothing. The check mark is earned by the assertion, never by the beat's existence. */
+  restoredOk?: boolean | null;
 }
 
 export interface StageState {
@@ -212,6 +218,7 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
       s.beats = [...s.beats, {
         n, key: ev.key as string, title: ev.title as string, detail: ev.detail as string,
         ts: ev.ts, simT: (ev.sim_t as number) ?? null, note: (ev.note as string) ?? null,
+        restoredOk: (ev.restored_ok as boolean) ?? null,
       }].sort((a, b) => a.n - b.n);
       if (ev.counts) s.demand = ev.counts as RunFeedState['demand'];
       if (ev.demand_profile) s.demandProfile = ev.demand_profile as string;

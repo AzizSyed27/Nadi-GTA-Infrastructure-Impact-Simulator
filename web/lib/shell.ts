@@ -33,8 +33,13 @@ export function stageAvailability(opts: {
   hasReport: boolean;
   hasSocial: boolean;
   hasGraphs: boolean;
+  /** V2.7b — the facts-only report has landed for the run being watched (Act I's `results_ready`).
+   *  `hasReport` alone cannot light Read's ✓ at that moment: the report is only FETCHED when the
+   *  user visits Read, so a reader who stays in Watch while the results complete would see the
+   *  stage that just became readable still marked undone. */
+  resultsReady?: boolean;
 }): StageState {
-  const { hasArtifact, hasReport, hasSocial, hasGraphs } = opts;
+  const { hasArtifact, hasReport, hasSocial, hasGraphs, resultsReady = false } = opts;
   return {
     // no run → Build only; a loaded run makes every stage ENTERABLE (missing content
     // renders a labeled empty state inside the stage, never a dead nav item).
@@ -43,7 +48,7 @@ export function stageAvailability(opts: {
     done: {
       build: hasArtifact,
       watch: hasArtifact,
-      read: hasReport,
+      read: hasReport || resultsReady,
       explore: hasSocial || hasGraphs,
     },
   };

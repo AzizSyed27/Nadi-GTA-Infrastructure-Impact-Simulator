@@ -77,7 +77,18 @@ export interface ReportFacts {
   render_sample: Record<string, unknown> | null;
 }
 
+/** V2.7b — the document's narrative status, and if there is none, WHY there is none. A reader must
+ *  never have to guess whether an empty abstract means "nothing to say" or "not written yet": the
+ *  figures are complete in every one of these states, and only the prose differs. `note` is the
+ *  server's sentence (`report.PROSE_NOTES`) and renders verbatim — the client composes none of it.
+ *  Absent on pre-V2.7b reports, which legitimately carry prose (treated as `composed`). */
+export interface ProseStatus {
+  status: 'composed' | 'not_composed' | 'partial';
+  note: string;
+}
+
 export interface PerRunReport {
+  prose?: ProseStatus;
   generated_at: string;
   facts_refreshed_at?: string;
   provider: string;
