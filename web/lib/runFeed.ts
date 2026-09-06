@@ -117,6 +117,9 @@ export interface RunFeedState {
   resultsReadyAt: number | null;
   /** ACT II */
   stages: StageState[];
+  /** The sampled set, and the sentence that says what those points ARE — the stage's whole claim is
+   *  provenance ("one traveler on their own computed route"), which a bare count cannot carry. */
+  personas: { total: number; basis: string } | null;
   voices: Agent[];
   voicesTotal: number | null;
   institutionsSpoke: Agent[];
@@ -140,6 +143,7 @@ export function emptyFeedState(runId: string | null = null): RunFeedState {
     stages: STAGE_KEYS.map((key) => ({
       key, label: STAGE_LABEL[key], status: 'pending' as StageStatus, calls: null, detail: '',
     })),
+    personas: null,
     voices: [], voicesTotal: null,
     institutionsSpoke: [], institutionsSilent: [],
     slots: [], indexDocs: null,
@@ -271,6 +275,7 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
     }
 
     case 'personas':
+      s.personas = { total: ev.total as number, basis: (ev.basis as string) ?? '' };
       s.stages = [...s.stages];
       setStage(s, 'personas', { status: 'done', detail: (ev.basis as string) ?? '',
                                 progress: { done: ev.total as number, total: ev.total as number } });

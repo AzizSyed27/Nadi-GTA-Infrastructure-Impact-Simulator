@@ -531,6 +531,10 @@ def build_index(run_id: str | None = None, rebuild: bool = False) -> tuple[Path,
     wd.mkdir(parents=True, exist_ok=True)
     write_embedding_pin(wd)  # pin the embedder so a later mismatched open fails loudly
     print(f"[report_agent] run={artifact.meta.run_id} · {len(docs)} corpus docs · indexing into {wd} …")
+    # V2.7b C8a — the chat-index stage has no content to stream (a corpus build is machinery), so it
+    # reports exactly one honest number and the UI renders one plain line. The alternative a mockup
+    # invites — a scrolling fake terminal — would be machinery dressed as content.
+    run_events.stage_event("index_progress", docs=len(docs))
 
     async def run() -> None:
         rag = make_rag(wd)

@@ -84,6 +84,40 @@ def speaks(entry: dict, side: dict) -> dict | None:
     return facts or None
 
 
+# What each institution's mandate needs the run to have COMPUTED, in the planner's words. The
+# designed-silence card names the missing fact class rather than asserting a generic emptiness —
+# "no emergency-access probe was computed for this run" is a fact about the run; "no comment" is not.
+_SILENCE_REASON: dict[str, str] = {
+    "response_detour": "no emergency-access probe was computed for this run",
+    "zone_facts": "no school-zone crossing lens was computed for this run",
+    "non_completions": "no diversions or incomplete trips were recorded for this run",
+    "non_completions_split": "no diversions or incomplete trips were recorded for this run",
+    "insertion_backlog": "no diversions or incomplete trips were recorded for this run",
+    "reroute.cars_rerouted": "no diversions or incomplete trips were recorded for this run",
+}
+
+
+def silence_reason(entry: dict) -> str:
+    """Why this institution has nothing to say about this run — named by the fact class its mandate
+    gate asks for. Falls back to the honest generic only if the roster grows a key nobody mapped."""
+    req = entry.get("facts_required") or {}
+    for key in [*req.get("any_of", []), *req.get("or_nonzero", [])]:
+        if key in _SILENCE_REASON:
+            return _SILENCE_REASON[key]
+    return "no computed fact in this run falls inside this mandate"
+
+
+def silent_institutions(side: dict) -> list[dict]:
+    """The institutions this run gives NO standing — the designed-silence half of the roster.
+
+    Silence is an output here, not an omission: an institution speaks only where the run computed
+    facts inside its mandate, and saying which fact class was missing is what makes that legible
+    instead of looking like a gap."""
+    speaking = {e["id"] for e, _ in speaking_institutions(side)}
+    return [{"id": e["id"], "label": e["label"], "reason": silence_reason(e)}
+            for e in load_roster() if e["id"] not in speaking]
+
+
 def speaking_institutions(side: dict) -> list[tuple[dict, dict]]:
     """(roster entry, facts subset) for every institution the sidecar gives standing to."""
     out = []

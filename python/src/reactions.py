@@ -517,6 +517,16 @@ async def run(instrumented_path: Path) -> Path:
     # and cost NOTHING (deterministic composition over byte-pinned roster text) - the count is the
     # traveler voices' alone, which is exactly what the UI attributes it to.
     run_events.stage_usage("voices", (getattr(client, "usage", None) or {}).get("calls"))
+
+    # V2.7b C8a — the INSTITUTIONS stage's content event. Both halves ride it: who spoke (the
+    # mandate agents just assembled, in artifact shape so the card renders the same voice the
+    # document will) and who was SILENT, with the fact class their mandate needed and this run did
+    # not compute. The silent half has no other source — `institutions.speaks` is the gate that
+    # decides it — and without it the designed-silence card would be indistinguishable from a bug.
+    import institutions as _inst
+    spoke = [a.model_dump(mode="json", exclude_none=True, by_alias=True)
+             for a in (artifact.agents or []) if a.grounding == "mandate"]
+    run_events.stage_event("institutions", spoke=spoke, silent=_inst.silent_institutions(side))
     return out_path
 
 

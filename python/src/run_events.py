@@ -48,6 +48,30 @@ RUN_ENDED = "run_ended"
 # line (skip, then resume appends after it) safe to replay forever.
 STREAM_END = "stream_end"
 
+# ---------------------------------------------------------------------------------------------
+# THE VOCABULARY (V2.7b C8a) — the single source of what the server may write.
+# ---------------------------------------------------------------------------------------------
+# EventSource dispatches STRICTLY BY NAME: the client registers one listener per name, there is no
+# wildcard, and `onmessage` never fires because every frame carries an explicit `event:`. So a name
+# the server writes but the client never registered is not an error — it is SILENCE. That is exactly
+# what happened in C7: `web/lib/runStream.ts`'s list predated the Act I/II vocabulary, and every
+# beat, baseline_ready, results_ready, slot_landed and stage_usage frame was dropped on the floor
+# while Act I rendered nothing and nothing failed.
+#
+# This tuple closes that class. `emit` warns when a name is missing from it, and a pytest asserts
+# every name here appears in the client's listener list (the compactTime lockstep precedent). The
+# direction that matters is python → TS: a registered name with no listener loses data, while a
+# listener with no emitter is a harmless no-op.
+EVENT_NAMES: tuple[str, ...] = (
+    # lifecycle
+    RUN_START, "stage_start", "stage_end", "stage_partial", "cmd_start", "cmd_end", RUN_ENDED,
+    # ACT I — the run narrating its own physics
+    "beat", "baseline_ready", "baseline_unavailable", "results_ready",
+    # ACT II — streamed content, and the ledger's cost inputs
+    "personas", "voices_total", "voice", "institutions",
+    "slot_start", "slot_landed", "index_progress", "stage_usage",
+)
+
 _LOCALAPPDATA = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
 EVENTS_ROOT = Path(_LOCALAPPDATA) / "nadi-run-events"
 
@@ -64,7 +88,16 @@ def from_env() -> Path | None:
 
 def emit(path: Path, event: str, **payload) -> None:
     """Append one event line. Open-append-close per emit (no held handle; ~212 opens per run is trivial).
-    Explicit utf-8 — agent comments contain non-ASCII and the Windows default is cp1252."""
+    Explicit utf-8 — agent comments contain non-ASCII and the Windows default is cp1252.
+
+    An unregistered name WARNS and is still written. Not raised: a run event is a narration of the
+    run, never part of it — the same reason `change_scheduler` swallows a beat listener's failure
+    rather than letting it kill a simulation. The warning is what a developer sees in test output
+    and in the server log; the pytest lockstep pin is what fails the build."""
+    if event not in EVENT_NAMES:
+        print(f"[run-events] WARNING: emitting unregistered event {event!r} — add it to "
+              f"run_events.EVENT_NAMES and to RUN_EVENT_NAMES in web/lib/runStream.ts, or the "
+              f"client will silently never receive it.", flush=True)
     line = json.dumps({"event": event, "ts": time.time(), **payload}, ensure_ascii=False)
     with open(path, "a", encoding="utf-8", newline="\n") as f:
         f.write(line + "\n")
@@ -137,6 +170,17 @@ def cancelled(run_id: str | None = None) -> bool:
             return False
         run_id = path.name.removesuffix(".events.jsonl")
     return cancel_path(run_id).exists()
+
+
+def stage_event(event: str, **payload) -> None:
+    """Emit one CONTENT event from a subprocess, resolving the path from the environment.
+
+    The subprocess-side twin of `emit`: a stage is handed an events path in its env, never a run id,
+    so every stage emitter would otherwise repeat the same three lines. Env-gated — a CLI run
+    resolves no path and writes nothing, which is what keeps CLI output byte-identical."""
+    path = from_env()
+    if path is not None:
+        emit(path, event, **payload)
 
 
 def stage_usage(stage: str, calls: int | None) -> None:

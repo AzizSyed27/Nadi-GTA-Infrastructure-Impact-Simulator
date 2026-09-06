@@ -34,6 +34,7 @@ import argparse
 import json
 from pathlib import Path
 
+import run_events
 import trajectory_io
 from contract_models import Agent, Outcome, Persona, Reaction
 from personas import PersonaSpec, load_personas, personas_by_mode
@@ -428,6 +429,21 @@ def _print_report(payload: dict, selected: list[tuple[str, dict]], out_path: Pat
     )
 
 
+def _emit_personas(payload: dict) -> None:
+    """Report the sampled set to the run's event stream (env-gated; CLI runs emit nothing).
+
+    ``basis`` is the sentence the UI shows beside the count. It is deliberately about PROVENANCE,
+    not size: the honesty claim this stage makes is that each point is one traveler on their own
+    computed route, and a bare number would not carry it."""
+    records = payload.get("instrumented") or []
+    sim = sum(1 for r in records if r.get("grounding") == "sim")
+    inferred = sum(1 for r in records if r.get("grounding") == "inferred")
+    run_events.stage_event(
+        "personas", total=len(records), sim=sim, inferred=inferred,
+        basis=("each point is one traveler on their own computed route — no invented people; "
+               f"{sim} pinned to a simulated trip, {inferred} inferred community voices"))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Sample instrumented travelers spanning outcome bins.")
     ap.add_argument("--outcomes", default=None, help="outcomes-*.json (default: newest in contract/runs)")
@@ -452,6 +468,11 @@ def main() -> None:
         out_path = RUNS_DIR / f"instrumented-{ts}.json"
         out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         _print_report_multimodal(payload, out_path)
+        # V2.7b C8a — the PERSONAS stage's content event. The count is the instrumented set the
+        # sampler actually selected, and the basis names what those travelers ARE, because the one
+        # claim this stage makes on screen is that every point is a real simulated trip rather than
+        # an invented person. Env-gated like every emitter: a CLI run writes nothing.
+        _emit_personas(payload)
         return
 
     # Legacy Phase-1 flat-outcomes path (speed_limit harness) — unchanged.
@@ -460,6 +481,7 @@ def main() -> None:
     out_path = RUNS_DIR / f"instrumented-{ts}.json"
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     _print_report(payload, selected, out_path)
+    _emit_personas(payload)
 
 
 if __name__ == "__main__":
