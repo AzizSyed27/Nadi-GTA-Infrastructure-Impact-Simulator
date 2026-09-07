@@ -53,12 +53,25 @@ export const COLOPHON_CLOSE =
 
 export type ReportState = 'loading' | 'ready' | 'missing' | 'mismatch';
 
+/** V2.7b C10b — the interpretation's ending as the document renders it. `kept` and `reason` are
+ *  composed by the caller from the LEDGER (what ran, what it cost, why it ended) so this component
+ *  keeps its habit of rendering sentences rather than deriving them. */
+export interface InterpretationEnd {
+  status: 'skipped' | 'degraded' | 'failed';
+  kept: string | null;
+  reason: string | null;
+  onResume?: () => void;
+  resuming?: boolean;
+  error?: string | null;
+}
+
 export function RunDocument({
   artifact,
   report,
   reportState,
   isExample = false,
   liveName = null,
+  interpretation = null,
   onGroupDoorway,
 }: {
   artifact: TrajectoryArtifact;
@@ -68,6 +81,10 @@ export function RunDocument({
   /** the identity endpoint's name for this run, when the backend is up — wins over the
    *  report-carried name (the report's copy is the static demo's carrier) */
   liveName?: string | null;
+  /** V2.7b C10b — how the interpretation ENDED, when it did not simply finish. Absent for the
+   *  static demo (no ledger, no API) and for every run that completed normally, so absence renders
+   *  nothing rather than a state a reader has to dismiss. */
+  interpretation?: InterpretationEnd | null;
   onGroupDoorway: (group: string) => void;
 }) {
   const [showAudit, setShowAudit] = useState(false);
@@ -195,6 +212,36 @@ export function RunDocument({
           narrative slots are empty. Rendering that as a blank abstract would read as a broken
           document; this says which of the three it is, in the server's own sentence
           (`report.PROSE_NOTES`, rendered verbatim — the client composes none of it). */}
+      {/* V2.7b C10b — WHAT HAPPENED TO THE INTERPRETATION, when something happened to it. It sits
+          above the prose note because it is the wider fact: `prose` describes the report stage
+          alone, while this describes the whole act. The counters are the LEDGER's — what actually
+          ran and what it actually cost — never a client estimate, and the first sentence is the one
+          that matters: the figures were complete before any of this started. */}
+      {interpretation && (
+        <div style={degradeNote} data-testid={`interpretation-${interpretation.status}`}>
+          <b>{interpretation.status === 'skipped'
+            ? 'Interpretation stopped at your request.'
+            : 'Interpretation could not finish.'}</b>{' '}
+          The figures and the scorecard in this document are final — they were computed by the
+          simulator before any model ran, and nothing below changes them.
+          {interpretation.kept && <> {interpretation.kept}</>}
+          {interpretation.reason && <> {interpretation.reason}</>}
+          {interpretation.onResume && (
+            <div style={{ marginTop: 8 }}>
+              <button className="btn btn-secondary" onClick={interpretation.onResume}
+                      disabled={interpretation.resuming} data-testid="interpretation-resume">
+                {interpretation.resuming ? 'starting…' : 'Run the rest'}
+              </button>
+              {interpretation.error && (
+                <span style={resumeErr} data-testid="interpretation-resume-error">
+                  {interpretation.error}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {rpt?.prose && rpt.prose.status !== 'composed' && (
         <div
           style={degradeNote}
@@ -734,6 +781,7 @@ const wrap: React.CSSProperties = { maxWidth: 620, fontFamily: 'var(--font-body)
 const kicker: React.CSSProperties = { color: 'var(--color-accent-700)', marginBottom: 'var(--space-3)' };
 const secKicker: React.CSSProperties = { marginTop: 'var(--space-8)' };
 const subtle: React.CSSProperties = { fontSize: 12.5, color: 'var(--color-neutral-600)', fontStyle: 'italic', marginBottom: 6 };
+const resumeErr: React.CSSProperties = { fontSize: 11.5, color: '#b3261e', marginLeft: 8 };
 const abstract: React.CSSProperties = { fontSize: 15, lineHeight: 1.65, textWrap: 'pretty' } as React.CSSProperties;
 const degradeNote: React.CSSProperties = {
   border: '1px solid var(--color-neutral-400)',

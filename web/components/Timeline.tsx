@@ -1,5 +1,7 @@
 'use client';
 
+import { fmtSimTime } from '@/lib/simTime';
+
 import { useEffect, useRef, useState } from 'react';
 
 const SPEED = 60; // sim-seconds advanced per real second of playback
@@ -10,16 +12,25 @@ interface TimelineProps {
   currentTime: number;
   onSeek: (t: number) => void;
   vehicleCount: number;
+  /** the run's demand profile — only `calibrated_am_peak` has a wall clock to anchor to */
+  demandProfile?: string;
 }
 
-function fmt(t: number): string {
+/** V2.7b C10b — elapsed MM:SS, and only where that is the honest reading. This local formatter was
+ *  profile-blind: on a calibrated run, whose clock starts at 07:00, it rendered `10:00` at the
+ *  moment every other surface in the app said `08:40`. Two clocks disagreeing by an hour and a half
+ *  is worse than a raw number. Calibrated runs now go through `fmtSimTime` like everything else;
+ *  synthetic runs keep MM:SS, which is what elapsed sim-time means when there is no wall clock to
+ *  anchor to. */
+function fmt(t: number, profile: string | undefined): string {
+  if (profile === 'calibrated_am_peak') return fmtSimTime(t, profile);
   const s = Math.max(0, Math.floor(t));
   const mm = String(Math.floor(s / 60)).padStart(2, '0');
   const ss = String(s % 60).padStart(2, '0');
   return `${mm}:${ss}`;
 }
 
-export function Timeline({ simStart, simEnd, currentTime, onSeek, vehicleCount }: TimelineProps) {
+export function Timeline({ simStart, simEnd, currentTime, onSeek, vehicleCount, demandProfile }: TimelineProps) {
   const [playing, setPlaying] = useState(true);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef<number | null>(null);
@@ -67,7 +78,7 @@ export function Timeline({ simStart, simEnd, currentTime, onSeek, vehicleCount }
         style={{ flex: 1 }}
       />
       <span style={label} data-testid="timeline-readout">
-        t = {fmt(currentTime)} / {fmt(simEnd)} &middot; {vehicleCount} veh
+        t = {fmt(currentTime, demandProfile)} / {fmt(simEnd, demandProfile)} &middot; {vehicleCount} veh
       </span>
     </div>
   );

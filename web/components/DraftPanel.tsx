@@ -1,6 +1,9 @@
 'use client';
 
-import type { SimChange } from '@/lib/api';
+import { useEffect, useState } from 'react';
+
+import { getProjection, type SimChange } from '@/lib/api';
+import { STATIC_DEMO } from '@/lib/demo';
 import { fmtWindowRange } from '@/lib/simTime';
 import { memberWindow } from '@/lib/draftBlockers';
 
@@ -77,6 +80,13 @@ export function DraftPanel({
 }: DraftPanelProps) {
   const n = members.length;
   const canRun = !submitting && n > 0 && blockers.length === 0;
+  // fetched once per mount: the projection is a property of the server's configuration, not of the
+  // draft, so it does not change while a reader edits members
+  const [spend, setSpend] = useState<{ calls: number; basis: string; armed: boolean } | null>(null);
+  useEffect(() => {
+    if (STATIC_DEMO) return; // the demo has no API, and pressing Run is disabled there anyway
+    void getProjection().then((r) => setSpend(r.ok ? r.value : null));
+  }, []);
   return (
     <div style={card} data-testid="draft-panel">
       <div style={titleRow}>
@@ -114,6 +124,19 @@ export function DraftPanel({
           {b}
         </div>
       ))}
+      {/* V2.7b C10b — THE PRE-SPEND SENTENCE. Deliberately NOT a blocker: it uses the neutral note
+          style rather than the red one, and `canRun` is untouched — a cost notice tells you what
+          pressing this costs, it does not stop you. The number is the SERVER'S (one function also
+          used to write the ledger's projection); if the endpoint is unreachable the sentence loses
+          its number rather than inventing one, and if the chain is disarmed it says so instead of
+          promising a spend that will not happen. */}
+      <div style={spendNote} data-testid="draft-spend-note">
+        {spend == null
+          ? 'Runs the physics, then interpretation — skippable.'
+          : spend.armed
+            ? `Runs the physics, then interpretation (~${spend.calls.toLocaleString()} model calls, skippable).`
+            : 'Runs the physics. Interpretation is off on this server — nothing is spent.'}
+      </div>
       <button
         style={{ ...primaryBtn, ...(canRun ? null : disabledBtn) }}
         disabled={!canRun}
@@ -152,6 +175,9 @@ const memberList: React.CSSProperties = { listStyle: 'none', margin: '0 0 8px', 
 const memberRow: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 0' };
 const memberText: React.CSSProperties = { fontSize: 11.5, lineHeight: 1.4, wordBreak: 'break-all' };
 const removeBtn: React.CSSProperties = { border: 'none', background: 'transparent', color: '#8a9099', cursor: 'pointer', fontSize: 12 };
+const spendNote: React.CSSProperties = {
+  fontSize: 11, lineHeight: 1.45, color: 'var(--color-neutral-600)', margin: '6px 0 6px',
+};
 const blockerText: React.CSSProperties = { marginTop: 6, fontSize: 12, color: '#b23a3a', lineHeight: 1.5 };
 const primaryBtn: React.CSSProperties = {
   marginTop: 10,

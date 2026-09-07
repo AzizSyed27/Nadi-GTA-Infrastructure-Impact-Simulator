@@ -326,6 +326,15 @@ export function getLedger(runId: string): Promise<ApiResult<{ run_id: string; le
   return req(`/api/runs/${encodeURIComponent(runId)}/ledger`);
 }
 
+/** V2.7b C10b — the pre-spend projection, BEFORE a run exists. The Run button renders its cost
+ *  sentence while the reader is still composing a draft, so there is no ledger yet — this is the
+ *  same function the chain later writes into the ledger, served over HTTP so the client renders the
+ *  server's number and computes none of its own. `armed` is false while NADI_AUTO_ENRICH is off,
+ *  where pressing Run spends nothing and promising a cost would be a lie in the other direction. */
+export function getProjection(): Promise<ApiResult<{ calls: number; basis: string; armed: boolean }>> {
+  return req('/api/projection');
+}
+
 /** V2.7b — "skip the rest, keep what landed". */
 export function postSkip(runId: string): Promise<ApiResult<{ run_id: string; cancel_requested: boolean }>> {
   return req(`/api/runs/${encodeURIComponent(runId)}/skip`, { method: 'POST' });

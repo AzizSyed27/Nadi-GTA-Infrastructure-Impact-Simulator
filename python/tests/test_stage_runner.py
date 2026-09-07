@@ -2,9 +2,9 @@
 
 FOUR PROPERTIES ARE LOAD-BEARING, and each has a way of failing that would not announce itself:
 
-  * **the chain ships dark.** `NADI_AUTO_ENRICH` defaults off, because turning it on before a skip
-    button and a cost line exist would mean a window where pressing Run spends a couple of hundred
-    model calls with no brake and nothing on screen saying so.
+  * **the chain shipped dark, and was armed in C10b** — only once a skip control, a live cost line
+    and a pre-spend sentence existed. `NADI_AUTO_ENRICH` remains the operator's off switch, and the
+    tests below that exercise the disabled world now SET it rather than unsetting it.
   * **one lock, held across every stage.** A per-stage re-acquire opens a steal window, lets the SSE
     orphan guard inject a terminal mid-chain (it fires on free-lock + terminal-state), and writes one
     `done` edge per stage where the client expects one per run.
@@ -95,23 +95,47 @@ def _kinds(ev: Path) -> list[str]:
     return [e["event"] for e in _events(ev)]
 
 
-# ------------------------------------------------------------------------------- the dark default
+# ------------------------------------------------------------------------ the armed default (C10b)
 
-def test_auto_enrich_defaults_off_and_the_env_var_is_the_only_switch(monkeypatch):
+def test_auto_enrich_is_armed_by_default_now_that_the_brake_exists(monkeypatch):
+    """V2.7b C10b FLIPPED THIS. The chain shipped dark from C6a because arming it before there was a
+    way to stop it would have meant a window where pressing Run spent ~1,800 model calls with no
+    brake and nothing on screen saying so. It is armed in the same commit as all three halves of the
+    brake — the skip control beside a live cost line, the Run button's pre-spend sentence, and the
+    stopped state in the document — and not before."""
     monkeypatch.delenv(server.AUTO_ENRICH_ENV, raising=False)
-    assert server.auto_enrich_enabled() is False, "the chain must not be armed by default"
-    for off in ("0", "", "false", "FALSE", "no"):
+    assert server.auto_enrich_enabled() is True, "the chain is armed by default as of C10b"
+
+
+def test_the_env_var_still_disables_it_completely(monkeypatch):
+    """THE OFF SWITCH IS THE OPERATOR'S, and the off-set is WIDE ON PURPOSE. While the default was
+    "0" an unknown value erring towards ON was harmless; with the default flipped, an operator
+    typing NADI_AUTO_ENRICH=off to STOP the spending would have armed it instead."""
+    for off in ("0", "", "false", "FALSE", "no", "off", "OFF", "n", "none", "disabled"):
         monkeypatch.setenv(server.AUTO_ENRICH_ENV, off)
-        assert server.auto_enrich_enabled() is False
+        assert server.auto_enrich_enabled() is False, f"{off!r} must disable the chain"
     for on in ("1", "true", "yes"):
         monkeypatch.setenv(server.AUTO_ENRICH_ENV, on)
         assert server.auto_enrich_enabled() is True
 
 
+def test_a_disabled_chain_runs_no_interpretation_stage_at_all(env, monkeypatch):
+    """The off switch's real property, asserted through the runner rather than the flag."""
+    monkeypatch.setenv(server.AUTO_ENRICH_ENV, "0")
+    runs = _Runs()
+    ev = _begin(monkeypatch, runs)
+    server._run_quant_then_chain(RUN, ["py", "scenario_harness.py"], ev)
+    assert runs.scripts == ["scenario_harness", "report"], "no interpretation stage may run"
+    assert "--facts-only" in runs.cmds[1]
+
+
 def test_dark_run_does_the_physics_and_the_results_document_and_stops(env, monkeypatch):
     """With the chain off the behavior is today's, PLUS the zero-LLM results document — which is not
-    interpretation and is what makes the figures readable the moment the physics ends."""
-    monkeypatch.delenv(server.AUTO_ENRICH_ENV, raising=False)
+    interpretation and is what makes the figures readable the moment the physics ends.
+
+    EXPLICIT since C10b: this asserts the DISABLED world, which is no longer the default — a
+    `delenv` here would have silently started testing the armed one."""
+    monkeypatch.setenv(server.AUTO_ENRICH_ENV, "0")
     runs = _Runs()
     ev = _begin(monkeypatch, runs)
     server._run_quant_then_chain(RUN, ["py", "scenario_harness.py"], ev)
@@ -202,7 +226,7 @@ def test_a_failing_quant_never_reaches_the_document_or_the_chain(env, monkeypatc
 def test_the_results_document_soft_fails_and_the_run_stays_complete(env, monkeypatch):
     """A quant run that produced numbers is a good run. If the document cannot be assembled the run
     is still done — the Read stage already has a labeled state for a missing report."""
-    monkeypatch.delenv(server.AUTO_ENRICH_ENV, raising=False)
+    monkeypatch.setenv(server.AUTO_ENRICH_ENV, "0")  # explicit since C10b flipped the default
     runs = _Runs(fail={"report"})
     ev = _begin(monkeypatch, runs)
     server._run_quant_then_chain(RUN, ["py", "scenario_harness.py"], ev)
@@ -274,7 +298,7 @@ def test_the_protected_check_runs_before_every_stage_not_once(env, monkeypatch):
 def test_the_lock_is_released_even_when_the_runner_itself_raises(env, monkeypatch):
     """Every exit path goes through the finally: a raise in the ledger write, the protected check or
     the cancel-file read must not strand the one-job slot until the server restarts."""
-    monkeypatch.delenv(server.AUTO_ENRICH_ENV, raising=False)
+    monkeypatch.setenv(server.AUTO_ENRICH_ENV, "0")  # explicit since C10b flipped the default
     runs = _Runs()
     ev = _begin(monkeypatch, runs)
     monkeypatch.setattr(server.run_ledger, "set_quant",

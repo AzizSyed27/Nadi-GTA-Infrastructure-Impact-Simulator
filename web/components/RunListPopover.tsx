@@ -267,7 +267,8 @@ const downNote: React.CSSProperties = {
 };
 const rowsWrap: React.CSSProperties = { display: 'grid', gap: 8 };
 const row: React.CSSProperties = { border: '1px solid var(--color-divider)', padding: '8px 12px 9px' };
-const rowViewing: React.CSSProperties = { borderColor: 'var(--color-accent)' };
+// spread over `row`, which carries the `border` shorthand — so this must be the shorthand too
+const rowViewing: React.CSSProperties = { border: '1px solid var(--color-accent)' };
 const rowHead: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 };
 const rowName: React.CSSProperties = {
   fontFamily: 'var(--font-heading)',

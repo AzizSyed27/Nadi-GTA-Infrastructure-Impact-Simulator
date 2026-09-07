@@ -601,16 +601,20 @@ AUTO_ENRICH_ENV = "NADI_AUTO_ENRICH"
 
 
 def auto_enrich_enabled() -> bool:
-    """Is the interpretation chain armed? DEFAULT OFF until the brake exists.
+    """Is the interpretation chain armed? DEFAULT ON as of V2.7b C10b.
 
-    The chain spends a couple of hundred model calls per Run. Turning it on before there is a skip
-    button and a cost line on screen would mean a window where pressing Run spends that with no way
-    to stop it and no indication it is happening — so the flip rides the brake (V2.7b C10), not the
-    capability. Afterwards this stays the operator's off switch."""
+    It shipped dark from C6a because the chain spends ~1,800 model calls per Run, and arming it
+    before there was a way to stop it would have meant a window where pressing Run spent that with
+    no brake and nothing on screen saying so. The flip therefore rode the brake rather than the
+    capability, and lands in the same commit as all three halves of it: the skip control beside a
+    running cost line, the Run button's pre-spend sentence (from this module's own projection), and
+    the stopped/degraded state in the run document with a way to run the rest.
+
+    This stays the operator's off switch, and the off-set is deliberately wide — see below."""
     # The off-set is EXPLICIT and wide. It was written when the default was "0", where an unknown
     # value erring towards ON was harmless; with the default flipped (C10b) an operator typing
     # NADI_AUTO_ENRICH=off to stop the spending would have ARMED it instead.
-    return os.environ.get(AUTO_ENRICH_ENV, "0").strip().lower() not in (
+    return os.environ.get(AUTO_ENRICH_ENV, "1").strip().lower() not in (
         "", "0", "false", "no", "off", "n", "none", "disabled")
 
 
@@ -1294,6 +1298,20 @@ async def resume_interpretation(run_id: str, bg: BackgroundTasks):
     run_events.ensure_header(ev, run_id, description=(run_state.read(run_id) or {}).get("description"))
     bg.add_task(_resume_chain, run_id, ev, pending)
     return {"run_id": run_id, "resuming": pending}
+
+
+@app.get("/api/projection")
+async def interpretation_projection(cascades: int = 3):
+    """V2.7b C10b — what the interpretation will cost, BEFORE a run exists.
+
+    The Run button's pre-spend sentence renders while the reader is still composing a draft, so
+    there is no ledger to read and no instrumented count to use. Served from the SAME function the
+    chain writes into the ledger at start, because the alternative — a client-side formula — is how
+    a project ends up with two cost models and no idea which one a reader consented to.
+
+    Also reports whether the chain is armed at all: with it off, pressing Run spends nothing, and a
+    sentence promising ~1,800 model calls would be a lie in the opposite direction."""
+    return {**_project_interpretation(cascades=cascades), "armed": auto_enrich_enabled()}
 
 
 @app.get("/api/runs/{run_id}/ledger")

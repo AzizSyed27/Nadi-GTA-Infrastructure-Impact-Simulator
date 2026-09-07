@@ -130,6 +130,42 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     };
   }, [runId]);
 
+  // V2.7b C10b — RE-READ THE LEDGER WHEN THE RUN ENDS. The seed above runs ONCE per run id, before
+  // the run is over, and is deliberately dropped when the stream already has content. So the
+  // durable-only fields never reached a live watcher: `ended.reason` (which is the only thing that
+  // distinguishes "complete because everything ran" from "complete because nothing was asked for" —
+  // the live `run_ended` line carries an empty detail on that path), the projection, and the
+  // ledger's own per-stage call counts. The skipped/degraded block in the run document reads all
+  // three. MERGES rather than replaces: streamed content is the fresher truth and is never
+  // overwritten by a re-read.
+  const endedStatus = experience.ended?.status ?? null;
+  useEffect(() => {
+    if (!runId || STATIC_DEMO || !endedStatus) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await getLedger(runId);
+      if (cancelled || !res.ok || !res.value.ledger) return;
+      const led = res.value.ledger as Ledger;
+      setExperience((prev) => {
+        if (prev.runId !== runId) return prev; // a run swap raced the fetch
+        const durable = seedFromLedger(led, runId);
+        return {
+          ...prev,
+          ended: durable.ended ?? prev.ended,
+          projection: durable.projection ?? prev.projection,
+          llmCallsTotal: durable.llmCallsTotal || prev.llmCallsTotal,
+          stages: prev.stages.map((st) => {
+            const row = durable.stages.find((d) => d.key === st.key);
+            return row ? { ...st, status: row.status, calls: row.calls ?? st.calls } : st;
+          }),
+        };
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [runId, endedStatus]);
+
   useEffect(() => {
     // No run, or no backend to ask: the static demo serves pre-computed files and has no API, so
     // polling it would retry a refused connection forever behind a screen that is working fine.

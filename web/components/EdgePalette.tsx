@@ -314,7 +314,11 @@ const kindBtn: React.CSSProperties = {
   fontWeight: 600,
   cursor: 'pointer',
 };
-const kindActive: React.CSSProperties = { background: '#eef4ff', borderColor: '#1f4e9c', color: '#1f4e9c' };
+// the FULL shorthand, not `borderColor`: this object is spread over `kindBtn` (which carries
+// `border`), and a shorthand meeting its longhand across a spread is where the colour gets dropped
+const kindActive: React.CSSProperties = {
+  background: '#eef4ff', border: '1px solid #1f4e9c', color: '#1f4e9c',
+};
 const laneRow: React.CSSProperties = { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 4 };
 const laneCheck: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151' };
 const winRow: React.CSSProperties = { display: 'flex', gap: 8 };

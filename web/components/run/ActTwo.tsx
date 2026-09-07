@@ -43,6 +43,16 @@ export const ACT_TWO_NOTE =
 /** A stage that runs no model says so, rather than rendering a bare 0 a reader has to interpret. */
 export const NO_MODEL_CALLS = 'zero model calls — composed deterministically';
 
+export const SKIP_LABEL = 'Stop interpretation';
+export const SKIP_TITLE =
+  'Stops after the stage finishes what it is holding. Everything already generated is kept, and the ' +
+  'figures were final before any of this started.';
+/** The running total NEVER understates: retries are real calls and the projection cannot know them,
+ *  so the title says the actual can pass the estimate rather than quietly capping it. */
+export const COST_TITLE =
+  'Metered from the stages themselves. The estimate is a projection, not a cap — retries push the ' +
+  'actual above it.';
+
 const STATUS_MARK: Record<string, string> = {
   pending: '·', running: '▶', done: '✓', partial: '◐', skipped: '—', failed: '×',
 };
@@ -52,14 +62,23 @@ export function ActTwo({
   artifact,
   graphPanel,
   reportPanel,
+  onSkip,
+  skipping,
+  skipError,
 }: {
   experience: RunFeedState;
   artifact: TrajectoryArtifact;
   /** The discourse stage's body — passed in so this file doesn't pull deck.gl into every render. */
   graphPanel: React.ReactNode;
   reportPanel: React.ReactNode;
+  /** Stop the rest. The caller navigates to Read on success — see MapView's handler. */
+  onSkip: () => void;
+  skipping: boolean;
+  skipError: string | null;
 }) {
   const { stages } = experience;
+  const spent = experience.llmCallsTotal;
+  const projected = experience.projection?.calls ?? null;
 
   // AUTO-FOLLOW: the running stage, else the last one that has started. A reader who clicks a
   // started card PINS it (so a voice that would otherwise scroll past can be read) and the
@@ -79,6 +98,23 @@ export function ActTwo({
       <div style={head}>
         <div style={headLine}>{ACT_TWO_HEAD}</div>
         <div style={headNote}>{ACT_TWO_NOTE}</div>
+        <div style={brakeRow}>
+          {/* THE COST, and the control that stops it, side by side — a number a reader cannot act
+              on is just a number. Both are ledger-derived: `spent` is metered from the stages
+              themselves, `projected` is the server's own pre-spend estimate. */}
+          <span style={costTotal} title={COST_TITLE} data-testid="act-two-cost">
+            model calls: {spent.toLocaleString()}
+            {projected != null ? ` of ~${projected.toLocaleString()}` : ''}
+          </span>
+          <button className="btn btn-secondary" style={skipBtn} onClick={onSkip} disabled={skipping}
+                  title={SKIP_TITLE} data-testid="act-two-skip">
+            {skipping ? 'stopping…' : SKIP_LABEL}
+          </button>
+        </div>
+        {experience.projection?.basis && (
+          <div style={basisNote} data-testid="act-two-cost-basis">{experience.projection.basis}</div>
+        )}
+        {skipError && <div style={errNote} data-testid="act-two-skip-error">{skipError}</div>}
       </div>
 
       <div style={rail} data-testid="act-two-rail">
@@ -335,6 +371,18 @@ const headLine: React.CSSProperties = {
 const headNote: React.CSSProperties = {
   fontSize: 12.5, lineHeight: 1.5, color: 'var(--color-neutral-700)', maxWidth: 760, marginTop: 3,
 };
+const brakeRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap',
+};
+const costTotal: React.CSSProperties = {
+  fontFamily: 'var(--font-heading)', fontSize: 12.5, letterSpacing: '.05em',
+  color: 'var(--color-accent-700)',
+};
+const skipBtn: React.CSSProperties = { fontSize: 11.5, padding: '3px 9px' };
+const basisNote: React.CSSProperties = {
+  fontSize: 11, lineHeight: 1.45, color: 'var(--color-neutral-600)', marginTop: 3, maxWidth: 720,
+};
+const errNote: React.CSSProperties = { fontSize: 11.5, color: '#b3261e', marginTop: 4 };
 const rail: React.CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 };
 const railCard: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,

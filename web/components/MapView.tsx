@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { PathStyleExtension } from '@deck.gl/extensions';
-import { fmtWindowRange } from '@/lib/simTime';
+import { fmtSimTime, fmtWindowRange } from '@/lib/simTime';
 import { ARTIFACT_CACHE, EXAMPLE_RUN_ID, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
@@ -18,7 +18,7 @@ import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
-import { getJunctions, getEdges, getRuns, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
+import { getJunctions, getEdges, getRuns, postSkip, postResume, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/runStream';
 import { useRunFeed } from '@/lib/useRunFeed';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
@@ -43,6 +43,7 @@ import { ExampleBuildView, RunDocument, type ReportState } from '@/components/Ru
 import { RunListPopover } from '@/components/RunListPopover';
 import { HeldMoment, RunExperience, useHeldMomentSeen } from '@/components/run/RunExperience';
 import { ActTwo } from '@/components/run/ActTwo';
+import { WatchArticle } from '@/components/run/WatchArticle';
 import { DiscourseStage } from '@/components/run/DiscourseStage';
 import { ReportStage } from '@/components/run/ReportStage';
 import { chainState } from '@/lib/runFeed';
@@ -255,6 +256,7 @@ export default function MapView() {
   // true once the user explicitly starts/clones a draft — gates the EXAMPLE's read-only Build
   // view (without it, opening Build on the example shows composition, never an editable rail).
   const [freshDraft, setFreshDraft] = useState(false);
+  const [watchDocCollapsed, setWatchDocCollapsed] = useState(true); // opt-in: the map is Watch's point
   const [playbackBarHidden, setPlaybackBarHidden] = useState(false); // Watch: the bar is toggleable, shown by default
   const [cascadeId, setCascadeId] = useState<string | null>(null); // selected cascade in discourse mode
   // --- edit mode (5.2): draw-a-road + job runner ---
@@ -1585,7 +1587,7 @@ export default function MapView() {
           `<div style="font:12px system-ui,sans-serif;line-height:1.4">` +
           `<b>Near-miss event</b><br/>` +
           `type: ${c.type}<br/>` +
-          `sim-time: ${Math.round(c.t)}s<br/>` +
+          `sim-time: ${fmtSimTime(c.t, artifact?.meta.demand_profile)}<br/>` +
           `severity: ${c.severity.toFixed(2)} <span style="opacity:0.7">(higher = more severe in this run)</span>` +
           `</div>`,
         style: { background: 'rgba(20,20,25,0.92)', color: '#fff', borderRadius: '6px', padding: '7px 9px' },
@@ -1648,6 +1650,78 @@ export default function MapView() {
   const captionTime = Math.floor(currentTime);
   // Stable, or the memo above can never bail.
   const goRead = useCallback(() => setStage('read'), []);
+
+  // V2.7b C10b — THE BRAKE. Skip stops the interpretation and then takes the reader to Read: you
+  // ended it, here is everything that exists. THE TRIGGER IS THIS CLICK, never the terminal edge —
+  // routing on the edge would yank a reader off a pinned voice card when a run simply finishes, or
+  // when someone else stopped it from another surface. Only the user's own action moves the user.
+  const [skipping, setSkipping] = useState(false);
+  const [skipError, setSkipError] = useState<string | null>(null);
+  // V2.7b C10b — RESUME runs the stages the ledger says are not done. NB the endpoint re-runs
+  // `partial` and `failed` stages too, not only never-ran ones, which is why the button says "run
+  // the rest" rather than promising to pick up exactly where it stopped.
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const onResume = useCallback(async () => {
+    if (!activeRunId) return;
+    setResumeError(null);
+    setResuming(true);
+    const res = await postResume(activeRunId);
+    setResuming(false);
+    if (!res.ok) setResumeError(res.error); // verbatim: 403 pinned, 409 one-job, 409 nothing pending
+  }, [activeRunId]);
+
+  const onSkip = useCallback(async () => {
+    if (!activeRunId) return;
+    setSkipError(null);
+    setSkipping(true);
+    const res = await postSkip(activeRunId);
+    setSkipping(false);
+    if (!res.ok) {
+      setSkipError(res.error); // verbatim, like every other run-control error
+      return;
+    }
+    setStage('read');
+  }, [activeRunId]);
+
+  // V2.7b C10b — the interpretation's ending, as SENTENCES for the document. Everything here is
+  // ledger-derived: `voices` is what actually arrived, `voicesTotal` what was planned, the stage
+  // list is the ledger's own, and the reason is the server's `ended.reason` (which reaches the
+  // client only through the terminal-edge ledger re-read). A run that simply completed renders
+  // nothing — this is for the two endings that need explaining.
+  const ended = runFeed.experience.ended;
+  const interpretation = useMemo(() => {
+    if (!ended || ended.status === 'complete') return null;
+    const x = runFeed.experience;
+    // EVERY COUNTER HERE IS THE LEDGER'S. The first draft read the streamed voice array instead,
+    // which is a live-transport artifact: EventSource replays on reconnect, so that number drifts
+    // upward while the run sits idle. What actually happened is durable — which stages ran, which
+    // stopped part-way, which never started, and what each cost — so the sentence says that.
+    const kept: string[] = [];
+    const partial = x.stages.filter((st) => st.status === 'partial').map((st) => st.label);
+    if (partial.length) kept.push(`${partial.join(', ')} stopped part-way and kept what had landed`);
+    const done = x.stages.filter((st) => st.status === 'done').map((st) => st.label);
+    if (done.length) kept.push(`finished: ${done.join(', ')}`);
+    const never = x.stages.filter((st) => st.status === 'skipped').map((st) => st.label);
+    if (never.length) kept.push(`never ran: ${never.join(', ')}`);
+    const cost = x.llmCallsTotal ? `The run spent ${x.llmCallsTotal.toLocaleString()} model calls.` : null;
+    const sentence = kept.length
+      ? `${kept.join('; ').replace(/^./, (c) => c.toUpperCase())}. ${cost ?? ''}`.trim()
+      : cost;
+    const status = ended.status === 'failed' ? ('failed' as const) : ended.status === 'degraded'
+      ? ('degraded' as const) : ('skipped' as const);
+    // the reason only renders when it ADDS something: on a skip it is "stopped at your request",
+    // which the heading already says, and repeating it reads as a stray fragment (looked-at catch)
+    const reason = ended.detail && status !== 'skipped' ? `Reason given: ${ended.detail}.` : null;
+    return {
+      status,
+      kept: sentence,
+      reason,
+      onResume,
+      resuming,
+      error: resumeError,
+    };
+  }, [ended, runFeed.experience, onResume, resuming, resumeError]);
 
   // Shown once per run: the held moment is a MOMENT, not a gate, so re-interrupting on every
   // reload mid-Act-II would make it a nuisance.
@@ -2217,6 +2291,9 @@ export default function MapView() {
         <ActTwo
           experience={runFeed.experience}
           artifact={artifact}
+          onSkip={onSkip}
+          skipping={skipping}
+          skipError={skipError}
           graphPanel={
             <DiscourseStage
               stage={runFeed.experience.stages.find((s) => s.key === 'discourse')!}
@@ -2289,6 +2366,7 @@ export default function MapView() {
                 onSeek={setCurrentTime}
                 // the readout counts what is ACTUALLY on the map: the baseline leg, or nothing
                 vehicleCount={preview?.vehicles.length ?? 0}
+                demandProfile={meta.demand_profile}
               />
             )}
           </>
@@ -2368,6 +2446,27 @@ export default function MapView() {
               />
             )}
           </div>
+          {/* V2.7b C10b — the finished run's article, in the document panel it shares with Read.
+              It is the last of the two acts' surfaces: while a run computes Watch belongs to the
+              run experience, and when it finishes this says what the playback is and why a reader
+              might scrub through it. Collapsible like every other document panel. */}
+          <DocumentPanel
+            title="WATCH — THIS RUN, REPLAYED"
+            collapsed={watchDocCollapsed}
+            onToggle={setWatchDocCollapsed}
+            topOffset={78}
+          >
+            <WatchArticle
+              // the reader's own name for the run wins; else the change's own sentence
+              description={(liveIdentity?.runId === meta.run_id ? liveIdentity.name : null)
+                ?? changesOf(artifact)[0]?.description ?? null}
+              vehicles={artifact.vehicles.length}
+              conflicts={conflicts.length}
+              simStart={meta.sim_start}
+              simEnd={meta.sim_end}
+              demandProfile={meta.demand_profile}
+            />
+          </DocumentPanel>
           <ConflictLegend
             count={conflicts.length}
             activeCount={activeConflicts.length}
@@ -2389,6 +2488,7 @@ export default function MapView() {
               currentTime={t}
               onSeek={setCurrentTime}
               vehicleCount={artifact.vehicles.length}
+              demandProfile={meta.demand_profile}
             />
           )}
         </>
@@ -2437,6 +2537,7 @@ export default function MapView() {
             reportState={reportData?.runId === meta.run_id ? reportData.state : 'loading'}
             isExample={isExample}
             liveName={liveIdentity?.runId === meta.run_id ? liveIdentity.name : null}
+            interpretation={interpretation}
             onGroupDoorway={(g) => {
               // the 2.4 doorway: this group's voices, in Watch (the existing scorecard→feed join)
               setFeedGroup(g);

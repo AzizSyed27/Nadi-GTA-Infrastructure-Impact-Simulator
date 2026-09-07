@@ -142,7 +142,7 @@ function factsOnlyReport(framing = ''): string {
 
 async function mockActTwo(
   page: Page,
-  opts: { events?: string; status?: Record<string, unknown>; report?: string; graphs?: boolean; holdVoices?: boolean } = {},
+  opts: { events?: string; status?: Record<string, unknown>; report?: string; graphs?: boolean; realGraph?: boolean; holdVoices?: boolean } = {},
 ) {
   await mockDefaultArtifactBody(page, loadedArtifact());
   await page.route('**/api/junctions**', (r) => r.fulfill({ json: { junctions: [], count: 0 } }));
@@ -161,8 +161,14 @@ async function mockActTwo(
     r.fulfill({ status: 200, contentType: 'text/event-stream', body: opts.events ?? actTwoBody() }));
   await page.route(`**/${ART}-report.json`, (r) =>
     r.fulfill({ body: opts.report ?? factsOnlyReport(), contentType: 'application/json' }));
-  await page.route(`**/${ART}-graphs.json`, (r) =>
-    opts.graphs
+  await page.route(`**/${ART}-graphs.json`, (r) => {
+    if (opts.realGraph) {
+      // the COMMITTED pinned sidecar: 205 nodes, 724 edges, 3 cascades — a real cascade, not a stub
+      const real = JSON.parse(fs.readFileSync(
+        path.join(__dirname, '..', 'public', 'multimodal-scenario-20260702T044134Z-graphs.json'), 'utf-8')) as { oasis: unknown };
+      return r.fulfill({ json: { run_id: ART, generated_at: '2026-09-07T00:00:00Z', entity: null, oasis: real.oasis } });
+    }
+    return opts.graphs
       ? r.fulfill({
           json: {
             run_id: ART, generated_at: '2026-09-06T00:00:00Z', entity: null,
@@ -179,7 +185,8 @@ async function mockActTwo(
             },
           },
         })
-      : r.fulfill({ status: 404, body: 'no sidecar' }));
+      : r.fulfill({ status: 404, body: 'no sidecar' });
+  });
 }
 
 /** Land, open the run (its artifact IS the loaded one), go to Watch. */
@@ -284,7 +291,7 @@ test('discourse: while it runs it admits it has no step-by-step progress; then t
 });
 
 test('discourse: once the stage ends the graph lands, labeled as a REPLAY of recorded steps', async ({ page }) => {
-  await mockActTwo(page, { events: actTwoBody({ discourse: true }), graphs: true });
+  await mockActTwo(page, { events: actTwoBody({ discourse: true }), realGraph: true });
   await enterActTwo(page);
   await page.getByTestId('act-two-card-discourse').click();
 
@@ -294,7 +301,7 @@ test('discourse: once the stage ends the graph lands, labeled as a REPLAY of rec
   await expect(page.getByTestId('act-two-discourse-doorway')).toContainText('Explore · Discourse');
   // the posts are NOT duplicated here — their text lives only in the artifact
   await expect(page.getByTestId('act-two-discourse')).toContainText('influence connectors are drawn from opinion trajectories');
-  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c9-discourse-graph.png' });
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-oasis-graph.png' });
 });
 
 // ------------------------------------------------------------------------------- the report stage
@@ -310,7 +317,7 @@ test('the document composes from landed slots, and the audit line tallies them',
   // and the prose-not-composed box does NOT contradict the prose now on screen
   await expect(page.getByTestId('prose-not-composed')).toHaveCount(0);
   await expect(page.getByTestId('act-two-skeleton')).toBeVisible();
-  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c9-report-skeleton.png' });
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-report-skeleton.png' });
 });
 
 test('VIEW THE CORRECTION shows the rejected draft, the rule, and what replaced it', async ({ page }) => {
