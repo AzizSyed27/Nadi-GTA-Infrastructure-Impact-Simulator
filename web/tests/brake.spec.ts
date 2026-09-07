@@ -19,6 +19,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { mockDefaultArtifactBody, DEFAULT_RUN_ID } from './support/default-artifact';
 import { gate, openRunFromList, openStage } from './support/shell';
+import { BANNED, STANCE_TALLY } from './support/sweeps';
 
 const RUN = DEFAULT_RUN_ID;
 
@@ -195,6 +196,10 @@ test('a DEGRADED run says the figures still stand', async ({ page }) => {
   await expect(block).toContainText('Interpretation could not finish.');
   await expect(block).toContainText('The figures and the scorecard in this document are final');
   await expect(block).toContainText('Reason given: provider unreachable.');
+  // and the stage that failed is NAMED with its reason. Before C11 `failed` matched none of the
+  // status filters, so voices vanished from the sentence while its 47 calls still counted — a
+  // reader saw a spend with nothing to attach it to.
+  await expect(block).toContainText('failed: voices — provider unreachable');
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-degraded-state.png' });
 });
 
@@ -283,6 +288,35 @@ test('a FINISHED run gets an article, and its near-miss count carries the surrog
   await expect(article).toContainText('near-miss surrogate events');
   await expect(page.getByTestId('watch-article-safety-note'))
     .toContainText('Never crash prediction.');
+  // the article renders narrative prose and appears in no other spec — swept HERE, where it is
+  // actually on screen
+  const body = await page.locator('body').innerText();
+  expect(body).not.toMatch(BANNED);
+  expect(body).not.toMatch(STANCE_TALLY);
   // and the act is not showing: this run is finished
   await expect(page.getByTestId('act-two')).toHaveCount(0);
+});
+
+// --------------------------------------------------------------------------------------- sweeps
+
+test('the brake, the endings and the article add no aggregate framing of their own', async ({ page }) => {
+  // Every surface C10b added was unswept: the cost line and its basis, the skip control and its
+  // error, the stopped and degraded blocks, the Run button's spend sentence, and the Watch
+  // article — which renders narrative prose and appears in no other spec. The referendum guard is
+  // about what the UI says on its own; these are the newest places it could say something.
+  await mockRun(page, { events: stoppedBody(), ledger: LEDGER_STOPPED });
+  await enterActTwo(page);
+  const live = await page.locator('body').innerText();
+  expect(live).not.toMatch(BANNED);
+  expect(live).not.toMatch(STANCE_TALLY);
+
+  await page.getByTestId('act-two-skip').click();
+  await expect(page.getByTestId('interpretation-skipped')).toBeVisible({ timeout: 20_000 });
+  const stopped = await page.locator('body').innerText();
+  expect(stopped).not.toMatch(BANNED);
+  expect(stopped).not.toMatch(STANCE_TALLY);
+
+  // NB the Watch article is swept in its own test, not here: this fixture's /status keeps saying
+  // `running`, so Act II stays mounted and the finished-run layout the article lives in is
+  // unreachable. Sweeping where the surface cannot render proves nothing.
 });

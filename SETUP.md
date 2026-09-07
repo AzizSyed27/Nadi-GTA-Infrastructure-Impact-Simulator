@@ -74,11 +74,24 @@ conda run --no-capture-output -n oasis python python/src/oasis_spike.py
 cd python/src && uvicorn server:app --port 8000
 
 # terminal 2 — the frontend
-cd web && npm run dev          # http://localhost:3000 → open the ✏️ Edit toggle
+cd web && npm run dev          # http://localhost:3000 → lands on the run document (Read)
 ```
 
-Draw a change on the map, hit Run, watch the staged pipeline (baseline → scenario → analysis),
-then enrich the finished run (voices → report → discourse) from its run card.
+Compose a change in **Build**, then press Run. What follows is two acts:
+
+**Act I — the physics.** Four timestamped beats over a map playing the run's own baseline leg
+while the scenario leg computes. No model is called. **Your results are complete the moment
+Act I ends** — the figures, the scorecard and the caveats are readable before any AI runs.
+
+**Act II — the interpretation.** Voices, the mandate lens, the discourse cascades, the audited
+report and the chat index, streaming in Watch.
+
+> **Act II spends money, and it starts on its own.** A full run is roughly **1,800 model calls**
+> — the three discourse cascades are ~90% of that. The Run button tells you the estimate before
+> you press it, the running total sits beside a **Stop interpretation** button while it works, and
+> stopping keeps everything already generated (the figures never depended on it). To turn the
+> chain off entirely, launch the server with `NADI_AUTO_ENRICH=0`; Act I still runs, and the three
+> enrich buttons on the run card still let you spend one stage at a time.
 
 Notes for a fresh clone: the repo ships two complete pre-computed runs (the pinned 212-voice
 social run and a modern institutional run) — the map loads one immediately, before you ever run

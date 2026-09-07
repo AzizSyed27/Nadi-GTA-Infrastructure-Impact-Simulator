@@ -13,8 +13,9 @@
  *   - fetch/transfer split (resource timing on the artifact), main-thread JSON.parse (the
  *     permanent nadi:parse marks + an isolated in-page parse control), the pinned/bg join
  *     (nadi:join marks), navigation → first committed artifact render (nadi:artifact-rendered);
- *   - frame profile at the exemplar's concurrency peak (scrub to t=3400, press Play, sample
- *     600 rAF deltas ≈ 10 s): p50/p95/max frame ms + fps + longtask count;
+ *   - frame profile at the exemplar's concurrency peak (scrub to t=3400, press Play, sample rAF
+ *     deltas for 15 s — TIME-bounded, so the window is the same on a fast machine and a slow one;
+ *     the printed sample COUNT therefore varies with the frame rate): p50/p95/max ms + fps + longtasks;
  *   - usedJSHeapSize after first render (launch with --enable-precise-memory-info).
  *
  * SCOPE: the nadi:* marks instrument the MOUNT path only (?run= / pointer-resolve);
@@ -219,7 +220,7 @@ console.log(`parse (product mark) ${load.parseMs} ms · parse control ${parseCon
 console.log(`nav → first artifact render: ${load.navToRenderMs} ms (wall ${wallToRender} ms)`);
 console.log(`heap after render: ${load.heapMB} MB`);
 console.log(
-  `frames @t≈${SCRUB_T} (600 samples): p50 ${p50.toFixed(1)} ms (${(1000 / p50).toFixed(0)} fps) · ` +
+  `frames @t≈${SCRUB_T} (${frames.length} samples over 15s): p50 ${p50.toFixed(1)} ms (${(1000 / p50).toFixed(0)} fps) · ` +
     `p95 ${p95.toFixed(1)} ms (${(1000 / p95).toFixed(0)} fps) · max ${max.toFixed(0)} ms · longtasks ${frames.longTasks}`,
 );
 if (appendReport) {

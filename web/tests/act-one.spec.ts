@@ -435,9 +435,10 @@ test('the honest variant withholds the ✓ rather than decorating a sentence tha
 
 /**
  * THE MODAL FOOTER USED TO OVERCLAIM. It said "Interpretation is already underway below"
- * unconditionally — and `NADI_AUTO_ENRICH` is off until C10, so in the shipping configuration
- * nothing is underway and the run card two inches behind the modal shows `voices —` beside manual
- * enrich buttons. The first clause is now derived; the second never is.
+ * unconditionally — and the chain can be disarmed (`NADI_AUTO_ENRICH=0`; it was off by default
+ * until C10b armed it), in which case nothing is underway and the run card two inches behind the
+ * modal shows `voices —` beside manual enrich buttons. The first clause is now derived; the second
+ * never is.
  */
 async function heldFooter(page: Page, tail: string) {
   await mockActOne(page, { events: actOneBody() + tail, doneAfter: 3 });
@@ -470,6 +471,18 @@ test('footer, the facts-only window: it claims neither, rather than guessing', a
 });
 
 // -------------------------------------------------------------------------------------- the sweep
+
+test('the held moment adds no aggregate framing either', async ({ page }) => {
+  // The sweep below enters `watch` with a still-running run, so the modal is never on screen while
+  // it runs — the checklist, its lead-in and its footer were unswept by construction.
+  await mockActOne(page, { events: actOneBody(), doneAfter: 3 });
+  await serveFinishedRun(page);
+  await enterActOne(page, 'build');
+  await expect(page.getByTestId('held-moment')).toBeVisible({ timeout: 25_000 });
+  const body = await page.locator('body').innerText();
+  expect(body).not.toMatch(BANNED);
+  expect(body).not.toMatch(STANCE_TALLY);
+});
 
 test('Act I adds no aggregate framing of its own', async ({ page }) => {
   await mockActOne(page, { events: actOneBody() });

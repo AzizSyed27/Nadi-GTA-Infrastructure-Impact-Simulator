@@ -369,8 +369,8 @@ export function foldEvents(seed: RunFeedState, events: RunEvent[]): RunFeedState
 /**
  * V2.7b C9 — is interpretation actually happening? The held moment used to claim "interpretation is
  * already underway below" unconditionally, which is false in the shipping configuration:
- * `NADI_AUTO_ENRICH` is off until C10, so behind the modal the run card shows `voices —` beside
- * manual enrich buttons.
+ * the chain can be disarmed (`NADI_AUTO_ENRICH=0`; it was off by default until C10b),
+ * and behind the modal the run card then shows `voices —` beside manual enrich buttons.
  *
  * The discriminator is the fold's own stage set, because the no-chain path writes NO stage events
  * at all — the server ends the run with `run_ended` and the ledger's

@@ -10,7 +10,7 @@ node scripts/build-static-demo.mjs
 ```
 
 This runs the `NEXT_STATIC_EXPORT=1` export build, prunes `web/out/` to the demo set (the pinned
-212-voice run's triple, the modern institutional run, `network.json`, `latest-report.*`), writes
+212-voice run's triple, the modern institutional run + its per-run report, `network.json`), writes
 the `out/latest.json` pointer (build-written, never committed), and prints the manifest with a
 per-file size check. Expect **~44 MB total, every file under 25 MiB** — that last number is
 Cloudflare Pages' hard per-file cap, and the script fails loudly if any file crosses it.

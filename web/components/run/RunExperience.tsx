@@ -140,9 +140,9 @@ export const RunExperience = memo(function RunExperience({
 export const HELD_LEAD_VERIFIED = 'The tool proved the cleanup rather than asserting it:';
 export const HELD_LEAD_PLAIN = 'What this run did with your change:';
 /** THE FIRST CLAUSE IS DERIVED, because it is a claim about what the machine is doing and the
- *  machine is not always doing it. `NADI_AUTO_ENRICH` is off until C10, so in the shipping
- *  configuration nothing is underway behind this panel and the run card says as much two inches
- *  away. The SECOND clause is true in every case and is never derived — the panel is a moment
+ *  machine is not always doing it. the chain can be disarmed (`NADI_AUTO_ENRICH=0`), and until C10b it
+ *  was off by default — in either case nothing is underway behind this panel while the run card
+ *  says as much two inches away. The SECOND clause is true in every case and is never derived — the panel is a moment
  *  whether or not interpretation started. */
 export const HELD_NOTE_UNDERWAY = 'Interpretation is already underway below —';
 export const HELD_NOTE_NOT_STARTED =

@@ -1704,6 +1704,15 @@ export default function MapView() {
     if (done.length) kept.push(`finished: ${done.join(', ')}`);
     const never = x.stages.filter((st) => st.status === 'skipped').map((st) => st.label);
     if (never.length) kept.push(`never ran: ${never.join(', ')}`);
+    // FAILED matched none of the three filters above, so a stage that failed vanished from the
+    // sentence while its spend still counted — a degraded run read "47 model calls" with voices in
+    // neither the finished list nor the never-ran one, and nothing saying where they went. The
+    // stage's own detail is the ledger's (`set_stage(..., detail=...)`), carried through the
+    // terminal-edge re-read; without that half this clause would have a name and no reason.
+    const failed = x.stages.filter((st) => st.status === 'failed');
+    if (failed.length) {
+      kept.push(`failed: ${failed.map((st) => (st.detail ? `${st.label} — ${st.detail}` : st.label)).join(', ')}`);
+    }
     const cost = x.llmCallsTotal ? `The run spent ${x.llmCallsTotal.toLocaleString()} model calls.` : null;
     const sentence = kept.length
       ? `${kept.join('; ').replace(/^./, (c) => c.toUpperCase())}. ${cost ?? ''}`.trim()

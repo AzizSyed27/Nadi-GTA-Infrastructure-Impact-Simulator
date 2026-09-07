@@ -156,7 +156,11 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
           llmCallsTotal: durable.llmCallsTotal || prev.llmCallsTotal,
           stages: prev.stages.map((st) => {
             const row = durable.stages.find((d) => d.key === st.key);
-            return row ? { ...st, status: row.status, calls: row.calls ?? st.calls } : st;
+            // `detail` too: it is where the ledger keeps a failed stage's REASON, and the
+            // document's degraded block is the only thing that ever shows it to a reader
+            return row
+              ? { ...st, status: row.status, calls: row.calls ?? st.calls, detail: row.detail || st.detail }
+              : st;
           }),
         };
       });
