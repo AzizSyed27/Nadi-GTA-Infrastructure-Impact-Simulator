@@ -54,6 +54,7 @@ export const RunExperience = memo(function RunExperience({
   experience,
   demandProfile,
   playing,
+  ghost,
   simTime,
   onReadResults,
 }: {
@@ -64,6 +65,10 @@ export const RunExperience = memo(function RunExperience({
    *  the event rather than on the screen claims playback during the fetch. The caption describes
    *  what a reader can see. */
   playing: boolean;
+  /** Is the member's outline actually DRAWN. Separate from `playing`, because a run whose baseline
+   *  can't be played still draws the ghost — and an unexplained dashed line on the map is exactly
+   *  the kind of thing this caption exists to prevent. */
+  ghost: boolean;
   /** The playback clock in WHOLE sim-seconds. The caller quantizes and this component is memo'd, so
    *  Act I's panels re-render when the displayed second changes and not on every rAF tick — the map
    *  owns that budget (the V2.5c trails-identity lesson, one surface over). `onReadResults` must be
@@ -84,7 +89,7 @@ export const RunExperience = memo(function RunExperience({
         <div style={captionBody}>
           {playing ? CAPTION_BODY : (baselineUnavailable ?? PENDING_BASELINE)}
         </div>
-        {playing && <div style={ghostLabel} data-testid="act-one-ghost-label">{GHOST_LABEL}</div>}
+        {ghost && <div style={ghostLabel} data-testid="act-one-ghost-label">{GHOST_LABEL}</div>}
       </div>
 
       <div className="nadi-shell" style={ledgerWrap} data-testid="act-one-ledger">

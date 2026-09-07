@@ -42,6 +42,11 @@ import { windowedScope } from '@/lib/windowedScope';
 import { ExampleBuildView, RunDocument, type ReportState } from '@/components/RunDocument';
 import { RunListPopover } from '@/components/RunListPopover';
 import { HeldMoment, RunExperience, useHeldMomentSeen } from '@/components/run/RunExperience';
+import { ActTwo } from '@/components/run/ActTwo';
+import { DiscourseStage } from '@/components/run/DiscourseStage';
+import { ReportStage } from '@/components/run/ReportStage';
+import { chainState } from '@/lib/runFeed';
+import { mergeSlots } from '@/lib/mergeSlots';
 import { reportRunId, reportUrl, type PerRunReport } from '@/lib/reportData';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
@@ -517,6 +522,12 @@ export default function MapView() {
   // just exported fresh layouts for the SAME run_id). Acceptance goes through a FUNCTIONAL setter
   // (only the still-pending fetch for this run may land) instead of an effect-cleanup `cancelled`
   // flag — cleanup would also fire on the guarded reruns this effect's own setState causes.
+  // V2.7b C9 — Act II reads the per-run report (as the merge base) and the graphs sidecar (the
+  // discourse card's graph) while the reader is in WATCH, but both fetches are lazy on their own
+  // stages. This flag unlocks them. It is set by a render-phase adjustment further down, because
+  // `actTwo` needs the run feed and cannot be computed this early; the fetch effects can't move
+  // below it without dragging their state declarations along.
+  const [actTwoWantsData, setActTwoWantsData] = useState(false);
   const [graphsSidecar, setGraphsSidecar] = useState<{
     runId: string;
     data: GraphsSidecar | null;
@@ -524,7 +535,7 @@ export default function MapView() {
     error: boolean;
   } | null>(null);
   useEffect(() => {
-    if (!(stage === 'explore' && exploreSub === 'graphs') || !artifact) return;
+    if (!(stage === 'explore' && exploreSub === 'graphs' || actTwoWantsData) || !artifact) return;
     const runId = artifact.meta.run_id;
     if (graphsSidecar?.runId === runId) return; // fetched, fetching, or errored — loadRun clears to refresh
     // queueMicrotask: the loading-state flip must not run synchronously inside the effect body
@@ -547,7 +558,7 @@ export default function MapView() {
         settle({ runId, data: null, loading: false, error: true });
       }
     })();
-  }, [stage, exploreSub, artifact, graphsSidecar]);
+  }, [stage, exploreSub, artifact, graphsSidecar, actTwoWantsData]);
 
   // V2.7a C3 — the per-run REPORT for the Read stage (the graphs-sidecar pattern: lazy, keyed on
   // the run id, cleared by loadRun). VINTAGE GUARD: a report whose own run id disagrees with the
@@ -575,7 +586,7 @@ export default function MapView() {
     });
   }, [stage, artifact, liveIdentity]);
   useEffect(() => {
-    if (stage !== 'read' || !artifact) return;
+    if (!(stage === 'read' || actTwoWantsData) || !artifact) return;
     const runId = artifact.meta.run_id;
     if (reportData?.runId === runId) return; // fetched, fetching, or errored — loadRun clears to refresh
     queueMicrotask(() => setReportData({ runId, report: null, state: 'loading' }));
@@ -598,7 +609,7 @@ export default function MapView() {
         settle({ runId, report: null, state: 'missing' });
       }
     })();
-  }, [stage, artifact, reportData]);
+  }, [stage, artifact, reportData, actTwoWantsData]);
 
   // Static split (recomputed only when the artifact changes). PINNED = sim agents joined to a real
   // simulated traveler — vehicle- OR person-backed (both get a clickable dot). BACKGROUND = every
@@ -906,6 +917,7 @@ export default function MapView() {
     // V2.3d: an enrich may have just exported fresh graph layouts for this same run_id — drop the
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
+    setActTwoWantsData(false); // V2.7b: the next run earns its own Act II fetches
     setReportData(null); // the Read stage refetches the new run's report
     setLiveIdentity(null);
     setFreshDraft(false); // viewing a run again — a future Build click shows its composition/watcher
@@ -1070,6 +1082,41 @@ export default function MapView() {
     runFeed.status != null && runFeed.status.status !== 'done' && runFeed.status.status !== 'failed';
   const actOne =
     watchedRunNotLoaded && (watchedRunLive || runFeed.experience.beats.length > 0);
+
+  // V2.7b C9 — ACT II. The physics is over (its artifact is loaded, so `actOne` is false), the fold
+  // belongs to THIS run, interpretation has started, and the run is still live. That last clause is
+  // what makes the act LIVE-ONLY as ratified: a finished run reopened from the list opens no stream,
+  // so it can never mount here — and the ledger seed, which DOES carry stage statuses, cannot fake
+  // it into history. `experience.ended` deliberately does NOT unmount it: a reader watches the last
+  // stage finish rather than having the screen vanish at the moment it completes.
+  const actTwo =
+    !actOne &&
+    runFeed.experience.runId != null &&
+    runFeed.experience.runId === artifact?.meta.run_id &&
+    watchedRunLive &&
+    chainState(runFeed.experience) === 'running';
+
+  // Unlock the report + graphs fetches for Act II (React's "adjusting state when a prop changes";
+  // never resets here — loadRun clears it on a run swap).
+  if (actTwo && !actTwoWantsData) setActTwoWantsData(true);
+
+  // THE FILE WINS. While the report stage runs, the document on screen is a client-side MERGE of
+  // the slots that have landed. The moment the stage ends, drop the fetched report so the effect
+  // above re-reads the one report.py actually wrote — and it cannot race: report.py writes
+  // web/public/<run>-report.json before its process exits, and the server emits stage_end only
+  // after that process returns. Same for the graphs sidecar, which the discourse enrich writes.
+  const reportStageDone = runFeed.experience.stages.find((s) => s.key === 'report')?.status === 'done';
+  const discourseStageDone = runFeed.experience.stages.find((s) => s.key === 'discourse')?.status === 'done';
+  const [prevReportDone, setPrevReportDone] = useState(reportStageDone);
+  if (reportStageDone !== prevReportDone) {
+    setPrevReportDone(reportStageDone);
+    if (reportStageDone) setReportData(null); // EDGE-triggered: clearing every render would loop
+  }
+  const [prevDiscourseDone, setPrevDiscourseDone] = useState(discourseStageDone);
+  if (discourseStageDone !== prevDiscourseDone) {
+    setPrevDiscourseDone(discourseStageDone);
+    if (discourseStageDone) setGraphsSidecar(null);
+  }
 
   // V2.7b C7 — the experience seam: counts and stage keys, NEVER content. Specs read the fold's
   // shape from here; the content itself is asserted on the rendered surfaces, where a reader sees it.
@@ -1833,7 +1880,7 @@ export default function MapView() {
   // them; Explore·Discourse keeps the map visible behind the feed like the old discourse mode.
   // The old silent discourse→playback degrade is gone — a run with no social block renders the
   // LABELED discourse-empty state instead (the graphs precedent: enterable, honest, never dead).
-  const sheetMode = stage === 'explore' && exploreSub !== 'discourse';
+  const sheetMode = (stage === 'explore' && exploreSub !== 'discourse') || actTwo;
 
   // 5.3 CHANGE-VISIBILITY overlay (persistent, ALL modes) — the loaded run's change LOCATION so rerouting cars
   // don't appear to drive through empty space. Derived from the artifact (via the geometry fetch), NOT draw-state.
@@ -1879,12 +1926,20 @@ export default function MapView() {
     id: 'ghost-change',
     data: ghostItems,
     getPath: (d) => d.path,
-    getColor: [70, 76, 92, 115], // translucent slate: present, plainly not in force
-    getWidth: 9,
+    // DASHED slate. Solid-and-translucent read as another grey road on a grey basemap (looked-at
+    // catch: the outline the caption promises was technically drawn and practically invisible).
+    // A dash is also the truer signal — this member is an outline of something not in force, and
+    // dashing is already this project's mark for "a different kind of thing" (influence connectors).
+    getColor: [64, 70, 86, 205],
+    getWidth: 5,
     widthUnits: 'pixels',
+    getDashArray: [7, 5],
+    dashJustified: true,
+    extensions: [new PathStyleExtension({ dash: true })],
     capRounded: true,
     jointRounded: true,
-  });
+    // the closure-dash cast idiom: getDashArray rides the extension, not PathLayer's own props
+  } as ConstructorParameters<typeof PathLayer<OverlayItem>>[0]);
   const changeOverlay = new PathLayer<OverlayItem>({
     id: 'change-overlay',
     data: legacyItems,
@@ -2155,6 +2210,49 @@ export default function MapView() {
           onDraftHover={setHoveredDraftId}
           onClone={cloneToDraft}
         />
+      ) : stage === 'watch' && actTwo ? (
+        // V2.7b C9 — ACT II. The map's job is over (Act I ended, the artifact is this run's); the
+        // interpretation gets the surface. Live-only: a finished run reopened from the list never
+        // reaches here, so the ordinary Watch layout below is what it gets.
+        <ActTwo
+          experience={runFeed.experience}
+          artifact={artifact}
+          graphPanel={
+            <DiscourseStage
+              stage={runFeed.experience.stages.find((s) => s.key === 'discourse')!}
+              // the triple run-id guard, same as GraphSplitView's call site: a sidecar for another
+              // run is never handed to a panel that would render it as this one's
+              graphs={graphsSidecar?.runId === meta.run_id ? graphsSidecar.data : null}
+              onOpenDiscourse={() => {
+                setStage('explore');
+                setExploreSub('discourse');
+              }}
+            />
+          }
+          reportPanel={
+            <ReportStage
+              experience={runFeed.experience}
+              artifact={artifact}
+              // THE MERGE IS SCAFFOLDING: while the report stage runs this is the facts-only
+              // document plus whatever slots have landed; at stage_end the fetch above re-reads
+              // the written file and this becomes the file itself.
+              report={
+                reportData?.runId === meta.run_id
+                  ? reportStageDone
+                    ? reportData.report
+                    : mergeSlots(reportData.report, runFeed.experience.slots)
+                  : null
+              }
+              reportState={reportData?.runId === meta.run_id ? reportData.state : 'loading'}
+              isExample={isExample}
+              liveName={liveIdentity?.runId === meta.run_id ? liveIdentity.name : null}
+              onGroupDoorway={(g) => {
+                setFeedGroup(g);
+                setStage('watch');
+              }}
+            />
+          }
+        />
       ) : stage === 'watch' ? (
         actOne ? (
           // V2.7b C8b — ACT I. Watch's panels are HIDDEN rather than emptied while a run computes:
@@ -2169,6 +2267,7 @@ export default function MapView() {
               // about the run computing, and only a calibrated profile has a clock to anchor to
               demandProfile={runFeed.experience.demandProfile ?? undefined}
               playing={preview != null}
+              ghost={ghostItems.length > 0}
               simTime={captionTime}
               onReadResults={goRead}
             />

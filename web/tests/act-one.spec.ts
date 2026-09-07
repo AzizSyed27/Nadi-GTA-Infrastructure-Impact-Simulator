@@ -30,7 +30,8 @@ const NEW_RUN = 'multimodal-scenario-20260901T120000Z';
 // The server's own sentences, as `scenario_harness.Beats` writes them. Copied here as LITERALS on
 // purpose: a pin that imported the string from the client would assert a constant against itself.
 const B3_TITLE = 'YOUR CHANGE APPLIED AT t=600 s';
-const B3_DETAIL = 'road_closure on -36784353#20 is now active in the scenario leg — computing, not shown';
+const GHOST_EDGE = '-35303701'; // real, 744 m, inside the fixture's bbox — see the ghost test
+const B3_DETAIL = `road_closure on ${GHOST_EDGE} is now active in the scenario leg — computing, not shown`;
 const B4_TITLE = 'REVERTED AT t=1200 s';
 const B4_DETAIL =
   'the change withdrew on schedule; on every lane it touched, the permissions and speed limit ' +
@@ -134,7 +135,7 @@ async function mockActOne(
         stage: over ? 'done' : 'scenario',
         status: over ? 'done' : 'running',
         description: 'a closure at the doorstep',
-        changes: opts.changes ?? [{ type: 'road_closure', target_edge: 'edge-a' }],
+        changes: opts.changes ?? [{ type: 'road_closure', target_edge: GHOST_EDGE }],
         ...(opts.status ?? {}),
       },
     });
@@ -212,6 +213,10 @@ test('the map caption says which leg is playing, and labels the ghost as not-in-
   );
   await expect(page.getByTestId('act-one-ghost-label'))
     .toHaveText('YOUR MEMBER — APPLIES TO THE SCENARIO LEG, NOT THIS PLAYBACK');
+  // AND THE OUTLINE IS ACTUALLY DRAWN. The label promises a ghost; until this pin the mock used an
+  // edge id no networkLookup entry matched, so the layer was empty in every run and every
+  // screenshot — a caption describing something that was never on screen.
+  await expect.poll(async () => (await overlaySeam(page))?.ghost, { timeout: 20_000 }).toBe(1);
   await expect(cap).toContainText('sim-time t='); // synthetic demand has no clock anchor to invent
   // env-gated capture for the looked-at review (`NADI_SHOTS=1 npx playwright test act-one --headed`).
   // Seams cannot see pixels: three real leaks in this commit were found only by looking at these.
@@ -227,7 +232,9 @@ test('a profile with no baseline playback says so — AND the map is genuinely e
   await expect(cap).toContainText('MAP SHOWS: THE NETWORK ONLY');
   await expect(cap).toContainText('freed during the run to keep memory bounded');
   await expect(cap).toContainText('The beats and the results are unaffected.');
-  await expect(page.getByTestId('act-one-ghost-label')).toHaveCount(0); // nothing is playing to ghost over
+  // the member's outline is still DRAWN here (the change exists; only the playback doesn't), so its
+  // label rides with it — an unexplained dashed line is what the caption exists to prevent
+  await expect(page.getByTestId('act-one-ghost-label')).toBeVisible();
 
   // THE SENTENCE HAS TO BE TRUE. The entity source is gated on Act I, not on "is there a preview":
   // a `preview ?? artifact` fallthrough would animate the LOADED run's traffic under this exact
@@ -236,6 +243,7 @@ test('a profile with no baseline playback says so — AND the map is genuinely e
   expect((await renderStats(page))!.pinnedAgents).toBe(0);
   // and the clock counts what is on the map, not what used to be
   await expect(page.getByTestId('timeline-readout')).toContainText('0 veh');
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c9-network-only.png' });
 });
 
 test('before the baseline lands, the caption says THAT — not that there will never be one', async ({ page }) => {
