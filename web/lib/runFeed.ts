@@ -254,7 +254,17 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
       if (!keys) return prev;
       const status: StageStatus = ev.status === 'failed' ? 'failed' : 'done';
       s.stages = [...s.stages];
-      for (const k of keys) {
+      // V2.7b C9 — the MANUAL report enrich runs report.py AND report_agent.py under one
+      // `enrich:report` state string, so `index_progress` starts the chat-index card and nothing
+      // would ever end it. (The auto-chain gives index its own `enrich:index` step, so this only
+      // fires on the manual path — which, with the chain dark until C10, is the path a reader
+      // actually takes.) Close it only if it is running: a report enrich on a run whose index was
+      // never touched must not mark that stage done.
+      const groupKeys =
+        ev.stage === 'enrich:report' && s.stages.find((x) => x.key === 'index')?.status === 'running'
+          ? [...keys, 'index' as StageKey]
+          : keys;
+      for (const k of groupKeys) {
         const cur = s.stages.find((x) => x.key === k);
         // a stage that never started (no content arrived) is not silently marked done
         if (cur && (cur.status === 'running' || status === 'failed')) {
@@ -356,6 +366,29 @@ export function foldEvents(seed: RunFeedState, events: RunEvent[]): RunFeedState
 
 /** The AUDIT LINE, derived from the slots that have landed — never a literal. `code_rendered`
  *  slots are counted separately because they cost nothing and were never model-audited. */
+/**
+ * V2.7b C9 — is interpretation actually happening? The held moment used to claim "interpretation is
+ * already underway below" unconditionally, which is false in the shipping configuration:
+ * `NADI_AUTO_ENRICH` is off until C10, so behind the modal the run card shows `voices —` beside
+ * manual enrich buttons.
+ *
+ * The discriminator is the fold's own stage set, because the no-chain path writes NO stage events
+ * at all — the server ends the run with `run_ended` and the ledger's
+ * `reason: "interpretation not requested"`, which never reaches the client live (the ledger is read
+ * once at mount, before the run ends, and the live `run_ended` line carries `detail: ""`).
+ *
+ *   'running'  a stage has moved off `pending`, so something started.
+ *   'none'     the run ended having started none.
+ *   'unknown'  neither yet — the facts-only window between the physics finishing and the chain's
+ *              first stage. Real, brief, and NOT worth guessing about on screen.
+ */
+export type ChainState = 'running' | 'none' | 'unknown';
+
+export function chainState(state: RunFeedState): ChainState {
+  if (state.stages.some((s) => s.status !== 'pending')) return 'running';
+  return state.ended ? 'none' : 'unknown';
+}
+
 export function auditTally(slots: SlotState[]): {
   clean: number; corrected: number; unresolved: number; codeRendered: number;
 } {

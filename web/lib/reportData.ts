@@ -50,8 +50,14 @@ export interface DiscourseSection {
 }
 export interface AuditEntry {
   slot: string;
-  status: 'clean' | 'resolved_on_retry' | 'failed';
+  /** V2.7b: `code_rendered` is real and was undeclared — report.py emits it for every sparse gloss
+   *  row (<=1 signal), which never reaches the LLM at all. */
+  status: 'clean' | 'resolved_on_retry' | 'failed' | 'code_rendered';
   violations: { rule: string; sentence: string }[];
+  /** The REJECTED pre-retry text (C5). Absent on reports generated before V2.7b — the client says
+   *  so rather than implying the correction was never recorded. */
+  draft?: string;
+  still_present?: { rule: string; sentence: string }[];
 }
 
 /** The V2.7a C1 widened facts block — every code-derived fact the document renders. Keys are
@@ -113,7 +119,9 @@ export interface PerRunReport {
   car_tail: { median_s: number; share_gt30_pct: number; cross_seed_available: boolean; sentence: string };
   sections: {
     what_tested: { framing: string };
-    who_affected: { glosses: Record<string, string> };
+    /** `group_order` / `group_labels` are code-rendered and have always been in the JSON; declared
+     *  in V2.7b because Act II's composing document reads the section while it is still filling. */
+    who_affected: { glosses: Record<string, string>; group_order?: string[]; group_labels?: Record<string, string> };
     what_they_say: { groups: SynthGroup[] };
     /** V2.3c — code-rendered mandate-lens voices; null/absent on pre-0.9.0 reports (renders nothing). */
     institutional?: {

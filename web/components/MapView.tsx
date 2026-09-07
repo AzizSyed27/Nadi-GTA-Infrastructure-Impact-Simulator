@@ -23,7 +23,8 @@ import type { VoiceEvent } from '@/lib/runStream';
 import { useRunFeed } from '@/lib/useRunFeed';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { RoomDrawer, type RoomMsg, type RoomPair, type RoomRound } from '@/components/RoomDrawer';
-import { GraphSplitView, type GraphsSidecar } from '@/components/GraphSplitView';
+import { GraphSplitView } from '@/components/GraphSplitView';
+import type { GraphsSidecar } from '@/lib/graphLayers';
 import { Timeline } from '@/components/Timeline';
 import { ScenarioHeader } from '@/components/ScenarioHeader';
 import { CommentFeed } from '@/components/CommentFeed';
@@ -704,7 +705,7 @@ export default function MapView() {
     };
     performance.mark('nadi:join:end');
     return out;
-  }, [artifact, watchedRunNotLoaded, normVehicles, normPersons, rawVehicles, rawPersons]);
+  }, [artifact, watchedRunNotLoaded, conflicts, normVehicles, normPersons, rawVehicles, rawPersons]);
 
   // V2.6c — publish the render-stats seam (the __nadiArrowCount convention: a useEffect, never an
   // in-memo window write).

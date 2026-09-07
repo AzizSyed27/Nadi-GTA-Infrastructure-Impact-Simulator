@@ -397,8 +397,8 @@ test('the held moment proves the cleanup — and the ✓ is EARNED', async ({ pa
   await expect(page.getByTestId('held-reverted')).toContainText('✓');
   await expect(page.getByTestId('held-reverted')).toContainText(B4_DETAIL);
   await expect(page.getByTestId('held-sealed')).toContainText('the numbers below cannot change now');
-  // a moment, not a gate — said on the panel itself
-  await expect(page.getByTestId('held-note')).toContainText('this panel is a moment, not a gate');
+  // a moment, not a gate — said on the panel itself, in every chain state (see below)
+  await expect(page.getByTestId('held-note')).toContainText('This panel is a moment, not a gate.');
 
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c8b-held-moment.png' });
   await page.getByTestId('held-dismiss').click();
@@ -419,6 +419,44 @@ test('the honest variant withholds the ✓ rather than decorating a sentence tha
   await expect(held).not.toContainText('The tool proved the cleanup');
   await expect(page.getByTestId('held-reverted')).not.toContainText('✓');
   await expect(page.getByTestId('held-reverted')).toContainText('no in-sim change was applied, so none was reverted');
+});
+
+// ------------------------------------------------------- the footer claims only what is happening
+
+/**
+ * THE MODAL FOOTER USED TO OVERCLAIM. It said "Interpretation is already underway below"
+ * unconditionally — and `NADI_AUTO_ENRICH` is off until C10, so in the shipping configuration
+ * nothing is underway and the run card two inches behind the modal shows `voices —` beside manual
+ * enrich buttons. The first clause is now derived; the second never is.
+ */
+async function heldFooter(page: Page, tail: string) {
+  await mockActOne(page, { events: actOneBody() + tail, doneAfter: 3 });
+  await serveFinishedRun(page);
+  await enterActOne(page, 'build');
+  await expect(page.getByTestId('held-moment')).toBeVisible({ timeout: 25_000 });
+  return page.getByTestId('held-note');
+}
+
+test('footer, chain RUNNING: it may say interpretation is underway', async ({ page }) => {
+  const note = await heldFooter(page, frame(7, 'stage_start', { stage: 'enrich:voices', label: 'sampling travelers', kind: 'llm' }));
+  await expect(note).toContainText('Interpretation is already underway below');
+  await expect(note).toContainText('This panel is a moment, not a gate.');
+});
+
+test('footer, NO chain: it says so and names where the controls are', async ({ page }) => {
+  const note = await heldFooter(page, frame(7, 'run_ended', { status: 'complete', detail: '' }));
+  await expect(note).toContainText('Interpretation hasn’t started — the enrich controls are on the run card.');
+  await expect(note).not.toContainText('already underway');
+  await expect(note).toContainText('This panel is a moment, not a gate.');
+});
+
+test('footer, the facts-only window: it claims neither, rather than guessing', async ({ page }) => {
+  // no stage event and no ending yet — the real, brief window between the physics finishing and
+  // the chain's first stage. Saying either thing here would be a guess.
+  const note = await heldFooter(page, '');
+  await expect(note).not.toContainText('already underway');
+  await expect(note).not.toContainText('hasn’t started');
+  await expect(note).toContainText('This panel is a moment, not a gate.');
 });
 
 // -------------------------------------------------------------------------------------- the sweep

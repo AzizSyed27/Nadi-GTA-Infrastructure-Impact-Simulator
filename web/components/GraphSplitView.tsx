@@ -1,13 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Deck, OrthographicView } from '@deck.gl/core';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Layer } from '@deck.gl/core';
-import { LineLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
-import { PathStyleExtension } from '@deck.gl/extensions';
+import { LineLayer, ScatterplotLayer } from '@deck.gl/layers';
 
 import { CascadeSelector } from '@/components/CascadeSelector';
+import { DeckPanel } from '@/components/DeckPanel';
 import { GROUP_LABEL } from '@/lib/personaGroups';
+// V2.7b C9 — the OASIS shape and its five layers moved to lib/ so Act II's discourse card draws
+// the same graph with the same renderer. This file keeps the entity half and the split-view chrome.
+import {
+  buildOasisLayers,
+  FALLBACK_COLOR,
+  type GraphsEntity,
+  type GraphsEntityNode,
+  type GraphsOasisNode,
+  type GraphsSidecar,
+} from '@/lib/graphLayers';
 
 /**
  * V2.3d — the graph SPLIT-VIEW: the project's two graphs, visibly two graphs.
@@ -21,73 +30,11 @@ import { GROUP_LABEL } from '@/lib/personaGroups';
  * BOTH recovery paths. The sidecar shape is off-contract (like ReportPanel's Report interface).
  */
 
-export interface GraphsOasisNode {
-  id: string;
-  x: number;
-  y: number;
-  label: string;
-  group: string | null;
-  grounding: string;
-  connected: boolean;
-  excluded?: { count: number; rules: string[] };
-}
-export interface GraphsOasis {
-  framing: string;
-  seed: number;
-  layout: string;
-  nodes: GraphsOasisNode[];
-  edges: { from: string; to: string; kind: string }[];
-  influence: { cascade_id: string | null; from: string; to: string; shifted: boolean }[];
-  coverage: { agents: number; nodes: number; with_edges: number; mandate_excluded?: number };
-  exposure_note: string;
-}
-export interface GraphsEntityNode {
-  id: string;
-  x: number;
-  y: number;
-  type: string;
-  sources: string[];
-  source_count: number;
-}
-export interface GraphsEntity {
-  framing: string;
-  index_ts: string;
-  index_built_at: string | null;
-  note: string;
-  packing_note: string;
-  stale_note?: string;
-  nodes: GraphsEntityNode[];
-  edges: { from: string; to: string; weight: number }[];
-  components: number;
-  isolates: number;
-}
-export interface GraphsSidecar {
-  run_id: string;
-  generated_at: string;
-  oasis: GraphsOasis | null;
-  entity: GraphsEntity | null;
-}
-
 const OASIS_HEADER = 'Who influences whom in the simulated discourse — one simulated preview, not a prediction';
 const ENTITY_HEADER = "What the report's chat agent knows — entities and relations extracted from this run's corpus";
 const SPLIT_ONE_LINER = 'Two different graphs on purpose: discourse propagation is not the chat agent’s memory.';
 const BACKFILL_HINT = 'or backfill: python python/src/graph_export.py --run-id <run>';
 
-const GROUP_COLOR: Record<string, [number, number, number]> = {
-  car: [31, 78, 156],
-  bicycle: [46, 139, 87],
-  pedestrian: [217, 130, 30],
-  local_resident: [124, 90, 168],
-  business_owner: [150, 100, 60],
-  accessibility: [0, 140, 140],
-  transit_riders: [190, 80, 130],
-  taxpayer: [110, 116, 125],
-};
-const EDGE_KIND_COLOR: Record<string, [number, number, number, number]> = {
-  homophily: [120, 135, 155, 80],
-  geography: [110, 150, 120, 90],
-  cross: [180, 150, 90, 100],
-};
 const ENTITY_TYPE_COLOR: Record<string, [number, number, number]> = {
   person: [31, 78, 156],
   concept: [124, 90, 168],
@@ -97,80 +44,11 @@ const ENTITY_TYPE_COLOR: Record<string, [number, number, number]> = {
   content: [150, 100, 60],
   data: [190, 80, 130],
 };
-const FALLBACK_COLOR: [number, number, number] = [110, 116, 125];
 
 interface Hover {
   x: number;
   y: number;
   lines: string[];
-}
-
-/** Construct-once standalone Deck under OrthographicView; setProps on layer changes (the house
- * idiom). The canvas needs a position:relative sized wrapper — Deck repositions raw canvases
- * (spike-learned). */
-function DeckPanel({
-  panelId,
-  nodes,
-  layers,
-  onHover,
-}: {
-  panelId: string;
-  nodes: { x: number; y: number }[];
-  layers: Layer[];
-  onHover: (h: Hover | null) => void;
-}) {
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const deckRef = useRef<Deck<OrthographicView> | null>(null);
-
-  const bounds = useMemo(() => {
-    const xs = nodes.map((n) => n.x);
-    const ys = nodes.map((n) => n.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: Math.max(1e-6, maxX - minX), h: Math.max(1e-6, maxY - minY) };
-  }, [nodes]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const box = boxRef.current;
-    if (!canvas || !box || nodes.length === 0) return; // empty half never constructs a deck (NaN bounds)
-    const zoom = Math.log2(Math.min(box.clientWidth / bounds.w, box.clientHeight / bounds.h)) - 0.15;
-    const deck = new Deck<OrthographicView>({
-      canvas,
-      views: new OrthographicView({ flipY: true }),
-      controller: true,
-      // clamp [-8, 10]: the OASIS spring layout lives in [-1, 1] (fit zoom ≈ 8) while the entity
-      // shelf-pack spans thousands of units (fit ≈ 0) — a [-6, 6] clamp blob-ified the OASIS panel
-      initialViewState: { target: [bounds.cx, bounds.cy, 0], zoom: Math.max(-8, Math.min(10, zoom)) },
-      layers,
-    });
-    deckRef.current = deck;
-    return () => {
-      deck.finalize();
-      deckRef.current = null;
-    };
-    // construct once per panel data identity — layers update via the effect below
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bounds]);
-
-  useEffect(() => {
-    deckRef.current?.setProps({ layers });
-  }, [layers]);
-
-  // clear the tooltip when the pointer leaves the panel entirely
-  return (
-    <div
-      ref={boxRef}
-      data-testid={`graph-canvas-${panelId}`}
-      style={canvasBox}
-      onMouseLeave={() => onHover(null)}
-    >
-      <canvas ref={canvasRef} />
-    </div>
-  );
 }
 
 export function GraphSplitView({
@@ -238,75 +116,13 @@ export function GraphSplitView({
     setEntityHover({ x, y, lines: [`${n.id} · ${n.type}`, `sources: ${n.sources.join(', ') || '—'}${more}`] });
   }, []);
 
-  const oasisLayers = useMemo<Layer[]>(() => {
-    if (!oasis) return [];
-    const pos = (id: string): [number, number] => [oasisById[id].x, oasisById[id].y];
-    return [
-      new LineLayer({
-        id: 'follow-edges',
-        data: oasis.edges.filter((e) => oasisById[e.from] && oasisById[e.to]),
-        getSourcePosition: (e: GraphsOasis['edges'][0]) => pos(e.from),
-        getTargetPosition: (e: GraphsOasis['edges'][0]) => pos(e.to),
-        getColor: (e: GraphsOasis['edges'][0]) => EDGE_KIND_COLOR[e.kind] ?? [130, 130, 130, 80],
-        getWidth: 1,
-        widthUnits: 'pixels',
-      }),
-      new PathLayer({
-        id: 'influence',
-        data: activeInfluence.filter((p) => oasisById[p.from] && oasisById[p.to]),
-        getPath: (p: GraphsOasis['influence'][0]) => [pos(p.from), pos(p.to)],
-        getColor: [196, 69, 69, 190],
-        getWidth: 1.6,
-        widthUnits: 'pixels',
-        getDashArray: [5, 4],
-        dashJustified: true,
-        extensions: [new PathStyleExtension({ dash: true })],
-      }),
-      new ScatterplotLayer({
-        id: 'exclusion-rings',
-        data: oasis.nodes.filter((n) => n.excluded),
-        getPosition: (n: GraphsOasisNode) => [n.x, n.y],
-        stroked: true,
-        filled: false,
-        getLineColor: [201, 121, 21, 230],
-        getLineWidth: 2,
-        lineWidthUnits: 'pixels',
-        getRadius: 8,
-        radiusUnits: 'pixels',
-        pickable: false,
-      }),
-      new ScatterplotLayer({
-        id: 'shifted-rings',
-        data: oasis.nodes.filter((n) => shiftedIds.has(n.id)),
-        getPosition: (n: GraphsOasisNode) => [n.x, n.y],
-        stroked: true,
-        filled: false,
-        getLineColor: [196, 69, 69, 200],
-        getLineWidth: 1.5,
-        lineWidthUnits: 'pixels',
-        getRadius: 6,
-        radiusUnits: 'pixels',
-        pickable: false,
-      }),
-      new ScatterplotLayer({
-        id: 'oasis-nodes',
-        data: oasis.nodes,
-        getPosition: (n: GraphsOasisNode) => [n.x, n.y],
-        // UNIFORM radius — degree sizing would be a visual centrality leaderboard
-        getRadius: 4,
-        radiusUnits: 'pixels',
-        getFillColor: (n: GraphsOasisNode) => {
-          const c = (n.group && GROUP_COLOR[n.group]) || FALLBACK_COLOR;
-          return [c[0], c[1], c[2], n.connected ? 235 : 90];
-        },
-        pickable: true,
-        onHover: (info) => {
-          hoverOasisNode((info.object as GraphsOasisNode) ?? null, info.x, info.y);
-          return true;
-        },
-      }),
-    ];
-  }, [oasis, oasisById, activeInfluence, shiftedIds, hoverOasisNode]);
+  const oasisLayers = useMemo<Layer[]>(
+    () =>
+      oasis
+        ? buildOasisLayers({ oasis, oasisById, influence: activeInfluence, shiftedIds, onHoverNode: hoverOasisNode })
+        : [],
+    [oasis, oasisById, activeInfluence, shiftedIds, hoverOasisNode],
+  );
 
   const entityLayers = useMemo<Layer[]>(() => {
     if (!entity) return [];
@@ -515,15 +331,6 @@ const staleNote: React.CSSProperties = {
   borderRadius: 8,
   padding: '5px 8px',
   marginBottom: 6,
-};
-const canvasBox: React.CSSProperties = {
-  position: 'relative',
-  width: '100%',
-  height: '56vh',
-  overflow: 'hidden',
-  background: '#fbfcfd',
-  borderRadius: 8,
-  border: '1px solid #eceff2',
 };
 const tooltip: React.CSSProperties = {
   position: 'absolute',

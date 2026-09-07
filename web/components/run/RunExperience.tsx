@@ -19,7 +19,7 @@
 
 import { memo, useCallback, useMemo, useState } from 'react';
 
-import type { RunFeedState } from '@/lib/runFeed';
+import { chainState, type RunFeedState } from '@/lib/runFeed';
 import { fmtSimTime } from '@/lib/simTime';
 
 /** THE MAP CAPTION — spec-pinned verbatim. The map is playing a RECORDED baseline leg while the
@@ -134,6 +134,16 @@ export const RunExperience = memo(function RunExperience({
  */
 export const HELD_LEAD_VERIFIED = 'The tool proved the cleanup rather than asserting it:';
 export const HELD_LEAD_PLAIN = 'What this run did with your change:';
+/** THE FIRST CLAUSE IS DERIVED, because it is a claim about what the machine is doing and the
+ *  machine is not always doing it. `NADI_AUTO_ENRICH` is off until C10, so in the shipping
+ *  configuration nothing is underway behind this panel and the run card says as much two inches
+ *  away. The SECOND clause is true in every case and is never derived — the panel is a moment
+ *  whether or not interpretation started. */
+export const HELD_NOTE_UNDERWAY = 'Interpretation is already underway below —';
+export const HELD_NOTE_NOT_STARTED =
+  'Interpretation hasn’t started — the enrich controls are on the run card.';
+export const HELD_NOTE_MOMENT = 'This panel is a moment, not a gate. Nothing is waiting on you.';
+
 export const HELD_SEALED =
   'both legs finished and this run’s record was written — the numbers below cannot change now';
 
@@ -146,6 +156,7 @@ export function HeldMoment({
   onDismiss: () => void;
   onReadResults: () => void;
 }) {
+  const chain = chainState(experience);
   const applied = experience.beats.find((b) => b.key === 'applied');
   const reverted = experience.beats.find((b) => b.key === 'reverted');
   if (!reverted) return null;
@@ -191,8 +202,9 @@ export function HeldMoment({
           </button>
         </div>
         <div style={heldNote} data-testid="held-note">
-          Interpretation is already underway below — this panel is a moment, not a gate. Nothing is
-          waiting on you.
+          {chain === 'running' ? HELD_NOTE_UNDERWAY : chain === 'none' ? HELD_NOTE_NOT_STARTED : ''}
+          {chain !== 'unknown' ? ' ' : ''}
+          {HELD_NOTE_MOMENT}
         </div>
       </section>
     </div>
