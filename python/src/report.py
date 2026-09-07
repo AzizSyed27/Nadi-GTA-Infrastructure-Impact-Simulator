@@ -602,8 +602,8 @@ def verify_facts(facts: dict, artifact: TrajectoryArtifact, outcomes: dict) -> N
                                        and r.get("baseline_s") is not None]
                             if probed2 and all(r.get("added_s") is None for r in probed2) \
                                     and o.get("label", "") not in c["text"]:
-                                problems.append(f"{iid}: station {o.get('label')!r} is unreachable "
-                                                "at every probed end but is not named in the citation")
+                                problems.append(f"{iid}: station {o.get('label')!r} could reach no "
+                                                "probed end but is not named in the citation")
                         if not any("not a dispatch model" in n for n in notes):
                             problems.append(f"{iid}: the free-flow framing sentence must ride the citation")
                         if not any("a lower bound" in n for n in notes):
@@ -1668,8 +1668,11 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         elif applied is not None:
             L.append(f"- **Closure window:** applied at {applied}; {ev.get('note') or 'not reverted within the simulated period'}.")
         else:
+            # the one branch that still printed bare seconds while its two siblings above used
+            # fmt_sim_time — on a calibrated run it read "window 3600-5400 s" where the rest of the
+            # document said 08:00-08:30
             L.append(f"- **Closure window:** {ev.get('note') or 'never active within the simulated period'} "
-                     f"(window {w.get('start_s')}–{w.get('end_s')} s).")
+                     f"(window {fmt_window(w, profile)}).")
     if facts.get("non_completions") is not None:
         # noun parameterized for incident runs; closure output stays byte-identical (test-pinned)
         noun = "incident" if any(c.type == "incident" for c in changes) else "closure"

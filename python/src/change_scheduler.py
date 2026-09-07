@@ -326,7 +326,13 @@ class ChangeScheduler:
             self._proof[i] = {
                 "change_idx": i, "type": c.type, "target_edge": c.target_edge,
                 "window": {"start_s": w.start_s, "end_s": w.end_s},
-                "applied_t": None, "reverted_t": None, "restored_ok": None, "note": None,
+                "applied_t": None, "reverted_t": None,
+                # V2.7b C10a — the apply-side twin of restored_ok. TRUE-ONLY by construction: the
+                # readback asserts below run BEFORE _notify, so a failed one kills the run and no
+                # beat is ever emitted. What it proves DIFFERS BY TYPE (closures: cars barred on
+                # every targeted lane; speed_limit: lane 0's limit reads back as set), which is why
+                # the beat's sentence is type-aware rather than one claim covering all three.
+                "applied_ok": None, "restored_ok": None, "note": None,
             }
             start = max(0.0, w.start_s)
             if start >= max_t:
@@ -417,6 +423,7 @@ class ChangeScheduler:
             apply_closure(self.conn, edge, lanes)
             assert_closed(self.conn, edge, lanes)
         self._proof[idx]["applied_t"] = t
+        self._proof[idx]["applied_ok"] = True  # every path above read the change back, or raised
         self.log(f"[scheduler] t={t:g}s APPLY change {idx}: {change.type} on {edge} lanes {lanes}")
         self._notify("applied", idx, lanes=lanes)
 

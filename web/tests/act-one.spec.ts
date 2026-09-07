@@ -31,7 +31,9 @@ const NEW_RUN = 'multimodal-scenario-20260901T120000Z';
 // purpose: a pin that imported the string from the client would assert a constant against itself.
 const B3_TITLE = 'YOUR CHANGE APPLIED AT t=600 s';
 const GHOST_EDGE = '-35303701'; // real, 744 m, inside the fixture's bbox — see the ghost test
-const B3_DETAIL = `road_closure on ${GHOST_EDGE} is now active in the scenario leg — computing, not shown`;
+const B3_DETAIL =
+  `road_closure on ${GHOST_EDGE} took effect in the scenario leg — every lane it closed was read ` +
+  'back from the simulator as barred to cars';
 const B4_TITLE = 'REVERTED AT t=1200 s';
 const B4_DETAIL =
   'the change withdrew on schedule; on every lane it touched, the permissions and speed limit ' +
@@ -47,7 +49,7 @@ function actOneBody(opts: { revert?: boolean; results?: boolean; baseline?: bool
   b += frame(0, 'run_start', { run_id: NEW_RUN, description: 'a closure at the doorstep', demand_profile: 'synthetic_demo' });
   b += frame(1, 'beat', {
     n: 1, key: 'demand', title: 'DEMAND LOADED',
-    detail: '300 cars, 82 bicycles, 129 pedestrians — synthetic_demo demand',
+    detail: '300 cars, 82 bicycles, 129 pedestrians — synthetic demo demand',
     counts: { car: 300, bicycle: 82, pedestrian: 129 },
   });
   b += baseline
@@ -251,7 +253,7 @@ test('before the baseline lands, the caption says THAT — not that there will n
   // baseline_ready nor baseline_unavailable has been written yet.
   let b = 'retry: 100\n\n';
   b += frame(0, 'run_start', { run_id: NEW_RUN, description: 'a closure', demand_profile: 'synthetic_demo' });
-  b += frame(1, 'beat', { n: 1, key: 'demand', title: 'DEMAND LOADED', detail: '300 cars, 82 bicycles, 129 pedestrians — synthetic_demo demand' });
+  b += frame(1, 'beat', { n: 1, key: 'demand', title: 'DEMAND LOADED', detail: '300 cars, 82 bicycles, 129 pedestrians — synthetic demo demand' });
   await mockActOne(page, { events: b });
   await enterActOne(page);
 

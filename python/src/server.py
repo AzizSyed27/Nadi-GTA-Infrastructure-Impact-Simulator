@@ -607,7 +607,11 @@ def auto_enrich_enabled() -> bool:
     button and a cost line on screen would mean a window where pressing Run spends that with no way
     to stop it and no indication it is happening — so the flip rides the brake (V2.7b C10), not the
     capability. Afterwards this stays the operator's off switch."""
-    return os.environ.get(AUTO_ENRICH_ENV, "0").strip().lower() not in ("", "0", "false", "no")
+    # The off-set is EXPLICIT and wide. It was written when the default was "0", where an unknown
+    # value erring towards ON was harmless; with the default flipped (C10b) an operator typing
+    # NADI_AUTO_ENRICH=off to stop the spending would have ARMED it instead.
+    return os.environ.get(AUTO_ENRICH_ENV, "0").strip().lower() not in (
+        "", "0", "false", "no", "off", "n", "none", "disabled")
 
 
 def _chain_steps(run_id: str) -> list[dict]:
@@ -656,6 +660,56 @@ def _run_facts_only(run_id: str, events_path: Path | None) -> bool:
     return ok
 
 
+def _ensure_terminal(run_id: str, detail: str, *, failed: bool = False) -> None:
+    """V2.7b C10a — leave the run's state TERMINAL, whatever happened.
+
+    `run_state.set_stage` derives status from the stage string: anything that is not literally
+    "done"/"failed" reads as "running". So a chain that returns after writing `enrich:report` leaves
+    a finished run polling forever — the client's poll loop, the SSE end-of-stream predicate and the
+    run list all key on that status, and the only thing that ever ended it was the 30-minute stale
+    coercion. Harmless while the chain was dark; the moment it is armed, every one of those runs
+    sits in the list as "computing" until the reader gives up. Idempotent: a path that already wrote
+    its own terminal state passes through untouched."""
+    st = run_state.read(run_id)
+    if st and st.get("status") in ("done", "failed"):
+        return
+    run_state.set_stage(run_id, "failed" if failed else "done", detail)
+
+
+# The pre-spend projection's inputs. Each MIRRORS a default that lives in another module's argparse,
+# so `test_projection_lockstep.py` reads those files and fails if either side moves alone.
+DEFAULT_SAMPLE_TARGET = 120 + 40 + 40 + 12  # sampler.py: --n-car/--n-bike/--n-ped/--n-inferred
+REPORT_SLOT_ESTIMATE = 13  # report.py: framing + 7 glosses + <=4 syntheses + discourse + caveat_intro
+CASCADE_STEPS = 5          # propagation.py --steps
+CASCADE_ACTIVATION = 0.5   # propagation.py --activation (fraction asked to act PER STEP)
+
+
+def _project_interpretation(*, cascades: int = 3, instrumented: int | None = None) -> dict:
+    """The pre-spend projection: how many model calls the interpretation is likely to make, and the
+    BASIS that number rests on. ONE function, two callers — `GET /api/projection` serves it before a
+    run exists (C10b) and the chain writes it into the ledger at start — so the number a reader
+    consents to and the number the ledger later reports can never come from two different formulas.
+
+    THE DISCOURSE TERM DOMINATES, and hiding that would make the sentence worse than useless: a
+    cascade asks `activation x agents` to act on each of `steps` steps, so three cascades over a
+    212-voice run is ~1,590 calls against 212 for the voices and ~13 for the report. A projection
+    that quietly omitted it would understate the spend by an order of magnitude — the one direction
+    a consent sentence may never err in.
+
+    Pre-run there is no instrumented count yet, so it falls back to the sampler's configured sample
+    size AND SAYS SO. Institutions are zero: composed deterministically over byte-pinned roster
+    text, calling no model at all."""
+    voices = DEFAULT_SAMPLE_TARGET if instrumented is None else instrumented
+    counted = "travelers (the standard sample; the run's own count replaces this)"         if instrumented is None else "sampled travelers"
+    per_cascade = CASCADE_STEPS * max(1, round(CASCADE_ACTIVATION * voices))
+    calls = voices + REPORT_SLOT_ESTIMATE + cascades * per_cascade
+    basis = (f"{voices} {counted}, one call each; ~{REPORT_SLOT_ESTIMATE} report slots; "
+             f"{cascades} discourse cascade{'' if cascades == 1 else 's'} x {CASCADE_STEPS} steps x "
+             f"{round(CASCADE_ACTIVATION * voices)} agents asked to act = {cascades * per_cascade}; "
+             "institutions cost nothing (no model is called). Retries push the actual above this.")
+    return {"calls": calls, "basis": basis}
+
+
 def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> None:
     """Run the interpretation stages, in order, writing the ledger and the run's terminal state.
 
@@ -664,6 +718,11 @@ def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> 
     The CALLER owns the lock and releases it — this function assumes it is already held."""
     def _emit(event: str, **payload) -> None:
         run_events.emit(events_path, event, **payload)
+
+    # The pre-spend projection, now against this run's own numbers. `set_projection` has been dead
+    # code since C2 and `RunFeedState.projection` has read it just as long — both halves existed and
+    # neither was connected. The cost line divides by this.
+    run_ledger.set_projection(run_id, **_project_interpretation())
 
     for step in _chain_steps(run_id):
         # RESUME runs only what never ran. A stage already marked done is stepped over rather than
@@ -677,6 +736,7 @@ def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> 
         if trajectory_io.pinned_enrich_blocked(run_id):
             reason = trajectory_io.enrich_refusal_reason(run_id)
             run_ledger.end(run_id, run_ledger.SKIPPED_END, reason=reason)
+            _ensure_terminal(run_id, "run complete (interpretation refused for a protected run)")
             _emit(run_events.RUN_ENDED, status="skipped", detail=reason)
             return
         for key in step["keys"]:
@@ -685,7 +745,12 @@ def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> 
         _emit("stage_start", stage=step["state"], label=step["label"], kind="llm",
               stages=[step["label"]])
         before = _events_eof(events_path)
-        ok, detail = _run_cmds(run_id, [step["cmd"]], step["state"], events_path, [step["label"]])
+        # mark_failed=False: a chain stage's failure is DEGRADED, not a failed run — every number
+        # came from the physics and still stands. Letting _run_cmds write "failed" here and
+        # correcting it to "done" three lines later flashes a wrong state at whatever polled in
+        # between (the same reason the results document passes this flag).
+        ok, detail = _run_cmds(run_id, [step["cmd"]], step["state"], events_path, [step["label"]],
+                               mark_failed=False)
         _absorb_usage(run_id, events_path, before)
         # A SKIP looks like a successful stage that stopped early — the subprocess exits 0 having
         # written what it generated. `end()` then marks every stage that never ran as skipped, so
@@ -697,6 +762,12 @@ def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> 
                                      run_ledger.PARTIAL if partial else run_ledger.DONE if ok
                                      else run_ledger.FAILED, detail=detail)
             _emit("stage_partial", stage=step["state"], keys=list(step["keys"]))
+            # CLEAR THE FLAG. It is a file, and nothing else removes it: prune() globs only
+            # *.events.jsonl, and resume was its single clearer. Left behind, the next MANUAL enrich
+            # on this run launches with the flag still set — reactions sees cancelled() at its first
+            # checkpoint, every voice returns None, and the stage exits 0 reporting "complete" with
+            # zero agents. C10 ships the button that makes skipping routine, so C10 closes this.
+            run_events.clear_cancel(run_id)
             run_ledger.end(run_id, run_ledger.SKIPPED_END, reason="stopped at your request")
             run_state.set_stage(run_id, "done", "run complete (interpretation stopped early)")
             _emit(run_events.RUN_ENDED, status="skipped", detail="stopped at your request")
@@ -749,11 +820,16 @@ def _run_quant_then_chain(run_id: str, cmd: list[str], events_path: Path) -> Non
 
         if not auto_enrich_enabled():
             run_ledger.end(run_id, run_ledger.COMPLETE, reason="interpretation not requested")
+            _ensure_terminal(run_id, "run complete")
             _emit(run_events.RUN_ENDED, status="complete", detail="")
             return
 
         _run_chain(run_id, events_path)
     finally:
+        # LAST RESORT. Every ordinary path above writes its own terminal state; this catches the one
+        # that cannot — an exception between them. A run whose state says "running" forever is
+        # indistinguishable from one still working, so a crash must leave a state a reader can act on.
+        _ensure_terminal(run_id, "the run stopped unexpectedly — see the server log", failed=True)
         run_state.release(run_id)
 
 
@@ -1305,6 +1381,11 @@ async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     # file was pruned at 7 days, and a run that predates V2.7b — so line 0 is always the run header.
     labels = _ENRICH_LABELS[req.stage]
     ev = run_events.events_path(run_id)
+    # V2.7b C10a — drop any cancel flag left by an earlier SKIP. It is a file and nothing else
+    # removes it (prune globs only *.events.jsonl; resume was its one clearer), so without this a
+    # skipped run's next manual enrich launches already-cancelled: reactions hits its checkpoint,
+    # returns None for every voice, and the stage exits 0 reporting "complete" with ZERO agents.
+    run_events.clear_cancel(run_id)
     run_events.ensure_header(ev, run_id, description=st.get("description"),
                              changes=st.get("changes") or ([st["change"]] if st.get("change") else None),
                              demand_profile=st.get("demand_profile"), assignment=st.get("assignment"),

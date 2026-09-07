@@ -137,6 +137,16 @@ _MEMBER_TYPE_PHRASE = {"road_closure": "road closure", "lane_closure": "lane clo
                        "incident": "incident"}
 
 
+# V2.7b C10a — THE DIRECTION RULE. The probe routes STATION ORIGIN -> SEGMENT END, one way only
+# (`response_probe._cost_to_end`). So when a station's own street is closed the computed fact is
+# that the truck cannot get OUT — `ORIGIN_CLOSED_NOTE` says exactly that: "no route from it is
+# computable". Three citation sentences used to aggregate those rows into "N of 4 fire stations
+# unreachable", which swaps subject and object: it tells a reader that people cannot reach the fire
+# station, which is not what was measured and is not true. Where the END is the subject
+# ("west end unreachable from all 4 stations") the wording is correct and stays; where a STATION is
+# the subject it must be the AGENT that could not reach. This distinction is pinned in
+# test_institutions.py; the committed pre-C10a artifacts keep the old wording (citations are stored
+# in agents[] at enrich time), which is recorded as a known vintage divergence.
 def _members_end_frag(e: dict, noun: str) -> str:
     """One terse fragment per end (the ratified aggregation rule: stations aggregate, per-station
     figures never enter the citation — the report/corpus carry them)."""
@@ -156,9 +166,9 @@ def _members_end_frag(e: dict, noun: str) -> str:
 def _cite_response_members(rd: dict) -> dict:
     """V2.5b members shape. Length is the binding constraint (the TFS comment embeds this text in
     a non-scrollable feed block): per-member clauses, fully-reachable/-unreachable end pairs
-    COLLAPSE, and the capstone names only stations unreachable at EVERY probed end — a station
-    cut off at one end but fine at the other is a count, not a name (naming it would read as
-    fully cut off). The metric phrase is the V2.5b vocabulary; never the legacy number-bearing
+    COLLAPSE, and the capstone names only stations that could reach NO probed end — a station cut
+    off at one end but fine at the other is a count, not a name (naming it would read as fully cut
+    off). The metric phrase is the V2.5b vocabulary; never the legacy number-bearing
     "…s added response-route time" (cross-vintage incomparability, test-pinned)."""
     origins = rd.get("origins") or []
     noun = ("stations" if origins and all(o.get("represents") == "fire_station" for o in origins)
@@ -193,7 +203,7 @@ def _cite_response_members(rd: dict) -> dict:
         if probed and all(r.get("added_s") is None for r in probed):
             cut_off.append(o["label"])
     if cut_off:
-        text += f" Unreachable at every probed end: {'; '.join(cut_off)}."
+        text += f" Could not reach any probed end: {'; '.join(cut_off)}."
     notes = [n for n in (rd.get("framing"), rd.get("lower_bound_note"),
                          rd.get("window_coincidence_note"), rd.get("origins_note"),
                          rd.get("end_method_note"), rd.get("probed_members_note")) if n]
@@ -228,14 +238,15 @@ def _cite_response_detour(rd: dict) -> dict:
         if unreachable:
             names = "; ".join(p["label"] for p in unreachable)
             text = (f"Response access (free-flow estimate): {len(unreachable)} of {len(probes)} "
-                    f"{origins} unreachable during the window; worst of the reachable {worst:+g} s "
-                    f"added response-route time ({per}; unreachable: {names}).")
+                    f"{origins} could not reach the changed road during the window; worst of those "
+                    f"that could {worst:+g} s added response-route time "
+                    f"({per}; could not reach: {names}).")
         else:
             text = (f"Response access (free-flow estimate): worst of {len(probes)} {origins} "
                     f"{worst:+g} s added response-route time ({per}).")
     elif unreachable and len(unreachable) == len(probes):
-        text = (f"Response access (free-flow estimate): all {len(probes)} {origins} unreachable "
-                "during the window.")
+        text = (f"Response access (free-flow estimate): none of the {len(probes)} {origins} could "
+                "reach the changed road during the window.")
     else:
         text = ("Response access: the free-flow response-route estimate could not be computed "
                 "for any station in this run.")

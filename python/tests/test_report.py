@@ -645,7 +645,7 @@ def test_members_citation_verify_recomputes_worst_names_and_riding_notes():
     facts3 = report.gather_facts(art, out, verdict=None)
     facts3["institutional"][0]["citations"][0]["text"] = \
         facts3["institutional"][0]["citations"][0]["text"].replace(
-            " Unreachable at every probed end: S1.", "")
+            " Could not reach any probed end: S1.", "")
     with pytest.raises(AssertionError, match="named"):
         report.verify_facts(facts3, art, out)
 

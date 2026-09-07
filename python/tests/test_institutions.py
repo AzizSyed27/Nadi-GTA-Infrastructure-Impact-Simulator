@@ -195,9 +195,14 @@ def _members_rd(**over) -> dict:
 def test_members_citation_aggregates_per_end_and_names_the_cut_off_station() -> None:
     """V2.5b (ratified rollup): stations AGGREGATE per member×end — worst-of-reachable +
     "u of n unreachable"; per-station figures never enter the citation (the report/corpus carry
-    them); names appear only in the capstone for stations unreachable at EVERY probed end (a
+    them); names appear only in the capstone for stations that could reach NO probed end (a
     station cut off at one end but fine at the other is a count, not a name — naming it would
-    read as fully cut off). Pinned as a LITERAL, never composed-vs-composed."""
+    read as fully cut off). Pinned as a LITERAL, never composed-vs-composed.
+
+    V2.7b C10a — DIRECTION. Where an END is the subject ("west end unreachable from all 2
+    stations") the wording is correct: the probe asks whether that end can be reached. Where a
+    STATION is the subject it must be the AGENT — the truck cannot get out, because its own street
+    is closed — so the capstone reads "could not reach any probed end"."""
     cites = institutions.compose_citations(_entry("tfs"), {"response_detour": _members_rd()})
     assert [c["key"] for c in cites] == ["response_detour"]
     assert cites[0]["text"] == (
@@ -205,7 +210,7 @@ def test_members_citation_aggregates_per_end_and_names_the_cut_off_station() -> 
         "reachable +12.3 s (1 of 2 unreachable); west end unreachable from all 2 stations. "
         "Incident E2 — north end worst of the reachable +3.1 s (1 of 2 unreachable); south end "
         "worst of the reachable +1 s (1 of 2 unreachable). "
-        "Unreachable at every probed end: Fire Station 231 (740 Markham Rd).")
+        "Could not reach any probed end: Fire Station 231 (740 Markham Rd).")
     notes = cites[0]["notes"]
     assert notes[0] == response_probe.FRAMING  # compose_comment rides notes[0]
     assert response_probe.LOWER_BOUND_NOTE in notes
@@ -249,7 +254,7 @@ def test_members_citation_collapse_and_terse_shapes() -> None:
     text = institutions.compose_citations(_entry("tfs"), {"response_detour": none_ok})[0]["text"]
     assert text == ("Response access (free-flow estimate): Road closure E1 — unreachable from "
                     "all 1 stations at both ends. "
-                    "Unreachable at every probed end: Fire Station 232 (1550 Midland Ave).")
+                    "Could not reach any probed end: Fire Station 232 (1550 Midland Ave).")
     # a no_approach end is a terse labeled fragment, never silence
     na = _members_rd()
     na["members"] = [
@@ -291,10 +296,16 @@ def test_tfs_citation_lifts_the_window_coincidence_note_when_present() -> None:
     assert response_probe.WINDOW_COINCIDENCE_NOTE not in base
 
 
-def test_tfs_citation_names_unreachable_stations_with_an_honest_count() -> None:
-    """Doorstep-closure-caught: the count said 'worst of 4' while the list showed 3 and the
-    UNREACHABLE station — the single most consequential fact — was silently dropped. Mixed payloads
-    now count honestly and NAME the unreachable origins."""
+def test_tfs_citation_names_cut_off_stations_with_an_honest_count_and_direction() -> None:
+    """Doorstep-closure-caught: the count said 'worst of 4' while the list showed 3 and the cut-off
+    station — the single most consequential fact — was silently dropped. Mixed payloads now count
+    honestly and NAME the origins that could not reach.
+
+    V2.7b C10a — AND THE DIRECTION IS THE STATION'S. This sentence used to read "1 of 4 fire
+    stations unreachable during the window", which says people cannot reach the fire station. The
+    probe routes station -> destination and nothing else; when a station's own street is closed the
+    computed fact is that no route FROM it exists (`ORIGIN_CLOSED_NOTE` says exactly that). The
+    station is the agent that could not reach, never the thing that could not be reached."""
     rd = dict(RESPONSE_DETOUR)
     rd["probes"] = [
         {"label": "Fire Station 231 (740 Markham Rd)", "origin_edge": "E1", "represents": "fire_station",
@@ -306,15 +317,18 @@ def test_tfs_citation_names_unreachable_stations_with_an_honest_count() -> None:
          "baseline_s": 239.7, "scenario_s": 268.8, "added_s": 29.1},
     ]
     c = institutions.compose_citations(_entry("tfs"), {"response_detour": rd})[0]
-    assert "1 of 3 fire stations unreachable during the window" in c["text"]
-    assert "worst of the reachable +29.1 s" in c["text"]
-    assert "unreachable: Fire Station 231 (740 Markham Rd)" in c["text"]
+    assert "1 of 3 fire stations could not reach the changed road during the window" in c["text"]
+    assert "worst of those that could +29.1 s" in c["text"]
+    assert "could not reach: Fire Station 231 (740 Markham Rd)" in c["text"]
+    # the inversion, pinned as a NEGATIVE so it cannot come back by paraphrase
+    assert "stations unreachable" not in c["text"]
 
     # ALL unreachable — its own honest shape
     rd2 = dict(RESPONSE_DETOUR)
     rd2["probes"] = [dict(rd["probes"][0]), dict(rd["probes"][0])]
     c2 = institutions.compose_citations(_entry("tfs"), {"response_detour": rd2})[0]
-    assert "all 2 fire stations unreachable during the window" in c2["text"]
+    assert "none of the 2 fire stations could reach the changed road during the window" in c2["text"]
+    assert "unreachable" not in c2["text"]
 
 
 def test_tfs_citation_never_mislabels_retired_origins_as_stations() -> None:

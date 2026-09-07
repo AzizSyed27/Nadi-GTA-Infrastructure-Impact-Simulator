@@ -43,10 +43,10 @@ const frame = (id: number, event: string, data: Record<string, unknown>) =>
 function fullRunBody(): string {
   let b = 'retry: 100\n\n';
   b += frame(0, 'run_start', { run_id: RUN_ID, description: 'a closure', demand_profile: 'synthetic_demo' });
-  b += frame(1, 'beat', { n: 1, key: 'demand', title: 'DEMAND LOADED', detail: '300 cars, 82 bicycles, 129 pedestrians — synthetic_demo demand', counts: { car: 300, bicycle: 82, pedestrian: 129 } });
+  b += frame(1, 'beat', { n: 1, key: 'demand', title: 'DEMAND LOADED', detail: '300 cars, 82 bicycles, 129 pedestrians — synthetic demo demand', counts: { car: 300, bicycle: 82, pedestrian: 129 } });
   b += frame(2, 'baseline_ready', { url: `/${RUN_ID}-baseline.json`, entities: 511 });
   b += frame(3, 'beat', { n: 2, key: 'baseline', title: 'BASELINE MORNING COMPLETE', detail: 'simulated without your change — the like-for-like reference' });
-  b += frame(4, 'beat', { n: 3, key: 'applied', title: 'YOUR CHANGE APPLIED AT t=600 s', detail: 'road_closure on -e1 is now active in the scenario leg — computing, not shown', sim_t: 600 });
+  b += frame(4, 'beat', { n: 3, key: 'applied', title: 'YOUR CHANGE APPLIED AT t=600 s', detail: 'road_closure on -e1 took effect in the scenario leg — every lane it closed was read back from the simulator as barred to cars', sim_t: 600 });
   b += frame(5, 'beat', { n: 4, key: 'reverted', title: 'REVERTED AT t=1200 s', detail: 'the change withdrew on schedule; on every lane it touched, the permissions and speed limit after withdrawal matched the values captured immediately before it was applied', sim_t: 1200, restored_ok: true });
   b += frame(6, 'results_ready', { report_url: `/${RUN_ID}-report.json` });
   b += frame(7, 'stage_start', { stage: 'enrich:voices', label: 'sampling travelers', kind: 'llm' });

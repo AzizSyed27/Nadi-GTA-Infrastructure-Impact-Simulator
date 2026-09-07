@@ -1054,6 +1054,20 @@ def write_baseline_artifact(path: Path, *, run_id: str, bbox: list[float], sim_e
     return len(vehicles) + len(persons)
 
 
+def _applied_proof_clause(change_type: str) -> str:
+    """What the apply actually read back, per change type — the clause beat 3 ends with.
+
+    `change_scheduler._apply` asserts before the beat fires, so a beat that exists means the readback
+    passed. But the three asserts prove different things, and the weakest of them (a speed limit's
+    lane-0 check) must not borrow the strongest one's words."""
+    if change_type == "speed_limit":
+        return "the edge's speed limit was read back from the simulator as the value set"
+    if change_type == "incident":
+        return ("the blocked lanes were read back as barred to cars and the slowed lanes as carrying "
+                "the reduced limit")
+    return "every lane it closed was read back from the simulator as barred to cars"
+
+
 class Beats:
     """V2.7b — ACT I's four beats, emitted as they actually happen.
 
@@ -1104,9 +1118,16 @@ class Beats:
         t = proof.get("applied_t") if kind == "applied" else proof.get("reverted_t")
         when = self.fmt_t(t)
         if kind == "applied":
+            # TIMELESS, and TYPE-AWARE. The held moment quotes this after the run has finished, so
+            # "is now active — computing, not shown" describes a leg that is done by the time anyone
+            # reads it. And what the apply READ BACK differs by type: a closure proves cars are
+            # barred on every lane it touched; a speed limit proves lane 0's limit — saying "every
+            # lane" for that one would overclaim exactly the way beat 4 is pinned not to.
             self.beat(3, "applied", f"YOUR CHANGE APPLIED AT {when}",
-                      f"{proof['type']} on {proof['target_edge']} is now active in the scenario leg — "
-                      f"computing, not shown", sim_t=t, member_idx=proof.get("change_idx"))
+                      f"{proof['type']} on {proof['target_edge']} took effect in the scenario leg — "
+                      f"{_applied_proof_clause(proof['type'])}",
+                      sim_t=t, member_idx=proof.get("change_idx"),
+                      applied_ok=proof.get("applied_ok"))
         else:
             self.beat(4, "reverted", f"REVERTED AT {when}",
                       "the change withdrew on schedule; on every lane it touched, the permissions and "
@@ -1259,7 +1280,7 @@ def run_pair_multimodal(changes: list[Change], target_lane: int, net, *, ts: str
              "pedestrian": count_persons(prof.ped_routes)}
         beats.beat(1, "demand", "DEMAND LOADED",
                    f"{d['car']:,} cars, {d['bicycle']:,} bicycles, {d['pedestrian']:,} pedestrians "
-                   f"— {profile} demand", counts=d, demand_profile=profile)
+                   f"— {_dp_fmt.display_name(profile)}", counts=d, demand_profile=profile)
 
     if on_stage:
         on_stage("baseline")

@@ -80,22 +80,53 @@ def test_sim_time_renders_in_the_profiles_honest_form(tmp_path, monkeypatch):
 def _proof(**over) -> dict:
     return {"change_idx": 0, "type": "road_closure", "target_edge": "-e1",
             "window": {"start_s": 600.0, "end_s": 1200.0}, "applied_t": None, "reverted_t": None,
-            "restored_ok": None, "note": None, **over}
+            "applied_ok": None, "restored_ok": None, "note": None, **over}
 
 
 def test_apply_and_revert_beats_carry_the_moment_and_the_real_claim(beats):
     b, ev = beats
-    b.scheduler_event("applied", _proof(applied_t=600.0), lanes=[0, 1])
-    b.scheduler_event("reverted", _proof(applied_t=600.0, reverted_t=1200.0, restored_ok=True),
+    b.scheduler_event("applied", _proof(applied_t=600.0, applied_ok=True), lanes=[0, 1])
+    b.scheduler_event("reverted", _proof(applied_t=600.0, reverted_t=1200.0, applied_ok=True,
+                                         restored_ok=True),
                       lanes=["-e1_0", "-e1_1"])
     b3, b4 = _beats_in(ev)
     assert b3["n"] == 3 and "t=600 s" in b3["title"]
-    assert "road_closure on -e1" in b3["detail"] and "computing, not shown" in b3["detail"]
+    assert "road_closure on -e1" in b3["detail"]
+    # TIMELESS: the held moment quotes this AFTER the run has finished, so a present-tense
+    # "is now active — computing, not shown" would describe a leg that is already done
+    assert "took effect in the scenario leg" in b3["detail"]
+    assert "computing, not shown" not in b3["detail"]
+    assert "is now active" not in b3["detail"]
+    # and the beat carries the apply-side verdict, so the held moment's tick is earned not assumed
+    assert b3["applied_ok"] is True
     assert b4["n"] == 4 and "t=1200 s" in b4["title"]
     # the claim is exactly what assert_restored checks — per lane, against the pre-apply capture
     assert "on every lane it touched" in b4["detail"]
     assert "captured immediately before it was applied" in b4["detail"]
     assert b4["restored_ok"] is True and b4["lanes"] == 2
+
+
+def test_beat_three_says_what_THIS_change_type_actually_read_back(beats):
+    """The apply asserts before the beat fires, so a beat 3 that exists means the readback passed —
+    but the three asserts prove DIFFERENT things. A closure reads every targeted lane back as barred
+    to cars; a speed limit reads back lane 0's limit and nothing else. Borrowing the closure's words
+    for the speed limit would overclaim in exactly the way beat 4 is pinned not to."""
+    b, ev = beats
+    b.scheduler_event("applied", _proof(type="speed_limit", applied_t=600.0, applied_ok=True))
+    (b3,) = _beats_in(ev)
+    assert "speed limit was read back" in b3["detail"]
+    for overclaim in ("every lane", "all lanes", "barred to cars"):
+        assert overclaim not in b3["detail"], f"a speed limit proves no such thing: {overclaim!r}"
+
+
+def test_beat_three_withholds_its_verdict_where_nothing_was_read_back(beats):
+    """The settle variants (a drawn road, an unwindowed change, a window that never fired) run no
+    assert at all, so `applied_ok` is null and the tick is withheld — the same restraint beat 4
+    keeps on its honest variants."""
+    b, ev = beats
+    b.settle_change_beats([], [], geometry=True)
+    b3 = next(x for x in _beats_in(ev) if x["n"] == 3)
+    assert b3.get("applied_ok") is None
 
 
 def test_beat_four_never_claims_a_network_wide_comparison(beats):

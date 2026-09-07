@@ -23,6 +23,21 @@ _SCENARIO = _ROOT / "python" / "scenario"
 
 PROFILE_NAMES = ("synthetic_demo", "calibrated_am_peak")
 
+# V2.7b C10a — what a READER is shown. The identifiers above are wire values; until now the only
+# human labels lived in TypeScript (`web/lib/provenance.ts` demandLabel), so Act I's first beat
+# rendered the raw `synthetic_demo` at a reader. Kept byte-identical to the TS side and pinned by
+# `test_demand_label_lockstep.py` — two labels for one profile is how a reader ends up thinking
+# they are two things.
+DISPLAY_NAME = {
+    "synthetic_demo": "synthetic demo demand",
+    "calibrated_am_peak": "calibrated AM peak (07:00–09:00, count-anchored)",
+}
+
+
+def display_name(profile: str | None) -> str:
+    """The human label, falling back to the raw identifier rather than inventing one."""
+    return DISPLAY_NAME.get(profile or "", profile or "unknown")
+
 
 @dataclass(frozen=True)
 class DemandProfile:
