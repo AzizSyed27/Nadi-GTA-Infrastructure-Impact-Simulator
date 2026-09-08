@@ -172,6 +172,12 @@ export function HeldMoment({
   // sentence still renders — it is true and it is the run's own account — but unticked, and the
   // lead-in stops claiming a proof. This screen's whole worth is that its checks mean something.
   const verified = reverted.restoredOk === true;
+  // Beat 3's tick is earned the same way and reads the same field family: `_apply` asserts per
+  // change type (cars barred on every targeted lane for a closure, a lane-0 speed readback for a
+  // speed limit) before the beat fires, and the beat's own detail sentence — written server-side
+  // from the mechanism — says which claim it is. C10a emitted `applied_ok`; nothing rendered it, so
+  // a verified apply displayed the same neutral dot as an unverified one.
+  const appliedVerified = applied?.appliedOk === true;
 
   return (
     <div className="nadi-shell" style={heldBackdrop} data-testid="held-moment">
@@ -183,7 +189,7 @@ export function HeldMoment({
         <ul style={heldList} data-testid="held-checklist">
           {applied && (
             <li style={heldItem} data-testid="held-applied">
-              <span style={heldMark}>·</span>
+              <span style={heldMark}>{appliedVerified ? '✓' : '·'}</span>
               <span>
                 <b>{applied.title}</b> — {applied.detail}
               </span>

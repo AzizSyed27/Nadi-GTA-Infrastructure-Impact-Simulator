@@ -289,6 +289,27 @@ def test_excluded_social_events_filtered():
     assert "EXCLUDED_MARKER" not in text, "excluded social content must NOT leak into the clean corpus"
 
 
+def test_two_posts_from_one_agent_in_one_step_get_DISTINCT_handles():
+    """V2.7b C11: LightRAG canonicalizes file_path to its BASENAME and refuses a repeat as
+    `batch_duplicate`, so a step-scoped handle silently dropped every event after an agent's first
+    one in that step. Found live: 424 of 1,740 cascade posts never entered the corpus the chat
+    answers from. The handles must differ; the pin is on the HANDLES, not on the doc count, because
+    two docs with one handle is exactly the shape that used to pass a count check and lose a post."""
+    art = _artifact()
+    art.social = Social(mechanism="oasis", cascades=[Cascade(cascade_id="c1", steps=[CascadeStep(step=2, events=[
+        SocialEvent(agent="v1", action="post", content="FIRST_MARKER the closure is a nuisance", audit_status="clean"),
+        SocialEvent(agent="v1", action="comment", content="SECOND_MARKER but the street is quieter", audit_status="clean"),
+    ])])])
+    social = [d for d in report_agent.build_corpus(art, _outcomes(), verdict=None)
+              if d["source"].startswith("social__")]
+    assert len(social) == 2, "both content-bearing events must become docs"
+    assert len({d["source"] for d in social}) == 2, f"handles collided: {[d['source'] for d in social]}"
+    text = " ".join(d["text"] for d in social)
+    assert "FIRST_MARKER" in text and "SECOND_MARKER" in text
+    # slash-free, or LightRAG's basename canonicalization mangles the citation handle
+    assert all("/" not in d["source"] and "\\" not in d["source"] for d in social)
+
+
 def test_discourse_corpus_docs_are_movement_not_position():
     """v0.4.0 step 4.3: per-cascade engaged-reach + movement docs, divergence + exclusions docs. The movement
     docs MUST be framed movement-not-position (so chat can't launder shifts into a directional verdict), and

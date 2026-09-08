@@ -1,6 +1,10 @@
 // V2.7b C10b — THE BRAKE, and the sentence that lets a reader consent before pressing Run.
 //
-// The chain is armed as of this commit, so a reader who presses Run now spends ~1,800 model calls.
+// The chain is armed as of this commit, so a reader who presses Run now spends thousands of model
+// calls (C11's acceptance metered ~5,150 on a 213-voice run; the projection's own figure moved with
+// that measurement, which is why every number below is MOCKED — these tests pin how the client
+// renders the server's projection, never what the projection computes, and that split is what let
+// the model change without touching a single assertion here).
 // Three things had to be true first, and each is pinned here:
 //
 //   * A COST THEY CAN SEE AND ACT ON. The running total sits beside the control that stops it —
@@ -199,7 +203,15 @@ test('a DEGRADED run says the figures still stand', async ({ page }) => {
   // and the stage that failed is NAMED with its reason. Before C11 `failed` matched none of the
   // status filters, so voices vanished from the sentence while its 47 calls still counted — a
   // reader saw a spend with nothing to attach it to.
+  //
+  // ONLY voices. The stream's `stage_end` is keyed on the RUN-STATE string `enrich:voices`, which
+  // covers three presented stages; the ledger carries each one's own outcome (personas done,
+  // institutions skipped). This assertion is the pin that a group's failure never overturns a
+  // stage that already reported for itself — without it the sentence blamed the provider for a
+  // personas stage that had finished, and which reading a reader got depended on whether the
+  // ledger or the stream landed last.
   await expect(block).toContainText('failed: voices — provider unreachable');
+  await expect(block).not.toContainText('personas sampled — provider unreachable');
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-degraded-state.png' });
 });
 

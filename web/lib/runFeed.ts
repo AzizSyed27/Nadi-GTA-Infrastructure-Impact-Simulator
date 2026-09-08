@@ -87,6 +87,10 @@ export interface Beat {
    *  there, and the held moment withholds its ✓ rather than decorating a sentence that claims
    *  nothing. The check mark is earned by the assertion, never by the beat's existence. */
   restoredOk?: boolean | null;
+  /** Beat 3 only, and only where the harness actually READ THE CHANGE BACK from the simulator
+   *  (`change_scheduler._apply`'s per-type assert). Same rule as `restoredOk`: the honest variants
+   *  run no assert, so this is null there and the tick is withheld. */
+  appliedOk?: boolean | null;
 }
 
 export interface StageState {
@@ -139,6 +143,11 @@ export interface RunFeedState {
   endedByState: boolean;
   llmCallsTotal: number;
   projection: { calls: number | null; basis: string } | null;
+  /** V2.7b C11 — has THIS session actually received events for this run? The ledger seed can make a
+   *  finished run look mid-chain (its stage rows are all `done`), so "a chain is running" cannot be
+   *  read from the stages alone. A terminal run opens no stream, so this stays false for one — which
+   *  is what keeps Act II live-only. */
+  sawStream: boolean;
 }
 
 export function emptyFeedState(runId: string | null = null): RunFeedState {
@@ -154,7 +163,7 @@ export function emptyFeedState(runId: string | null = null): RunFeedState {
     institutionsSpoke: [], institutionsSilent: [],
     slots: [], indexDocs: null,
     ended: null, endedByState: false,
-    llmCallsTotal: 0, projection: null,
+    llmCallsTotal: 0, projection: null, sawStream: false,
   };
 }
 
@@ -204,6 +213,7 @@ function setStage(state: RunFeedState, key: StageKey, patch: Partial<StageState>
  */
 export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
   const s: RunFeedState = { ...prev };
+  s.sawStream = true; // any event that reaches a real case means this session watched the run live
   const kind = ev.event;
 
   switch (kind) {
@@ -219,6 +229,7 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
         n, key: ev.key as string, title: ev.title as string, detail: ev.detail as string,
         ts: ev.ts, simT: (ev.sim_t as number) ?? null, note: (ev.note as string) ?? null,
         restoredOk: (ev.restored_ok as boolean) ?? null,
+        appliedOk: (ev.applied_ok as boolean) ?? null,
       }].sort((a, b) => a.n - b.n);
       if (ev.counts) s.demand = ev.counts as RunFeedState['demand'];
       if (ev.demand_profile) s.demandProfile = ev.demand_profile as string;
@@ -266,8 +277,19 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
           : keys;
       for (const k of groupKeys) {
         const cur = s.stages.find((x) => x.key === k);
-        // a stage that never started (no content arrived) is not silently marked done
-        if (cur && (cur.status === 'running' || status === 'failed')) {
+        if (!cur) continue;
+        // A GROUP'S VERDICT DOES NOT OVERTURN A STAGE THAT ALREADY REPORTED ITS OWN (V2.7b C11).
+        // Several presented stages can share one run-state string — `enrich:voices` covers
+        // personas, voices and institutions — so a failed group end used to mark all three failed,
+        // including a personas stage its OWN `personas` event had already settled as done, or an
+        // institutions stage the ledger recorded as skipped. That is a false causal claim about a
+        // stage that had already finished (the same family as C11a's failed-stage naming fix), and
+        // it made the rendering depend on whether the ledger or the stream landed last — a race a
+        // spec was quietly winning. Stages still in flight take the group's verdict, as before: on
+        // the MANUAL enrich path all of them are running when the group fails, so nothing changes
+        // there. A stage that never started is still not silently marked done.
+        const settled = cur.status === 'done' || cur.status === 'partial' || cur.status === 'skipped';
+        if (cur.status === 'running' || (status === 'failed' && !settled)) {
           setStage(s, k, { status, detail: (ev.detail as string) ?? cur.detail });
         }
       }

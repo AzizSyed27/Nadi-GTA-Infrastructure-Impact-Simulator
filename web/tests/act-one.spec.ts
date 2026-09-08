@@ -60,7 +60,12 @@ function actOneBody(opts: { revert?: boolean; results?: boolean; baseline?: bool
           'freed during the run to keep memory bounded. The beats and the results are unaffected.',
       });
   b += frame(3, 'beat', { n: 2, key: 'baseline', title: 'BASELINE MORNING COMPLETE', detail: 'simulated without your change — the like-for-like reference' });
-  b += frame(4, 'beat', { n: 3, key: 'applied', title: B3_TITLE, detail: B3_DETAIL, sim_t: 600 });
+  // `applied_ok` rides beat 3 exactly where `_apply` ran a readback assert - so the fixture stamps
+  // it on the closure and withholds it on the drawn-road variant, like the harness does.
+  b += frame(4, 'beat', {
+    n: 3, key: 'applied', title: B3_TITLE, detail: B3_DETAIL, sim_t: 600,
+    ...(revert ? { applied_ok: true } : {}),
+  });
   b += revert
     ? frame(5, 'beat', { n: 4, key: 'reverted', title: B4_TITLE, detail: B4_DETAIL, sim_t: 1200, restored_ok: true })
     : frame(5, 'beat', {
@@ -406,6 +411,10 @@ test('the held moment proves the cleanup — and the ✓ is EARNED', async ({ pa
   await expect(held).toContainText('The tool proved the cleanup rather than asserting it:');
   await expect(page.getByTestId('held-reverted')).toContainText('✓');
   await expect(page.getByTestId('held-reverted')).toContainText(B4_DETAIL);
+  // Beat 3's tick is earned the same way, from the apply-side readback assert. C10a emitted
+  // `applied_ok` and nothing rendered it, so a verified apply showed the same neutral dot as an
+  // unverified one — found live in C11, and the negative below is what makes this pin mean something.
+  await expect(page.getByTestId('held-applied')).toContainText('✓');
   await expect(page.getByTestId('held-sealed')).toContainText('the numbers below cannot change now');
   // a moment, not a gate — said on the panel itself, in every chain state (see below)
   await expect(page.getByTestId('held-note')).toContainText('This panel is a moment, not a gate.');
@@ -429,6 +438,9 @@ test('the honest variant withholds the ✓ rather than decorating a sentence tha
   await expect(held).not.toContainText('The tool proved the cleanup');
   await expect(page.getByTestId('held-reverted')).not.toContainText('✓');
   await expect(page.getByTestId('held-reverted')).toContainText('no in-sim change was applied, so none was reverted');
+  // and the apply row withholds its tick for the same reason: nothing was read back, because
+  // nothing was applied in-sim.
+  await expect(page.getByTestId('held-applied')).not.toContainText('✓');
 });
 
 // ------------------------------------------------------- the footer claims only what is happening

@@ -125,9 +125,19 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
     if artifact.social is not None:
         for cascade in artifact.social.cascades:
             for step in cascade.steps:
-                for ev in step.events:
+                # THE HANDLE CARRIES THE EVENT'S POSITION IN THE STEP. An agent can produce several
+                # content-bearing events in one step (a post and two comments is ordinary), and
+                # LightRAG canonicalizes file_path to its basename and REFUSES a repeat as
+                # `batch_duplicate` — so a step-scoped handle silently dropped every event after the
+                # first. Measured on C11's acceptance run: 424 of 1,740 cascade posts (24%) never
+                # reached the corpus the chat answers from, and nothing said so. (A further 410 were
+                # dropped as identical CONTENT under another filename — different agents writing the
+                # same sentence. That is LightRAG deduplicating, not a handle bug, and indexing the
+                # same sentence twice would add nothing.) Separator stays `__`: handles must be
+                # slash-free or the basename rule mangles them.
+                for j, ev in enumerate(step.events):
                     if ev.content and ev.audit_status == "clean":
-                        docs.append(_doc(f"social__{ev.agent}__{cascade.cascade_id}__{step.step}",
+                        docs.append(_doc(f"social__{ev.agent}__{cascade.cascade_id}__{step.step}__{j}",
                                          f"Social post — {ev.agent}", ev.content))
 
     # --- v0.4.0 discourse: per-cascade ENGAGED-reach + MOVEMENT summaries, the divergence verdict, and the

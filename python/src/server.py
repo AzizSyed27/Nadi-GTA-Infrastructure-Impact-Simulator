@@ -686,6 +686,14 @@ DEFAULT_SAMPLE_TARGET = 120 + 40 + 40 + 12  # sampler.py: --n-car/--n-bike/--n-p
 REPORT_SLOT_ESTIMATE = 13  # report.py: framing + 7 glosses + <=4 syntheses + discourse + caveat_intro
 CASCADE_STEPS = 5          # propagation.py --steps
 CASCADE_ACTIVATION = 0.5   # propagation.py --activation (fraction asked to act PER STEP)
+# The three terms C11's live acceptance added, each MEASURED on that run rather than reasoned:
+# propagation stance-SCORES the cascade utterances itself (`score_trajectories`, one call per
+# scored utterance) and the chat index re-reads the whole run corpus. Both were absent from the
+# projection, which is why it read 1,815 against a metered 5,000-odd. Re-derive them if the
+# cascade or the corpus changes shape; over-estimating is the safe side of a consent number.
+CASCADE_SCORING_PER_AGENT = 1.0   # measured: 701 scoring calls / 3 cascades / 213 agents ~= 1.1
+CASCADE_POSTS_PER_CALL = 1.1      # measured: 1,740 content-bearing events / 1,530 agent calls
+INDEX_CALLS_PER_DOC = 2.4         # measured: LightRAG extract + gleaning + entity summaries
 
 
 def _project_interpretation(*, cascades: int = 3, instrumented: int | None = None) -> dict:
@@ -694,23 +702,40 @@ def _project_interpretation(*, cascades: int = 3, instrumented: int | None = Non
     run exists (C10b) and the chain writes it into the ledger at start — so the number a reader
     consents to and the number the ledger later reports can never come from two different formulas.
 
-    THE DISCOURSE TERM DOMINATES, and hiding that would make the sentence worse than useless: a
-    cascade asks `activation x agents` to act on each of `steps` steps, so three cascades over a
-    212-voice run is ~1,590 calls against 212 for the voices and ~13 for the report. A projection
-    that quietly omitted it would understate the spend by an order of magnitude — the one direction
-    a consent sentence may never err in.
+    FOUR TERMS, AND THE TWO SMALL ONES ARE NOT THE POINT. Voices and the report cost ~225 calls
+    between them; the DISCOURSE and the CHAT INDEX cost thousands. A projection that omits either
+    understates the spend by a multiple — the one direction a consent sentence may never err in.
+
+    Both large terms were measured on C11's acceptance run rather than reasoned about, after the
+    first version of this function (voices + slots + cascade agents only) projected 1,815 against a
+    metered ~5,000:
+      * discourse = the cascade agents' own calls (`steps x activation x agents`, 1,530 measured
+        against 1,590 modelled) PLUS propagation's own stance scoring of what they said, which is
+        roughly one call per agent per cascade (701 measured). The seeding round is FREE — it posts
+        the verbatim round-0 reactions with no model call at all.
+      * chat index = LightRAG re-reading the run corpus: extraction, gleaning and entity summaries,
+        ~2.4 calls per document. The corpus is DOMINATED by cascade posts, so it is only knowable
+        after the cascade runs — pre-run this estimates it from the cascade term and says so.
 
     Pre-run there is no instrumented count yet, so it falls back to the sampler's configured sample
     size AND SAYS SO. Institutions are zero: composed deterministically over byte-pinned roster
     text, calling no model at all."""
     voices = DEFAULT_SAMPLE_TARGET if instrumented is None else instrumented
-    counted = "travelers (the standard sample; the run's own count replaces this)"         if instrumented is None else "sampled travelers"
-    per_cascade = CASCADE_STEPS * max(1, round(CASCADE_ACTIVATION * voices))
-    calls = voices + REPORT_SLOT_ESTIMATE + cascades * per_cascade
+    counted = ("travelers (the standard sample; the run's own count replaces this)"
+               if instrumented is None else "sampled travelers")
+    acting = max(1, round(CASCADE_ACTIVATION * voices))
+    per_cascade = CASCADE_STEPS * acting + round(CASCADE_SCORING_PER_AGENT * voices)
+    discourse = cascades * per_cascade
+    # the corpus the index reads: one doc per voice, plus the cascade's content-bearing posts
+    corpus_docs = voices + round(CASCADE_POSTS_PER_CALL * cascades * CASCADE_STEPS * acting)
+    index = round(INDEX_CALLS_PER_DOC * corpus_docs)
+    calls = voices + REPORT_SLOT_ESTIMATE + discourse + index
     basis = (f"{voices} {counted}, one call each; ~{REPORT_SLOT_ESTIMATE} report slots; "
              f"{cascades} discourse cascade{'' if cascades == 1 else 's'} x {CASCADE_STEPS} steps x "
-             f"{round(CASCADE_ACTIVATION * voices)} agents asked to act = {cascades * per_cascade}; "
-             "institutions cost nothing (no model is called). Retries push the actual above this.")
+             f"{acting} agents asked to act, plus scoring what they said = {discourse}; "
+             f"the chat index re-reads the run corpus (~{corpus_docs} documents, mostly cascade "
+             f"posts) = ~{index}; institutions cost nothing (no model is called). The two large "
+             "terms are estimates from a measured run, and retries push the actual above this.")
     return {"calls": calls, "basis": basis}
 
 
@@ -723,9 +748,11 @@ def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> 
     def _emit(event: str, **payload) -> None:
         run_events.emit(events_path, event, **payload)
 
-    # The pre-spend projection, now against this run's own numbers. `set_projection` has been dead
-    # code since C2 and `RunFeedState.projection` has read it just as long — both halves existed and
-    # neither was connected. The cost line divides by this.
+    # The pre-spend projection. `set_projection` had been dead code since C2 and
+    # `RunFeedState.projection` had read it just as long — both halves existed and neither was
+    # connected. The cost line divides by this. NB it is the SAME pre-run estimate the Run button
+    # showed, deliberately: the chain starts before the sampler runs, so this run's own instrumented
+    # count does not exist yet and the basis says which vintage the reader is looking at.
     run_ledger.set_projection(run_id, **_project_interpretation())
 
     for step in _chain_steps(run_id):

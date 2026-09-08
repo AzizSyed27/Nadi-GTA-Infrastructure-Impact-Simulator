@@ -63,7 +63,18 @@ def read(run_id: str) -> dict | None:
     # foreign file from 500-ing GET /api/runs for every run (review-caught, reproduced live).
     if "run_id" not in st:
         return None
-    if st.get("status") == "running" and (time.time() - st.get("updated_at", 0)) > STALE_S:
+    # STALENESS IS A GUESS, AND THE LOCK IS A FACT. This coercion exists for a run whose process
+    # died without writing a terminal state — there is nothing else to go on, so an old `running`
+    # is treated as dead. But V2.7b's chain holds ONE lock across six stages, and a stage can
+    # legitimately run for longer than this without writing anything: C11's acceptance caught the
+    # chat index at 37 minutes of honest work being reported as `failed — stale`, which stopped the
+    # client's poll, unmounted the act and would have left a live run showing as crashed. When THIS
+    # process is the one holding the lock for THIS run, its liveness is known rather than inferred,
+    # so the guess does not get to overrule it. In any other process `active()` is None and the old
+    # behaviour stands unchanged — which is the honest answer there, since a CLI reader genuinely
+    # cannot see the server's lock.
+    stale = st.get("status") == "running" and (time.time() - st.get("updated_at", 0)) > STALE_S
+    if stale and active() != st.get("run_id"):
         st.update({"status": "failed", "stage": "failed", "detail": "stale (no update) — treated as failed"})
     return st
 

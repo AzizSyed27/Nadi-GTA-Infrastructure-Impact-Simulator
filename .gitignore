@@ -59,3 +59,7 @@ docs/
 # latest.json symmetry); the payload singletons are retired — per-run reports are the record.
 web/public/latest-report.json
 web/public/latest-report.md
+
+# V2.7b: the oasis-env cascade subprocess writes CAMEL logs relative to its cwd (python/src).
+# Scratch belongs under %LOCALAPPDATA%, not the repo — ignored rather than committed.
+python/src/log/

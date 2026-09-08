@@ -1086,16 +1086,22 @@ export default function MapView() {
     watchedRunNotLoaded && (watchedRunLive || runFeed.experience.beats.length > 0);
 
   // V2.7b C9 — ACT II. The physics is over (its artifact is loaded, so `actOne` is false), the fold
-  // belongs to THIS run, interpretation has started, and the run is still live. That last clause is
-  // what makes the act LIVE-ONLY as ratified: a finished run reopened from the list opens no stream,
-  // so it can never mount here — and the ledger seed, which DOES carry stage statuses, cannot fake
-  // it into history. `experience.ended` deliberately does NOT unmount it: a reader watches the last
-  // stage finish rather than having the screen vanish at the moment it completes.
+  // belongs to THIS run, and interpretation has started. `experience.ended` deliberately does NOT
+  // unmount it: a reader watches the last stage finish rather than having the screen vanish at the
+  // moment it completes.
+  //
+  // LIVE-ONLY IS GUARDED BY `sawStream`, NOT BY THE POLLED STATUS (V2.7b C11). Both answer "did
+  // this session watch the run happen", but only one of them is true throughout: a chained run
+  // passes THROUGH `done` between the quant leg and the chain's first stage write, and Act II
+  // keyed on the status simply never mounted for the reader who started the run — the case the
+  // whole act exists for. `sawStream` is set by the fold on the first event this session actually
+  // received, so it is false for a finished run reopened from the list (which opens no stream) and
+  // the ledger seed still cannot fake the act into history — the ratified property, kept.
   const actTwo =
     !actOne &&
     runFeed.experience.runId != null &&
     runFeed.experience.runId === artifact?.meta.run_id &&
-    watchedRunLive &&
+    runFeed.experience.sawStream &&
     chainState(runFeed.experience) === 'running';
 
   // Unlock the report + graphs fetches for Act II (React's "adjusting state when a prop changes";

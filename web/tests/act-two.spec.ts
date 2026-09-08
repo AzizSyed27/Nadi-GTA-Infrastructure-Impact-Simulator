@@ -381,6 +381,46 @@ test('a FINISHED run reopened from the list shows no act — Act II is live-only
   await expect(page.getByTestId('act-two')).toHaveCount(0);
 });
 
+test('the run PASSES THROUGH done between the acts, and Act II still mounts', async ({ page }) => {
+  // THE PRIMARY PATH, and it was broken (found by C11's live acceptance): the harness writes `done`
+  // at the end of the quant leg and the chain writes `enrich:voices` a moment later, so a poll
+  // landing in that window sees a finished run that is about to keep working. Act II keyed on the
+  // POLLED STATUS therefore never mounted for the reader who started the run — the one reader the
+  // act exists for — and the interpretation ran invisibly until a reload recovered it. It keys on
+  // `sawStream` instead: did THIS session receive this run's events. The test above proves the
+  // ratified live-only property still holds, since a reopened finished run opens no stream.
+  //
+  // THE FLIP IS KEYED ON THE STREAM REQUEST, NOT ON A POLL COUNT. A count-based flip is the
+  // sequenced-mock hazard: StrictMode double-mounts, both mounts fetch `/status`, and the second
+  // one would get the terminal answer BEFORE the stream ever opened — the fixture would then be
+  // testing a run that was already over, which is the other test.
+  await mockActTwo(page);
+  let streamOpened = false;
+  let servedTerminal = false;
+  await page.unroute('**/api/runs/*/events');
+  await page.route('**/api/runs/*/events', (r) => {
+    streamOpened = true;
+    return r.fulfill({ status: 200, contentType: 'text/event-stream', body: actTwoBody() });
+  });
+  await page.unroute('**/api/runs/*/status');
+  await page.route('**/api/runs/*/status', (r) => {
+    if (streamOpened) servedTerminal = true;
+    return r.fulfill({
+      json: {
+        run_id: RUN, description: 'a closure',
+        stage: streamOpened ? 'done' : 'enrich:voices',
+        status: streamOpened ? 'done' : 'running',
+      },
+    });
+  });
+  await enterActTwo(page);
+
+  // the run really did read as finished while the chain's own content was still arriving
+  await expect.poll(() => servedTerminal, { timeout: 15_000 }).toBe(true);
+  await expect(page.getByTestId('act-two')).toBeVisible();
+  await expect(page.getByTestId('act-two-card-voices')).toContainText('3 calls');
+});
+
 // --------------------------------------------------------------------------------------- sweeps
 
 test('Act II adds no aggregate framing of its own, on any stage', async ({ page }) => {

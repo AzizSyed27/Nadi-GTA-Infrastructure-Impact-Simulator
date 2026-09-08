@@ -77,6 +77,16 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   // re-open the finished stream every render until the POLL sees done (the status stays enrich:* for
   // up to a poll tick after the run ends) — an open/replay/close loop. Reset when a new enrich launches.
   const streamEnded = useRef(false);
+  // V2.7b C11 — THE POLL OUTLIVES THE QUANT LEG'S `done`. A chained run passes THROUGH a terminal
+  // state: the harness writes `done` at the end of Act I and the chain writes `enrich:voices` a
+  // moment later. A poll landing in that window stopped for good, so `/status` froze at `done`,
+  // Act II never mounted, and the interpretation ran invisibly — the reader's only recovery was a
+  // reload. (Caught by C11's live acceptance on the PRIMARY path: the reader who watches a run
+  // start.) So a `stage_start` arriving after the poll stopped restarts it. Bounded by construction
+  // — at most one restart per distinct stage key, so a hard-crashed chain that leaves a stage
+  // `running` forever cannot become a restart loop.
+  const pollStopped = useRef(false);
+  const restartedFor = useRef<string | null>(null);
   const handlers = useRef(h);
   useEffect(() => {
     handlers.current = h;
@@ -105,6 +115,7 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   useEffect(() => {
     lastStage.current = null;
     streamEnded.current = false;
+    restartedFor.current = null;
     streamClose.current?.();
     streamClose.current = null;
   }, [runId]);
@@ -176,6 +187,7 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     if (!runId || STATIC_DEMO) return;
     let stop = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    pollStopped.current = false;
 
     const tick = async () => {
       const res = await getRunStatus(runId);
@@ -200,6 +212,7 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
       if (st.stage === 'done' && lastStage.current !== 'done') handlers.current.onLoaded?.(runId);
       lastStage.current = st.stage;
       if (!terminal) timer = setTimeout(tick, POLL_MS);
+      else pollStopped.current = true;
     };
     void tick();
 
@@ -219,6 +232,14 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
       onVoice: (v) => handlers.current.onVoice?.(runId, v),
       onEvent: (ev, id) => {
         setExperience((prev) => foldEvent(prev, ev));
+        // A stage started while the poll was stopped on the quant leg's terminal state: the run is
+        // demonstrably still working, so start watching it again (see `pollStopped` above).
+        const startedStage = ev.type === 'stage_start' ? String(ev.stage ?? '') : null;
+        if (startedStage && pollStopped.current && restartedFor.current !== startedStage) {
+          restartedFor.current = startedStage;
+          pollStopped.current = false;
+          setNonce((n) => n + 1);
+        }
         handlers.current.onEvent?.(runId, ev, id);
       },
       onProgress: (p) => setStreamProgress((prev) => ({ ...prev, ...p })),

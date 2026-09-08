@@ -196,18 +196,39 @@ def test_the_chain_writes_a_projection_whose_basis_names_its_terms(env, monkeypa
     server._run_quant_then_chain(RUN, ["py", "scenario_harness.py"], run_events.events_path(RUN))
     proj = run_ledger.read(RUN)["projection"]
     assert proj["calls"] and proj["calls"] > 0
-    for term in ("report slots", "discourse cascade", "institutions cost nothing", "Retries"):
+    for term in ("report slots", "discourse cascade", "chat index", "institutions cost nothing",
+                 "retries push the actual above this"):
         assert term in proj["basis"], f"the basis must name {term!r}"
 
 
-def test_the_projection_never_hides_the_term_that_dominates_it() -> None:
-    """Discourse is ~90% of the spend (3 cascades x 5 steps x half the agents). A projection that
-    counted only voices and report slots would understate by an order of magnitude — the one
-    direction a consent number may never err in."""
+def test_the_projection_never_hides_the_terms_that_dominate_it() -> None:
+    """Voices and report slots are ~225 calls; the DISCOURSE and the CHAT INDEX are thousands. A
+    projection missing either understates by a multiple — the one direction a consent number may
+    never err in, and the direction the first version of this function actually erred in (it read
+    1,815 against a metered ~5,000 on C11's acceptance run, having omitted propagation's own stance
+    scoring and the index stage entirely). Both dominant terms must be in the TOTAL and named in the
+    BASIS, so a reader can see what they are consenting to and check it afterwards."""
     p = server._project_interpretation(instrumented=212)
     voices_and_slots = 212 + server.REPORT_SLOT_ESTIMATE
-    assert p["calls"] > 5 * voices_and_slots, "the cascades are missing from the total"
-    assert str(p["calls"] - voices_and_slots) in p["basis"], "the cascade term is not shown"
+    assert p["calls"] > 10 * voices_and_slots, "the cascades and the index are missing from the total"
+    # each large term appears in the basis as its own figure, not folded into an opaque total
+    acting = round(server.CASCADE_ACTIVATION * 212)
+    discourse = 3 * (server.CASCADE_STEPS * acting + round(server.CASCADE_SCORING_PER_AGENT * 212))
+    assert str(discourse) in p["basis"], "the discourse term is not shown"
+    assert "chat index" in p["basis"] and "documents" in p["basis"], "the index term is not shown"
+    # and the total is the sum of the four terms — no rounding slop hiding a fifth
+    corpus = 212 + round(server.CASCADE_POSTS_PER_CALL * 3 * server.CASCADE_STEPS * acting)
+    assert p["calls"] == 212 + server.REPORT_SLOT_ESTIMATE + discourse + round(
+        server.INDEX_CALLS_PER_DOC * corpus)
+
+
+def test_the_projection_errs_HIGH_not_low_against_the_measured_acceptance_run() -> None:
+    """C11's run A metered 5,205 calls end to end: voices 213, discourse 2,231, report 10, chat
+    index 2,751. The projection must sit ABOVE that, not below it — a consent number that comes in
+    under the bill is the failure this test exists for, and the first version of this function came
+    in at 1,815. The margin may be generous: an estimate that overstates costs a reader nothing."""
+    p = server._project_interpretation(instrumented=213)
+    assert p["calls"] >= 5205, f"projection {p['calls']} is below the measured acceptance run"
 
 
 def test_the_pre_run_projection_says_the_count_is_a_standin() -> None:
@@ -217,3 +238,55 @@ def test_the_pre_run_projection_says_the_count_is_a_standin() -> None:
     assert "standard sample" in pre["basis"]
     assert "sampled travelers" not in pre["basis"]
     assert server._project_interpretation(instrumented=213)["calls"] > pre["calls"]
+
+
+# --------------------------------------------------------------------------------- the stale guess
+# V2.7b C11: staleness is a GUESS about a process nobody can see; the lock is a FACT about one this
+# process owns. Caught live during the acceptance — the chat index worked honestly for 37 minutes
+# without writing state (a chain stage writes once at its start) and `/status` reported the live run
+# as `failed - stale`, which stops the client's poll and unmounts the act mid-run.
+
+
+def _stale_running(env, run_id: str = "stale-run") -> None:
+    import json
+    import time
+    p = run_state.STATE_DIR / f"{run_id}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({
+        "run_id": run_id, "stage": "enrich:index", "status": "running",
+        "detail": "building the chat index", "updated_at": time.time() - (run_state.STALE_S + 60),
+    }), encoding="utf-8")
+
+
+def test_a_stale_running_state_is_still_treated_as_failed_when_nobody_holds_the_lock(env):
+    """The fallback the coercion exists for: a process that died without writing a terminal state."""
+    _stale_running(env)
+    assert run_state.active() is None
+    st = run_state.read("stale-run")
+    assert st["status"] == "failed" and "stale" in st["detail"]
+
+
+def test_the_HELD_LOCK_outranks_the_stale_guess(env):
+    """...but not when THIS process is demonstrably running THAT run. Otherwise a long honest stage
+    is reported as a crash, which is the worse error: it is wrong, and it is wrong in the direction
+    that makes a working run look broken."""
+    _stale_running(env)
+    assert run_state.try_acquire("stale-run"), "test setup: the lock must be free"
+    try:
+        st = run_state.read("stale-run")
+        assert st["status"] == "running", "a run this process is actively holding is not stale"
+        assert st["stage"] == "enrich:index" and st["detail"] == "building the chat index"
+    finally:
+        run_state.release("stale-run")
+    # and the guess resumes the moment the lock is gone
+    assert run_state.read("stale-run")["status"] == "failed"
+
+
+def test_the_lock_exemption_is_scoped_to_the_run_that_holds_it(env):
+    """A different run holding the lock says nothing about this one."""
+    _stale_running(env)
+    assert run_state.try_acquire("some-other-run")
+    try:
+        assert run_state.read("stale-run")["status"] == "failed"
+    finally:
+        run_state.release("some-other-run")
