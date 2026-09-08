@@ -204,8 +204,14 @@ test('the cost line gets its DENOMINATOR while the run is still live', async ({ 
             { key: 'report', status: 'pending', llm_calls: 0, label: 'report' },
             { key: 'index', status: 'pending', llm_calls: 0, label: 'chat index' },
           ],
-          // the chain has not written it yet on the first read — exactly the live mid-flight shape
-          projection: reads === 1 ? null : { calls: 7157, basis: 'the basis the server composed' },
+          // THE PLACEHOLDER IS THE POINT. `run_ledger.init()` writes `{calls: null, basis: ""}` at
+          // run creation and `set_projection` fills it at chain start — so the first read returns a
+          // projection OBJECT with no number, not a bare null. A fixture that sent null here passed
+          // against a guard that checked the object rather than the number, and the live run still
+          // had no denominator.
+          projection: reads === 1
+            ? { calls: null, basis: '' }
+            : { calls: 7157, basis: 'the basis the server composed' },
           ended: null,
         },
       },

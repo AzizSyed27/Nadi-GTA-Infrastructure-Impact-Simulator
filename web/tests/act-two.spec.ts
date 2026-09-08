@@ -381,42 +381,60 @@ test('a FINISHED run reopened from the list shows no act — Act II is live-only
   await expect(page.getByTestId('act-two')).toHaveCount(0);
 });
 
-test('the run PASSES THROUGH done between the acts, and Act II still mounts', async ({ page }) => {
-  // THE PRIMARY PATH, and it was broken (found by C11's live acceptance): the harness writes `done`
-  // at the end of the quant leg and the chain writes `enrich:voices` a moment later, so a poll
-  // landing in that window sees a finished run that is about to keep working. Act II keyed on the
-  // POLLED STATUS therefore never mounted for the reader who started the run — the one reader the
-  // act exists for — and the interpretation ran invisibly until a reload recovered it. It keys on
-  // `sawStream` instead: did THIS session receive this run's events. The test above proves the
-  // ratified live-only property still holds, since a reopened finished run opens no stream.
+test('the run PASSES THROUGH done between the acts, and the poll comes back for Act II', async ({ page }) => {
+  // THE PRIMARY PATH, and it was broken (found by C11's live acceptance). The harness writes `done`
+  // at the end of the quant leg and the chain writes `enrich:voices` a moment later. A poll landing
+  // in that window saw a terminal run and STOPPED FOR GOOD — so the status froze at `done`, Act II
+  // never mounted for the reader who started the run, and the interpretation ran invisibly until a
+  // reload recovered it. The fix is in the POLL, not in the act's predicate: a `stage_start`
+  // arriving after the stop restarts it (bounded to one restart per stage key), which puts the
+  // status back to `enrich:*` and mounts the act.
   //
-  // THE FLIP IS KEYED ON THE STREAM REQUEST, NOT ON A POLL COUNT. A count-based flip is the
-  // sequenced-mock hazard: StrictMode double-mounts, both mounts fetch `/status`, and the second
-  // one would get the terminal answer BEFORE the stream ever opened — the fixture would then be
-  // testing a run that was already over, which is the other test.
+  // THE ORDERING IS THE WHOLE FIXTURE. The chain's events must arrive AFTER the terminal blip, or
+  // the test proves nothing: a buffered mock that delivers every frame at mount folds the stage
+  // events while the poll is still running, so no restart is ever needed and the pin passes with
+  // the fix reverted. So the stream is served in two parts, as the server writes it — the quant
+  // leg's own frames first, then the chain's, once the poll has already stopped.
   await mockActTwo(page);
-  let streamOpened = false;
-  let servedTerminal = false;
+  let chainRequested = false;
+  const chainDelivered = { done: false };
+  let polls = 0;
+  let sawBlip = false;
   await page.unroute('**/api/runs/*/events');
-  await page.route('**/api/runs/*/events', (r) => {
-    streamOpened = true;
+  await page.route('**/api/runs/*/events', async (r) => {
+    if (!chainRequested) {
+      // part 1: the run exists and its quant leg is over. No stage events yet — the chain has not
+      // written any. The connection ends, and `retry` brings the client back for part 2.
+      const head = ['retry: 300', '', ''].join('\n')
+        + frame(0, 'run_start', { run_id: ART, description: 'a closure', demand_profile: 'synthetic_demo' });
+      chainRequested = true;
+      return r.fulfill({ status: 200, contentType: 'text/event-stream', body: head });
+    }
+    // part 2, held back until the poll has had time to see the terminal blip and stop
+    await new Promise((res) => setTimeout(res, 3000));
+    chainDelivered.done = true;
     return r.fulfill({ status: 200, contentType: 'text/event-stream', body: actTwoBody() });
   });
   await page.unroute('**/api/runs/*/status');
   await page.route('**/api/runs/*/status', (r) => {
-    if (streamOpened) servedTerminal = true;
+    polls += 1;
+    // terminal from the second poll until the chain has spoken — the live window exactly
+    const blip = polls >= 2 && !chainDelivered.done;
+    if (blip) sawBlip = true;
     return r.fulfill({
       json: {
         run_id: RUN, description: 'a closure',
-        stage: streamOpened ? 'done' : 'enrich:voices',
-        status: streamOpened ? 'done' : 'running',
+        stage: blip ? 'done' : 'enrich:voices',
+        status: blip ? 'done' : 'running',
       },
     });
   });
   await enterActTwo(page);
 
-  // the run really did read as finished while the chain's own content was still arriving
-  await expect.poll(() => servedTerminal, { timeout: 15_000 }).toBe(true);
+  // the terminal blip really was served, and the poll came back from it — a stopped poll would
+  // have frozen there forever, which is what the live run did
+  expect(sawBlip, 'the fixture must actually pass through a terminal status').toBe(true);
+  await expect.poll(() => polls, { timeout: 20_000 }).toBeGreaterThan(2);
   await expect(page.getByTestId('act-two')).toBeVisible();
   await expect(page.getByTestId('act-two-card-voices')).toContainText('3 calls');
 });

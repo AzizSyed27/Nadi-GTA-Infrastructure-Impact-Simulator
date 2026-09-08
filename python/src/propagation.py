@@ -778,7 +778,14 @@ def main() -> None:
     # (already generated and audited) with no stance trajectories — assemble handles that shape.
     if run_events.cancelled():
         print("[propagation] stop requested — skipping the stance-scoring pass", flush=True)
-        trajectories = {}
+        # A LIST, because `Social.trajectories` is one. This was `{}`. The comment above is right
+        # that assemble handles a trajectory-less run — but only when it is handed an EMPTY LIST;
+        # a mapping dies in pydantic. So a skip that landed inside the discourse stage lost the
+        # WHOLE stage — the cascade that had already been paid for and audited never
+        # reached the artifact, and the stage ended `failed` with a validation traceback instead of
+        # keeping what it had. Found live in C11's acceptance (the skip arrived during cascade 1,
+        # which is the ordinary case: the loop checkpoint deliberately never fires on i=0).
+        trajectories = []
     else:
         print(f"[propagation] stance scoring via {provider}/{model}", flush=True)
         trajectories = asyncio.run(score_trajectories(parsed_by_cascade, nodes, client))

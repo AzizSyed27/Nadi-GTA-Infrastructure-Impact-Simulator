@@ -231,3 +231,32 @@ def test_a_skip_mid_chain_keeps_what_landed_and_ends_the_run_honestly(client: Te
     assert "stage_partial" in kinds
     assert kinds[-1] == "run_ended"
     assert run_state.active() is None, "the lock is free for the next variant"
+
+
+def test_a_skip_INSIDE_the_discourse_stage_still_assembles_the_cascade_it_paid_for():
+    """V2.7b C11, found live. The loop checkpoint deliberately never fires on i=0, so an ordinary
+    skip arrives DURING cascade 1 — which is then generated, audited and paid for. The second
+    checkpoint skips the stance-scoring pass, and the value it left behind was `{}` while
+    `Social.trajectories` is a LIST. Pydantic rejected it, so the stage ended `failed` with a
+    validation traceback and the cascade never reached the artifact: the brake lost the very thing
+    it exists to keep.
+
+    The pin builds `Social` exactly as `assemble` does, with the shape the cancelled branch produces
+    (one cascade, no trajectories), and asserts BOTH directions — the list validates and carries the
+    cascade, the dict does not — so the branch cannot drift back to a mapping."""
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    sys.path.insert(0, str(REPO / "contract"))
+    from contract_models import Cascade, CascadeStep, Social, SocialEvent  # noqa: PLC0415
+
+    one_cascade = [Cascade(cascade_id="c1", steps=[CascadeStep(step=0, events=[
+        SocialEvent(agent="v1", action="post", content="The closure is a nuisance.", audit_status="clean"),
+    ])])]
+
+    social = Social(mechanism="oasis", cascades=one_cascade, trajectories=[], excluded_count=0)
+    assert len(social.cascades) == 1, "the cascade that was paid for must survive the skip"
+    assert social.trajectories == []
+
+    with _pytest.raises(ValidationError):
+        Social(mechanism="oasis", cascades=one_cascade, trajectories={}, excluded_count=0)

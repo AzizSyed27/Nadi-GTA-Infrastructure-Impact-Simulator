@@ -148,8 +148,13 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   // C11's acceptance; run A only had a denominator because it had been REOPENED after the chain
   // started, which is the path that happens to seed late.) Fires at most once per run — the guard
   // is the projection being absent, and the fetch fills it.
+  // THE GUARD IS ON THE NUMBER, NOT ON THE OBJECT. `run_ledger.init()` stores a PLACEHOLDER
+  // `{calls: null, basis: ""}` at run creation, so the seed always finds a projection object and a
+  // `== null` check on it is false from the first paint onwards — the re-read never fired and the
+  // live cost line still had no denominator (caught on run D, after the first fix looked right in a
+  // mock that returned a bare null the server never sends).
   const chainStarted = experience.stages.some((s) => s.status !== 'pending');
-  const needsProjection = chainStarted && experience.projection == null;
+  const needsProjection = chainStarted && experience.projection?.calls == null;
   useEffect(() => {
     if (!runId || STATIC_DEMO || !needsProjection) return;
     let cancelled = false;
@@ -157,9 +162,9 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
       const res = await getLedger(runId);
       if (cancelled || !res.ok || !res.value.ledger) return;
       const durable = seedFromLedger(res.value.ledger as Ledger, runId);
-      if (!durable.projection) return;
+      if (durable.projection?.calls == null) return; // still the placeholder — nothing to show yet
       setExperience((prev) =>
-        prev.runId === runId && prev.projection == null
+        prev.runId === runId && prev.projection?.calls == null
           ? { ...prev, projection: durable.projection }
           : prev);
     })();
@@ -261,7 +266,11 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
         setExperience((prev) => foldEvent(prev, ev));
         // A stage started while the poll was stopped on the quant leg's terminal state: the run is
         // demonstrably still working, so start watching it again (see `pollStopped` above).
-        const startedStage = ev.type === 'stage_start' ? String(ev.stage ?? '') : null;
+        // `event`, not `type` — RunEvent's discriminator. Written as `ev.type` first, which is
+        // always undefined, so the restart was DEAD CODE that no assertion could see: the same
+        // shape as C7's silent vocabulary mismatch, caught here only because the pin models the
+        // server's ordering and therefore actually needs the restart to fire.
+        const startedStage = ev.event === 'stage_start' ? String(ev.stage ?? '') : null;
         if (startedStage && pollStopped.current && restartedFor.current !== startedStage) {
           restartedFor.current = startedStage;
           pollStopped.current = false;

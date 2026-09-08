@@ -143,11 +143,6 @@ export interface RunFeedState {
   endedByState: boolean;
   llmCallsTotal: number;
   projection: { calls: number | null; basis: string } | null;
-  /** V2.7b C11 — has THIS session actually received events for this run? The ledger seed can make a
-   *  finished run look mid-chain (its stage rows are all `done`), so "a chain is running" cannot be
-   *  read from the stages alone. A terminal run opens no stream, so this stays false for one — which
-   *  is what keeps Act II live-only. */
-  sawStream: boolean;
 }
 
 export function emptyFeedState(runId: string | null = null): RunFeedState {
@@ -163,7 +158,7 @@ export function emptyFeedState(runId: string | null = null): RunFeedState {
     institutionsSpoke: [], institutionsSilent: [],
     slots: [], indexDocs: null,
     ended: null, endedByState: false,
-    llmCallsTotal: 0, projection: null, sawStream: false,
+    llmCallsTotal: 0, projection: null,
   };
 }
 
@@ -213,7 +208,13 @@ function setStage(state: RunFeedState, key: StageKey, patch: Partial<StageState>
  */
 export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
   const s: RunFeedState = { ...prev };
-  s.sawStream = true; // any event that reaches a real case means this session watched the run live
+  // AN EVENT FALSIFIES THE POLL'S GUESS. `endedByState` is an INFERENCE from a terminal stage string
+  // — the fallback for a run whose process died without writing `run_ended`. An event arriving
+  // afterwards is proof the run did not end: a chained run passes THROUGH `done` between the quant
+  // leg and the chain's first stage write, and a guess that outlived that evidence is what made the
+  // interpretation run invisibly (V2.7b C11). A real ending is a `run_ended` line, which sets
+  // `ended` a few lines below and is never cleared here.
+  s.endedByState = false;
   const kind = ev.event;
 
   switch (kind) {
