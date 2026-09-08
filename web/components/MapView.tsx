@@ -1717,7 +1717,20 @@ export default function MapView() {
     // terminal-edge re-read; without that half this clause would have a name and no reason.
     const failed = x.stages.filter((st) => st.status === 'failed');
     if (failed.length) {
-      kept.push(`failed: ${failed.map((st) => (st.detail ? `${st.label} — ${st.detail}` : st.label)).join(', ')}`);
+      // ...but the reason is the RUN'S, not each stage's, whenever they agree — and under a chain
+      // they almost always do, because one outage fails every stage it touches. Rendered per stage
+      // it repeated a raw provider exception three times inside one paragraph (looked-at catch on
+      // C11's degraded run: an authentication dump, twice as stage details and once as "Reason
+      // given"). A stage keeps its own detail only where it differs from the ending's, which is the
+      // case the per-stage clause exists for. `endingDetail` is the SAME string this block prints
+      // once, below.
+      const endingDetail = (ended.detail ?? '').trim();
+      kept.push(`failed: ${failed
+        .map((st) => {
+          const d = (st.detail ?? '').trim();
+          return d && d !== endingDetail ? `${st.label} — ${d}` : st.label;
+        })
+        .join(', ')}`);
     }
     const cost = x.llmCallsTotal ? `The run spent ${x.llmCallsTotal.toLocaleString()} model calls.` : null;
     const sentence = kept.length
@@ -1727,7 +1740,14 @@ export default function MapView() {
       ? ('degraded' as const) : ('skipped' as const);
     // the reason only renders when it ADDS something: on a skip it is "stopped at your request",
     // which the heading already says, and repeating it reads as a stray fragment (looked-at catch)
-    const reason = ended.detail && status !== 'skipped' ? `Reason given: ${ended.detail}.` : null;
+    // A provider's exception text is machinery, and this document is content. The reason is kept —
+    // a reader who cannot see WHY has to go to a log — but clamped to its first line and a readable
+    // length, so the sentence stays a sentence.
+    const rawReason = (ended.detail ?? '').trim().split(/\r?\n/)[0].trim();
+    const shortReason = rawReason.length > 160 ? `${rawReason.slice(0, 157).trimEnd()}…` : rawReason;
+    const reason = shortReason && status !== 'skipped'
+      ? `Reason given: ${shortReason}${/[.!?…]$/.test(shortReason) ? '' : '.'}`
+      : null;
     return {
       status,
       kept: sentence,

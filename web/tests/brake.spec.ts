@@ -177,6 +177,46 @@ test('SKIP takes the reader to Read, where the answer is', async ({ page }) => {
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-skipped-state.png' });
 });
 
+test('the cost line gets its DENOMINATOR while the run is still live', async ({ page }) => {
+  // `set_projection` writes the ledger's projection at CHAIN START — after the mount-time seed has
+  // already read the ledger. So for the reader who watched the run from the beginning (the reader
+  // the act is for) the cost line had a numerator and nothing to weigh it against: "model calls:
+  // 213", never "213 of ~7,157". Found live in C11's acceptance. Run A only had a denominator
+  // because it had been REOPENED after the chain started, which is the path that seeds late.
+  //
+  // THE FIXTURE REPRODUCES IT BY CONTENT, NOT BY TIMING. A first read with no projection and a
+  // second with one IS the server's own sequence, and unlike a delayed route it cannot be won or
+  // lost by a race: without the re-read there is no second read, so the denominator never arrives.
+  let reads = 0;
+  await mockRun(page);
+  await page.route('**/api/runs/*/ledger', (r) => {
+    reads += 1;
+    return r.fulfill({
+      json: {
+        run_id: RUN,
+        ledger: {
+          run_id: RUN,
+          stages: [
+            { key: 'personas', status: 'done', llm_calls: 0, label: 'personas sampled' },
+            { key: 'voices', status: 'running', llm_calls: 47, label: 'voices' },
+            { key: 'institutions', status: 'pending', llm_calls: 0, label: 'institutions' },
+            { key: 'discourse', status: 'pending', llm_calls: 0, label: 'discourse' },
+            { key: 'report', status: 'pending', llm_calls: 0, label: 'report' },
+            { key: 'index', status: 'pending', llm_calls: 0, label: 'chat index' },
+          ],
+          // the chain has not written it yet on the first read — exactly the live mid-flight shape
+          projection: reads === 1 ? null : { calls: 7157, basis: 'the basis the server composed' },
+          ended: null,
+        },
+      },
+    });
+  });
+  await enterActTwo(page);
+
+  await expect(page.getByTestId('act-two-cost')).toContainText('of ~7,157', { timeout: 20_000 });
+  await expect(page.getByTestId('act-two-cost-basis')).toContainText('the basis the server composed');
+});
+
 test('a DEGRADED run says the figures still stand', async ({ page }) => {
   // The provider was unreachable, or a stage exploded. The run itself is unharmed — every number
   // came from the physics — and the block leads with exactly that.
@@ -210,9 +250,37 @@ test('a DEGRADED run says the figures still stand', async ({ page }) => {
   // stage that already reported for itself — without it the sentence blamed the provider for a
   // personas stage that had finished, and which reading a reader got depended on whether the
   // ledger or the stream landed last.
-  await expect(block).toContainText('failed: voices — provider unreachable');
+  await expect(block).toContainText('failed: voices');
   await expect(block).not.toContainText('personas sampled — provider unreachable');
+  // and the reason is said ONCE. Under a chain, one outage fails every stage it touches, so the
+  // per-stage detail and the run's ending reason are the same string — repeated per stage it put a
+  // raw provider exception three times into one paragraph (looked-at catch, C11's degraded run).
+  // A stage keeps its own detail only where it DIFFERS, which is the case that clause is for.
+  expect((await block.innerText()).match(/provider unreachable/g) ?? []).toHaveLength(1);
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-degraded-state.png' });
+});
+
+test('a stage whose reason DIFFERS from the run’s keeps its own', async ({ page }) => {
+  // The other half of the rule above: deduplicating must not swallow information. Here the stage
+  // failed for one reason and the run ended for another, so both belong on screen.
+  const body = runningBody()
+    + frame(6, 'stage_end', { stage: 'enrich:voices', status: 'failed', detail: 'the model returned no usable text' })
+    + frame(7, 'run_ended', { status: 'degraded', detail: 'provider unreachable' });
+  await mockRun(page, {
+    events: body,
+    ledger: {
+      ...LEDGER_STOPPED,
+      stages: LEDGER_STOPPED.stages.map((st) =>
+        st.key === 'voices' ? { ...st, status: 'failed', detail: 'the model returned no usable text' } : st),
+      ended: { status: 'degraded', at: 1_700_000_500, reason: 'provider unreachable' },
+    },
+  });
+  await enterActTwo(page);
+  await openStage(page, 'read');
+
+  const block = page.getByTestId('interpretation-degraded');
+  await expect(block).toContainText('failed: voices — the model returned no usable text');
+  await expect(block).toContainText('Reason given: provider unreachable.');
 });
 
 test('a run ENDING on its own does not move the reader', async ({ page }) => {

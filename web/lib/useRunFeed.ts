@@ -141,6 +141,33 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     };
   }, [runId]);
 
+  // V2.7b C11 — AND RE-READ IT WHEN THE CHAIN STARTS, for the projection. `set_projection` writes
+  // the ledger's projection at chain start, which is AFTER the seed below has already run and been
+  // dropped — so the reader who watched the run from the beginning, the one the act is for, saw a
+  // cost line with no denominator: "model calls: 213" instead of "213 of ~7,157". (Observed live in
+  // C11's acceptance; run A only had a denominator because it had been REOPENED after the chain
+  // started, which is the path that happens to seed late.) Fires at most once per run — the guard
+  // is the projection being absent, and the fetch fills it.
+  const chainStarted = experience.stages.some((s) => s.status !== 'pending');
+  const needsProjection = chainStarted && experience.projection == null;
+  useEffect(() => {
+    if (!runId || STATIC_DEMO || !needsProjection) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await getLedger(runId);
+      if (cancelled || !res.ok || !res.value.ledger) return;
+      const durable = seedFromLedger(res.value.ledger as Ledger, runId);
+      if (!durable.projection) return;
+      setExperience((prev) =>
+        prev.runId === runId && prev.projection == null
+          ? { ...prev, projection: durable.projection }
+          : prev);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [runId, needsProjection]);
+
   // V2.7b C10b — RE-READ THE LEDGER WHEN THE RUN ENDS. The seed above runs ONCE per run id, before
   // the run is over, and is deliberately dropped when the stream already has content. So the
   // durable-only fields never reached a live watcher: `ended.reason` (which is the only thing that
