@@ -10,9 +10,10 @@ planner concludes**, never the other way around.
 
 ![The pinned 212-voice run mid-playback: dots, the reaction feed, the per-stakeholder scorecard](docs-assets/v25d-hero-playback.png)
 
-**Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`), and **V2.7a** (the four-stage
-shell + the run document) complete · trajectory contract
-**v0.10.0** · **601 pytest + 129 Playwright** tests · study corridor: Scarborough / Pickering /
+**Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`), **V2.7a** (the four-stage shell +
+the run document) and **V2.7b** (the run experience — two acts over one event stream) complete ·
+trajectory contract
+**v0.10.0** · **689 pytest + 178 Playwright** tests · study corridor: Scarborough / Pickering /
 Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
@@ -45,7 +46,7 @@ etiquette. The locked decisions:
 
 - **Preview, never verdict.** The agent layer anticipates *who wins, who loses, and what each
   objection sounds like*. It is not a referendum: no stance tallies, no sentiment averages, no
-  winner, anywhere. This is test-enforced — a banned-language sweep rides **19 of the 23
+  winner, anywhere. This is test-enforced — a banned-language sweep rides **23 of the 27
   Playwright specs** plus a python-side sweep, so a regression toward "62% support" fails CI, not
   a code review. The group room states it on its own surface: *"voices you picked, answering one
   at a time — a conversation preview, not a poll or a sample of opinion."*
@@ -112,9 +113,21 @@ server's own rejection sentences — too close, self-crossing, outside the study
 invalid curve never reaches the simulator, and the built edge's *simulated length is the drawn
 polyline's*, not the straight-line shortcut. Members window independently; blockers surface
 *before* you run, speaking the server's own rejection strings verbatim. One **Run** submits the
-draft as a composite; a staged job (baseline → scenario → analysis) fills the map in as results
-land. Afterwards: enrich with voices (they stream in live), an audited report, and an OASIS
-discourse pass; **⧉ clone** any past run into a fresh draft to iterate; name the runs you keep.
+draft as a composite — and the button says what that costs before you press it, in model calls,
+from the server's own projection.
+
+Then the run **narrates itself, in two acts**. **Act I is the physics:** the baseline morning plays
+on the map while the scenario leg computes behind it, four timestamped beats land (demand loaded ·
+baseline complete · your change applied, read back from the simulator · withdrawn, and the
+permissions and speed limit checked against the capture taken just before it went in), and a held
+moment shows that checklist with a tick on each line the tool actually verified. **The results are
+complete the moment Act I ends** — the figures and the scorecard are computed by the simulator, so
+they are readable before any model runs. **Act II is the interpretation**, and it is optional:
+voices arriving one at a time, institutions speaking or honestly staying silent, the discourse
+cascade, the report composing section by section with its audit line live. A running total sits
+beside a **Stop interpretation** button; stopping keeps everything that landed, says so in the
+document, and never touches a number. **⧉ clone** any past run into a fresh draft to iterate; name
+the runs you keep.
 Compare two finished runs; interview any voice 🎤 in character — answers grounded server-side in
 that one agent's own recorded trip, passing the same live honesty guard, ephemeral by
 construction — or put **3–5 voices in a room 👥**: they answer one at a time, each hearing only
@@ -157,7 +170,8 @@ chat agent knows* (the LightRAG entity graph, with its staleness relative to the
 └──────────────┬───────────────┘   {"run_id"} written only on quant completion; │
                │                   per-run artifacts load by id                 │
                │      FastAPI job-runner (server.py, :8000)                     │
-               └─  /api/simulate · /api/runs · …/enrich/stream · …/identity ·  ─┘
+               └─  /api/simulate · /api/runs · …/events (SSE) · …/ledger ·   ─┘
+                  …/skip · …/resume · …/identity · /api/projection ·
                   /api/report · /api/chat · /api/interview
 ```
 
@@ -200,8 +214,8 @@ chat + interviews, discourse) unlocks with one. The repo ships two complete pre-
 the map renders before you ever run SUMO.
 
 ```bash
-python -m pytest python/tests        # 601 tests
-cd web && npx playwright test        # 129 tests, 23 specs
+python -m pytest python/tests        # 689 tests
+cd web && npx playwright test        # 178 tests, 27 specs
 ```
 
 ## History
@@ -238,6 +252,18 @@ cd web && npx playwright test        # 129 tests, 23 specs
   loads the named example — *"Closure at the fire station's doorstep"* — read-only. The
   follow-up made the cross-seed tail sentence derive from the run's own seeds: a single-seed
   run says "not probed", never "checked".
+- **V2.7b ✅** — the **run experience**: a run narrates itself in two acts over one per-run event
+  stream. **Act I** plays the baseline leg while the scenario leg computes and lands four
+  timestamped beats, each ✓ earned from something the simulator actually verified — the change
+  read back as in force, and, on withdrawal, the permissions and speed limit compared per lane
+  against the capture taken just before it went in. **Results are complete when Act I ends**, so
+  the figures are readable before any model runs. **Act II** is the interpretation, and it is
+  optional: a live cost line beside a Stop button, and stopping keeps what landed and says so in
+  the document. The live acceptance is what made the cost honest — a full chained run metered
+  **5,205 model calls** against a projection of 1,815, because the estimate had missed the
+  cascade's own stance scoring and counted the chat index at zero when it is the single largest
+  stage. The projection now names all four terms and is pinned to sit above a measured run:
+  understating is the one direction a consent number may never err in.
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
   changes the saturation finding), map + editor styling incl. the curved-road restyle (V2.7c/d),
   a real student-demand segment, periodic mandate re-verification, the settled-basis

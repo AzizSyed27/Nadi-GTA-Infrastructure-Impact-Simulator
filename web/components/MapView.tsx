@@ -76,6 +76,11 @@ const ARTIFACT_URL = '/latest.json';
 // both write it; the persisted id restores ONLY the run pointer — never session state).
 const LAST_RUN_KEY = 'nadi:lastRun';
 
+// V2.7b C11 — how much of the stage the playback bar owns, so a left-anchored document panel does
+// not sit over its controls. Measured from the rendered bar (56 px) plus the 20 px gutter every
+// other floating surface uses.
+const PLAYBACK_BAR_CLEARANCE = 76;
+
 const PULSE_WINDOW = 25; // sim seconds around trigger_t during which an instrumented dot swells
 const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-seconds, then rests as a dot
 
@@ -2495,6 +2500,9 @@ export default function MapView() {
             collapsed={watchDocCollapsed}
             onToggle={setWatchDocCollapsed}
             topOffset={78}
+            // clear the playback bar: its Play button is at the bar's LEFT end, under a
+            // left-anchored panel, and the panel would otherwise cover it (V2.7b C11)
+            bottomOffset={playbackBarHidden ? 20 : PLAYBACK_BAR_CLEARANCE}
           >
             <WatchArticle
               // the reader's own name for the run wins; else the change's own sentence

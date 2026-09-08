@@ -101,7 +101,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.10.0**. Phases 0–5, V2.0–V2.6, and V2.7a are COMPLETE: the four-stage shell
+Contract **v0.10.0**. Phases 0–5, V2.0–V2.6, V2.7a and V2.7b are COMPLETE: the four-stage shell
 (Build → Watch → Read → Explore) fronts the whole pipeline — Build composes
 (draw a road — straight or BENT through via points (V2.6d) — / speed / bike lane / lane- & road-closures /
 incidents / 🏫 school-zone COMPOSITES —
@@ -224,7 +224,7 @@ report REGENERATED under the full realign ceremony — **the conjunction-baselin
 rebuilt, alignment + pins + discourse.spec re-proven. The sweep CAUGHT a real pre-existing gap:
 the code-rendered tail sentence said "the vast majority of cars unaffected" (referendum
 vocabulary no old sweep covered) — reworded at both sources (report.py, robustness.py), golden
-regenerated deliberately. Sweeps ride 19 of 23 spec files. ReportPanel is DELETED; chat lives
+regenerated deliberately. Sweeps ride **23 of 27** spec files (the four without one are incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
 at Explore · Chat; shared composers extracted (windowedScope/scopeNoteText, provenance labels,
 nonCompletionsLine) so pinned sentences have ONE source across surfaces. **PERF RE-MEASURED (headed, prod, this box — the V2.5c harness + a stage-watch hop since the landing defaults to Read): 90 MB fat-vintage exemplar nav→render 3.77 s (budget ≤5 s; pre-shell 3.72 — no regression), frames p50 8.1 ms/123 fps · p95 16.1 ms/62 fps · 0 longtasks (pre-shell 122/61 — identical; the document panel never subscribes to the rAF clock); pinned ~20 MB run nav→render 1.14 s (budget ≤2 s), 125/63 fps.** Suites: **595 pytest
 + 123 Playwright**.
@@ -256,13 +256,175 @@ banner/legend overlap confirmed fixed by a looked-at screenshot; the LIVE vintag
 rendered the labeled `report-mismatch` refusal verbatim (bytes restored cmp-identical); the cold
 landing re-walked — the ratified title + the single-seed sentence
 (`docs-assets/v27b-followup-*.png`). Suites: **601 pytest + 129 Playwright**.
-Open threads: **V2.7b run experience · V2.7c/d map + editor styling (incl. the curved-road
-grey/striping restyle) · V2.7e doorways/room** +
+**V2.7b IS COMPLETE — THE RUN EXPERIENCE (two acts over one event stream; C1–C11b; NO contract
+change all phase). Through C10b every commit left BOTH suites green; C11b's fix commits shipped on
+the targeted specs with the full Playwright gate riding the closeout — where it caught the C11
+mount predicate breaking the manual-enrich→playback flow, fixed before this record landed.** a run is legible as **ACT I, the
+physics** (the baseline leg playing while the scenario leg computes, four timestamped beats, no
+LLM, a held moment that PROVES the cleanup) and **ACT II, the interpretation** (six stage cards
+streaming content, never machinery). The governing constraint is structural, not editorial:
+**results are complete the moment Act I ends** — `report.py --facts-only` writes the figures with
+prose slots ABSENT and no pointer, so the results band appears before any model runs, and
+everything after it is skippable, failable and labeled at its honest cost.
+**FIVE SERVER PILLARS.** (1) `run_events.py` — ONE NDJSON file per run's whole LIFE (renamed +
+widened from enrich_events; truncation and `prune()` moved to BOTH simulate launch sites), SSE
+`id:` = absolute line number, `Last-Event-ID` resume, replay-from-0 idempotent — and **the terminal
+became STATE-DRIVEN**: end-of-stream is EOF + lock free + run-state terminal, `run_ended` is
+CONTENT (it labels HOW a run ended) while `stream_end` is CONTROL. **A replayable log cannot encode
+its own end:** with no truncation, a content-terminal would have closed the client's stream after
+stage 1, and a skip's terminal would sit INTERIOR to every later replay, permanently. (2) The
+LEDGER (`run_ledger.py`, `<run_id>.ledger.json` — the FOURTH file class under STATE_DIR, skipped by
+`list_all`, four-class coexistence pinned, ONE writer like the identity sidecar). (3) The STAGE
+RUNNER: after a successful simulate the chain continues through six PRESENTED stages under ONE held
+lock — presented stages are NOT subprocess boundaries, the runner maps subprocesses onto them via
+events; `release(run_id)` became compare-and-clear three commits before skip armed the lock-stealing
+window it closes. (4) The EARLY BASELINE EMISSION — a contract-valid 0.10.0 artifact of the baseline
+leg the moment that leg ends, REPLACING the old write-only `_write_provisional` dump; synthetic
+only, with the calibrated profile's honest second state (its spill is freed by design). (5)
+`report.py`: `--facts-only`, the PERSISTED pre-retry draft (so "view the correction" is a record,
+not a reconstruction), and per-slot events.
+**THE CLIENT IS A PURE FOLD** (`web/lib/runFeed.ts`): `foldEvents(seedFromLedger(ledger), events)` —
+a reload mid-run rebuilds the same screen because the experience IS the projection; no React state
+holds anything the file doesn't. `useRunFeed` owns the poll AND the stream (lifted out of RunCard,
+which mounts only in Build).
+**THE BRAKE AND THE FLIP:** a cooperative cancel FILE (subprocess-reachable, which an in-process
+flag is not) with four checkpoints, each assembling and writing what landed — never a fabricated
+voice to fill the gap; skip routes to Read ON THE BUTTON CLICK, never on the terminal edge (only
+the user's own click moves the user); the cost line and the Run button's pre-spend sentence ship in
+the SAME commit as `NADI_AUTO_ENRICH`'s default flip, so no commit window exists where pressing Run
+auto-spends with no brake and no cost on screen. The Run button's M comes from ONE server function
+with TWO callers (`GET /api/projection` pre-run; the ledger at chain start) — the client renders the
+number and basis VERBATIM and computes nothing.
+**C7 — A PREMISE FALSIFIED, AND THE FIX DELIBERATELY NOT BUILT.** The plan entered C7 calling the
+feed isolation "a measured perf fix", on a C3 reading of ~6.3 s of main-thread block across five
+voice appends. Measured through the REAL handler (`perf-harness --appends N [--appends-live]`,
+headed, prod, the 90 MB exemplar): **0.7 ms p50 per append, 157 ms total across all 212**, and
+during live appends at the observed cadence **p95 70 fps against a ≥30 fps budget** — one frame per
+second of fps versus the idle control, inside noise. What C3 measured was a gap between two status
+polls in a DEV-SERVER Playwright run: the gap was real, the attribution was an inference. So the
+FOLD was built (it is what makes reload-reconstruction possible — a reason that never depended on
+perf) and the isolation and batching were NOT, per the ratified measurement-gated protocol. The
+batching seam is recorded rather than built: batch the artifact MERGE, never the fold, or the
+"voices arrive one at a time" pin goes green against the wrong surface.
+**THE C6 SPLIT THE COMMIT GRAPH DID NOT TAKE.** C6a (the chain) / C6b (the brake) was decided at
+plan time and the code was written in that order, but the diffs interleave inside the same functions
+across six shared files, so the graph carries one commit; the boundary survives in the test files
+(`test_stage_runner.py` / `test_skip_resume.py`). Recorded rather than absorbed — the C8a/C8b split
+that DID hold shared zero files, which is the whole difference.
+**C10's LEDGER OF WHAT THE HONESTY PASS FOUND:** the terminal-state hole was **three exit paths**,
+not one (the pinned-run refusal and the no-auto-enrich path wrote no state at all — post-flip a
+completed run would have sat in the run list as "computing" forever) **plus a `failed→done`
+transient** a 1.5 s poll could legitimately observe; closed by a parametrized PROPERTY test over
+every exit path asserting terminal state AND a free lock. The cancel file had ONE `clear_cancel`
+call site (resume), so a stale flag made the next manual enrich generate ZERO voices and exit 0
+reporting "complete" — latent until C10 shipped the button that makes skipping routine. The
+**"unreachable" DIRECTION INVERSION**: the mechanism routes station origin → segment end, the
+row-level note was already direction-correct, and the aggregating citation inverted it into a claim
+that the STATION could not be reached — fixed at three composer sites, and **the committed artifacts
+keep the old wording** (citations are composed at enrich time into `agents[].citations`; both
+carriers are protected runs), a KNOWN-VINTAGE DIVERGENCE stated here because a reader will meet two
+wordings. The border-longhand ESLint ban found **two live instances** of the bug it was written for
+(`EdgePalette` `kindActive`, `RunListPopover` `rowViewing`) — and a `:has()` pair selector would have
+caught NEITHER, because the dominant idiom spreads the longhand over a shorthand-carrying base so
+the two never share an ObjectExpression.
+**C11 — THE LIVE ACCEPTANCE FOUND TEN DEFECTS, AND THE CONSENT NUMBER WAS ONE OF THEM.** Run A
+(`multimodal-scenario-20260907T225651Z`, synthetic day_one, a windowed closure at the fire station's
+doorstep) metered **5,205 model calls**: voices 213 · discourse 2,231 · report 10 · **chat index
+2,751** — against a projection of **1,815**. It had counted the cascade agents but not
+propagation's own stance SCORING of what they said (701 calls, `score_trajectories`), and counted
+the chat index at ZERO when it is the single largest stage. The seeding round is genuinely free (it
+posts the verbatim round-0 reactions). Both terms are now MEASURED constants with their derivation
+in `_project_interpretation`'s docstring, the basis names all four terms, and a pin asserts the
+projection sits ABOVE the measured run — **understating is the one direction a consent number may
+never err in, and it had been erring in it since C10a wired it.** The other eight: **Act II never
+mounted for the reader who STARTED the run** (a chained run passes THROUGH `done` between the quant
+leg and the chain's first stage write; the act keyed on the polled status, which also stopped the
+poll, so the interpretation ran invisibly and a reload was the only recovery — it keys on
+`sawStream` now, which keeps the ratified live-only property because a reopened finished run opens
+no stream); **the poll never restarted** (it does now, on a `stage_start` after a stop, bounded to
+one restart per stage key); **a live run reported as `failed — stale`** (`run_state.read`'s
+30-minute coercion fired on the chat index at 37 minutes of honest work — staleness is a GUESS about
+a process nobody can see, the LOCK is a FACT about one this process owns, so the held lock now
+outranks it, scoped to the run holding it); **`applied_ok` was emitted and rendered by nothing** (a
+verified apply showed the same neutral dot as an unverified one); **a group's verdict overturned
+stages that had already reported** (`enrich:voices` covers three presented stages, so a failed group
+end marked a completed personas stage failed — and which reading a reader got depended on whether
+the ledger or the stream landed last); **424 of 1,740 cascade posts never entered the chat corpus**
+(the doc handle was step-scoped, an agent acting twice in one step collided, and LightRAG refuses
+the repeat as `batch_duplicate` — a further 410 were dropped as identical CONTENT under another
+filename, which is LightRAG deduplicating and not a defect); **the live cost line had no
+denominator** for that same primary-path reader (the ledger's projection is written at chain start,
+after the mount-time seed); and **the degraded block printed a provider's authentication dump three
+times** in a document whose rule is content and never machinery. And the tenth, found by taking a
+skip INTO the discourse stage (where an ordinary skip lands — the loop checkpoint deliberately
+never fires on i=0, so cascade 1 always completes): the cancelled scoring pass left `trajectories
+= {}` where `Social.trajectories` is a LIST, so **a mid-stage skip lost the whole stage** — the
+cascade already generated, audited and PAID FOR never reached the artifact and the stage ended
+`failed` with a validation traceback. The brake was dropping the thing it exists to keep. Every
+other cancel checkpoint audited for the same class (reactions returns None and filters matched
+pairs; report's partials match their declared types).
+**MEASURED, LIVE (synthetic day_one, no max-t override — the pace no doc recorded before):** quant
+(both legs + analysis) **7 m 03 s**, results readable at **7 m 15 s**, then personas 10 s · voices
+57 s · discourse **12 m** · report 30 s · chat index **62 m** — 1 h 23 m end to end, of which
+everything after 7 m 15 s is optional. The brake: **1.6 s** from a skip's cooperative exit to the
+next run starting (≤13.6 s click→next POST accepted, bounded — the poller was already running when
+the button was pressed).
+**THE MOUNT FIX MOVED TWICE BEFORE IT LANDED, AND THE FULL GATE IS WHY.** The first attempt
+replaced Act II's liveness clause (`watchedRunLive`) with "did this session see the stream". It
+passed its own pin and broke FIVE brake specs, because the clause it removed was also the UNMOUNT:
+with it gone, Act II owns Watch forever and the playback a reader goes to Watch FOR is unreachable
+without a run swap. The second attempt ended the act on `run_ended` instead and broke the two
+enrich-stream specs the other way. **The predicate was never the bug** — the POLL was. It stopped
+at the terminal blip and never restarted, so the status froze and no predicate reading it could
+recover. The shipped fix restarts the poll on a `stage_start` arriving after a stop (bounded to one
+per stage key) and leaves the ratified predicate exactly as it was. Two lessons paid for here: a
+green pin on a changed predicate says nothing about the predicate you did not change, and **the
+restart was DEAD CODE for its first three hours** — written as `ev.type` where `RunEvent`'s
+discriminator is `ev.event`, the same silent-name shape as C7, and invisible until a pin modelled
+the server's ORDERING (chain events arriving AFTER the terminal blip) rather than delivering every
+frame at mount, which is what made the restart necessary for the test to pass at all.
+**PERF RE-MEASURED (V2.5c harness, headed, prod build, this box; committed fixtures at their own
+vintages, so the fat run is comparable to V2.7a's 3.77 s and NOT to V2.6c's re-encoded 1.83 s):**
+90 MB fat vintage nav→first-render **3.67 s** (budget ≤5 s; V2.7a read 3.77 s — no regression),
+fetch 2.74 s · parse 3.27 s · heap 190 MB · frames p50 13.6 ms/74 fps · p95 14.0 ms/71 fps · 0
+longtasks; the pinned ~20 MB run **1.11 s** (budget ≤2 s), 141/71 fps. Act II cannot mount over a
+committed artifact (it is live-only by design), so this measures the shipping state for those runs
+— the streaming path's cost is C7's direct A/B, which is the honest half to quote for it.
+**AND A MEASUREMENT LESSON, PAID FOR IN THREE READINGS:** the first pass read **5.07 / 4.95 / 5.13
+s** and looked like a 34% regression against V2.7a. It was the BOX — an API server, a prod server
+and a live WebGL browser page running alongside — and the tell was that the growth sat in FETCH
+(3.8–4.0 s vs 2.74 s quiet), which is I/O, not the app's own work. Quiet the box before believing a
+frontend number, the same family as the headed-vs-SwiftShader rule: the harness measures whatever
+the machine is actually doing.
+**A REAL OVERLAP THE HARNESS FOUND, which no seam test could have:** its stage-watch hop could not
+click Play, because the collapsed document strip — left-anchored, full height — sat squarely over
+the playback bar's left end, where the Play button is. The button was present, visible and enabled
+the whole time; it was covered. `DocumentPanel` takes a `bottomOffset` now and Watch passes the
+bar's clearance.
+**THE LESSON LEDGER:** (a) **a pin on the LABEL is not a pin on the THING** — the act-one mock's
+ghost `target_edge` matched no network edge, so the outline the caption promised had never once
+rendered while its caption assertions stayed green; both empty-map states are now pinned on entity
+COUNTS and the ghost on `ghost === 1`. (b) **A replayable log cannot encode its own end** (the
+state-driven terminal). (c) **The wrong-run render class and its TWO predicates** — the map asks
+*"is anything on screen the wrong run's?"* (`watchedRunNotLoaded`), the narrative asks *"is a run
+being simulated in front of me?"* (`actOne`); six instances surfaced in C8b's territory alone, so
+every C9 panel answered both AS IT WAS WRITTEN rather than in a sweep at the end, and the same
+family produced C11's mount bug. (d) **A pin that cannot fail is worse than no pin** — C11's
+denominator test passed with its own fix reverted twice (Playwright runs the LAST-registered route
+handler first, so a delay registered before the mock it meant to delay never ran; and the ledger
+seed won the race anyway), until it was rebuilt to reproduce the gap BY CONTENT — no projection on
+the first ledger read, one on the second, which is the server's own sequence and cannot be raced.
+Suites: **689 pytest + 178 Playwright**.
+Open threads: **V2.7c/d map + editor styling (incl. the curved-road grey/striping restyle) ·
+V2.7e doorways/room** +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
-V2.6b, the document HUMANIZATION — edge-ids/raw sim-seconds → street names/clock times, V2.7b/d
-— and the `scorecard._SAFETY_NOTE` recompute ceremony).
+V2.6b, the document humanization's REMAINING half — street names, which need a netconvert regen
+that stales `network.json` and the golden trajectory together (the clock half shipped in V2.7b
+C10b) — the `scorecard._SAFETY_NOTE` recompute ceremony, and the V2.7b follow-ons: the
+interpretation's SHAPE as a product decision now that it is metered (the chat index alone is 53%
+of a run's spend), the landing never attaching the run feed, and per-step cascade events).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -291,8 +453,8 @@ marked narrative slots, ALL numbers code-rendered; `audit_prose` honesty audit (
 direction / tally / crash words — retry once, else fail loudly) + a code-rendered fact check; writes
 `contract/runs/report-<ts>.{md,json}` + the committed `web/public/latest-report.*` GLOBAL singleton
 (see the Report + agent spine run-command gotcha). 3.2 `report_agent.py` + `server.py`: a per-run
-LightRAG index (~230 docs at `%LOCALAPPDATA%`, DeepSeek + local MiniLM dim-384 pinned in
-`embedding_meta.json`); `GET /api/report` + `POST /api/chat` retrieve via `aquery_data` then run a
+LightRAG index at `%LOCALAPPDATA%` (DeepSeek + local MiniLM dim-384 pinned in
+`embedding_meta.json`; **corpus SIZE is cascade-driven — ~230 docs on a run whose discourse had not been enriched, 1,982 on V2.7b's chained acceptance run, because the chain always runs discourse BEFORE the index and one doc per clean cascade post dominates the corpus**); `GET /api/report` + `POST /api/chat` retrieve via `aquery_data` then run a
 guarded generation reusing the SAME `report.audit_prose` (retry → caveat-only fallback). Digit-free,
 cited, honest refusals. This is GraphRAG memory, NOT the OASIS social graph.
 
@@ -1319,12 +1481,21 @@ bump — the 0.10.0 via capacity consumed; six commits C1–C6 + a review-catch 
 SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Python = base miniconda.
 - **Editor / job-runner (Phase 5 — the PRIMARY flow; the server FRONTS the pipeline):**
   ```bash
-  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/runs[/<id>/status|/enrich|/enrich/stream|/identity] /api/report /api/chat /api/interview
+  cd python/src && uvicorn server:app --port 8000  # API: /api/junctions /api/edges /api/simulate /api/projection
+  #   /api/runs[/<id>/status|/enrich|/events|/ledger|/skip|/resume|/identity] /api/report /api/chat /api/interview
   cd web && npm run dev                            # http://localhost:3000 → the Build stage (V2.7a shell)
   python python/src/demo_road_select.py            # pick a high-detour demo road (prints from/to junction ids)
   ```
-  The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then, on enrich,
-  `sampler`/`reactions`/`report`/`report_agent`/`propagation`. No manual `ARTIFACT_URL` edits — the frontend
+  The server SUBPROCESS-launches `scenario_harness.py` (quant, staged run-state) then — **since
+  V2.7b, AUTOMATICALLY, under the same held lock** — chains the interpretation:
+  `sampler`/`reactions`(voices + institutions)/`propagation`/`report`/`report_agent`.
+  **`NADI_AUTO_ENRICH=0` in the SERVER's environment is the off switch** (any of `0/false/no/off/
+  n/none/disabled`; unset = ON since C10b), and it turns the chain off completely — the run stops
+  at quant completion and the three manual enrich buttons return. The chain is REFUSED per stage
+  for protected runs. **A chained run spends thousands of model calls** — `GET /api/projection`
+  serves the pre-run estimate the Run button renders verbatim, and **Stop interpretation**
+  (`POST …/skip`, a cancel FILE the subprocesses can see) keeps whatever landed; `POST …/resume`
+  runs the rest against the sealed run and can change no number. No manual `ARTIFACT_URL` edits — the frontend
   resolves `/latest.json` (V2.5c: a `{"run_id"}` POINTER, never a payload — written ONLY on quant completion;
   enriches and CLI recomputes deliberately do NOT repoint the default) then fetches `/<run_id>.json` (or
   `/?run=<id>` directly); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
@@ -1436,7 +1607,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (601 tests — sections: golden spine; contract
+- **Tests:** `python -m pytest python/tests` (689 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -1445,12 +1616,19 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   V2.6 follow-up conjunction pins; V2.6c 0.10.0 ceremony/compact/worst_t/coord; resolver-family;
   V2.6d via parse/geometry-rules/shape-producer/POST+harness; V2.7a
   per-run-report/refresh-facts/committed-pin + the protected-runs matrix + the latest-report
-  pointer-reader shapes; the V2.7 follow-up cross-seed-sentence/name-stamp pins) and
+  pointer-reader shapes; the V2.7 follow-up cross-seed-sentence/name-stamp pins; V2.7b
+  run-events/ledger/stage-runner/skip-resume/terminal-state (the exit-path PROPERTY test) +
+  act-one beats + facts-only + the persisted draft + the event-vocabulary, bucket-label,
+  display-label and projection lockstep pins + C11's live finds — the cancelled-discourse assembly
+  shape, the corpus handle collision, the held-lock-vs-stale rule and the projection floor) and
   `cd web && npx playwright test`
-  (129 tests across 23 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  (178 tests across 27 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
   compact-run, via-rules, the V2.7a run-document/run-list/app-shell (the landing matrix + ride-along 6a + the follow-up title-precedence/one-source-name/no-duplication pins) specs, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
-  rendering, the V2.5c/d pointer-independence + labeled-landing pins). **Dev-only Playwright
+  rendering, the V2.5c/d pointer-independence + labeled-landing pins, and the V2.7b
+  act-one/act-two/run-feed/brake specs — the beat ledger + the earned ticks, the six stage cards,
+  the file-wins swap, the pass-through-`done` mount, the cost line's denominator and the
+  stopped/degraded blocks). **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.

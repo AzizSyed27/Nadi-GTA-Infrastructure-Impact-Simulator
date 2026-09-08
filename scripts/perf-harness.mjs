@@ -220,7 +220,7 @@ console.log(`parse (product mark) ${load.parseMs} ms · parse control ${parseCon
 console.log(`nav → first artifact render: ${load.navToRenderMs} ms (wall ${wallToRender} ms)`);
 console.log(`heap after render: ${load.heapMB} MB`);
 console.log(
-  `frames @t≈${SCRUB_T} (${frames.length} samples over 15s): p50 ${p50.toFixed(1)} ms (${(1000 / p50).toFixed(0)} fps) · ` +
+  `frames @t≈${SCRUB_T} (${frames.deltas.length} samples over 15s): p50 ${p50.toFixed(1)} ms (${(1000 / p50).toFixed(0)} fps) · ` +
     `p95 ${p95.toFixed(1)} ms (${(1000 / p95).toFixed(0)} fps) · max ${max.toFixed(0)} ms · longtasks ${frames.longTasks}`,
 );
 if (appendReport) {

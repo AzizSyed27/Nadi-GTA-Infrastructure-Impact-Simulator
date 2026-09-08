@@ -303,11 +303,10 @@ why in the demo) but is optional, not required.
   that group's voices in Watch); the ratified "Put A + B in a conversation →" CTA is deliberately
   NOT rendered — a live-looking button that cannot assemble a 3–5-voice room violates the
   clickable-then-failing rule. V2.7e wires group→voices selection into the room flow.
-- **Per-stage document-panel articles (V2.7b/d):** the ratified Watch article (near-miss callout +
-  transport inside the panel) is V2.7b's run-experience home; the Build-fresh article (change
-  cards + steps replacing the palette rail) is V2.7d's editor restyle. In V2.7a Watch keeps
-  today's playback layout (panel collapsed) and Build keeps the EditPanel rail (the example's
-  read-only composition view excepted).
+- **Per-stage document-panel articles — the Watch half SHIPPED in V2.7b C10b** (the playback
+  article: near-miss callout with its surrogate footnote, the transport, the vehicles-on-network
+  readout, inside the document panel, on the FINISHED-run Watch state). The Build-fresh article
+  (change cards + steps replacing the palette rail) remains V2.7d's editor restyle.
 - **Sweep single-sourcing, remainder:** `support/sweeps.ts` is the single source for NEW specs;
   15 older spec files still carry byte-identical local BANNED/STANCE_TALLY copies — migrate each
   when a commit touches it anyway (never as a bulk pass).
@@ -319,13 +318,15 @@ why in the demo) but is optional, not required.
   payloads render no structured document callouts (the md keeps them) — both honest omissions,
   revisit if a document surface wants them.
 
-## V2.7a follow-up — humanize the document's identifiers (scheduled: V2.7b/d, its own item)
-The document speaks edge-ids and raw sim-seconds; the ratified design speaks street names and
-clock times. Humanization of the spec table + finding headers — street names resolved from
-network data (the exported network.json carries the geometry; name lookup needs the source
-net's street names threaded through network_export), and clock-time windows via the existing
-server-side `demand_profiles.fmt_sim_time` / client `web/lib/simTime.ts` — is scheduled for
-V2.7b/d and named HERE as its own deliverable so it doesn't dissolve into the styling passes.
+## V2.7a follow-up — humanize the document's identifiers (SPLIT at V2.7b; the clock half SHIPPED)
+The document spoke edge-ids and raw sim-seconds; the ratified design speaks street names and
+clock times. **The CLOCK half shipped in V2.7b C10b** — `Timeline`'s profile-blind local `fmt()`
+(which rendered `10:00` elapsed where a calibrated run reads `08:40`) and the near-miss tooltip
+now route through `simTime`, with a python↔TS lockstep pin on the anchor map.
+**The STREET-NAME half remains open, and its coupling is the reason it is its own step:** names
+need `--output.street-names` on the canonical net, and `network.json` and
+`python/tests/golden_trajectory.json` go stale TOGETHER because both derive from that net. So it
+is a netconvert regen plus two refreshes, not a rendering change. Scheduled V2.7d.
 
 ## V2.7a follow-up — scorecard._SAFETY_NOTE bakes "42/43/44" into single-seed artifacts
 `scorecard.py` `_SAFETY_NOTE` ("sign not stable across seeds 42/43/44; …") is the V1 default
@@ -336,3 +337,46 @@ runs already replace it with the V2.1d earned note (derived list). Fixing the si
 default means choosing honest tuple-free wording AND a deliberate scorecard-recompute ceremony
 over the committed artifacts (artifact churn + the test_seed_ranges note pins) — its own step,
 not a drive-by.
+
+## V2.7b follow-ons (recorded at the C11 closeout, from the live acceptance)
+
+- **The interpretation's SHAPE is now a product decision, and it finally has its numbers.**
+  Metered on C11's acceptance run (213 sampled voices, 3 cascades): voices **213** · discourse
+  **2,231** · report **10** · chat index **2,751** — so the two stages a reader may never open
+  cost **~96%** of the run, and the chat index alone (62 minutes of wall clock) is the single
+  largest stage, built for a feature behind Explore · Chat. Nothing here is wrong; the cost is
+  simply now legible, which is what makes the choice possible. Candidates, all deferred: per-stage
+  opt-outs on the Run form; the index as an on-demand build when a reader first opens chat; fewer
+  cascades by default. **Do not "fix" this by hiding the number** — the projection's whole job is
+  that the number is visible before the spend.
+- **The projection's two large terms are calibrated on ONE run's cascade volume.**
+  `CASCADE_SCORING_PER_AGENT`, `CASCADE_POSTS_PER_CALL` and `INDEX_CALLS_PER_DOC` are measured
+  constants (server.py, with their derivation in `_project_interpretation`'s docstring). A cascade
+  that talks more or less, or a corpus builder change, moves them. The pin that matters
+  (`test_the_projection_errs_HIGH_not_low_against_the_measured_acceptance_run`) asserts the
+  direction, not the accuracy: re-derive the constants when a run's metered total approaches the
+  projection rather than sitting comfortably under it.
+- **The landing never attaches the run feed** — `?run=<id>` and a plain reload load the artifact
+  but leave `activeRunId` null, so a mid-run reload shows the run's completed figures with no
+  beats, no act and no live cost until the reader re-opens it from the run list (one click, and
+  the reconstruction is exact — proven live). `activeRunId` is set only by `loadRun`, the simulate
+  POST and the run list's OPEN; the landing's `commit()` deliberately does not set it because
+  `DraftPanel` is gated on `!activeRunId`. Fixing it means either a second "watched run" concept
+  or re-cutting that gate — V2.7a's ratified landing matrix, with its own spec matrix, so it is a
+  step and not a patch. Nothing on screen makes a false claim in the meantime: the results ARE
+  complete and shown, which is the phase's own governing constraint.
+- **A static demo cannot show baseline playback**, and the KEEP entry the plan carried for
+  `<run>-baseline.json` was deliberately NOT added (checked, twice over): the harness writes that
+  file only under `if (n_written and beats.on)`, so no run predating V2.7b has one and neither
+  demo run qualifies; and the client reaches it through the `baseline_ready` SSE event's url,
+  which a static export never fires. A demo that wants Act I's playback needs a `baselineUrl` that
+  does not come from the stream — that is the honest shape of the debt.
+- **Per-step cascade content events** (`cascade_step` / `cascade_posts`): would give the discourse
+  stage live content instead of the graph at stage end. Enters as ONE server commit — emitters in
+  `propagation.py` **plus** `run_events.EVENT_NAMES` and `runStream.ts`'s `RUN_EVENT_NAMES` in the
+  same change, because a server event with no client listener is silence rather than an error (the
+  C7 bug `test_event_vocabulary.py` now pins against).
+- **`ids[]` on the `personas` event**, so the personas card can light the sampled travelers on
+  their own routes. One field, the same registry+listener duty. Until then the card shows the
+  count split and the server's own basis sentence — never whatever entities happen to be loaded,
+  which would render convincingly and be the wrong travelers.

@@ -9,17 +9,25 @@ export function DocumentPanel({
   collapsed,
   onToggle,
   topOffset,
+  bottomOffset = 20,
   children,
 }: {
   title: string;
   collapsed: boolean;
   onToggle: (collapsed: boolean) => void;
   topOffset: number; // 78 under the bare header; 118 under the explore sub-nav
+  /** Clearance for anything that owns the bottom of the stage. Watch passes the playback bar's
+   *  height: the panel (and its collapsed strip) runs to the bottom of the viewport otherwise, and
+   *  at 1600x1000 the strip sat squarely over the Play button — the control is at the bar's left
+   *  end, which is exactly where a left-anchored strip lands. Found by the V2.7b C11 perf harness,
+   *  whose stage-watch hop could not click Play; a seam test would not have seen it, because the
+   *  button was present, visible and enabled the whole time — just covered. */
+  bottomOffset?: number;
   children: React.ReactNode;
 }) {
   if (collapsed) {
     return (
-      <div className="nadi-shell" style={{ ...stripPos, top: topOffset }}>
+      <div className="nadi-shell" style={{ ...stripPos, top: topOffset, bottom: bottomOffset }}>
         <div
           className="blueprint"
           data-testid="document-strip"
@@ -35,7 +43,7 @@ export function DocumentPanel({
     );
   }
   return (
-    <div className="nadi-shell" style={{ ...panelPos, top: topOffset }}>
+    <div className="nadi-shell" style={{ ...panelPos, top: topOffset, bottom: bottomOffset }}>
       <section className="blueprint" style={panel} data-testid="document-panel">
         <i className="corner tl" /><i className="corner tr" /><i className="corner bl" /><i className="corner br" />
         <div style={head}>
