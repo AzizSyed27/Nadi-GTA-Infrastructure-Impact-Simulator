@@ -82,17 +82,26 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 - **Windows-native gotchas (LightRAG):** the per-run RAG index lives under `%LOCALAPPDATA%\nadi-report-agent\`,
   NOT the repo — OneDrive sync grabs a handle on fresh `.tmp` files and breaks LightRAG's atomic writes
   (`os.replace` → WinError 5). And LightRAG canonicalizes a doc's `file_path` to its BASENAME, so citation
-  handles must be slash-free — we use `__` separators (e.g. `voice__shop_owner__v9`).
+  handles must be slash-free — we use `__` separators (e.g. `voice__shop_owner__v9`) — **and UNIQUE PER
+  DOC**: the same canonicalization makes a repeated handle a `batch_duplicate` that LightRAG SILENTLY
+  REFUSES, so a doc whose handle collides never enters the corpus and nothing says so. Found live in
+  V2.7b C11 — the cascade-post handle was step-scoped (`social__<agent>__<cascade>__<step>`), an agent
+  acting twice in one step is ordinary, and **424 of 1,740 posts never reached the chat corpus**; the
+  handle carries the event's position now. (A further 410 were dropped as identical CONTENT under a
+  different filename — that one is LightRAG deduplicating, correct, and not a handle bug.)
 - **Windows-native gotchas (OASIS/CAMEL):** OASIS runs in a **separate `oasis` conda env (python 3.11)** —
   camel-oasis 0.2.5 pins `<3.12`, so it CANNOT run in base miniconda 3.13. That is a real **two-env boundary**:
   the 4.2 producer must call it as a subprocess / second service, not an in-process import. `import oasis` from
-  base fails. Four traps that cost time in 4.0: (1) `generate_twitter_agent_graph` builds NODES but does NOT wire
+  base fails. Five traps, four from 4.0 and the fifth from V2.7b: (1) `generate_twitter_agent_graph` builds NODES but does NOT wire
   the CSV `following_agentid_list` edges — wire them with `AgentGraph.add_edge` or exposure is recsys-only, not
   graph-driven; (2) run via **`conda run --no-capture-output -n oasis …`** (plain `conda run` buffers stdout and
   re-encodes through cp1252, crashing on agents' non-ASCII text — the run still completes + writes its JSON); (3)
   OASIS scratch (profile CSV + sqlite DB) lives under `%LOCALAPPDATA%\nadi-oasis-spike\`, NOT the OneDrive tree
   (same atomic-write hazard); (4) `cairocffi`'s native libcairo is absent on this box but is viz-only — `import
-  oasis` and a full run work without it.
+  oasis` and a full run work without it; (5) the cascade subprocess writes CAMEL logs RELATIVE TO ITS CWD, so
+  `oasis-<timestamp>.log` files accumulate in `python/src/log/` inside the repo — against the standing rule that
+  scratch lives under `%LOCALAPPDATA%`. Gitignored since V2.7b C11 rather than committed; if the cascade's cwd
+  ever moves, the ignore moves with it.
 - **V2.4: the DRAFT BASKET is the editing model** (apply ADDS a member, one Run submits; clone-to-
   draft iterates) and **composites are MIXED-TYPE** (members = the four windowable runtime types;
   settled composites stay rejected) — details in the V2.4 blocks below.
@@ -1500,8 +1509,10 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   enriches and CLI recomputes deliberately do NOT repoint the default) then fetches `/<run_id>.json` (or
   `/?run=<id>` directly); each run's artifact is copied to `web/public/<run_id>.json`. One job at a time.
   Run identity (user name/note) lives in the `contract/runs/state/<run_id>.identity.json` SIDECAR —
-  endpoint-only writer, never the state file or the artifact; three file classes coexist under
-  `run_state.list_all`'s glob (state / `.composite.json` / `.identity.json` — see the V2.4c block).
+  endpoint-only writer, never the state file or the artifact; **FOUR file classes** coexist under
+  `run_state.list_all`'s glob (state / `.composite.json` / `.identity.json` / `.ledger.json` — the
+  V2.7b interpretation ledger, whose single writer is the stage runner; see the V2.4c and V2.7b
+  blocks). `list_all` skips every non-state class and the coexistence is pinned across all four.
 - **V2.1 run options** (harness flags = `/api/simulate` fields = the run form): `--demand-profile
   {synthetic_demo,calibrated_am_peak}`, `--assignment {day_one,settled}`, `--n-seeds {1,2,3}` (flags appended only
   for non-defaults — the default cmd stays byte-stable, unit-pinned in `test_server_cmd.py`). **V2.2a/b/c closures + incidents
@@ -1604,7 +1615,16 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   (Read stage); chat = Explore · Chat)
 - **Perf harness (V2.5c budgets):** `node scripts/perf-harness.mjs --headed` against a prod build
   (`npm run build && npm run start`) — frame numbers are HEADED numbers (headless measures
-  SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints.
+  SwiftShader); budgets live in the V2.5c block, re-measure at V2.7 checkpoints. **QUIET THE BOX
+  FIRST, and read the fetch/parse/render SPLIT before believing a regression** (V2.7b C11): the same
+  build read 5.07 / 4.95 / 5.13 s on the 90 MB artifact with an API server, a prod server and a live
+  WebGL page alongside — an apparent 34% regression — and 3.665 / 3.675 s with those stopped. The
+  tell was that the whole growth sat in FETCH (3.8–4.0 s busy vs 2.74 s quiet), which is I/O and not
+  the app's work. Sibling of the SwiftShader rule: the harness measures whatever the machine is
+  doing, so a frontend number from a busy box is a number about the box. NB the harness's own
+  stage-watch hop is a real UI check — it caught the collapsed document strip covering the playback
+  bar's Play button, which every seam test passed straight through (the button was present, visible
+  and enabled; it was covered).
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
 - **Tests:** `python -m pytest python/tests` (689 tests — sections: golden spine; contract
@@ -1628,7 +1648,9 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   rendering, the V2.5c/d pointer-independence + labeled-landing pins, and the V2.7b
   act-one/act-two/run-feed/brake specs — the beat ledger + the earned ticks, the six stage cards,
   the file-wins swap, the pass-through-`done` mount, the cost line's denominator and the
-  stopped/degraded blocks). **Dev-only Playwright
+  stopped/degraded blocks). The full Playwright suite runs **~45–50 minutes single-worker** on this
+  box (act-one and act-two are the slow files at ~7 min each) — budget for it, and prefer per-file
+  runs while iterating. **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.

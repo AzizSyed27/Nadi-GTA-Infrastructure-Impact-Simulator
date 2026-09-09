@@ -65,6 +65,11 @@ etiquette. The locked decisions:
   change's report says out loud that the scorecard covers the full run while the change was active
   only for its window. When something can't render, a **labeled note** says why; refusals to
   compute look different from missing data.
+- **A spend you consent to before it happens.** A run's interpretation costs thousands of model
+  calls, so the button says how many before you press it, from the server's own projection — and a
+  test pins that projection *above* a measured run, because understating is the one direction a
+  consent number may never err in. The results are complete before any model runs; everything after
+  that is skippable, and stopping keeps what had landed and says so in the document.
 - **Institutions are never impersonated.** An institutional voice (Toronto Fire Services, TDSB,
   Transportation Services) is deterministic — zero LLM calls: its mission is a verbatim,
   byte-pinned quote of a sourced page with its retrieval date shown, it cites only facts this run
@@ -134,6 +139,8 @@ construction — or put **3–5 voices in a room 👥**: they answer one at a ti
 the others' *actual words* (never each other's data), with a per-speaker guard and a visible cost
 estimate that never understates.
 
+![The held moment: each ✓ earned from something the simulator read back, with the interpretation's running cost and its Stop control behind it](docs-assets/v27b-held-moment.png)
+
 ![A 3-member mixed draft — road closure, speed limit, and incident — ready to run](docs-assets/v24b-draft-3member.png)
 
 ![Drawing a curved road: the working polyline bends through via points, mid-draw](docs-assets/v26d-curved-draw.png)
@@ -157,6 +164,7 @@ chat agent knows* (the LightRAG entity graph, with its staleness relative to the
 | Four real TFS station locations; institutional missions quoted verbatim with retrieval dates | Dispatch simulation — response numbers are free-flow lower bounds, labeled as such |
 | Windowed changes applying and reverting *inside* the run, with capture/restore proof logs | Region-scale claims — the simulation is bounded to one corridor and says so |
 | Persona voices pinned to their own measured trips | A poll — each voice is one individual anticipated reaction |
+| Results complete before any model runs; the interpretation is optional, stoppable, and labeled at its metered cost | A run you cannot stop, or a cost you only learn about afterwards |
 
 ## Architecture — two worlds, one contract
 
