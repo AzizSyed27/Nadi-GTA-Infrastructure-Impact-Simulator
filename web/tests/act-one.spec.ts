@@ -177,7 +177,9 @@ async function enterActOne(page: Page, stage: 'watch' | 'read' | 'build' = 'watc
   await openStage(page, stage);
 }
 
-type RenderStats = { vehicles: number; pinnedAgents: number; conflicts: number };
+// `persons` rides the seam beside `vehicles` (MapView's renderStats) and belongs in any
+// "the map is genuinely empty" claim — a pedestrian left animating is the same lie as a car.
+type RenderStats = { vehicles: number; persons: number; pinnedAgents: number; conflicts: number };
 const renderStats = (page: Page) =>
   page.evaluate(() => (window as unknown as { __nadiRenderStats?: RenderStats }).__nadiRenderStats);
 const overlaySeam = (page: Page) =>
@@ -267,6 +269,38 @@ test('before the baseline lands, the caption says THAT — not that there will n
   await expect(cap).toContainText('MAP SHOWS: THE NETWORK ONLY');
   await expect(cap).toContainText('The baseline leg is still being simulated — playback begins here when it lands.');
   await expect.poll(async () => (await renderStats(page))?.vehicles, { timeout: 20_000 }).toBe(0);
+});
+
+test('a baseline that FAILS TO FETCH keeps the caption honest and the map empty', async ({ page }) => {
+  // THE THIRD ROUTE TO AN EMPTY MAP, and until now the only one nothing covered. The other two are
+  // pinned above: the profile that never has a baseline (`baseline_unavailable`) and the window
+  // before either event arrives. This is the one in between — `baseline_ready` HAS arrived carrying
+  // a url, the client asked for it, and the request failed. The url exists, so `experience
+  // .baselineUrl` is set and the fetch effect runs; only `baselinePreview` stays null.
+  //
+  // It is the branch V2.7b C11's acceptance was supposed to probe live and never did, which is why
+  // it is a spec now: a one-time live observation proves a moment, a spec proves it every run.
+  await mockActOne(page, { events: actOneBody() });
+  await page.unroute(`**/${NEW_RUN}-baseline.json`);
+  await page.route(`**/${NEW_RUN}-baseline.json`, (r) => r.fulfill({ status: 404, body: 'gone' }));
+  await enterActOne(page);
+
+  const cap = page.getByTestId('act-one-caption');
+  await expect(cap).toBeVisible({ timeout: 20_000 });
+  await expect(cap).toContainText('MAP SHOWS: THE NETWORK ONLY');
+  // the member still exists, so its outline and label still ride — only the PLAYBACK is missing
+  await expect(page.getByTestId('act-one-ghost-label')).toBeVisible();
+  await expect.poll(async () => (await overlaySeam(page))?.ghost, { timeout: 20_000 }).toBe(1);
+
+  // AND THE SENTENCE HAS TO BE TRUE — the assertion the caption text cannot make for itself. With a
+  // `preview ?? artifact` fallthrough (the pre-C8b shape) the LOADED run's traffic would animate
+  // under this exact caption: the loudest possible lie, and green against every line above.
+  await expect.poll(async () => (await renderStats(page))?.vehicles, { timeout: 20_000 }).toBe(0);
+  const stats = (await renderStats(page))!;
+  expect(stats.persons).toBe(0);
+  expect(stats.pinnedAgents).toBe(0);
+  await expect(page.getByTestId('timeline-readout')).toContainText('0 veh');
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c11-network-only-blocked.png' });
 });
 
 test('opening a FINISHED run never announces an act — no run is being simulated', async ({ page }) => {
