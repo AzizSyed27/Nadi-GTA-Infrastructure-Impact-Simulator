@@ -477,7 +477,9 @@ Suites: **689 pytest + 185 Playwright**.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — the phase now
 in planning** (the transit-map palette, the zoom ladder, the curved-road grey/striping restyle) ·
-**V2.7d editor styling · V2.7e doorways/room** +
+**V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street
+names and the `network.json`/golden staleness they cause belong to d, never to c, because styling
+touches no data) · **V2.7e doorways/room** +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
