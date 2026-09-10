@@ -125,28 +125,42 @@ async function mockActOne(
     r.fulfill({ body: baselineArtifact(), contentType: 'application/json' }));
   // the run itself is NOT loadable yet — that is what "still computing" means on the wire
   await page.route(`**/${NEW_RUN}.json`, (r) => r.fulfill({ status: 404, body: 'not ready' }));
+  // ONE SOURCE FOR "HOW IS THE WATCHED RUN DOING", read by both endpoints. They used to disagree —
+  // the list said `running` while `/status` said `done` — which was invisible until V2.7b F3 taught
+  // the LANDING to consult the list: it would attach a feed to a run the status reported finished,
+  // the done edge fired `loadRun` immediately, and the run list then marked the row "viewing" and
+  // withdrew its OPEN button before the test could click it. A fixture whose two endpoints describe
+  // different worlds can only be right by luck.
+  //
+  // `/api/runs` reads the counter WITHOUT advancing it: several specs sequence `/status` by call
+  // count, and an extra consumer that ticked it would break proofs unrelated to this one.
+  const watchedState = (advance: boolean) => {
+    const n = advance ? polls++ : polls;
+    const over = opts.doneAfter != null && n >= opts.doneAfter;
+    return {
+      stage: over ? 'done' : 'scenario',
+      status: over ? 'done' : 'running',
+      ...(opts.status ?? {}),
+    } as { stage: string; status: string };
+  };
   await page.route('**/api/runs', (r) =>
     r.fulfill({
       json: {
         runs: [
-          { id: NEW_RUN, description: 'a closure at the doorstep', status: 'running', stage: 'scenario', started_at: 2 },
+          { id: NEW_RUN, description: 'a closure at the doorstep', ...watchedState(false), started_at: 2 },
           { id: DEFAULT_RUN_ID, description: 'the loaded run', status: 'done', stage: 'done', started_at: 1 },
         ],
       },
     }));
-  await page.route('**/api/runs/*/status', (r) => {
-    const over = opts.doneAfter != null && polls++ >= opts.doneAfter;
-    return r.fulfill({
+  await page.route('**/api/runs/*/status', (r) =>
+    r.fulfill({
       json: {
         run_id: NEW_RUN,
-        stage: over ? 'done' : 'scenario',
-        status: over ? 'done' : 'running',
+        ...watchedState(true),
         description: 'a closure at the doorstep',
         changes: opts.changes ?? [{ type: 'road_closure', target_edge: GHOST_EDGE }],
-        ...(opts.status ?? {}),
       },
-    });
-  });
+    }));
   await page.route('**/api/runs/*/ledger', (r) => r.fulfill({ json: { run_id: NEW_RUN, ledger: null } }));
   await page.route('**/api/runs/*/events', (r) => {
     if (opts.events == null) return r.fulfill({ status: 404, body: '{"detail":"no event stream"}' });
@@ -301,6 +315,71 @@ test('a baseline that FAILS TO FETCH keeps the caption honest and the map empty'
   expect(stats.pinnedAgents).toBe(0);
   await expect(page.getByTestId('timeline-readout')).toContainText('0 veh');
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c11-network-only-blocked.png' });
+});
+
+// ------------------------------------------------- F3: the landing attaches the feed by itself
+
+test('a plain RELOAD while a run computes reconstructs the act — no run list needed', async ({ page }) => {
+  // THE HOLE THE PHASE LEFT IN ITS OWN FLAGSHIP, and its real shape is not the obvious one. A
+  // computing run has NO artifact yet, so a reload cannot land on it: the landing falls through to
+  // the last run actually VIEWED — an older, finished one — and shows that, while the run the reader
+  // fired goes on computing with nothing on screen referring to it. The two acts detached on an
+  // accidental F5, and C11's "reload mid-Act-II reconstructs" proof only ever held via the run list.
+  //
+  // Note this fixture is the ORDINARY Act I shape: the loaded artifact is the previous run, the
+  // watched run is `NEW_RUN`, and `/<NEW_RUN>.json` still 404s. Nothing is opened by hand.
+  await mockActOne(page, { events: actOneBody() });
+  // the reader WAS watching this run — the client remembers that the moment the feed follows one,
+  // which is the durable evidence a reload has to work from (the in-memory id dies with the page)
+  await page.addInitScript((id) => localStorage.setItem('nadi:watchedRun', id), NEW_RUN);
+
+  await page.goto('/');
+  await gate(page);
+  await page.reload();
+  await openStage(page, 'watch');
+
+  // the feed attached itself: the beats are the WATCHED run's, over the previous run's artifact
+  await expect(page.getByTestId('act-one-ledger')).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByTestId('act-one-ledger')).toContainText(B3_TITLE);
+  await expect(page.getByTestId('act-one-caption')).toContainText('MAP SHOWS:');
+});
+
+test('a landing with NOTHING running attaches nothing — the cold landing stays silent', async ({ page }) => {
+  // The other half, and the one protecting the ratified silent-404 pin: a done run with no events
+  // file must paint ZERO degrade UI on first paint. Attaching on every landing would have opened a
+  // stream for the example run on every cold visit — the overwhelmingly common case.
+  await mockActOne(page, { events: null, status: { stage: 'done', status: 'done' } });
+  await page.unroute('**/api/runs');
+  await page.route('**/api/runs', (r) =>
+    r.fulfill({ json: { runs: [{ id: DEFAULT_RUN_ID, description: 'the loaded run', status: 'done', stage: 'done', started_at: 1 }] } }));
+
+  await page.goto('/');
+  await gate(page);
+  await page.reload();
+  await openStage(page, 'watch');
+  await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 20_000 });
+
+  await expect(page.getByTestId('act-one-caption')).toHaveCount(0);
+  await expect(page.getByTestId('act-one-ledger')).toHaveCount(0);
+  await expect(page.getByTestId('act-two')).toHaveCount(0);
+});
+
+test('the landing still leaves the BUILD rail alone — the feed id is not the rail id', async ({ page }) => {
+  // Why the fix needed a SECOND id rather than just setting `activeRunId` on the landing: that one
+  // also decides the Build rail. Setting it here would swap the draw card and the palettes for
+  // RunCard on every landing — eight spec files depend on that rail — and would take the run list's
+  // OPEN button off the row being viewed.
+  await mockActOne(page, { events: actOneBody() });
+  await page.addInitScript((id) => localStorage.setItem('nadi:watchedRun', id), NEW_RUN);
+
+  await page.goto('/');
+  await gate(page);
+  await page.reload();
+  await openStage(page, 'watch');
+  await expect(page.getByTestId('act-one-ledger')).toBeVisible({ timeout: 25_000 }); // feed attached
+
+  await openStage(page, 'build');
+  await expect(page.getByTestId('draw-card')).toBeVisible({ timeout: 20_000 });      // rail untouched
 });
 
 test('opening a FINISHED run never announces an act — no run is being simulated', async ({ page }) => {

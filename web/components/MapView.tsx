@@ -75,6 +75,10 @@ const ARTIFACT_URL = '/latest.json';
 // V2.7a — the returning user's last-viewed run (client-side only; loadRun + the mount commit
 // both write it; the persisted id restores ONLY the run pointer — never session state).
 const LAST_RUN_KEY = 'nadi:lastRun';
+// V2.7b F3 — the run the reader is currently WATCHING (distinct from the last run they VIEWED: a
+// computing run has no artifact to view). Written whenever the feed follows a run, read once by the
+// landing so a reload restores THAT run rather than whichever run happens to be going.
+const WATCHED_RUN_KEY = 'nadi:watchedRun';
 
 // V2.7b C11 — how much of the stage the playback bar owns, so a left-anchored document panel does
 // not sit over its controls. Measured from the rendered bar (56 px) plus the 20 px gutter every
@@ -284,6 +288,35 @@ export default function MapView() {
   const [hoverCoord, setHoverCoord] = useState<LonLat | null>(null); // rubber-band endpoint while drawing
   const [drawHint, setDrawHint] = useState<string | null>(null); // transient "click nearer a junction"
   const [activeRunId, setActiveRunId] = useState<string | null>(null); // the run the card watches / shows
+  // V2.7b F3 — THE RUN THE FEED FOLLOWS, which is not always the run the BUILD RAIL is bound to.
+  // `activeRunId` carries a second meaning it acquired by accident: the rail keys on it, so a
+  // non-null value replaces the draw card / palettes / DraftPanel with RunCard, stops map drawing,
+  // and marks the run list's "viewing" row. That made it unusable as "the run to stream", because a
+  // reader who reloads mid-run must get their run back WITHOUT losing the Build rail. So the feed
+  // gets its own id. Every path that sets `activeRunId` sets this too (they are the same run in all
+  // of them); the landing sets ONLY this, and only when a run is actually going.
+  const [feedRunId, setFeedRunId] = useState<string | null>(null);
+  // READ THE REMEMBERED WATCH AT FIRST RENDER, before the mirror below can clear it. The mirror runs
+  // on mount with `feedRunId` still null and would remove the key — the landing effect, which runs
+  // later, would then find nothing and every reload would look like a cold one. Captured here, the
+  // ordering stops mattering.
+  // a LAZY state initializer: it runs once, during the first render, which is the idiomatic way to
+  // read a browser API at mount (a ref read during render is the rule React lints for).
+  const [rememberedWatch] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(WATCHED_RUN_KEY);
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (feedRunId) window.localStorage.setItem(WATCHED_RUN_KEY, feedRunId);
+      else window.localStorage.removeItem(WATCHED_RUN_KEY);
+    } catch {
+      /* storage unavailable (private mode) — a reload simply cannot restore the watch */
+    }
+  }, [feedRunId]);
   // V2.7b C8b — THE ARTIFACT ON SCREEN IS NOT THE RUN BEING WATCHED. Everything the map draws is
   // gated on this: entities, the agent join, conflicts, the change overlay and its chrome. The rule
   // is one sentence — nothing belonging to run A may be drawn under run B's name — and it holds in
@@ -292,7 +325,7 @@ export default function MapView() {
   // __nadiChangeOverlay seam read it: a seam that recomputed its own answer would report an overlay
   // the map is not drawing, and a seam that disagrees with the pixels is worse than no seam.
   const watchedRunNotLoaded =
-    activeRunId != null && artifact != null && activeRunId !== artifact.meta.run_id;
+    feedRunId != null && artifact != null && feedRunId !== artifact.meta.run_id;
   const [submitting, setSubmitting] = useState(false); // V2.4a: true only while runDraft's POST is in flight
   // V2.1d part ii — compare mode: two SLIM sides ({meta, scorecard} only; the 74MB bulk is never
   // retained). Side A defaults to the loaded artifact; both re-pickable. Picks survive mode switches.
@@ -576,6 +609,55 @@ export default function MapView() {
     report: PerRunReport | null;
     state: ReportState;
   } | null>(null);
+  // V2.7b F3 — AFTER A RELOAD, THE LANDING PICKS UP THE RUN THIS READER WAS WATCHING.
+  //
+  // Reloading mid-run used to lose the whole experience, and the shape is not the obvious one: a
+  // computing run has NO artifact yet (`/<id>.json` 404s until the quant leg ends), so the landing
+  // cannot land ON it. It falls through to the last run actually VIEWED — an older, finished one —
+  // and shows that, while the run the reader fired goes on computing with nothing on screen
+  // referring to it. The events file was durable the whole time; only the pointer to it lived in
+  // memory — so it is remembered now, and the landing restores it.
+  //
+  // IT RESTORES *THEIR* RUN, NOT WHICHEVER RUN IS GOING. A first draft attached to any run the list
+  // reported running, and that hijacks: a reader who deliberately opens run A while run B computes
+  // in the background would have the map yanked into B's Act I without asking — blanking A's agents
+  // and playing B's baseline leg. The act-one suite caught it as a CONTROL assertion going from 1
+  // to 0 (its "with the loaded run on screen the join is live" step), which is exactly the
+  // wrong-run-render class this phase spent C8b closing. So the key is durable evidence that THIS
+  // reader was watching THAT run; with no key, the landing does nothing at all.
+  //
+  // THREE CONSTRAINTS, each one a way the obvious version goes wrong:
+  //   * it sets `feedRunId` ONLY, never `activeRunId` — the latter is what the Build rail keys on,
+  //     so setting it here would replace the draw card and palettes with RunCard on every landing.
+  //   * it takes the id from the RUN LIST's own row, never from the URL or the pointer, which
+  //     legitimately serves an ALIAS (`default-fixture` for a body carrying `school-zone-fixture`).
+  //   * it asks `/api/runs`, never `/status`: several specs mock `/status` as a call-count SEQUENCE
+  //     and an extra consumer advances their progression (the standing warning below). `/api/runs`
+  //     is statically mocked everywhere and already answers the only question being asked.
+  //
+  // WITH NOTHING REMEMBERED, OR THE REMEMBERED RUN FINISHED, IT ATTACHES NOTHING — which keeps the
+  // ratified silent-404 pin true: a done run with no events file must paint zero degrade UI on the
+  // cold landing's first paint, and that is the overwhelmingly common landing. A remembered run
+  // that has since finished also forgets itself, so the key cannot go stale.
+  //
+  // a REF, not state: this is bookkeeping about a request already sent, and setting state in an
+  // effect body is the cascading-render rule this project has already paid for twice.
+  const landingAsked = useRef(false);
+  useEffect(() => {
+    if (!artifact || STATIC_DEMO) return;
+    if (landingAsked.current || feedRunId != null) return; // asked already, or already following one
+    landingAsked.current = true;
+    const remembered = rememberedWatch;
+    if (!remembered) return; // never watched anything here — the ordinary cold landing
+    getRuns().then((res) => {
+      if (!res.ok) return; // no backend (or the static demo): the landing simply stays as it was
+      const row = res.value.runs.find((r) => r.id === remembered);
+      const live = row != null && row.status !== 'done' && row.status !== 'failed';
+      if (live) setFeedRunId(remembered);
+      else { try { window.localStorage.removeItem(WATCHED_RUN_KEY); } catch { /* nothing to clear */ } }
+    });
+  }, [artifact, feedRunId, rememberedWatch]);
+
   const [liveIdentity, setLiveIdentity] = useState<{ runId: string; name: string | null } | null>(null);
   useEffect(() => {
     if (stage !== 'read' || !artifact || STATIC_DEMO) return; // the demo has no identity endpoint
@@ -631,7 +713,7 @@ export default function MapView() {
   // V2.7b C8b — while Act I plays, the ENTITIES come from the computing run's baseline leg and the
   // rest of the document keeps coming from `artifact`. The run-id equality is the whole guard: a
   // preview only ever displaces the entities of the run it belongs to.
-  const preview = baselinePreview?.runId === activeRunId ? baselinePreview.artifact : null;
+  const preview = baselinePreview?.runId === feedRunId ? baselinePreview.artifact : null;
   // V2.7b C8b — Act I clears these for the same reason it suppresses the change overlay: they are
   // the LOADED run's surrogate near-misses, and drawing them over a different run's traffic would
   // put one run's safety markers on another run's map. The screenshot walk caught them.
@@ -908,6 +990,7 @@ export default function MapView() {
   // Load a completed run's artifact by id (per-run public copy). RunCard calls this on the `done` edge.
   const loadRun = useCallback(async (id: string) => {
     setActiveRunId(id);
+    setFeedRunId(id);
     setStreamedAgents([]); // authoritative swap (or run switch) — the live ticker's job is over
     // V2.3b: interviews are per-run sessions — a run swap ends them (ephemeral by construction)
     setInterviewee(null);
@@ -1075,7 +1158,7 @@ export default function MapView() {
   // condition that used to mount the card (`activeRunId != null`), so request count and cadence are
   // unchanged for every existing spec — the widening is deliberate and belongs to a later commit.
   const feedHandlers = useMemo(() => ({ onLoaded: loadRun, onVoice: handleVoice }), [loadRun, handleVoice]);
-  const runFeed = useRunFeed(activeRunId, feedHandlers);
+  const runFeed = useRunFeed(feedRunId, feedHandlers);
 
   // ACT I PROPER — the narrative surfaces (the beat ledger and its caption, Watch's computing
   // split, Read's not-computed state, the header's run tag). Stricter than the map gate above,
@@ -1360,6 +1443,7 @@ export default function MapView() {
       return;
     }
     setActiveRunId(res.value.run_id); // run card polls this; loadRun fires on the done edge
+    setFeedRunId(res.value.run_id);
     setDraft([]);
     setHoveredDraftId(null);
   }, []);
@@ -1524,6 +1608,7 @@ export default function MapView() {
 
   const drawAnother = useCallback(() => {
     setActiveRunId(null);
+    setFeedRunId(null);
     resetDraw();
   }, [resetDraw]);
 
@@ -1565,6 +1650,7 @@ export default function MapView() {
         ...(st.n_seeds ? { n_seeds: st.n_seeds as RunOptions['n_seeds'] } : {}),
       });
       setActiveRunId(null); // the DraftPanel is gated on !activeRunId — without this the clone is invisible
+      setFeedRunId(null);
       resetDraw();
     },
     [resetDraw],
@@ -1625,7 +1711,7 @@ export default function MapView() {
       !watchedRunNotLoaded && changeGeom && artifact && changeGeom.runId === artifact.meta.run_id ? changeGeom.items : [];
     (window as unknown as { __nadiChangeOverlay?: unknown }).__nadiChangeOverlay = {
       count: items.length,
-      ghost: watchedRunNotLoaded && ghostGeom?.runId === activeRunId ? ghostGeom.items.length : 0,
+      ghost: watchedRunNotLoaded && ghostGeom?.runId === feedRunId ? ghostGeom.items.length : 0,
       // V2.2d: the zone designation flag (the tint is ALWAYS shown for tagged runs; items' active
       // flags carry the time-truth for the speed members themselves).
       zoneTagged: !!artifact?.meta.scenario?.tags?.includes('school_zone'),
@@ -1637,7 +1723,7 @@ export default function MapView() {
         vertices: d.path.length,
       })),
     };
-  }, [changeGeom, artifact, currentTime, stage, socialIds, watchedRunNotLoaded, ghostGeom, activeRunId]);
+  }, [changeGeom, artifact, currentTime, stage, socialIds, watchedRunNotLoaded, ghostGeom, feedRunId]);
   // (No __nadiSeek seam: a raw setState seek loses races against the Timeline's rAF loop —
   // specs scrub the Timeline slider instead, the app's own pause-and-seek path.)
 
@@ -1679,26 +1765,26 @@ export default function MapView() {
   const [resuming, setResuming] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const onResume = useCallback(async () => {
-    if (!activeRunId) return;
+    if (!feedRunId) return;
     setResumeError(null);
     setResuming(true);
-    const res = await postResume(activeRunId);
+    const res = await postResume(feedRunId);
     setResuming(false);
     if (!res.ok) setResumeError(res.error); // verbatim: 403 pinned, 409 one-job, 409 nothing pending
-  }, [activeRunId]);
+  }, [feedRunId]);
 
   const onSkip = useCallback(async () => {
-    if (!activeRunId) return;
+    if (!feedRunId) return;
     setSkipError(null);
     setSkipping(true);
-    const res = await postSkip(activeRunId);
+    const res = await postSkip(feedRunId);
     setSkipping(false);
     if (!res.ok) {
       setSkipError(res.error); // verbatim, like every other run-control error
       return;
     }
     setStage('read');
-  }, [activeRunId]);
+  }, [feedRunId]);
 
   // V2.7b C10b — the interpretation's ending, as SENTENCES for the document. Everything here is
   // ledger-derived: `voices` is what actually arrived, `voicesTotal` what was planned, the stage
@@ -1770,7 +1856,7 @@ export default function MapView() {
 
   // Shown once per run: the held moment is a MOMENT, not a gate, so re-interrupting on every
   // reload mid-Act-II would make it a nuisance.
-  const [heldSeen, markHeldSeen] = useHeldMomentSeen(activeRunId);
+  const [heldSeen, markHeldSeen] = useHeldMomentSeen(feedRunId);
 
   if (!artifact) {
     return loadError ? (
@@ -2040,7 +2126,7 @@ export default function MapView() {
   // because it IS inactive here. It applies to the scenario leg; what is playing is the baseline.
   // Its label lives in the DOM caption rather than a deck TextLayer on purpose — the sentence
   // carries an em-dash, which is outside deck's default characterSet (the V2.2c font-atlas trap).
-  const ghostItems = watchedRunNotLoaded && ghostGeom?.runId === activeRunId ? ghostGeom.items : [];
+  const ghostItems = watchedRunNotLoaded && ghostGeom?.runId === feedRunId ? ghostGeom.items : [];
   const ghostOverlay = new PathLayer<OverlayItem>({
     id: 'ghost-change',
     data: ghostItems,
@@ -2548,7 +2634,7 @@ export default function MapView() {
         // state and buys the same guarantee. It is replaced by the real document seconds later,
         // when the facts-only report lands (which is why the wait is worth naming, not hiding).
         <DocumentPanel
-          title={`RUN DOCUMENT — ${(activeRunId ?? '').replace('multimodal-scenario-', '')}`}
+          title={`RUN DOCUMENT — ${(feedRunId ?? '').replace('multimodal-scenario-', '')}`}
           collapsed={docCollapsed}
           onToggle={setDocCollapsed}
           topOffset={78}
@@ -2655,7 +2741,7 @@ export default function MapView() {
         // V2.7b C8b: during Act I every surface on screen is about the run being WATCHED — the map
         // plays its baseline leg, the beats are its beats, Read names it. The header naming the
         // still-loaded artifact instead put two different run ids on one screen (looked-at catch).
-        runLabelText={(actOne ? activeRunId! : meta.run_id).replace('multimodal-scenario-', '')}
+        runLabelText={(actOne ? feedRunId! : meta.run_id).replace('multimodal-scenario-', '')}
         buildLocked={STATIC_DEMO}
         onBuildYourOwn={() => {
           // "Build your own scenario" starts a FRESH draft (the watched run keeps computing
@@ -2676,6 +2762,7 @@ export default function MapView() {
             if (computing) {
               // "a computing run opens in its current state" — the Build stage's watcher card
               setActiveRunId(id);
+              setFeedRunId(id);
               setFreshDraft(false);
               setStage('build');
             } else {
