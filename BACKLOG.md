@@ -356,28 +356,27 @@ not a drive-by.
   (`test_the_projection_errs_HIGH_not_low_against_the_measured_acceptance_run`) asserts the
   direction, not the accuracy: re-derive the constants when a run's metered total approaches the
   projection rather than sitting comfortably under it.
-- **The landing never attaches the run feed — OWNED BY V2.7b FOLLOW-UP F3** (scheduled before
-  V2.7c starts, the same shape as V2.7a's F1/F2; it is this phase's own hole in this phase's own
-  flagship, so it is not c's to absorb). `?run=<id>` and a plain reload load the artifact
-  but leave `activeRunId` null, so a mid-run reload shows the run's completed figures with no
-  beats, no act and no live cost until the reader re-opens it from the run list (one click, and
-  the reconstruction is exact — proven live). `activeRunId` is set only by `loadRun`, the simulate
-  POST and the run list's OPEN; the landing's `commit()` deliberately does not set it because
-  `DraftPanel` is gated on `!activeRunId`. Fixing it means either a second "watched run" concept
-  or re-cutting that gate — V2.7a's ratified landing matrix, with its own spec matrix, so it is a
-  step and not a patch. Nothing on screen makes a false claim in the meantime: the results ARE
-  complete and shown, which is the phase's own governing constraint.
-  **THE NAIVE FIX IS WRONG, and the reasons are written down so F3 does not rediscover them:**
+- **The landing never attaches the run feed — SHIPPED as V2.7b F3 (`a9f1d04`).** The gap was:
+  `?run=<id>` and a plain reload loaded the artifact but left `activeRunId` null, so a mid-run reload
+  showed the run's completed figures with no beats, no act and no live cost until the reader
+  re-opened it from the run list. The shipped fix is a SECOND id — `feedRunId`, the run the FEED
+  follows — leaving `activeRunId` to mean exactly what it meant (the rail, drawing, the viewing row);
+  the landing attaches only from `localStorage nadi:watchedRun`, with liveness read from `/api/runs`
+  and keyed on `art.meta.run_id`. **The rest of this entry is why that shape, and not the obvious
+  one — it remains a live constraint on anything that touches either id:**
   simply setting `activeRunId` on the landing replaces the ENTIRE Build rail with RunCard
   (`EditPanel.tsx` — draw-card, edge/zone palettes, DraftPanel, RunOptionsBlock), which 8 spec files
   depend on; kills map drawing (`drawing = editing && activeRunId == null`); removes the OPEN button
   for the "viewing" row, breaking run-identity and three composite-runcard tests; starts a feed on
   every cold landing whose `done` edge re-fetches the multi-MB artifact; and keying off the POINTER
   id rather than `art.meta.run_id` would mount Act I over a finished run (the pointer serves
-  `default-fixture` while the body carries `school-zone-fixture`). The shape that fits is a separate
-  `watchedRunId` for the FEED, leaving `activeRunId` to mean what it means today, with the landing
-  attaching only when `/api/runs` (never `/status`, which several specs sequence) says the landed
-  run is non-terminal.
+  `default-fixture` while the body carries `school-zone-fixture`). Liveness must come from
+  `/api/runs` and never `/status`, which several specs sequence. **A SIXTH failure mode the
+  implementation found, which the plan had not predicted:** attaching to whichever run the list
+  reports RUNNING hijacks the screen — opening run A while run B computes yanks the map into B's
+  Act I, uninvited. The attach must key on durable evidence that this reader was watching that
+  specific run (`nadi:watchedRun`), which is also what keeps the ratified silent-404 pin true on a
+  cold landing, where nothing is remembered and the landing must do nothing.
 - **A static demo cannot show baseline playback**, and the KEEP entry the plan carried for
   `<run>-baseline.json` was deliberately NOT added (checked, twice over): the harness writes that
   file only under `if (n_written and beats.on)`, so no run predating V2.7b has one and neither

@@ -271,7 +271,10 @@ cd web && npx playwright test        # 185 tests, 28 specs
   **5,205 model calls** against a projection of 1,815, because the estimate had missed the
   cascade's own stance scoring and counted the chat index at zero when it is the single largest
   stage. The projection now names all four terms and is pinned to sit above a measured run:
-  understating is the one direction a consent number may never err in.
+  understating is the one direction a consent number may never err in. The whole act survives an
+  accidental refresh — a mid-run reload restores the run you were watching, beats and live cost
+  included, because the screen is a projection of a durable event log rather than of anything held
+  in memory.
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
   changes the saturation finding), map + editor styling incl. the curved-road restyle (V2.7c/d),
   a real student-demand segment, periodic mandate re-verification, the settled-basis

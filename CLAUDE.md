@@ -233,7 +233,7 @@ report REGENERATED under the full realign ceremony — **the conjunction-baselin
 rebuilt, alignment + pins + discourse.spec re-proven. The sweep CAUGHT a real pre-existing gap:
 the code-rendered tail sentence said "the vast majority of cars unaffected" (referendum
 vocabulary no old sweep covered) — reworded at both sources (report.py, robustness.py), golden
-regenerated deliberately. Sweeps ride **23 of 28** spec files (the four without one are incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
+regenerated deliberately. Sweeps ride **23 of 28** spec files (measured; the FIVE without one are incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note — plus V2.7b's `edit-guard`, which pins filesystem drift and renders no prose at all; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
 at Explore · Chat; shared composers extracted (windowedScope/scopeNoteText, provenance labels,
 nonCompletionsLine) so pinned sentences have ONE source across surfaces. **PERF RE-MEASURED (headed, prod, this box — the V2.5c harness + a stage-watch hop since the landing defaults to Read): 90 MB fat-vintage exemplar nav→render 3.77 s (budget ≤5 s; pre-shell 3.72 — no regression), frames p50 8.1 ms/123 fps · p95 16.1 ms/62 fps · 0 longtasks (pre-shell 122/61 — identical; the document panel never subscribes to the rAF clock); pinned ~20 MB run nav→render 1.14 s (budget ≤2 s), 125/63 fps.** Suites: **595 pytest
 + 123 Playwright**.
@@ -430,12 +430,54 @@ denominator test passed with its own fix reverted twice (Playwright runs the LAS
 handler first, so a delay registered before the mock it meant to delay never ran; and the ledger
 seed won the race anyway), until it was rebuilt to reproduce the gap BY CONTENT — no projection on
 the first ledger read, one on the second, which is the server's own sequence and cannot be raced.
+**THE V2.7b CLOSEOUT CLEANUP (five items before V2.7c; `54dc44b` · `3971bca` · `21ba6a5` ·
+`319e096` · `a9f1d04` · `cf6a71f`).**
+**THE NETWORK-ONLY GATE IS CLOSED BOTH WAYS.** The permanent half is `act-one.spec.ts`'s
+failed-fetch case — `baseline_ready` delivers a url and that url 404s — asserting the caption HEAD,
+the entity counts through `__nadiRenderStats` and `ghost === 1`; it is mutation-effective BY
+CONSTRUCTION, because reverting `entitySource` to the pre-C8b `preview ?? artifact` fails it, which
+is the exact bug the state exists to catch. The live half ran on a real run with the baseline
+artifact renamed out from under the client (`docs-assets/v27b-c11-network-only-live-probe.png`,
+beside the spec's `v27b-c11-network-only-blocked.png`). **Two method facts, recorded so the probe is
+not misread later:** the rename waits for `baseline_ready` because that event is POST-write by
+construction (`scenario_harness.py:1316-1318` completes the write, THEN emits), so it races no
+writer — while `results_ready` could not be the signal at all, since a chain-off run goes terminal
+at quant completion and a terminal run opens no stream, leaving no Act I to observe. And the probe
+reached the live run **through the run list because that was the only route that attached the feed
+that day** — after F3 a plain reload reaches the same state, so the run-list route is a property of
+that day's shell, never a property of the state.
+**F3 — THE FEED'S RUN IS NOT THE RAIL'S RUN.** `activeRunId` had acquired a second meaning by
+accident: the Build rail keys on it (a non-null value swaps the draw card, palettes and DraftPanel
+for RunCard — EIGHT spec files depend on that rail), map drawing stops on it
+(`drawing = editing && activeRunId == null`), and the run list's "viewing" row keys on it, which
+also removes that row's OPEN button. So the feed got its own id — **`feedRunId`** — and every
+`setActiveRunId` site pairs a `setFeedRunId`. The landing attaches ONLY from durable evidence that
+THIS reader was watching THAT run (`localStorage nadi:watchedRun`, read with a LAZY useState
+initializer, because the effect that mirrors the id into storage runs first with the id still null
+and would clear the key before the landing could read it — every reload would have looked cold);
+liveness is decided from **`/api/runs`, never `/status`** (the sequenced-mock rule), keyed on
+**`art.meta.run_id`** and never the pointer alias, whose `default-fixture` id would mount Act I over
+a finished run. With nothing remembered the landing does nothing at all, which is what keeps the
+ratified silent-404 pin true for the overwhelmingly common cold landing. The root cause it answers:
+**a computing run has no artifact yet** (`/<id>.json` 404s until the quant leg ends), so the landing
+falls through to the last run actually VIEWED and shows that instead — the events file was durable
+the whole time, and only the pointer to it lived in memory.
+**TWO CATCHES THE SUITE MADE AND REVIEW WOULD NOT HAVE.** The first working rule attached to
+whichever run `/api/runs` reported running, and that HIJACKS — deliberately opening run A while B
+computes yanked the map into B's Act I, A's agents blanked, without asking; the act-one suite caught
+it as a CONTROL assertion going 1 → 0, the same wrong-run-render class C8b was written to close. And
+the act-one fixture's two endpoints described different worlds (`/api/runs` said `running` while
+`/status` said `done` for one run), invisible until the landing began consulting the list; both read
+one source now, with `/api/runs` deliberately NOT advancing the poll counter.
+**One residual banked rather than invented** (BACKLOG): on a FAILED baseline fetch the caption head
+is right while the body still falls through to the pending wording, promising playback that will
+never land — new reader-facing copy, so it wants ratifying, and the spec pins the head and the
+entity counts either way.
 Suites: **689 pytest + 185 Playwright**.
-Open threads: **V2.7b F3 — the landing never attaches the run feed** (a mid-run reload or `?run=`
-deep link shows the run's figures with no beats, no act and no live cost until the reader re-opens
-it from the run list; scheduled BEFORE V2.7c, the F1/F2 shape, with the naive fix's five failure
-modes already written down in BACKLOG so it is not rediscovered) · **V2.7c/d map + editor styling
-(incl. the curved-road grey/striping restyle) · V2.7e doorways/room** +
+Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
+the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — the phase now
+in planning** (the transit-map palette, the zoom ladder, the curved-road grey/striping restyle) ·
+**V2.7d editor styling · V2.7e doorways/room** +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
@@ -443,7 +485,9 @@ V2.6b, the document humanization's REMAINING half — street names, which need a
 that stales `network.json` and the golden trajectory together (the clock half shipped in V2.7b
 C10b) — the `scorecard._SAFETY_NOTE` recompute ceremony, and the V2.7b follow-ons: the
 interpretation's SHAPE as a product decision now that it is metered (the chat index alone is 53%
-of a run's spend), the landing never attaching the run feed, and per-step cascade events).
+of a run's spend), per-step cascade events, the two C11 residuals — the FORWARD-ONLY corpus-handle
+fix (the pinned run's served index still missing 115 of its 1,355 posts) and the lock-scoped
+staleness rule — and the empty-map caption's overpromise on a failed baseline fetch).
 **Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
 `v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
 regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
@@ -1664,9 +1708,12 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   iterating. **A SUITE WHOSE SOURCES CHANGE MID-RUN NOW FAILS**: `globalSetup`/`globalTeardown`
   (`tests/support/edit-guard.ts`) hash every file under `web/{app,components,lib,tests}` plus the
   config and package.json, and a drift throws with each file named — proven by a run where 13 tests
-  passed and the run still exited 1. It is config-level, not a reporter, because `--reporter=line`
-  on the command line REPLACES the config's reporter list and silently disabled the first version;
-  it hashes CONTENT, not mtimes, because OneDrive moves mtimes here. `NADI_ALLOW_SUITE_EDITS=1`
+  passed and the run still exited 1. **Two placements were tried and both were silently INERT before
+  this one worked, so neither is to be "simplified" back:** a REPORTER (disabled the moment anyone
+  passes `--reporter=line`, which REPLACES the config's reporter list) and `globalSetup`'s documented
+  returned teardown (never called on this install — proven with a probe), which is why the teardown
+  is its own file, `tests/support/edit-guard-teardown.ts`, wired as `globalTeardown`. And it hashes
+  CONTENT, not mtimes, because OneDrive moves mtimes here without a content edit. `NADI_ALLOW_SUITE_EDITS=1`
   bypasses it for the deliberate case and says so in the output. **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
