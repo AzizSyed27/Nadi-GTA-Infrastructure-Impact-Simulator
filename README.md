@@ -13,7 +13,7 @@ planner concludes**, never the other way around.
 **Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`), **V2.7a** (the four-stage shell +
 the run document) and **V2.7b** (the run experience — two acts over one event stream) complete ·
 trajectory contract
-**v0.10.0** · **689 pytest + 178 Playwright** tests · study corridor: Scarborough / Pickering /
+**v0.10.0** · **689 pytest + 185 Playwright** tests · study corridor: Scarborough / Pickering /
 Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
@@ -46,7 +46,7 @@ etiquette. The locked decisions:
 
 - **Preview, never verdict.** The agent layer anticipates *who wins, who loses, and what each
   objection sounds like*. It is not a referendum: no stance tallies, no sentiment averages, no
-  winner, anywhere. This is test-enforced — a banned-language sweep rides **23 of the 27
+  winner, anywhere. This is test-enforced — a banned-language sweep rides **23 of the 28
   Playwright specs** plus a python-side sweep, so a regression toward "62% support" fails CI, not
   a code review. The group room states it on its own surface: *"voices you picked, answering one
   at a time — a conversation preview, not a poll or a sample of opinion."*
@@ -223,7 +223,7 @@ the map renders before you ever run SUMO.
 
 ```bash
 python -m pytest python/tests        # 689 tests
-cd web && npx playwright test        # 178 tests, 27 specs
+cd web && npx playwright test        # 185 tests, 28 specs
 ```
 
 ## History

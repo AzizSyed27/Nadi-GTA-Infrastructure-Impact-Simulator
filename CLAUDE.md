@@ -233,7 +233,7 @@ report REGENERATED under the full realign ceremony — **the conjunction-baselin
 rebuilt, alignment + pins + discourse.spec re-proven. The sweep CAUGHT a real pre-existing gap:
 the code-rendered tail sentence said "the vast majority of cars unaffected" (referendum
 vocabulary no old sweep covered) — reworded at both sources (report.py, robustness.py), golden
-regenerated deliberately. Sweeps ride **23 of 27** spec files (the four without one are incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
+regenerated deliberately. Sweeps ride **23 of 28** spec files (the four without one are incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
 at Explore · Chat; shared composers extracted (windowedScope/scopeNoteText, provenance labels,
 nonCompletionsLine) so pinned sentences have ONE source across surfaces. **PERF RE-MEASURED (headed, prod, this box — the V2.5c harness + a stage-watch hop since the landing defaults to Read): 90 MB fat-vintage exemplar nav→render 3.77 s (budget ≤5 s; pre-shell 3.72 — no regression), frames p50 8.1 ms/123 fps · p95 16.1 ms/62 fps · 0 longtasks (pre-shell 122/61 — identical; the document panel never subscribes to the rAF clock); pinned ~20 MB run nav→render 1.14 s (budget ≤2 s), 125/63 fps.** Suites: **595 pytest
 + 123 Playwright**.
@@ -430,7 +430,7 @@ denominator test passed with its own fix reverted twice (Playwright runs the LAS
 handler first, so a delay registered before the mock it meant to delay never ran; and the ledger
 seed won the race anyway), until it was rebuilt to reproduce the gap BY CONTENT — no projection on
 the first ledger read, one on the second, which is the server's own sequence and cannot be raced.
-Suites: **689 pytest + 178 Playwright**.
+Suites: **689 pytest + 185 Playwright**.
 Open threads: **V2.7b F3 — the landing never attaches the run feed** (a mid-run reload or `?run=`
 deep link shows the run's figures with no beats, no act and no live cost until the reader re-opens
 it from the run list; scheduled BEFORE V2.7c, the F1/F2 shape, with the naive fix's five failure
@@ -1652,15 +1652,22 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   display-label and projection lockstep pins + C11's live finds — the cancelled-discourse assembly
   shape, the corpus handle collision, the held-lock-vs-stale rule and the projection floor) and
   `cd web && npx playwright test`
-  (178 tests across 27 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  (185 tests across 28 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
   compact-run, via-rules, the V2.7a run-document/run-list/app-shell (the landing matrix + ride-along 6a + the follow-up title-precedence/one-source-name/no-duplication pins) specs, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
   rendering, the V2.5c/d pointer-independence + labeled-landing pins, and the V2.7b
   act-one/act-two/run-feed/brake specs — the beat ledger + the earned ticks, the six stage cards,
   the file-wins swap, the pass-through-`done` mount, the cost line's denominator and the
-  stopped/degraded blocks). The full Playwright suite runs **~45–50 minutes single-worker** on this
-  box (act-one and act-two are the slow files at ~7 min each) — budget for it, and prefer per-file
-  runs while iterating. **Dev-only Playwright
+  stopped/degraded blocks), plus **`edit-guard.spec.ts`** — the detection half of the suite-edit
+  guard. The full Playwright suite runs **~45–50 minutes single-worker** on this box (act-one and
+  act-two are the slow files at ~7 min each) — budget for it, and prefer per-file runs while
+  iterating. **A SUITE WHOSE SOURCES CHANGE MID-RUN NOW FAILS**: `globalSetup`/`globalTeardown`
+  (`tests/support/edit-guard.ts`) hash every file under `web/{app,components,lib,tests}` plus the
+  config and package.json, and a drift throws with each file named — proven by a run where 13 tests
+  passed and the run still exited 1. It is config-level, not a reporter, because `--reporter=line`
+  on the command line REPLACES the config's reporter list and silently disabled the first version;
+  it hashes CONTENT, not mtimes, because OneDrive moves mtimes here. `NADI_ALLOW_SUITE_EDITS=1`
+  bypasses it for the deliberate case and says so in the output. **Dev-only Playwright
   hazard:** a TINY fixture artifact can resolve inside React StrictMode's double-mount window and fatally crash
   maplibre teardown (the dev overlay eats the app) — specs delay fixture routes ~500 ms + warm-reload once
   (documented in `compare.spec.ts`); production builds and real artifact sizes never hit it.
