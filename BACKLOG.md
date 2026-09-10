@@ -356,7 +356,9 @@ not a drive-by.
   (`test_the_projection_errs_HIGH_not_low_against_the_measured_acceptance_run`) asserts the
   direction, not the accuracy: re-derive the constants when a run's metered total approaches the
   projection rather than sitting comfortably under it.
-- **The landing never attaches the run feed** — `?run=<id>` and a plain reload load the artifact
+- **The landing never attaches the run feed — OWNED BY V2.7b FOLLOW-UP F3** (scheduled before
+  V2.7c starts, the same shape as V2.7a's F1/F2; it is this phase's own hole in this phase's own
+  flagship, so it is not c's to absorb). `?run=<id>` and a plain reload load the artifact
   but leave `activeRunId` null, so a mid-run reload shows the run's completed figures with no
   beats, no act and no live cost until the reader re-opens it from the run list (one click, and
   the reconstruction is exact — proven live). `activeRunId` is set only by `loadRun`, the simulate
@@ -365,6 +367,17 @@ not a drive-by.
   or re-cutting that gate — V2.7a's ratified landing matrix, with its own spec matrix, so it is a
   step and not a patch. Nothing on screen makes a false claim in the meantime: the results ARE
   complete and shown, which is the phase's own governing constraint.
+  **THE NAIVE FIX IS WRONG, and the reasons are written down so F3 does not rediscover them:**
+  simply setting `activeRunId` on the landing replaces the ENTIRE Build rail with RunCard
+  (`EditPanel.tsx` — draw-card, edge/zone palettes, DraftPanel, RunOptionsBlock), which 8 spec files
+  depend on; kills map drawing (`drawing = editing && activeRunId == null`); removes the OPEN button
+  for the "viewing" row, breaking run-identity and three composite-runcard tests; starts a feed on
+  every cold landing whose `done` edge re-fetches the multi-MB artifact; and keying off the POINTER
+  id rather than `art.meta.run_id` would mount Act I over a finished run (the pointer serves
+  `default-fixture` while the body carries `school-zone-fixture`). The shape that fits is a separate
+  `watchedRunId` for the FEED, leaving `activeRunId` to mean what it means today, with the landing
+  attaching only when `/api/runs` (never `/status`, which several specs sequence) says the landed
+  run is non-terminal.
 - **A static demo cannot show baseline playback**, and the KEEP entry the plan carried for
   `<run>-baseline.json` was deliberately NOT added (checked, twice over): the harness writes that
   file only under `if (n_written and beats.on)`, so no run predating V2.7b has one and neither
@@ -380,3 +393,35 @@ not a drive-by.
   their own routes. One field, the same registry+listener duty. Until then the card shows the
   count split and the server's own basis sentence — never whatever entities happen to be loaded,
   which would render convincingly and be the wrong travelers.
+
+## V2.7b C11 defect residuals (the two that outlived their fixes)
+
+Both belong to defects that WERE fixed in C11b; these are the parts a fix cannot reach backwards.
+
+- **The chat corpus fix is FORWARD-ONLY, and the served demo index still has the gap.** The
+  cascade-post doc handle became unique per event in C11b, but every index built before that keeps
+  the posts LightRAG refused as `batch_duplicate`. Measured from the committed artifact: the PINNED
+  run (`multimodal-scenario-20260702T044134Z`) — whose index is the one served for chat — is missing
+  **115 of its 1,355 clean cascade posts (8%)**. Nothing is wrong on screen; chat simply cannot cite
+  what was never indexed. Rebuilding is the documented protected-run maintenance op
+  (`report_agent.py --run-id <id> --rebuild` under `NADI_ALLOW_PINNED_ENRICH=1`) and costs roughly
+  3–4k model calls at the measured ~2.4 calls/doc, so it is a deliberate spend, not a drive-by.
+- **The staleness fix is scoped to the process holding the lock.** `run_state.read` no longer
+  coerces a long-running stage to `failed` when THIS process owns that run's lock — but a CLI
+  reader, or a server restarted mid-run, still does. That is the honest answer for them (neither can
+  see the lock), and it means a 40-minute chat-index build looks failed to anything but the server
+  that launched it. If that ever needs closing, the fix is a heartbeat write from the chain, not a
+  longer timeout.
+
+## V2.7b C11 — the empty-map caption overpromises on a FAILED baseline fetch
+
+Found twice while closing the frame-debt gate: once in the new spec's frame, once live with a real
+404. When `baseline_ready` has delivered a url and the fetch then fails, the caption head is right
+(`MAP SHOWS: THE NETWORK ONLY`) but the body falls through to the PENDING wording — *"the baseline
+leg is still being simulated — playback begins here when it lands"* — and it will not land. The map
+is genuinely empty and the results-unaffected claim is true, so nothing about the DATA is false; the
+overpromise is in the explanation, which is the surface this project holds to the same standard.
+Closing it means distinguishing "no url yet" from "url arrived, fetch failed" — a `baselineFailed`
+flag set by the fetch effect's error path, plus a third caption body. That is new reader-facing
+copy, so it wants ratifying rather than inventing; the state is pinned either way by
+`act-one.spec.ts`'s failed-fetch case, which asserts the head and the entity counts, not the body.

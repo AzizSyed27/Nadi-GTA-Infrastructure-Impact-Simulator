@@ -372,6 +372,13 @@ cascade already generated, audited and PAID FOR never reached the artifact and t
 `failed` with a validation traceback. The brake was dropping the thing it exists to keep. Every
 other cancel checkpoint audited for the same class (reactions returns None and filters matched
 pairs; report's partials match their declared types).
+**DISPOSITION: ALL TEN WERE FIXED IN C11b — none were banked** (verified by re-reading the tree at
+the V2.7b closeout, not from the commit messages). **Two residuals ride them, both recorded in
+BACKLOG rather than left to be discovered:** the corpus-handle fix is FORWARD-ONLY, so every index
+built before it keeps its gap — including the PINNED run's SERVED chat index, measured at **115 of
+its 1,355 cascade posts (8%)** dropped by the old step-scoped handle; and the staleness fix is
+scoped to the process HOLDING the lock, so a CLI reader or a restarted server still coerces a long
+stage to `failed` (the honest answer there — neither can see the lock).
 **MEASURED, LIVE (synthetic day_one, no max-t override — the pace no doc recorded before):** quant
 (both legs + analysis) **7 m 03 s**, results readable at **7 m 15 s**, then personas 10 s · voices
 57 s · discourse **12 m** · report 30 s · chat index **62 m** — 1 h 23 m end to end, of which
@@ -424,8 +431,11 @@ handler first, so a delay registered before the mock it meant to delay never ran
 seed won the race anyway), until it was rebuilt to reproduce the gap BY CONTENT — no projection on
 the first ledger read, one on the second, which is the server's own sequence and cannot be raced.
 Suites: **689 pytest + 178 Playwright**.
-Open threads: **V2.7c/d map + editor styling (incl. the curved-road grey/striping restyle) ·
-V2.7e doorways/room** +
+Open threads: **V2.7b F3 — the landing never attaches the run feed** (a mid-run reload or `?run=`
+deep link shows the run's figures with no beats, no act and no live cost until the reader re-opens
+it from the run list; scheduled BEFORE V2.7c, the F1/F2 shape, with the naive fix's five failure
+modes already written down in BACKLOG so it is not rediscovered) · **V2.7c/d map + editor styling
+(incl. the curved-road grey/striping restyle) · V2.7e doorways/room** +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
