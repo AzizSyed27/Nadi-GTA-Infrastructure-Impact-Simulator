@@ -148,6 +148,21 @@ test('a band crossing never touches the entity join (the render-stats seam is a 
   expect(after).toEqual(before);
 });
 
+// ---- the basemap paint (C2b): positron-nolabels' ground / water / greenery are overridden on load to
+// the design's swatches, read BACK from the live style so the pin is the map's truth, not the request ----
+
+test('the basemap ground, water and greenery are the transit-map swatches (read back from the live style)', async ({ page }) => {
+  await mockBackend(page);
+  await openWatch(page);
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => (window as unknown as { __nadiViewport?: { basemap?: unknown } }).__nadiViewport?.basemap ?? null),
+      { timeout: 20_000 },
+    )
+    .toEqual({ ground: '#f2f2f3', water: '#d7e1e7', greenery: '#e0e7dc' });
+});
+
 // ---- the real network: structural smoke only (counts belong to the fixture tests above) ----
 
 test('real network smoke: the seams publish over the exported net at the landing zoom', async ({ page }) => {

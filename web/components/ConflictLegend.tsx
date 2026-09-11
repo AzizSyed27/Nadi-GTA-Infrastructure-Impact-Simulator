@@ -1,5 +1,7 @@
 'use client';
 
+import { CONFLICT_DOT, CONFLICT_PULSE, css } from '@/lib/mapPalette';
+
 /**
  * Legend + toggle for the conflict overlay. Frames the overlay HONESTLY: these are safety-SURROGATE
  * near-misses OBSERVED in this run's trajectories, never crash predictions and never "danger the change
@@ -55,19 +57,20 @@ const head: React.CSSProperties = {
 };
 const rowLine: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 };
 const caption: React.CSSProperties = { fontSize: 11, color: '#4b5563', lineHeight: 1.3 };
+// V2.7c: the swatches are the LAYERS' colours (web/lib/mapPalette.ts), never a hand-typed twin.
 const pulseSwatch: React.CSSProperties = {
   width: 12,
   height: 12,
   borderRadius: '50%',
-  background: 'rgba(235,140,60,0.85)',
-  border: '1px solid rgba(235,140,60,1)',
+  background: `rgba(${CONFLICT_PULSE[0]},${CONFLICT_PULSE[1]},${CONFLICT_PULSE[2]},0.85)`,
+  border: `1px solid ${css(CONFLICT_PULSE)}`,
   flex: '0 0 auto',
 };
 const dotSwatch: React.CSSProperties = {
   width: 8,
   height: 8,
   borderRadius: '50%',
-  background: 'rgba(120,120,132,0.6)',
+  background: `rgba(${CONFLICT_DOT[0]},${CONFLICT_DOT[1]},${CONFLICT_DOT[2]},0.6)`,
   flex: '0 0 auto',
   margin: '0 2px',
 };

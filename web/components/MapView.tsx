@@ -16,6 +16,14 @@ import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
 import { loadNetwork, type NetworkEdge } from '@/lib/network';
 import { buildRoadLayers, describeLayers, quantizeZoom, zoomBand, type ZoomBand } from '@/lib/roadLayers';
 import { deriveRoadRows } from '@/lib/roadGeometry';
+import {
+  BASEMAP, CAP_CASING, CAP_DASH, CAP_DASH_COLOR, CONFLICT_DOT, CONFLICT_PULSE, DRAFT_HOVER, EDIT_OVERLAY,
+  EDIT_TINT_NEUTRAL, GHOST_CASING, GHOST_CORE, NEW_ROAD_OVERLAY, TRAIL, TRAVELER, TRAVELER_RIM, ZONE, ZONE_TINT, css,
+} from '@/lib/mapPalette';
+
+// ONE dash extension instance for every dashed overlay layer (a `new PathStyleExtension` per render
+// was a per-rAF-tick allocation; the road layers hold their own in roadLayers.ts).
+const DASH_EXT = new PathStyleExtension({ dash: true });
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
@@ -152,15 +160,7 @@ async function resolveOverlayItems(
 }
 
 const CAPACITY_TYPES: ReadonlySet<string> = new Set(['lane_closure', 'road_closure', 'incident']);
-const CAP_CASING: Record<string, [number, number, number, number]> = {
-  lane_closure: [42, 42, 48, 235], road_closure: [110, 22, 22, 240], incident: [125, 62, 12, 240],
-};
-const CAP_DASH_COLOR: Record<string, [number, number, number, number]> = {
-  lane_closure: [250, 190, 40, 240], road_closure: [225, 62, 50, 245], incident: [246, 122, 40, 245],
-};
-const CAP_DASH: Record<string, [number, number]> = {
-  lane_closure: [4, 3], road_closure: [1.5, 1.5], incident: [3, 2],
-};
+// (the per-type overlay colours/dashes live in web/lib/mapPalette.ts since V2.7c — the legend reads them too)
 const midOf = (path: LonLat[]): LonLat => path[Math.floor(path.length / 2)];
 // The window badge's glyphs — STATIC superset (digits, clock/sim forms, the en-dash — which is
 // outside deck.gl's default ASCII characterSet). Never derived from data: an empty computed set
@@ -282,6 +282,9 @@ export default function MapView() {
   const [band, setBand] = useState<ZoomBand>('far');
   const [zoomQ, setZoomQ] = useState(12);
   const [viewZoom, setViewZoom] = useState(12);
+  // V2.7c C2b — the basemap's ground / water / greenery as READ BACK from the live style after the
+  // onLoad overrides (the seam reports the map's truth, never the request).
+  const [basemap, setBasemap] = useState<{ ground: unknown; water: unknown; greenery: unknown } | null>(null);
   const bandRef = useRef<ZoomBand>('far');
   const zoomQRef = useRef(12);
   const onViewZoom = useCallback((z: number, settled: boolean) => {
@@ -910,10 +913,11 @@ export default function MapView() {
     (window as unknown as { __nadiViewport?: unknown }).__nadiViewport = {
       zoom: viewZoom,
       band,
+      basemap,
       jumpTo: (lon: number, lat: number, z: number) =>
         mapRef.current?.getMap().jumpTo({ center: [lon, lat], zoom: z }),
     };
-  }, [viewZoom, band]);
+  }, [viewZoom, band, basemap]);
   useEffect(() => {
     (window as unknown as { __nadiRoadLayers?: unknown }).__nadiRoadLayers = {
       band,
@@ -1899,7 +1903,7 @@ export default function MapView() {
     data: trailVehicles,
     getPath: (d) => d.path,
     getTimestamps: (d) => d.timestamps,
-    getColor: [120, 125, 135],
+    getColor: TRAIL, // V2.7c: light on the dark roadway (was a mid grey on a light road)
     opacity: 0.5,
     widthMinPixels: 2,
     trailLength: 200,
@@ -1909,28 +1913,39 @@ export default function MapView() {
     jointRounded: true,
   });
 
-  // 2a) Background vehicles: small neutral-grey dots at their current position (only while active).
+  // 2a) Background vehicles: small dots at their current position (only while active).
+  // V2.7c: ONE traveller colour for any mode (the design: mode is legible from the icon at z ≥ 16,
+  // never from colour) with a 1 px light rim — a dark dot on the dark roadway needs one, and the
+  // rim is what keeps it legible on the light ground too (the C2b contrast-sibling check).
   const bgVehActive = bgVehicles.filter((v) => activeAt(v.timestamps, t));
   const backgroundVehicleDots = new ScatterplotLayer<Materialized<Vehicle>>({
     id: 'background-vehicle-dots',
     data: bgVehActive,
     getPosition: (v) => positionAtCached(v.path, v.timestamps, t),
-    getFillColor: [150, 152, 158, 150],
+    getFillColor: TRAVELER,
     getRadius: 2.5,
     radiusUnits: 'pixels',
+    stroked: true,
+    getLineColor: TRAVELER_RIM,
+    getLineWidth: 1,
+    lineWidthUnits: 'pixels',
     pickable: false,
     updateTriggers: { getPosition: t },
   });
 
-  // 2b) Background pedestrians: same small dot, a subtly distinct (muted teal) tint from vehicles.
+  // 2b) Background pedestrians: the same dot (mode never rides on colour).
   const bgPerActive = bgPersons.filter((p) => activeAt(p.timestamps, t));
   const backgroundPersonDots = new ScatterplotLayer<Materialized<Person>>({
     id: 'background-person-dots',
     data: bgPerActive,
     getPosition: (p) => positionAtCached(p.path, p.timestamps, t),
-    getFillColor: [110, 158, 160, 165],
+    getFillColor: TRAVELER,
     getRadius: 2.5,
     radiusUnits: 'pixels',
+    stroked: true,
+    getLineColor: TRAVELER_RIM,
+    getLineWidth: 1,
+    lineWidthUnits: 'pixels',
     pickable: false,
     updateTriggers: { getPosition: t },
   });
@@ -1943,7 +1958,7 @@ export default function MapView() {
     data: conflicts,
     visible: showAllConflicts,
     getPosition: (c) => [c.lon, c.lat],
-    getFillColor: [120, 120, 132, 110],
+    getFillColor: CONFLICT_DOT,
     getRadius: 2.5,
     radiusUnits: 'pixels',
     pickable: true,
@@ -1962,12 +1977,12 @@ export default function MapView() {
     getPosition: (c) => [c.lon, c.lat],
     getFillColor: (c) => {
       const frac = Math.max(0, 1 - (t - c.t) / CONFLICT_FADE_S); // 1 at the event → 0 as it fades
-      return [235, 140, 60, Math.round(40 + 190 * frac)];
+      return [CONFLICT_PULSE[0], CONFLICT_PULSE[1], CONFLICT_PULSE[2], Math.round(40 + 190 * frac)];
     },
     getRadius: (c) => 4 + Math.max(0, Math.min(1, c.severity)) * 8, // 4–12 px, severity-scaled
     radiusUnits: 'pixels',
     stroked: true,
-    getLineColor: [235, 140, 60, 220],
+    getLineColor: [CONFLICT_PULSE[0], CONFLICT_PULSE[1], CONFLICT_PULSE[2], 220],
     getLineWidth: 1,
     lineWidthUnits: 'pixels',
     pickable: true,
@@ -2026,7 +2041,7 @@ export default function MapView() {
           ? [240, 130, 30, 235]
           : eligById[e.id]?.eligible_bike_lane
             ? [80, 140, 255, 170]
-            : [150, 156, 165, 150],
+            : EDIT_TINT_NEUTRAL, // V2.7c: light over the dark roadway (the old mid grey vanished on it)
     getWidth: (e) => (e.id === selectedEdge?.id || (zoneMode && zoneEdges.includes(e.id)) ? 6 : 3),
     widthUnits: 'pixels',
     capRounded: true,
@@ -2057,10 +2072,10 @@ export default function MapView() {
     getPath: (d) => d.path,
     getColor: (d) =>
       d.id === hoveredDraftId
-        ? [40, 45, 55, 250] // hovered row → dark slate (the ROAD_CASING family) — a WHITE highlight
-        : // vanishes into the near-white positron basemap (review-caught via screenshot; seams can't see it)
-          (CAP_DASH_COLOR[d.type] ??
-          (d.type === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230])), // teal minted road / amber edit
+        ? DRAFT_HOVER // V2.7c: the chevron brown — the V2.4a dark slate (chosen to beat a LIGHT basemap)
+        : // vanished on the #515459 roadway; a white highlight vanishes on the light ground a drawn
+          // road crosses. Brown reads on both (looked-at, C2b).
+          (CAP_DASH_COLOR[d.type] ?? (d.type === 'new_road' ? NEW_ROAD_OVERLAY : EDIT_OVERLAY)),
     getWidth: (d) => (d.id === hoveredDraftId ? 9 : 6),
     widthUnits: 'pixels',
     capRounded: true,
@@ -2135,7 +2150,7 @@ export default function MapView() {
     id: 'zone-tint',
     data: zoneTagged ? overlayItems : [],
     getPath: (d) => d.path,
-    getColor: [255, 200, 40, 90], // translucent school-bus yellow
+    getColor: ZONE_TINT, // translucent school-bus yellow
     getWidth: 14,
     widthUnits: 'pixels',
     capRounded: true,
@@ -2146,20 +2161,32 @@ export default function MapView() {
   // Its label lives in the DOM caption rather than a deck TextLayer on purpose — the sentence
   // carries an em-dash, which is outside deck's default characterSet (the V2.2c font-atlas trap).
   const ghostItems = watchedRunNotLoaded && ghostGeom?.runId === feedRunId ? ghostGeom.items : [];
+  // V2.7c C2b — the ghost is a PAIR over the SAME items (the seam's `ghost` stays an ITEM count):
+  // a dark casing under a DASHED light core. The V2.7b dashed slate was chosen against a light
+  // basemap; on the #515459 roadway it vanished into the road it outlines (the re-captured frame
+  // beside docs-assets/v27b-c11-ghost-magnified.png is this arc's gate). The dash stays: it is the
+  // truer signal — this member is an outline of something not in force, and dashing is already
+  // this project's mark for "a different kind of thing" (influence connectors).
+  const ghostCasing = new PathLayer<OverlayItem>({
+    id: 'ghost-change-casing',
+    data: ghostItems,
+    getPath: (d) => d.path,
+    getColor: GHOST_CASING,
+    getWidth: 7,
+    widthUnits: 'pixels',
+    capRounded: true,
+    jointRounded: true,
+  });
   const ghostOverlay = new PathLayer<OverlayItem>({
     id: 'ghost-change',
     data: ghostItems,
     getPath: (d) => d.path,
-    // DASHED slate. Solid-and-translucent read as another grey road on a grey basemap (looked-at
-    // catch: the outline the caption promises was technically drawn and practically invisible).
-    // A dash is also the truer signal — this member is an outline of something not in force, and
-    // dashing is already this project's mark for "a different kind of thing" (influence connectors).
-    getColor: [64, 70, 86, 205],
-    getWidth: 5,
+    getColor: GHOST_CORE,
+    getWidth: 4,
     widthUnits: 'pixels',
     getDashArray: [7, 5],
     dashJustified: true,
-    extensions: [new PathStyleExtension({ dash: true })],
+    extensions: [DASH_EXT],
     capRounded: true,
     jointRounded: true,
     // the closure-dash cast idiom: getDashArray rides the extension, not PathLayer's own props
@@ -2168,7 +2195,7 @@ export default function MapView() {
     id: 'change-overlay',
     data: legacyItems,
     getPath: (d) => d.path,
-    getColor: (d) => (d.type === 'new_road' ? [20, 200, 170, 235] : [245, 170, 40, 230]), // teal proposed road / amber edit
+    getColor: (d) => (d.type === 'new_road' ? NEW_ROAD_OVERLAY : EDIT_OVERLAY), // teal proposed road / amber edit
     getWidth: 6,
     widthUnits: 'pixels',
     capRounded: true,
@@ -2194,7 +2221,7 @@ export default function MapView() {
     widthUnits: 'pixels',
     capRounded: false,
     jointRounded: true,
-    extensions: [new PathStyleExtension({ dash: true })],
+    extensions: [DASH_EXT],
     getDashArray: (d: OverlayItem) => CAP_DASH[d.type], // relative to path width (deck.gl 9.3)
   } as ConstructorParameters<typeof PathLayer<OverlayItem>>[0]);
   const incidentItems = capItems.filter((d) => d.type === 'incident');
@@ -2244,6 +2271,7 @@ export default function MapView() {
     ...baseNetworkLayers, // V2.0b: the drawn network — z=0, below everything, all modes
     trails,
     zoneTint, // V2.2d: the always-visible zone designation, under the time-gated change overlay
+    ghostCasing, // V2.7c: the ghost's dark casing — reads on the light ground either side of a road
     ghostOverlay, // V2.7b: Act I only — the computing run's member, not in force in this playback
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
     closureCasing,
@@ -2300,6 +2328,24 @@ export default function MapView() {
             { padding: 40, duration: 0 },
           );
           onViewZoom(m.getZoom(), true);
+          // V2.7c C2b — the ground: positron-nolabels' own hues are close to the design's; the
+          // overrides make them exact (zero deck cost, zero data). Each id is guarded — a style
+          // change upstream degrades to positron's colour, never a crash.
+          const paint = (id: string, prop: string, value: unknown) => {
+            if (m.getLayer(id)) m.setPaintProperty(id, prop, value);
+          };
+          paint(BASEMAP.groundLayer, 'background-color', BASEMAP.ground);
+          paint(BASEMAP.waterLayer, 'fill-color', BASEMAP.water);
+          paint(BASEMAP.waterLayer, 'fill-opacity', BASEMAP.waterOpacity);
+          for (const id of BASEMAP.greeneryLayers) {
+            paint(id, 'fill-color', BASEMAP.greenery);
+            paint(id, 'fill-opacity', BASEMAP.greeneryOpacity);
+          }
+          setBasemap({
+            ground: m.getLayer(BASEMAP.groundLayer) ? m.getPaintProperty(BASEMAP.groundLayer, 'background-color') : null,
+            water: m.getLayer(BASEMAP.waterLayer) ? m.getPaintProperty(BASEMAP.waterLayer, 'fill-color') : null,
+            greenery: m.getLayer(BASEMAP.greeneryLayers[0]) ? m.getPaintProperty(BASEMAP.greeneryLayers[0], 'fill-color') : null,
+          });
         }}
       >
         <DeckOverlay
@@ -2343,7 +2389,7 @@ export default function MapView() {
               // V2.2c per-type row — mechanical wording; lane counts never derived from
               // network.json's TOTAL lanes (only the change's own target_lanes length).
               <span data-testid={`legend-item-${overlayItems[0].type}`}>
-                <span style={{ ...legendSwatch, background: `rgb(${CAP_DASH_COLOR[overlayItems[0].type].slice(0, 3).join(',')})` }} />
+                <span style={{ ...legendSwatch, background: css(CAP_DASH_COLOR[overlayItems[0].type]) }} />
                 {overlayItems[0].type === 'lane_closure' &&
                   `${overlayItems[0].target_lanes?.length ?? 0} lane(s) closed`}
                 {overlayItems[0].type === 'road_closure' && 'road closed'}
@@ -2355,7 +2401,7 @@ export default function MapView() {
               </span>
             ) : (
               <>
-                <span style={{ ...legendSwatch, background: overlayItems[0].type === 'new_road' ? 'rgb(20,200,170)' : 'rgb(245,170,40)' }} />
+                <span style={{ ...legendSwatch, background: css(overlayItems[0].type === 'new_road' ? NEW_ROAD_OVERLAY : EDIT_OVERLAY) }} />
                 {overlayItems.length === 1
                   ? (overlayItems[0].type === 'new_road' ? 'proposed road' : 'edited street')
                   : `${overlayItems.length} changes`}
@@ -2366,7 +2412,7 @@ export default function MapView() {
                 applied" without this sentence. */}
             {zoneTagged && (
               <span style={zoneLegendRow} data-testid="legend-zone">
-                <span style={{ ...legendSwatch, background: 'rgb(255,200,40)' }} />
+                <span style={{ ...legendSwatch, background: css(ZONE) }} />
                 school zone (designation, always shown) — reduced limits apply during the window
               </span>
             )}

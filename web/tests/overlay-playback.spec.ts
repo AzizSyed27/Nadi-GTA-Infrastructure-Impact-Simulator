@@ -98,6 +98,10 @@ test('per-type legend row renders mechanically; edit mode shows windowed overlay
   const legend = page.getByTestId('legend-item-lane_closure');
   await expect(legend).toBeVisible();
   await expect(legend).toContainText('2 lane(s) closed');
+  // V2.7c C2b: the swatch is the LAYER's colour (web/lib/mapPalette.ts CAP_DASH_COLOR.lane_closure),
+  // pinned as the literal the map paints — a hand-typed legend hex drifting from the layer is
+  // exactly the class the palette module exists to end.
+  await expect(legend.locator('span').first()).toHaveCSS('background-color', 'rgb(250, 190, 40)');
   // the seeds fixture is a CALIBRATED artifact → the window renders as clock times (t=0 == 07:00):
   // window [1440, 2520] s == 07:24–07:42. Never the raw sim-seconds form on this profile.
   await expect(legend).toContainText('07:24–07:42');
