@@ -328,6 +328,20 @@ need `--output.street-names` on the canonical net, and `network.json` and
 `python/tests/golden_trajectory.json` go stale TOGETHER because both derive from that net. So it
 is a netconvert regen plus two refreshes, not a rendering change. Scheduled V2.7d.
 
+## V2.7c follow-on — the PER-LANE TABLE on the wire (V2.7d's network_export change)
+`web/public/network.json` carries `lanes` (a COUNT that includes sidewalk lanes) and per-EDGE
+`allows{car,bike,ped}` — no per-lane widths or modes. V2.7c derives the sidewalk from a rule probed
+on the canonical net and PINNED by `python/tests/test_lane_model_invariant.py` (`allows.ped` => one
+2.0 m ped-only lane at index 0; 4,214 of 4,570 edges), with THREE stated residuals the rule draws
+wrong: 28 edges allow pedestrians on a car lane with no sidewalk (drawn with a ribbon they lack);
+23 edges carry one extra non-car non-ped lane (drawn 3.2 m); six edges carry off-width car lanes
+(1.6 m x4 on the `23809840` segments, 7.0 m x2 on `27040771#0/#5`; drawn 3.2 m). The exact fix is
+DATA: export a per-lane `{width_m, allows}` table per edge, which changes network.json (and the
+golden trajectory does NOT change — the net is untouched — but the export shape does), so it belongs
+to V2.7d beside the street-name regen by the ratified c/d split. When it lands: `laneModel` reads the
+table, the invariant test retires, the three residual counts become zero by construction, and a
+dedicated BUS-lane band becomes drawable if the net ever carries one (it carries none today).
+
 ## V2.7a follow-up — scorecard._SAFETY_NOTE bakes "42/43/44" into single-seed artifacts
 `scorecard.py` `_SAFETY_NOTE` ("sign not stable across seeds 42/43/44; …") is the V1 default
 note written into every SINGLE-seed artifact's safety cells — the same constant-seed-tuple

@@ -137,6 +137,30 @@ if (APPENDS > 0) {
 await page.locator('[data-testid="stage-watch"]').click({ timeout: 15_000 });
 await page.locator('input[type=range]').first().fill(String(SCRUB_T));
 await page.waitForTimeout(300);
+// V2.7c --zoom Z [--center lon,lat]: sample the frame window at a stated zoom, through the
+// __nadiViewport seam's jumpTo (the REAL map). The zoom ladder renders different layers per
+// band, so the fitBounds number alone would say nothing about the lanes (z ≥ 15) and icons
+// (z ≥ 16) bands — the bands where the restyle's per-frame cost actually lives. The centre
+// defaults to the artifact bbox centre; pass --center to sit the frame on traffic.
+const ZOOM = opt('zoom', null);
+if (ZOOM !== null) {
+  const center = opt('center', null)?.split(',').map(Number) ?? null;
+  await page.evaluate(
+    async ([runId, c, z]) => {
+      let centre = c;
+      if (!centre) {
+        const a = await (await fetch(`/${runId}.json`)).json();
+        const [w, s, e, n] = a.meta.bbox;
+        centre = [(w + e) / 2, (s + n) / 2];
+      }
+      window.__nadiViewport.jumpTo(centre[0], centre[1], z);
+    },
+    [RUN_ID, center, Number(ZOOM)],
+  );
+  const band = Number(ZOOM) >= 16 ? 'icons' : Number(ZOOM) >= 15 ? 'lanes' : 'far';
+  await page.waitForFunction((b) => window.__nadiViewport?.band === b, band, { timeout: 10_000 });
+  await page.waitForTimeout(500);
+}
 await page.locator('button[aria-label="Play"]').click({ timeout: 15_000 });
 
 // --profile: attribute the frame time — sample the V8 CPU profile during the same window and

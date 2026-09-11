@@ -474,6 +474,33 @@ is right while the body still falls through to the pending wording, promising pl
 never land — new reader-facing copy, so it wants ratifying, and the spec pins the head and the
 entity counts either way.
 Suites: **689 pytest + 185 Playwright**.
+**V2.7c IN PROGRESS — MAP STYLING (the transit-map palette, the zoom ladder, the curved-road restyle;
+plan at `~/.claude/plans/begin-v2-7c-map-styling-shimmering-kernighan.md`; no contract change, no
+data change — network.json / golden / artifacts stay byte-identical, checked per commit).** **C0 (the
+baselines, 2026-09-11):** the design DELTA GATE is PENDING — the 0.4 canvas needs the user's
+`/design-login`; the arc runs on the recovered cleanup-turn text (recovered-text-wins unless the user
+re-ratifies from the canvas; any delta = a ratification stop). Quiet-box, headed, prod: 90 MB fat
+nav→render **3.91 / 3.78 s**, p95 **14.1/14.0 ms (71 fps)**, 0 longtasks; 20 MB pinned **1.13 s**,
+p95 14.0 ms — the C11 class. **A measurement fact, paid for at C1: this box's display is 144 Hz, so
+p50 is BIMODAL (7.0 or 13.6 ms — one vsync quantum or two) and swings between runs of an identical
+tree; p95 is the budget number and it holds at 14.0 ms in every run.** **C1 (the seams + the
+byte-identical extraction):** `web/lib/roadLayers.ts` builds today's three base layers as a PURE
+function (the graphLayers precedent) and owns the ladder's thresholds (`BAND_LANES_ZOOM` 15 /
+`BAND_ICONS_ZOOM` 16, `zoomBand`, `quantizeZoom` 0.25); `web/lib/mapPalette.ts` holds the road
+literals (values unchanged); MapView derives a quantized `band` from the map's OWN zoom events
+(`<Map onZoom/onMoveEnd>`, first read in `onLoad` right after the synchronous fitBounds — `mapRef` is
+null in mount effects until the artifact lands; refs compare before setState; continuous zoom never
+enters React state). Seams are SIBLING globals of `__nadiRenderStats` (its whole-object pin forbids
+new keys): `__nadiViewport {zoom, band, jumpTo}` (jumpTo late-binds the REAL map through the ref) and
+`__nadiRoadLayers {band, zoomQ, layers[{id, visible, count}]}`. `map-ladder.spec.ts` (+5) pins the
+band literals both sides of each rung, the landing = far with hand-computed layer counts over a
+3-edge fixture net, the rung crossings, render-stats untouched across a crossing, and a real-net
+structural smoke. `scripts/map-shots.mjs` (the pixels arc's vehicle: prod, 1600×1000, one frame per
+band at a FIXED centre) and `perf-harness --zoom Z --center lon,lat` landed; the BEFORE triple is
+committed (`docs-assets/v27c-before-z{13,15_2,16_5}.png`, centre `-79.2274,43.7644` = the example
+run's three change edges, t=900) — the z13 frame shows the arrow clustering the arc exists to fix.
+Zoom baselines (this tree, identical rendering to C0): fat z15.2 / z16.5 p95 14.0 ms, pinned 13.9 /
+13.8 ms. Expected red at C2a and nowhere else: edit.spec's `__nadiArrowCount > 0`. The C1 gate: **693 pytest + 190 Playwright** — the Playwright 190 ran as 138 + 20 + 20 + 12 on ONE unchanged tree because this box's memory watchdog killed two background runs mid-suite ("worker process exited unexpectedly"; 3.1 GB free with the user's Chrome open) — foreground chunks under the 10-minute cap are the working shape here. The pytest pin `test_lane_model_invariant.py` landed in C1 (it hashes nothing the guard covers) and its FIRST RUN found residual 3: six off-width car lanes.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — the phase now
 in planning** (the transit-map palette, the zoom ladder, the curved-road grey/striping restyle) ·
@@ -1681,6 +1708,13 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   stage-watch hop is a real UI check — it caught the collapsed document strip covering the playback
   bar's Play button, which every seam test passed straight through (the button was present, visible
   and enabled; it was covered).
+- **Map shots + zoom-band perf (V2.7c):** `node scripts/map-shots.mjs --tag <before|after|…>
+  --center -79.2274,43.7644 --t 900` (prod build, headed, 1600×1000) writes one frame per zoom band
+  (`docs-assets/v27c-<tag>-z{13,15_2,16_5}.png`) at a FIXED centre through the `__nadiViewport`
+  seam's jumpTo — before/after pairs are the same viewport by construction. The harness takes
+  `--zoom Z --center lon,lat` to sample the frame window inside a stated band; every layer-touching
+  commit re-measures fitBounds + z15.2 + z16.5 on both artifacts. p50 on this box is bimodal (144 Hz
+  display: 7.0 or 13.6 ms) — read p95.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
 - **Tests:** `python -m pytest python/tests` (689 tests — sections: golden spine; contract

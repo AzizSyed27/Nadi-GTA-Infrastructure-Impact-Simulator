@@ -7,13 +7,14 @@ import { PathStyleExtension } from '@deck.gl/extensions';
 import { fmtSimTime, fmtWindowRange } from '@/lib/simTime';
 import { ARTIFACT_CACHE, EXAMPLE_RUN_ID, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, PathLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { Agent, ChangeType, Conflict, LonLat, MandateAgent, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
 import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
-import { loadNetwork, onewayArrows, type ArrowAnchor, type NetworkEdge } from '@/lib/network';
+import { loadNetwork, onewayArrows, type NetworkEdge } from '@/lib/network';
+import { buildRoadLayers, describeLayers, quantizeZoom, zoomBand, type ZoomBand } from '@/lib/roadLayers';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
@@ -60,13 +61,7 @@ import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForC
 // road layer, so the basemap is demoted to context (green/water/buildings) with no competing street labels.
 const POSITRON = 'https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json';
 
-// Base road rendering (V2.0b). Width scales with lanes in METERS so it tracks zoom; clamped in pixels.
-const LANE_M = 3.2; // approx lane width for the rendered road body
-const ROAD_CASING = [70, 74, 82, 220] as [number, number, number, number]; // dark casing under the fill
-// ~98% of edges permit bikes (mixed traffic), so the tint is a WHISPER: bike-permitted reads as the neutral
-// default and the rare non-bike edges (highways/ramps) quietly stand apart. V2.5 restyles.
-const ROAD_FILL = [214, 214, 219, 255] as [number, number, number, number]; // plain grey (non-bike, the minority)
-const ROAD_FILL_BIKE = [208, 216, 211, 255] as [number, number, number, number]; // whisper green = bike-permitted
+// Base road rendering: colours/widths live in web/lib/mapPalette.ts, the layers in web/lib/roadLayers.ts (V2.7c).
 
 // The default-run POINTER (V2.5c): latest.json is {"run_id": "<id>"} — never a payload — written
 // ONLY on quant-run completion (enriches never repoint the default). The mount effect resolves it
@@ -276,6 +271,33 @@ export default function MapView() {
   const [eligById, setEligById] = useState<Record<string, EdgeEligibility>>({});
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null); // the edge whose palette is open
   const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
+  // V2.7c — the ZOOM LADDER's band (thresholds in roadLayers.ts), written from the map's own zoom
+  // events in EVERY stage. The Build-only `zoom` state above STAYS: canEditEdges must not shift by
+  // the 0.25 quantization below. Continuous zoom never enters React state — the per-frame layers
+  // already rebuild each rAF tick, and a per-pan-frame MapView render is exactly the perf hazard
+  // this arc is measured against. `zoomQ` (0.25 steps) is the chevron memo's key; `viewZoom` is
+  // the seam's exact zoom, written on moveend only. Refs compare BEFORE setState (React's
+  // same-value bail-out is not a contract to lean on during a zoom gesture).
+  const [band, setBand] = useState<ZoomBand>('far');
+  const [zoomQ, setZoomQ] = useState(12);
+  const [viewZoom, setViewZoom] = useState(12);
+  const bandRef = useRef<ZoomBand>('far');
+  const zoomQRef = useRef(12);
+  const onViewZoom = useCallback((z: number, settled: boolean) => {
+    const b = zoomBand(z);
+    if (b !== bandRef.current) {
+      bandRef.current = b;
+      setBand(b);
+    }
+    if (settled) {
+      const q = quantizeZoom(z);
+      if (q !== zoomQRef.current) {
+        zoomQRef.current = q;
+        setZoomQ(q);
+      }
+      setViewZoom(z);
+    }
+  }, []);
   const [ptA, setPtA] = useState<Junction | null>(null); // first clicked junction
   const [ptB, setPtB] = useState<Junction | null>(null); // second clicked junction → opens the params form
   // V2.6d — via BEND points (empty-map clicks mid-draw), validated incrementally at click time
@@ -872,36 +894,38 @@ export default function MapView() {
 
   // V2.0b: the base road layers (the drawn network IS the sim's roads). STATIC — memoized on the network data,
   // no time updateTriggers, so buffers build once and playback never rebuilds them. Rendered in ALL modes.
+  // V2.7c C1: built by the PURE roadLayers module (the graphLayers precedent) — same three layers.
   const arrowAnchors = useMemo(() => onewayArrows(networkEdges), [networkEdges]);
-  const baseNetworkLayers = useMemo<Layer[]>(() => {
-    if (networkEdges.length === 0) return [];
-    // Dark casing (wider) UNDER a light fill (narrower) — deck.gl has no casing prop; stacking is the idiom.
-    const casing = new PathLayer<NetworkEdge>({
-      id: 'network-casing', data: networkEdges, getPath: (e) => e.geometry, getColor: ROAD_CASING,
-      getWidth: (e) => e.lanes * LANE_M + 2.4, widthUnits: 'meters', widthMinPixels: 2.5, widthMaxPixels: 42,
-      capRounded: true, jointRounded: true, pickable: false,
-    });
-    const fill = new PathLayer<NetworkEdge>({
-      id: 'network-fill', data: networkEdges, getPath: (e) => e.geometry,
-      getColor: (e) => (e.allows.bike ? ROAD_FILL_BIKE : ROAD_FILL), // bike-permitted edges subtly greener
-      getWidth: (e) => e.lanes * LANE_M, widthUnits: 'meters', widthMinPixels: 1, widthMaxPixels: 38,
-      capRounded: true, jointRounded: true, pickable: false,
-    });
-    // One-way direction: a small arrow at each one-way edge's midpoint, oriented along travel (from→to).
-    // Dynamic-icon mode (getIcon returns the sprite descriptor) — more reliable than a pre-packed atlas.
-    const arrows = new IconLayer<ArrowAnchor>({
-      id: 'one-way-arrows', data: arrowAnchors, getPosition: (d) => d.position,
-      getAngle: (d) => 360 - d.bearing, // map bearing is cw-from-north; deck getAngle is ccw → negate
-      getIcon: () => ({ url: '/arrow.png', width: 32, height: 32, mask: true, anchorX: 16, anchorY: 16 }),
-      getSize: 15, sizeUnits: 'pixels', getColor: [66, 72, 86, 235], billboard: true, pickable: false, // dark, reads on the light road
-    });
-    return [casing, fill, arrows];
-  }, [networkEdges, arrowAnchors]);
+  const baseNetworkLayers = useMemo<Layer[]>(
+    () => buildRoadLayers({ edges: networkEdges, arrows: arrowAnchors }),
+    [networkEdges, arrowAnchors],
+  );
 
   // V2.0b test seam: the one-way arrow layer's data count (deterministic "one-way indicator has data").
   useEffect(() => {
     (window as unknown as { __nadiArrowCount?: number }).__nadiArrowCount = arrowAnchors.length;
   }, [arrowAnchors]);
+
+  // V2.7c test seams — SIBLING globals of __nadiRenderStats (whose whole-object pin forbids new
+  // keys): the viewport's settled zoom + band, with `jumpTo` calling the REAL map (late-bound
+  // through the ref inside the closure — never a captured instance, the StrictMode dead-instance
+  // hazard), and the road layer list as {id, visible, count} so a spec can pin what renders at a
+  // stated zoom without reading pixels.
+  useEffect(() => {
+    (window as unknown as { __nadiViewport?: unknown }).__nadiViewport = {
+      zoom: viewZoom,
+      band,
+      jumpTo: (lon: number, lat: number, z: number) =>
+        mapRef.current?.getMap().jumpTo({ center: [lon, lat], zoom: z }),
+    };
+  }, [viewZoom, band]);
+  useEffect(() => {
+    (window as unknown as { __nadiRoadLayers?: unknown }).__nadiRoadLayers = {
+      band,
+      zoomQ,
+      layers: describeLayers(baseNetworkLayers),
+    };
+  }, [baseNetworkLayers, band, zoomQ]);
 
   // Reverse join: fly to (and briefly ring) a pinned agent's dot at its worst moment (trigger_t position).
   const onLocate = useCallback(
@@ -2264,14 +2288,23 @@ export default function MapView() {
         }}
         mapStyle={POSITRON}
         style={{ width: '100%', height: '100%' }}
+        // V2.7c — the band listens here, on the map's own events, for every stage. `mapRef` is
+        // null in mount effects until the artifact lands (the <Map> renders after the early
+        // return), so onLoad is where the first read happens: fitBounds with duration 0 is
+        // synchronous, and the zoom read right after it IS the landing zoom.
+        onZoom={(e) => onViewZoom(e.viewState.zoom, false)}
+        onMoveEnd={(e) => onViewZoom(e.viewState.zoom, true)}
         onLoad={() => {
-          mapRef.current?.getMap().fitBounds(
+          const m = mapRef.current?.getMap();
+          if (!m) return;
+          m.fitBounds(
             [
               [minLon, minLat],
               [maxLon, maxLat],
             ],
             { padding: 40, duration: 0 },
           );
+          onViewZoom(m.getZoom(), true);
         }}
       >
         <DeckOverlay
