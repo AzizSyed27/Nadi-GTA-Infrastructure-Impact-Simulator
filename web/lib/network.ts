@@ -27,14 +27,8 @@ export async function loadNetwork(url = '/network.json'): Promise<NetworkEdge[]>
   return data.edges ?? [];
 }
 
-/** A one-way arrow anchor: a screen position + a map bearing (degrees, clockwise from north = travel direction). */
-export interface ArrowAnchor {
-  position: LonLat;
-  bearing: number;
-}
-
 /** Bearing p1→p2 in degrees, clockwise from north (0..360). */
-function bearingDeg([lon1, lat1]: LonLat, [lon2, lat2]: LonLat): number {
+export function bearingDeg([lon1, lat1]: LonLat, [lon2, lat2]: LonLat): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
   const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
   const x =
@@ -42,19 +36,5 @@ function bearingDeg([lon1, lat1]: LonLat, [lon2, lat2]: LonLat): number {
     Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
 }
-
-/**
- * One arrow per one-way edge, placed at the geometry's middle vertex, oriented along the travel direction.
- * Computed client-side so network.json stays the exact ratified shape (no arrow data on the wire).
- */
-export function onewayArrows(edges: NetworkEdge[]): ArrowAnchor[] {
-  const out: ArrowAnchor[] = [];
-  for (const e of edges) {
-    if (!e.oneway) continue;
-    const g = e.geometry;
-    if (g.length < 2) continue;
-    const mid = Math.max(1, Math.floor(g.length / 2));
-    out.push({ position: g[mid - 1], bearing: bearingDeg(g[mid - 1], g[mid]) });
-  }
-  return out;
-}
+// (V2.0b's one-arrow-per-one-way-edge anchor retired in V2.7c C2a: the far band draws no
+// direction marks; chevrons at constant on-screen spacing are the z ≥ 15 rung — roadGeometry.)

@@ -1,18 +1,24 @@
 // V2.7c — the base ROAD layers as a PURE builder (the graphLayers.buildOasisLayers precedent):
-// data in, deck layers out, no React, no window. MapView memoizes the result on the data
-// identities, so the road buffers build once and playback never rebuilds them.
+// derived rows in, deck layers out, no React, no window. MapView memoizes the rows on the network
+// identity and the layers on [rows, band], so the road buffers build once and playback never
+// rebuilds them (deck diffs constant props; the row arrays keep their identity across bands).
 //
-// THE ZOOM LADDER lives here too. deck accessors never see the viewport, and a layer's `visible`
-// flag keeps its buffers while omitting it from the layer array destroys them — so the ladder is
-// a small set of STATIC per-band layers toggled with `visible`, keyed on a quantized BAND that
+// THE ZOOM LADDER lives here. deck accessors never see the viewport, and a layer's `visible` flag
+// keeps its buffers while omitting it from the layer array destroys them — so the ladder is a
+// small set of STATIC per-band layers toggled with `visible`, keyed on a quantized BAND that
 // MapView derives from the map's own zoom events. The thresholds are the ratified rules
 // (z ≥ 15 lane detail + chevrons, z ≥ 16 mode icons); their numbers come from the brief, not
 // the mockup, and map-ladder.spec.ts pins them as literals on both sides of each rung.
+//
+// THE FAR BAND (every zoom) is "centerline only": the sidewalk ribbon UNDER the road body UNDER
+// the painted centerline — width ∝ lane count from the lane model, and no direction marks (the
+// one-way arrows of V2.0b retired here; chevrons are the z ≥ 15 rung).
 
-import { IconLayer, PathLayer } from '@deck.gl/layers';
+import { PathLayer } from '@deck.gl/layers';
+import { PathStyleExtension } from '@deck.gl/extensions';
 import type { Layer } from '@deck.gl/core';
-import type { ArrowAnchor, NetworkEdge } from './network';
-import { LANE_M, ONE_WAY_ARROW, ROAD_CASING, ROAD_FILL, ROAD_FILL_BIKE } from './mapPalette';
+import type { CenterlineRow, RoadRow, RoadRows } from './roadGeometry';
+import { CENTERLINE, ROADWAY, SIDEWALK } from './mapPalette';
 
 export type ZoomBand = 'far' | 'lanes' | 'icons';
 
@@ -33,37 +39,50 @@ export function quantizeZoom(zoom: number): number {
   return Math.round(zoom * 4) / 4;
 }
 
+// ONE extension instance for every dashed layer — a `new PathStyleExtension` per render was the
+// V2.7b per-frame allocation the plan retires.
+const DASH = new PathStyleExtension({ dash: true });
+/** The collector centerline's dash, in units of the line's own width (the design's `9 12`). */
+const COLLECTOR_DASH: [number, number] = [9, 12];
+/** A dash with no gap renders solid — the arterial centerline through the same layer. */
+const SOLID: [number, number] = [1e6, 0];
+
 export interface RoadLayerInputs {
-  edges: NetworkEdge[];
-  arrows: ArrowAnchor[];
+  rows: RoadRows;
+  band: ZoomBand;
 }
 
 /**
- * Today's three base layers, extracted verbatim (C1): dark casing (wider) UNDER a light fill
- * (narrower) — deck has no casing prop, stacking is the idiom — and one direction arrow per
- * one-way edge at its midpoint. Returns [] for an empty network so nothing draws before it lands.
+ * The far band's layers (C2a). Pixel clamps: at the overview zoom every road is sub-pixel (a
+ * 3.2 m lane is 0.46 px at z13), so the body floors at 1.5 px and the ribbon at 3 px — the ribbon
+ * reads as a light halo at the overview and becomes a true one-sided 2.0 m sidewalk once a metre
+ * is wider than a pixel (z ≥ 16). The painted centerline is a fixed 1.4 px: solid on arterials at
+ * every zoom; the collector dash is BUILT here too but `visible` only from the lanes band (the
+ * buffers persist across the toggle — deck keeps an invisible layer's state).
  */
-export function buildRoadLayers({ edges, arrows }: RoadLayerInputs): Layer[] {
-  if (edges.length === 0) return [];
-  const casing = new PathLayer<NetworkEdge>({
-    id: 'network-casing', data: edges, getPath: (e) => e.geometry, getColor: ROAD_CASING,
-    getWidth: (e) => e.lanes * LANE_M + 2.4, widthUnits: 'meters', widthMinPixels: 2.5, widthMaxPixels: 42,
+export function buildRoadLayers({ rows, band }: RoadLayerInputs): Layer[] {
+  if (rows.body.length === 0) return [];
+  const sidewalk = new PathLayer<RoadRow>({
+    id: 'road-sidewalk', data: rows.sidewalk, getPath: (d) => d.path, getColor: SIDEWALK,
+    getWidth: (d) => d.widthM, widthUnits: 'meters', widthMinPixels: 3, widthMaxPixels: 30,
     capRounded: true, jointRounded: true, pickable: false,
   });
-  const fill = new PathLayer<NetworkEdge>({
-    id: 'network-fill', data: edges, getPath: (e) => e.geometry,
-    getColor: (e) => (e.allows.bike ? ROAD_FILL_BIKE : ROAD_FILL), // bike-permitted edges subtly greener
-    getWidth: (e) => e.lanes * LANE_M, widthUnits: 'meters', widthMinPixels: 1, widthMaxPixels: 38,
+  const body = new PathLayer<RoadRow>({
+    id: 'road-body', data: rows.body, getPath: (d) => d.path, getColor: ROADWAY,
+    getWidth: (d) => d.widthM, widthUnits: 'meters', widthMinPixels: 1.5, widthMaxPixels: 60,
     capRounded: true, jointRounded: true, pickable: false,
   });
-  // Dynamic-icon mode (getIcon returns the sprite descriptor) — more reliable than a pre-packed atlas.
-  const oneWay = new IconLayer<ArrowAnchor>({
-    id: 'one-way-arrows', data: arrows, getPosition: (d) => d.position,
-    getAngle: (d) => 360 - d.bearing, // map bearing is cw-from-north; deck getAngle is ccw → negate
-    getIcon: () => ({ url: '/arrow.png', width: 32, height: 32, mask: true, anchorX: 16, anchorY: 16 }),
-    getSize: 15, sizeUnits: 'pixels', getColor: ONE_WAY_ARROW, billboard: true, pickable: false,
-  });
-  return [casing, fill, oneWay];
+  const centerline = new PathLayer<CenterlineRow>({
+    id: 'road-centerline', data: rows.centerline, getPath: (d) => d.path, getColor: CENTERLINE,
+    getWidth: 1.4, widthUnits: 'pixels', capRounded: false, jointRounded: true, pickable: false,
+    getDashArray: SOLID, extensions: [DASH],
+  } as ConstructorParameters<typeof PathLayer<CenterlineRow>>[0]); // the closure-dash cast idiom
+  const collector = new PathLayer<CenterlineRow>({
+    id: 'road-centerline-collector', data: rows.collectorCenterline, getPath: (d) => d.path,
+    getColor: CENTERLINE, getWidth: 1.4, widthUnits: 'pixels', capRounded: false, jointRounded: true,
+    pickable: false, visible: band !== 'far', getDashArray: COLLECTOR_DASH, extensions: [DASH],
+  } as ConstructorParameters<typeof PathLayer<CenterlineRow>>[0]);
+  return [sidewalk, body, centerline, collector];
 }
 
 /** The seam's view of a layer list: id, visibility, row count — what map-ladder.spec pins. */

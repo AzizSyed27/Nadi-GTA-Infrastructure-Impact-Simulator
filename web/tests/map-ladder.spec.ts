@@ -20,11 +20,12 @@ import { BAND_ICONS_ZOOM, BAND_LANES_ZOOM, zoomBand } from '../lib/roadLayers';
 const RUN_ID = 'compact-fixture';
 const FIXTURE = path.join(__dirname, 'fixtures', 'compact-run.json'); // bbox [-79.3, 43.7, -79.2, 43.8]
 
-// The fixture net: one two-way pair (A / -A, 2 lanes each incl. a sidewalk, allows ped) and one
-// one-way edge (B, 1 lane, no sidewalk). Lon/lat inside the artifact's bbox.
+// The fixture net: one two-way pair — A (3 lanes: 2 car + a sidewalk → an ARTERIAL direction) and
+// -A (2 lanes: 1 car + a sidewalk → a COLLECTOR direction), both allows.ped — and one one-way edge
+// (B, 1 lane, no sidewalk). Lon/lat inside the artifact's bbox.
 const NET = {
   edges: [
-    { id: 'A', geometry: [[-79.26, 43.75], [-79.25, 43.75]], lanes: 2, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true } },
+    { id: 'A', geometry: [[-79.26, 43.75], [-79.25, 43.75]], lanes: 3, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true } },
     { id: '-A', geometry: [[-79.25, 43.7501], [-79.26, 43.7501]], lanes: 2, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true } },
     { id: 'B', geometry: [[-79.25, 43.76], [-79.24, 43.76]], lanes: 1, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false } },
   ],
@@ -89,13 +90,31 @@ test('the landing is the far band: fitBounds zoom is published and the road laye
   expect(v!.zoom).toBeLessThan(BAND_LANES_ZOOM);
   const rl = await roadLayers(page);
   expect(rl!.band).toBe('far');
-  // C1: byte-identical extraction of today's three layers — ids and row counts hand-computed
-  // from the fixture (3 edges; ONE one-way edge → one arrow anchor)
+  // C2a — the far band is "centerline only": the sidewalk ribbon under the road body under the
+  // painted centerline, and NO direction marks (chevrons are the z ≥ 15 rung). Row counts are
+  // hand-computed from the fixture: 3 edges; 2 with a sidewalk (A, -A — allows.ped); the two-way
+  // edges carry a centerline (B is one-way — no opposing direction, no painted line): A's is the
+  // solid ARTERIAL line (every zoom), -A's the dashed COLLECTOR line, which is built but HIDDEN
+  // below z15 — at the overview a 1.4 px dash on a 2 px road dithers to noise (looked-at catch on
+  // the C2a frame), so the collector dash joins the lane-detail rung.
   expect(rl!.layers).toEqual([
-    { id: 'network-casing', visible: true, count: 3 },
-    { id: 'network-fill', visible: true, count: 3 },
-    { id: 'one-way-arrows', visible: true, count: 1 },
+    { id: 'road-sidewalk', visible: true, count: 2 },
+    { id: 'road-body', visible: true, count: 3 },
+    { id: 'road-centerline', visible: true, count: 1 },
+    { id: 'road-centerline-collector', visible: false, count: 1 },
   ]);
+});
+
+test('the collector centerline is hidden at the far band and shown from the lanes band (built once, toggled)', async ({ page }) => {
+  await mockBackend(page);
+  await openWatch(page);
+  const collector = async () => (await roadLayers(page))?.layers.find((l) => l.id === 'road-centerline-collector');
+  await expect.poll(async () => (await collector())?.visible, { timeout: 20_000 }).toBe(false);
+  await jumpTo(page, CENTER[0], CENTER[1], 15.2);
+  await expect.poll(async () => (await collector())?.visible, { timeout: 10_000 }).toBe(true);
+  expect((await collector())?.count).toBe(1); // the same row — toggled, not rebuilt
+  await jumpTo(page, CENTER[0], CENTER[1], 14.8);
+  await expect.poll(async () => (await collector())?.visible, { timeout: 10_000 }).toBe(false);
 });
 
 test('jumpTo crosses the rungs: z15.2 is the lanes band, z16.2 the icons band, and back', async ({ page }) => {

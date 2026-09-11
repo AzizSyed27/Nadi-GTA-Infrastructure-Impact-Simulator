@@ -270,9 +270,13 @@ test('the exported network renders as the base road layer (all modes)', async ({
   await page.waitForFunction(() => ((window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges ?? 0) > 0);
   const count = await page.evaluate(() => (window as unknown as { __nadiNetworkEdges?: number }).__nadiNetworkEdges);
   expect(count).toBe(2); // the mocked network (E_ELIG + E_INELIG)
-  // the one-way indicator layer has data (E_INELIG is one-way → ≥1 arrow anchor)
-  const arrows = await page.evaluate(() => (window as unknown as { __nadiArrowCount?: number }).__nadiArrowCount);
-  expect(arrows).toBeGreaterThan(0);
+  // V2.7c: the road body draws BOTH mocked edges at the landing (far) band — the ladder's
+  // direction marks are a z ≥ 15 rung (map-ladder.spec), so there is no arrow count to pin here.
+  const rl = await page.evaluate(
+    () => (window as unknown as { __nadiRoadLayers?: { band: string; layers: { id: string; count: number }[] } }).__nadiRoadLayers,
+  );
+  expect(rl?.band).toBe('far');
+  expect(rl?.layers.find((l) => l.id === 'road-body')?.count).toBe(2);
   await page.screenshot({ path: 'test-results/network-base.png' });
 });
 

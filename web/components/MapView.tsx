@@ -13,8 +13,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { Agent, ChangeType, Conflict, LonLat, MandateAgent, Person, PinnedSimAgent, TrajectoryArtifact, Vehicle } from '@/lib/types';
 import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
-import { loadNetwork, onewayArrows, type NetworkEdge } from '@/lib/network';
+import { loadNetwork, type NetworkEdge } from '@/lib/network';
 import { buildRoadLayers, describeLayers, quantizeZoom, zoomBand, type ZoomBand } from '@/lib/roadLayers';
+import { deriveRoadRows } from '@/lib/roadGeometry';
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
@@ -894,17 +895,11 @@ export default function MapView() {
 
   // V2.0b: the base road layers (the drawn network IS the sim's roads). STATIC — memoized on the network data,
   // no time updateTriggers, so buffers build once and playback never rebuilds them. Rendered in ALL modes.
-  // V2.7c C1: built by the PURE roadLayers module (the graphLayers precedent) — same three layers.
-  const arrowAnchors = useMemo(() => onewayArrows(networkEdges), [networkEdges]);
-  const baseNetworkLayers = useMemo<Layer[]>(
-    () => buildRoadLayers({ edges: networkEdges, arrows: arrowAnchors }),
-    [networkEdges, arrowAnchors],
-  );
-
-  // V2.0b test seam: the one-way arrow layer's data count (deterministic "one-way indicator has data").
-  useEffect(() => {
-    (window as unknown as { __nadiArrowCount?: number }).__nadiArrowCount = arrowAnchors.length;
-  }, [arrowAnchors]);
+  // V2.7c: the transit-map rows (lane model + offset polylines) derive ONCE per network identity;
+  // the PURE roadLayers builder turns them into the band's layers (the graphLayers precedent). A
+  // band change rebuilds the Layer objects but never the row arrays, so deck keeps the buffers.
+  const roadRows = useMemo(() => deriveRoadRows(networkEdges), [networkEdges]);
+  const baseNetworkLayers = useMemo<Layer[]>(() => buildRoadLayers({ rows: roadRows, band }), [roadRows, band]);
 
   // V2.7c test seams — SIBLING globals of __nadiRenderStats (whose whole-object pin forbids new
   // keys): the viewport's settled zoom + band, with `jumpTo` calling the REAL map (late-bound
