@@ -62,7 +62,13 @@ import { reportRunId, reportUrl, type PerRunReport } from '@/lib/reportData';
 import { ConflictLegend } from '@/components/ConflictLegend';
 import { CompareView } from '@/components/CompareView';
 import { loadCompareSide, slimFromArtifact, type CompareSide } from '@/lib/compare';
-import { activeAt, agentId, materializeTimestamps, nearestWithin, positionAt, positionAtCached, sentimentColor, type Materialized } from '@/lib/viz';
+import { activeAt, agentId, materializeTimestamps, nearestWithin, positionAt, positionAtCached, segmentAt, sentimentColor, type Materialized } from '@/lib/viz';
+import { ICON_MAPPING, ICON_SIZE_M, modeAtlasUrl, type TravelerMode } from '@/lib/modeIcons';
+import { IconLayer } from '@deck.gl/layers';
+
+// The icons band's DATA SWAP: a hidden per-frame layer still regenerates its attributes every tick,
+// so the dot and icon layer families exchange DATA (this constant vs the active arrays), never `visible`.
+const EMPTY: never[] = [];
 import { parseVia, viaClickReason, viaCloseReason, type Bbox } from '@/lib/viaRules';
 import { agentLookup, cascadeById, cascadeIds, reachForCascade, trajectoriesForCascade } from '@/lib/social';
 
@@ -179,6 +185,8 @@ interface Pinned {
   path: LonLat[];
   timestamps: number[];
   kind: 'vehicle' | 'person';
+  /** V2.7c C4: the entity's mode, captured at join time (the icons band draws it as a glyph). */
+  mode: TravelerMode;
 }
 
 // Deck's `getCursor` prop MUST be a function — `Deck._updateCursor` calls it every render frame. Passing
@@ -787,13 +795,13 @@ export default function MapView() {
       if (isSimVehicleAgent(a)) {
         const v = vById[a.vehicle_id];
         if (v) {
-          pins.push({ agent: a, path: v.path, timestamps: v.timestamps, kind: 'vehicle' });
+          pins.push({ agent: a, path: v.path, timestamps: v.timestamps, kind: 'vehicle', mode: v.type === 'bicycle' ? 'bicycle' : 'car' });
           pinnedVeh.add(v.id);
         }
       } else if (isSimPersonAgent(a)) {
         const p = pById[a.person_id];
         if (p) {
-          pins.push({ agent: a, path: p.path, timestamps: p.timestamps, kind: 'person' });
+          pins.push({ agent: a, path: p.path, timestamps: p.timestamps, kind: 'person', mode: 'pedestrian' });
           pinnedPer.add(p.id);
         }
       }
@@ -919,6 +927,31 @@ export default function MapView() {
     () => buildRoadLayers({ rows: roadRows, band, chevrons, chevronSizePx: chevronSize }),
     [roadRows, band, chevrons, chevronSize],
   );
+
+  // V2.7c C4 — the ACTIVE traveller sets for this frame, filtered ONCE (they were filtered inline in
+  // the render body; hoisting them lets the seam below count what the layers draw). Per-frame by
+  // nature: the arrays change identity with the clock, exactly as before.
+  const activeSets = useMemo(
+    () => ({
+      veh: bgVehicles.filter((v) => activeAt(v.timestamps, currentTime)),
+      per: bgPersons.filter((p) => activeAt(p.timestamps, currentTime)),
+      inst: pinned.filter((d) => activeAt(d.timestamps, currentTime)),
+    }),
+    [bgVehicles, bgPersons, pinned, currentTime],
+  );
+  // V2.7c C4 test seam — a SIBLING global: how many travellers are drawn as dots vs icons right now,
+  // so the band swap is a conservation pin (drawn once, never twice) rather than a pixel read.
+  useEffect(() => {
+    const icons = band === 'icons';
+    const bg = activeSets.veh.length + activeSets.per.length;
+    (window as unknown as { __nadiTravelers?: unknown }).__nadiTravelers = {
+      band,
+      dots: icons ? 0 : bg,
+      icons: icons ? bg : 0,
+      instrumentedDots: icons ? 0 : activeSets.inst.length,
+      instrumentedIcons: icons ? activeSets.inst.length : 0,
+    };
+  }, [band, activeSets]);
 
   // V2.7c test seams — SIBLING globals of __nadiRenderStats (whose whole-object pin forbids new
   // keys): the viewport's settled zoom + band, with `jumpTo` calling the REAL map (late-bound
@@ -1936,10 +1969,12 @@ export default function MapView() {
   // V2.7c: ONE traveller colour for any mode (the design: mode is legible from the icon at z ≥ 16,
   // never from colour) with a 1 px light rim — a dark dot on the dark roadway needs one, and the
   // rim is what keeps it legible on the light ground too (the C2b contrast-sibling check).
-  const bgVehActive = bgVehicles.filter((v) => activeAt(v.timestamps, t));
+  // V2.7c C4: from z ≥ 16 the dots hand their DATA to the icon layers below (the data swap).
+  const iconsBand = band === 'icons';
+  const bgVehActive = activeSets.veh;
   const backgroundVehicleDots = new ScatterplotLayer<Materialized<Vehicle>>({
     id: 'background-vehicle-dots',
-    data: bgVehActive,
+    data: iconsBand ? EMPTY : bgVehActive,
     getPosition: (v) => positionAtCached(v.path, v.timestamps, t),
     getFillColor: TRAVELER,
     getRadius: 2.5,
@@ -1953,10 +1988,10 @@ export default function MapView() {
   });
 
   // 2b) Background pedestrians: the same dot (mode never rides on colour).
-  const bgPerActive = bgPersons.filter((p) => activeAt(p.timestamps, t));
+  const bgPerActive = activeSets.per;
   const backgroundPersonDots = new ScatterplotLayer<Materialized<Person>>({
     id: 'background-person-dots',
-    data: bgPerActive,
+    data: iconsBand ? EMPTY : bgPerActive,
     getPosition: (p) => positionAtCached(p.path, p.timestamps, t),
     getFillColor: TRAVELER,
     getRadius: 2.5,
@@ -2010,10 +2045,10 @@ export default function MapView() {
 
   // 4) Instrumented dots: larger, colored by sentiment, clickable; swell near their trigger_t. Now covers
   //    BOTH vehicle- and person-pinned sim agents (one layer, driven off the unified pinned list).
-  const instActive = pinned.filter((d) => activeAt(d.timestamps, t));
+  const instActive = activeSets.inst;
   const instrumentedDots = new ScatterplotLayer<Pinned>({
     id: 'instrumented-dots',
-    data: instActive,
+    data: iconsBand ? EMPTY : instActive,
     getPosition: (d) => positionAtCached(d.path, d.timestamps, t),
     getFillColor: (d) => [...sentimentColor(d.agent.reaction.sentiment), 255],
     getRadius: (d) => (Math.abs(t - d.agent.trigger_t) < PULSE_WINDOW ? 11 : 7),
@@ -2031,6 +2066,71 @@ export default function MapView() {
     },
     updateTriggers: { getPosition: t, getRadius: t }, // NOT getFillColor — sentiment is static
   });
+
+  // 4b) V2.7c C4 — THE ICONS BAND (z ≥ 16): "dots become overhead mode icons rotated to heading" — the
+  //     only rung that changes travellers, so the lane switch (z15) and the icon switch (z16) never land
+  //     in the same gesture. Mode is legible from the SHAPE (car / bicycle / pedestrian glyphs from
+  //     modeIcons.ts), never from colour: background travellers keep the one TRAVELER hue, instrumented
+  //     ones keep their sentiment colour and their trigger-time swell. Position and heading come from
+  //     one cached bracket lookup (viz.segmentAt). Sizes are metres with a pixel floor. Data-swapped
+  //     with the dot layers above (EMPTY below z16), so no layer pays attribute regeneration twice.
+  const atlas = modeAtlasUrl();
+  const modeOf = (type: string | undefined): TravelerMode => (type === 'bicycle' ? 'bicycle' : type === 'pedestrian' ? 'pedestrian' : 'car');
+  const iconLayer = <D,>(
+    id: string,
+    data: D[],
+    mode: (d: D) => TravelerMode,
+    pathOf: (d: D) => LonLat[],
+    tsOf: (d: D) => number[],
+    color: ((d: D) => [number, number, number, number]) | [number, number, number, number],
+    sizeMul: (d: D) => number,
+    extra: Partial<ConstructorParameters<typeof IconLayer<D>>[0]> = {},
+  ) =>
+    new IconLayer<D>({
+      id,
+      data: iconsBand && atlas ? data : EMPTY,
+      iconAtlas: atlas ?? undefined,
+      iconMapping: ICON_MAPPING,
+      getIcon: (d) => mode(d),
+      getPosition: (d) => segmentAt(pathOf(d), tsOf(d), t).position,
+      getAngle: (d) => 360 - segmentAt(pathOf(d), tsOf(d), t).bearing, // map bearing cw → deck ccw
+      getSize: (d) => ICON_SIZE_M[mode(d)] * sizeMul(d),
+      sizeUnits: 'meters',
+      // 12 px floor: at z16 a 4.6 m car is 5 px and a walker 1 px — true to scale but not a SHAPE.
+      // The rung exists so mode reads from the glyph, so the floor is where the glyph becomes one
+      // (looked-at on the magnified z16.5 frame at a 9 px floor: rounded marks, not cars). Metres
+      // take over from ~z17.4 for cars and the cap stops a road-sized mark at deep zooms.
+      sizeMinPixels: 12,
+      sizeMaxPixels: 30,
+      getColor: color,
+      billboard: true,
+      updateTriggers: { getPosition: t, getAngle: t, getSize: t },
+      ...extra,
+    });
+  const backgroundVehicleIcons = iconLayer<Materialized<Vehicle>>(
+    'background-vehicle-icons', bgVehActive, (v) => modeOf(v.type), (v) => v.path, (v) => v.timestamps, TRAVELER, () => 1,
+    { pickable: false },
+  );
+  const backgroundPersonIcons = iconLayer<Materialized<Person>>(
+    'background-person-icons', bgPerActive, () => 'pedestrian', (p) => p.path, (p) => p.timestamps, TRAVELER, () => 1,
+    { pickable: false },
+  );
+  const instrumentedIcons = iconLayer<Pinned>(
+    'instrumented-icons', instActive,
+    (d) => d.mode,
+    (d) => d.path, (d) => d.timestamps,
+    (d) => [...sentimentColor(d.agent.reaction.sentiment), 255] as [number, number, number, number],
+    (d) => (Math.abs(t - d.agent.trigger_t) < PULSE_WINDOW ? 1.6 : 1.15), // the trigger swell, as size
+    {
+      pickable: true,
+      autoHighlight: true,
+      highlightColor: [255, 255, 255, 90],
+      onClick: (info: PickingInfo) => {
+        const obj = info.object as Pinned | undefined;
+        if (obj) setSelected(obj.agent);
+      },
+    },
+  );
 
   // 5) Flash ring (reverse join): a transient white ring at a located agent's worst-moment position.
   const flashData = flashId && pinnedById[flashId] ? [pinnedById[flashId]] : [];
@@ -2325,9 +2425,12 @@ export default function MapView() {
     closureDash,
     backgroundVehicleDots,
     backgroundPersonDots,
+    backgroundVehicleIcons, // V2.7c C4: the icons band's travellers (EMPTY below z16)
+    backgroundPersonIcons,
     conflictDots,
     conflictPulses,
     instrumentedDots,
+    instrumentedIcons,
     flashRing,
     incidentMarkerDot,
     incidentMarkerGlyph,

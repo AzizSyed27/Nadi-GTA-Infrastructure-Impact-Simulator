@@ -160,6 +160,41 @@ if (ZOOM !== null) {
   const band = Number(ZOOM) >= 16 ? 'icons' : Number(ZOOM) >= 15 ? 'lanes' : 'far';
   await page.waitForFunction((b) => window.__nadiViewport?.band === b, band, { timeout: 10_000 });
   await page.waitForTimeout(500);
+  // V2.7c C4 — THE CROSSING PROBE: the icons band is a DATA swap (dots hand their arrays to icon
+  // layers), and the gate's selector needs to know whether a miss is per-frame cost (the window
+  // below) or the swap itself stalling on the gesture. Cross z16 from just below it while playing
+  // and record the longest rAF gap in the two seconds after the jump.
+  if (Number(ZOOM) >= 16) {
+    await page.locator('button[aria-label="Play"]').click({ timeout: 15_000 });
+    await page.evaluate(([lon, lat]) => window.__nadiViewport.jumpTo(lon, lat, 15.9), [
+      ...(center ?? (await page.evaluate(async (runId) => {
+        const a = await (await fetch(`/${runId}.json`)).json();
+        const [w, s, e, n] = a.meta.bbox;
+        return [(w + e) / 2, (s + n) / 2];
+      }, RUN_ID))),
+    ]);
+    await page.waitForFunction(() => window.__nadiViewport?.band === 'lanes', undefined, { timeout: 10_000 });
+    await page.waitForTimeout(400);
+    const crossing = await page.evaluate(
+      ([lon, lat, z]) =>
+        new Promise((res) => {
+          let last = performance.now();
+          let maxGap = 0;
+          const t0 = last;
+          const tick = (now) => {
+            maxGap = Math.max(maxGap, now - last);
+            last = now;
+            if (now - t0 < 2000) requestAnimationFrame(tick);
+            else res({ maxGapMs: Math.round(maxGap), band: window.__nadiViewport?.band });
+          };
+          requestAnimationFrame(tick);
+          window.__nadiViewport.jumpTo(lon, lat, z);
+        }),
+      [...(center ?? [0, 0]), Number(ZOOM)],
+    );
+    console.log(`crossing z15.9 → z${ZOOM} while playing: longest rAF gap ${crossing.maxGapMs} ms (band now ${crossing.band})`);
+    await page.locator('button[aria-label="Pause"]').click({ timeout: 15_000 });
+  }
 }
 await page.locator('button[aria-label="Play"]').click({ timeout: 15_000 });
 

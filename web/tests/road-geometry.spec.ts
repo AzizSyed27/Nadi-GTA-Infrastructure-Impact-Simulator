@@ -19,6 +19,7 @@ import {
   metersPerPixel,
   offsetPolyline,
 } from '../lib/roadGeometry';
+import { positionAtCached, segmentAt } from '../lib/viz';
 import type { NetworkEdge } from '../lib/network';
 import type { LonLat } from '../lib/types';
 
@@ -240,6 +241,25 @@ test('the chevron glyph scales with the lane pixel pitch, floored and capped (a 
   expect(chevronSizePx(1.502)).toBe(7);
   expect(chevronSizePx(0.61)).toBeCloseTo(11.54, 2);
   expect(chevronSizePx(0.3)).toBe(12);
+});
+
+// ---- travellers as mode icons (C4): heading comes from the SAME bracket lookup as position ----
+
+test('segmentAt: position matches positionAtCached and the bearing is the segment\'s, clamped at both ends', () => {
+  const path: LonLat[] = [[-79.25, 43.75], [-79.24, 43.75], [-79.24, 43.76]]; // east, then north
+  const ts = [0, 10, 20];
+  const mid = segmentAt(path, ts, 5);
+  expect(mid.position).toEqual(positionAtCached(path, ts, 5));
+  expect(mid.position[0]).toBeCloseTo(-79.245, 9);
+  expect(mid.bearing).toBeCloseTo(90, 0); // east-bound on the first segment
+  expect(segmentAt(path, ts, 15).bearing).toBeCloseTo(0, 0); // north-bound on the second
+  // before the first sample: parked at the start, facing the first segment; past the last: at the end,
+  // facing the last segment (an icon never spins at a trajectory's ends)
+  expect(segmentAt(path, ts, -3)).toEqual({ position: [-79.25, 43.75], bearing: segmentAt(path, ts, 1).bearing });
+  expect(segmentAt(path, ts, 99).position).toEqual([-79.24, 43.76]);
+  expect(segmentAt(path, ts, 99).bearing).toBeCloseTo(0, 0);
+  // a one-point trajectory has no heading — 0, never NaN
+  expect(segmentAt([[-79.25, 43.75]], [7], 7)).toEqual({ position: [-79.25, 43.75], bearing: 0 });
 });
 
 test('metersPerPixel uses the 512-px world (deck.gl and maplibre), not the 256-tile constant', () => {

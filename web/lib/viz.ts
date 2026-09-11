@@ -2,6 +2,7 @@
 
 import type { Agent, LonLat, Person, Vehicle } from '@/lib/types';
 import { expandTimestamps } from '@/lib/compactTime';
+import { bearingDeg } from '@/lib/network';
 
 /** An entity whose timestamps are guaranteed materialized (the normalizer's output type). */
 export type Materialized<T extends Vehicle | Person> = T & { timestamps: number[] };
@@ -89,6 +90,30 @@ export function positionAtCached(path: LonLat[], ts: number[], t: number): LonLa
   const a = path[i - 1];
   const b = path[i];
   return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+}
+
+/**
+ * V2.7c C4 — position AND heading from ONE cached bracket lookup (the mode icons need both every
+ * frame; two accessors each scanning would double the per-entity cost). Same cache, same clamping as
+ * positionAtCached; the heading is the bracketing segment's map bearing (cw from north). Before the
+ * first sample the icon is parked at the start facing the first segment; past the last it sits at the
+ * end facing the last — an icon never spins at a trajectory's ends. A one-point path has no heading.
+ */
+export function segmentAt(path: LonLat[], ts: number[], t: number): { position: LonLat; bearing: number } {
+  const n = ts.length;
+  if (n === 0) return { position: [0, 0], bearing: 0 };
+  if (n === 1) return { position: path[0], bearing: 0 };
+  if (t <= ts[0]) return { position: path[0], bearing: bearingDeg(path[0], path[1]) };
+  if (t >= ts[n - 1]) return { position: path[n - 1], bearing: bearingDeg(path[n - 2], path[n - 1]) };
+  let i = _idxHint.get(ts) ?? 1;
+  if (i < 1 || i >= n) i = 1;
+  if (ts[i - 1] > t) i = 1;
+  while (i < n && ts[i] < t) i++;
+  _idxHint.set(ts, i);
+  const f = (t - ts[i - 1]) / (ts[i] - ts[i - 1]);
+  const a = path[i - 1];
+  const b = path[i];
+  return { position: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], bearing: bearingDeg(a, b) };
 }
 
 /** Is the vehicle on the network at sim time `t` (between its first and last sample)? */

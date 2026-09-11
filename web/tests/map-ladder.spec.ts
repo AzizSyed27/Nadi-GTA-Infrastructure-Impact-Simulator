@@ -187,6 +187,37 @@ test('a band crossing never touches the entity join (the render-stats seam is a 
   expect(after).toEqual(before);
 });
 
+// ---- the icons band (C4): "Dots become overhead mode icons rotated to heading. The only rung that changes
+// travellers." The swap is a DATA swap (a hidden per-frame layer would still regenerate its attributes every
+// tick), mirrored by the sibling seam `__nadiTravelers` as row counts per family, so the pin is conservation:
+// every active traveller is drawn exactly once, as a dot below z16 and as an icon from z16. ----
+
+test('travellers are dots below z16 and mode icons from z16 — every active traveller drawn once, never twice', async ({ page }) => {
+  await mockBackend(page);
+  await openWatch(page);
+  type Trav = { band: string; dots: number; icons: number; instrumentedDots: number; instrumentedIcons: number };
+  const trav = () => page.evaluate(() => (window as unknown as { __nadiTravelers?: Trav }).__nadiTravelers ?? null);
+  // the compact fixture's entities live at sim-times 4..9 s (t0 = 4, dt = 1) — scrub INTO them
+  await page.locator('input[type=range]').first().fill('6');
+  await expect.poll(async () => (await trav())?.dots ?? 0, { timeout: 20_000 }).toBeGreaterThan(0);
+  const far = (await trav())!;
+  expect(far.band).toBe('far');
+  expect(far.icons).toBe(0);
+  expect(far.instrumentedIcons).toBe(0);
+  expect(far.instrumentedDots).toBe(1); // the fixture pins ONE agent to a trip (compact-run.spec's pinnedAgents)
+  await jumpTo(page, CENTER[0], CENTER[1], 16.2);
+  await expect.poll(async () => (await trav())?.band, { timeout: 10_000 }).toBe('icons');
+  const icons = (await trav())!;
+  expect(icons.dots).toBe(0);
+  expect(icons.icons).toBe(far.dots); // the same travellers, now icons
+  expect(icons.instrumentedDots).toBe(0);
+  expect(icons.instrumentedIcons).toBe(1);
+  await jumpTo(page, CENTER[0], CENTER[1], 15.5);
+  await expect.poll(async () => (await trav())?.band, { timeout: 10_000 }).toBe('lanes');
+  expect((await trav())!.icons).toBe(0); // the lanes band keeps dots — the lane switch and the icon switch never share a gesture
+  expect((await trav())!.dots).toBe(far.dots);
+});
+
 // ---- the bike-lane CHANGE band (C3c): a scenario's bike_lane is a REAL dedicated lane, so it renders in
 // the design's bike-band green — a thin line at the far band, the curb-side car lane at TRUE width from the
 // lanes band. (`allows.bike` on 98 % of the net's edges is mixed traffic, never a band.) The overlay's `path`
