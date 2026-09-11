@@ -123,6 +123,33 @@ export function metersPerPixel(zoom: number, latDeg: number): number {
   return (78271.517 * Math.cos((latDeg * Math.PI) / 180)) / Math.pow(2, zoom);
 }
 
+// ------------------------------------------------------------------------------ a drawn road (C5)
+/** The "proposed" mark: a chevron-brown casing this much wider than the grey body (0.8 m each side). */
+export const NEW_ROAD_CASING_M = 1.6;
+/** A legacy new_road without a lane count draws as ONE lane — stated, never a crash. */
+export const NEW_ROAD_DEFAULT_LANES = 1;
+
+export interface NewRoadRows {
+  bodyWidthM: number;
+  casingWidthM: number;
+  /** The internal lane boundaries (lanes − 1 rows), offset off the drawn path; the path itself is never replaced. */
+  stripes: LonLat[][];
+}
+
+/**
+ * "The preview is the road at its real width — grey with white striping, never a schematic line."
+ * Width derives from the change's lane count (Change.lanes is REQUIRED for new_road: it is the minted
+ * edge's numLanes); a minted road has no sidewalk lane, so the body is lanes × 3.2 m centred on the
+ * drawn path. Used for the playback overlay, the draft basket and the live draw preview alike.
+ */
+export function newRoadRows(path: LonLat[], lanes: number | undefined): NewRoadRows {
+  const n = Math.max(1, Math.floor(lanes ?? NEW_ROAD_DEFAULT_LANES));
+  const bodyWidthM = n * LANE_M;
+  const stripes: LonLat[][] = [];
+  for (let k = 1; k < n; k++) stripes.push(offsetPolyline(path, (k - n / 2) * LANE_M));
+  return { bodyWidthM, casingWidthM: bodyWidthM + NEW_ROAD_CASING_M, stripes };
+}
+
 // ---------------------------------------------------------------------------------- chevrons (C3b)
 // "One chevron per 160 screen-px per direction … measured along on-screen geometry, not per segment."
 // V2.0b placed one arrow per one-way edge at its middle vertex; SUMO splits a curvy street into many

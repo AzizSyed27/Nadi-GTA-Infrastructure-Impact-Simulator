@@ -143,7 +143,7 @@ estimate that never understates.
 
 ![A 3-member mixed draft — road closure, speed limit, and incident — ready to run](docs-assets/v24b-draft-3member.png)
 
-![Drawing a curved road: the working polyline bends through via points, mid-draw](docs-assets/v26d-curved-draw.png)
+![A drawn road in the draft basket: a grey road body at its lane count under the brown "proposed" casing, bending through two via points (V2.7c)](docs-assets/v27c-after-c5-draft-curve.png)
 
 ## The two graphs
 
@@ -276,7 +276,7 @@ cd web && npx playwright test        # 185 tests, 28 specs
   included, because the screen is a projection of a durable event log rather than of anything held
   in memory.
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
-  changes the saturation finding), map + editor styling incl. the curved-road restyle (V2.7c/d),
+  changes the saturation finding), editor styling + the netconvert-regen work (V2.7d; the map styling SHIPPED in V2.7c — the transit-map palette, the zoom ladder, the curved-road restyle),
   a real student-demand segment, periodic mandate re-verification, the settled-basis
   re-verification rerun.
 

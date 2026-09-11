@@ -318,6 +318,13 @@ test('draw a curved road — bends render, the wire carries via, the shape stays
 
   // the captured overlay polyline carries the bends: A + 2 vias + B
   await expect(page.getByTestId('draft-panel')).toContainText('2 bends');
+  // V2.7c C5: a drawn road in the basket renders as a ROAD BODY at its lane count (grey with the brown
+  // "proposed" casing), never the teal schematic line — the seam mirrors the rendering beside the path
+  const roadBody = await page.evaluate(
+    () => (window as unknown as { __nadiDraftOverlay?: { items: { roadBody?: boolean }[] } }).__nadiDraftOverlay?.items[0]?.roadBody,
+  );
+  expect(roadBody).toBe(true);
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27c-after-c5-draft-curve.png' });
   const vertices = await page.evaluate(
     () => (window as unknown as { __nadiDraftOverlay?: { items: { vertices: number | null }[] } }).__nadiDraftOverlay?.items[0]?.vertices,
   );

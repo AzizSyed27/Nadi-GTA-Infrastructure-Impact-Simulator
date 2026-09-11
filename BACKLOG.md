@@ -132,8 +132,10 @@ wire meaning became 'lon,lat' COORDINATE-PAIR strings (free waypoints, not junct
 recorded decision rides the schema description + `contract_models.Change.via` + `types.ts`).
 `changeSetKey` gained via; the draft overlay captures the bent path. **Mid-curve junctions are
 STRUCTURALLY absent — stated, not a bug**: via points are shape geometry, so no other road can
-connect at a bend (connect at real junctions instead). Remaining curved-road work = the V2.7
-grey/striping visual restyle (the working line + overlays keep the orange/teal idiom).
+connect at a bend (connect at real junctions instead). The curved-road restyle SHIPPED in V2.7c C5:
+a drawn road (playback overlay, draft basket, live preview) renders as a ROAD BODY at Change.lanes ×
+3.2 m — grey with white striping from z ≥ 15 under a chevron-brown "proposed" casing — never a
+schematic line; the orange/teal idiom is retired (this note predated the ratified design).
 
 ## The lexicographic newest-pick family — FIXED (2026-08-21, after firing twice)
 The `sorted(glob)[-1]` bug ('V' > '2') fired twice with real cost (the V2.5a two-day stale-index

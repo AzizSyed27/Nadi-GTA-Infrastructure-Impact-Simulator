@@ -15,17 +15,17 @@ import type { Agent, ChangeType, Conflict, LonLat, MandateAgent, Person, PinnedS
 import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
 import { loadNetwork, type NetworkEdge } from '@/lib/network';
 import { buildRoadLayers, describeLayers, quantizeZoom, zoomBand, type ZoomBand } from '@/lib/roadLayers';
-import { LANE_M, chevronAnchors, chevronSizePx, deriveRoadRows, laneModel, metersPerPixel, offsetPolyline, type ChevronAnchor } from '@/lib/roadGeometry';
+import { LANE_M, chevronAnchors, chevronSizePx, deriveRoadRows, laneModel, metersPerPixel, newRoadRows, offsetPolyline, type ChevronAnchor } from '@/lib/roadGeometry';
 import {
-  BASEMAP, BIKE_BAND, CAP_CASING, CAP_DASH, CAP_DASH_COLOR, CONFLICT_DOT, CONFLICT_PULSE, DRAFT_HOVER, EDIT_OVERLAY,
-  EDIT_TINT_NEUTRAL, GHOST_CASING, GHOST_CORE, NEW_ROAD_OVERLAY, TRAIL, TRAVELER, TRAVELER_RIM, ZONE, ZONE_TINT, css,
+  BASEMAP, BIKE_BAND, CAP_CASING, CAP_DASH, CAP_DASH_COLOR, CENTERLINE, CHEVRON, CONFLICT_DOT, CONFLICT_PULSE, DRAFT_HOVER,
+  EDIT_OVERLAY, EDIT_TINT_NEUTRAL, GHOST_CASING, GHOST_CORE, ROADWAY, TRAIL, TRAVELER, TRAVELER_RIM, ZONE, ZONE_TINT, css,
 } from '@/lib/mapPalette';
 
 // ONE dash extension instance for every dashed overlay layer (a `new PathStyleExtension` per render
 // was a per-rAF-tick allocation; the road layers hold their own in roadLayers.ts).
 const DASH_EXT = new PathStyleExtension({ dash: true });
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
-import { EditPanel, type DrawParams } from '@/components/EditPanel';
+import { DEFAULT_DRAW_PARAMS, EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
 import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
 import { getJunctions, getEdges, getRuns, postSkip, postResume, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
@@ -105,6 +105,8 @@ type OverlayItem = {
   type: ChangeType;
   /** The canonical edge the change targets (V2.7c: the bike band derives its lane offset from it). */
   edge?: string;
+  /** A new_road's lane count (V2.7c C5: the drawn road's body width derives from it). */
+  lanes?: number | null;
   window?: { start_s: number; end_s: number } | null;
   target_lanes?: number[] | null;
   effect?: { blocked?: boolean | null; speed_factor?: number | null } | null;
@@ -118,6 +120,7 @@ type GeomChange = {
   from_junction?: string;
   to_junction?: string;
   via?: string[] | null;
+  lanes?: number | null;
   window?: { start_s: number; end_s: number } | null;
   target_lanes?: number[] | null;
   effect?: { blocked?: boolean | null; speed_factor?: number | null } | null;
@@ -160,6 +163,7 @@ async function resolveOverlayItems(
     if (geom) items.push({
       path: geom, type: change.type as ChangeType,
       edge: change.target_edge,
+      lanes: change.lanes ?? null,
       window: change.window ?? null,
       target_lanes: change.target_lanes ?? null,
       effect: change.effect ?? null,
@@ -1796,6 +1800,10 @@ export default function MapView() {
         // V2.7c C3c: a bike_lane change renders as the TRUE-WIDTH curb-side lane from the lanes band
         // (a rendering of `path`, which itself never changes — the vertex pin above stays honest)
         laneBand: d.type === 'bike_lane' && band !== 'far' && !!(d.edge && networkLookup[d.edge]),
+        // V2.7c C5: a new_road renders as a ROAD BODY at its lane count (never the schematic line);
+        // `stripes` = the internal boundaries drawn at the current band (0 below z15)
+        roadBody: d.type === 'new_road',
+        stripes: d.type === 'new_road' && band !== 'far' ? newRoadRows(d.path, d.lanes ?? undefined).stripes.length : 0,
       })),
     };
   }, [changeGeom, artifact, currentTime, stage, socialIds, watchedRunNotLoaded, ghostGeom, feedRunId, band, networkLookup]);
@@ -1815,6 +1823,8 @@ export default function MapView() {
         windowed: memberWindow(m.change) !== null,
         // V2.6d: the captured overlay polyline's vertex count (a curved new_road member = 2 + bends)
         vertices: m.path?.length ?? null,
+        // V2.7c C5: a drawn road in the basket renders as a road body at its lane count
+        roadBody: m.change.type === 'new_road' && !!m.path,
       })),
     };
   }, [draft, draftTags, hoveredDraftId]);
@@ -2178,13 +2188,18 @@ export default function MapView() {
   // fetches by construction — a member's target_edge resolves through the already-loaded network
   // map; a new_road member carries its two junction coords captured at add time. Always active
   // (edit mode has no playback clock); a hovered DraftPanel row highlights its member here.
-  type DraftOverlayItem = { id: string; type: string; path: LonLat[] };
-  const draftOverlayItems: DraftOverlayItem[] = draft.flatMap((m) => {
+  type DraftOverlayItem = { id: string; type: string; path: LonLat[]; lanes?: number };
+  const draftOverlayItemsAll: DraftOverlayItem[] = draft.flatMap((m) => {
     const path =
       m.path ??
       ('target_edge' in m.change && m.change.target_edge ? networkLookup[m.change.target_edge]?.geometry : undefined);
-    return path ? [{ id: m.id, type: m.change.type, path }] : [];
+    return path ? [{ id: m.id, type: m.change.type, path, lanes: (m.change as { lanes?: number }).lanes }] : [];
   });
+  // V2.7c C5: a drawn road in the basket renders as a ROAD BODY (grey at its lane count under the
+  // brown "proposed" casing; hover widens and brightens the casing) — the other member types keep
+  // their overlay line. The captured path is never replaced.
+  const draftRoadItems = draftOverlayItemsAll.filter((d) => d.type === 'new_road');
+  const draftOverlayItems = draftOverlayItemsAll.filter((d) => d.type !== 'new_road');
   const draftOverlay = new PathLayer<DraftOverlayItem>({
     id: 'draft-overlay',
     data: draftOverlayItems,
@@ -2194,7 +2209,7 @@ export default function MapView() {
         ? DRAFT_HOVER // V2.7c: the chevron brown — the V2.4a dark slate (chosen to beat a LIGHT basemap)
         : // vanished on the #515459 roadway; a white highlight vanishes on the light ground a drawn
           // road crosses. Brown reads on both (looked-at, C2b).
-          (CAP_DASH_COLOR[d.type] ?? (d.type === 'new_road' ? NEW_ROAD_OVERLAY : EDIT_OVERLAY)),
+          (CAP_DASH_COLOR[d.type] ?? EDIT_OVERLAY),
     getWidth: (d) => (d.id === hoveredDraftId ? 9 : 6),
     widthUnits: 'pixels',
     capRounded: true,
@@ -2202,6 +2217,39 @@ export default function MapView() {
     // deck caches accessor results — without these triggers the hover highlight silently sticks
     updateTriggers: { getColor: [hoveredDraftId], getWidth: [hoveredDraftId] },
   });
+  const draftRoadCasing = new PathLayer<DraftOverlayItem>({
+    id: 'draft-road-casing',
+    data: draftRoadItems,
+    getPath: (d) => d.path,
+    getColor: (d) => (d.id === hoveredDraftId ? DRAFT_HOVER : CHEVRON),
+    getWidth: (d) => newRoadRows(d.path, d.lanes).casingWidthM + (d.id === hoveredDraftId ? 2.4 : 0),
+    widthUnits: 'meters',
+    widthMinPixels: 5,
+    capRounded: true,
+    jointRounded: true,
+    updateTriggers: { getColor: [hoveredDraftId], getWidth: [hoveredDraftId] },
+  });
+  const draftRoadBody = new PathLayer<DraftOverlayItem>({
+    id: 'draft-road-body',
+    data: draftRoadItems,
+    getPath: (d) => d.path,
+    getColor: ROADWAY,
+    getWidth: (d) => newRoadRows(d.path, d.lanes).bodyWidthM,
+    widthUnits: 'meters',
+    widthMinPixels: 3,
+    capRounded: true,
+    jointRounded: true,
+  });
+  const draftRoadStripes = new PathLayer<{ path: LonLat[] }>({
+    id: 'draft-road-stripes',
+    data: band === 'far' ? [] : draftRoadItems.flatMap((d) => newRoadRows(d.path, d.lanes).stripes.map((path) => ({ path }))),
+    getPath: (d) => d.path,
+    getColor: CENTERLINE,
+    getWidth: 1,
+    widthUnits: 'pixels',
+    getDashArray: [4, 4],
+    extensions: [DASH_EXT],
+  } as ConstructorParameters<typeof PathLayer<{ path: LonLat[] }>>[0]);
 
   // Junction snap targets + the rubber-band preview line. Only added when drawing.
   const snapTargets = new ScatterplotLayer<Junction>({
@@ -2218,21 +2266,47 @@ export default function MapView() {
     pickable: true,
     updateTriggers: { getFillColor: [ptA?.id, ptB?.id], getRadius: [ptA?.id, ptB?.id] },
   });
-  // V2.6d: the working line BENDS at via points — a PathLayer over [A, ...bends, rubber-band tip]
-  // (the same orange idiom; the V2.7 grey/striping restyle is explicitly deferred).
+  // V2.6d: the working line BENDS at via points — a PathLayer over [A, ...bends, rubber-band tip].
+  // V2.7c C5: "the preview is the road at its real width — grey with white striping, never a
+  // schematic line" — the road body at the form's DEFAULT lane count (the count is chosen after
+  // B is clicked) under the brown "proposed" casing, stripes from the lanes band.
   const previewTo: LonLat | null = ptB ? [ptB.lon, ptB.lat] : hoverCoord;
   const previewPath: LonLat[] = ptA
     ? [[ptA.lon, ptA.lat], ...vias, ...(previewTo ? [previewTo] : [])]
     : [];
-  const drawPreview = new PathLayer<{ path: LonLat[] }>({
-    id: 'draw-preview',
-    data: previewPath.length >= 2 ? [{ path: previewPath }] : [],
+  const previewRows = previewPath.length >= 2 ? newRoadRows(previewPath, DEFAULT_DRAW_PARAMS.lanes) : null;
+  const drawPreviewCasing = new PathLayer<{ path: LonLat[] }>({
+    id: 'draw-preview-casing',
+    data: previewRows ? [{ path: previewPath }] : [],
     getPath: (d) => d.path,
-    getColor: [240, 130, 30, 230],
-    getWidth: 3,
-    widthUnits: 'pixels',
+    getColor: CHEVRON,
+    getWidth: previewRows?.casingWidthM ?? 1,
+    widthUnits: 'meters',
+    widthMinPixels: 5,
+    capRounded: true,
     jointRounded: true,
   });
+  const drawPreview = new PathLayer<{ path: LonLat[] }>({
+    id: 'draw-preview',
+    data: previewRows ? [{ path: previewPath }] : [],
+    getPath: (d) => d.path,
+    getColor: ROADWAY,
+    getWidth: previewRows?.bodyWidthM ?? 1,
+    widthUnits: 'meters',
+    widthMinPixels: 3,
+    capRounded: true,
+    jointRounded: true,
+  });
+  const drawPreviewStripes = new PathLayer<{ path: LonLat[] }>({
+    id: 'draw-preview-stripes',
+    data: previewRows && band !== 'far' ? previewRows.stripes.map((path) => ({ path })) : [],
+    getPath: (d) => d.path,
+    getColor: CENTERLINE,
+    getWidth: 1,
+    widthUnits: 'pixels',
+    getDashArray: [4, 4],
+    extensions: [DASH_EXT],
+  } as ConstructorParameters<typeof PathLayer<{ path: LonLat[] }>>[0]);
 
   // V2.7a: the Explore SHEETS (compare / graphs / chat) occlude the map, so its chrome hides for
   // them; Explore·Discourse keeps the map visible behind the feed like the old discourse mode.
@@ -2275,7 +2349,45 @@ export default function MapView() {
         const laneCentre = m.bodyOffsetM + m.carWidthM / 2 - LANE_M / 2; // the rightmost car lane
         return [{ path: offsetPolyline(d.path, laneCentre) }];
       });
-  const legacyItems = bikeBandRows.length ? legacyActive.filter((d) => !(d.type === 'bike_lane' && d.edge && networkLookup[d.edge])) : legacyActive;
+  // V2.7c C5 — a DRAWN ROAD (new_road) renders as a road body at its lane count: the brown
+  // "proposed" casing under the grey body, white stripes on the internal boundaries from the lanes
+  // band. The V2.6d teal schematic line is retired; the path (A + vias + B) is never replaced.
+  const newRoadItems = legacyActive.filter((d) => d.type === 'new_road');
+  const legacyItems = legacyActive.filter(
+    (d) => d.type !== 'new_road' && !(bikeBandRows.length && d.type === 'bike_lane' && d.edge && networkLookup[d.edge]),
+  );
+  const newRoadCasing = new PathLayer<OverlayItem>({
+    id: 'new-road-casing',
+    data: newRoadItems,
+    getPath: (d) => d.path,
+    getColor: CHEVRON,
+    getWidth: (d) => newRoadRows(d.path, d.lanes ?? undefined).casingWidthM,
+    widthUnits: 'meters',
+    widthMinPixels: 5,
+    capRounded: true,
+    jointRounded: true,
+  });
+  const newRoadBody = new PathLayer<OverlayItem>({
+    id: 'new-road-body',
+    data: newRoadItems,
+    getPath: (d) => d.path,
+    getColor: ROADWAY,
+    getWidth: (d) => newRoadRows(d.path, d.lanes ?? undefined).bodyWidthM,
+    widthUnits: 'meters',
+    widthMinPixels: 3,
+    capRounded: true,
+    jointRounded: true,
+  });
+  const newRoadStripes = new PathLayer<{ path: LonLat[] }>({
+    id: 'new-road-stripes',
+    data: band === 'far' ? [] : newRoadItems.flatMap((d) => newRoadRows(d.path, d.lanes ?? undefined).stripes.map((path) => ({ path }))),
+    getPath: (d) => d.path,
+    getColor: CENTERLINE,
+    getWidth: 1,
+    widthUnits: 'pixels',
+    getDashArray: [4, 4],
+    extensions: [DASH_EXT],
+  } as ConstructorParameters<typeof PathLayer<{ path: LonLat[] }>>[0]);
   const bikeBand = new PathLayer<{ path: LonLat[] }>({
     id: 'bike-band',
     data: bikeBandRows,
@@ -2341,7 +2453,7 @@ export default function MapView() {
     id: 'change-overlay',
     data: legacyItems,
     getPath: (d) => d.path,
-    getColor: (d) => (d.type === 'new_road' ? NEW_ROAD_OVERLAY : d.type === 'bike_lane' ? BIKE_BAND : EDIT_OVERLAY), // teal proposed road / bike green / amber edit
+    getColor: (d) => (d.type === 'bike_lane' ? BIKE_BAND : EDIT_OVERLAY), // bike green (far band) / amber edit — new_road has its own road-body layers
     getWidth: 6,
     widthUnits: 'pixels',
     capRounded: true,
@@ -2420,6 +2532,9 @@ export default function MapView() {
     ghostCasing, // V2.7c: the ghost's dark casing — reads on the light ground either side of a road
     ghostOverlay, // V2.7b: Act I only — the computing run's member, not in force in this playback
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
+    newRoadCasing, // V2.7c C5: the drawn road as a road body (brown casing / grey body / stripes)
+    newRoadBody,
+    newRoadStripes,
     bikeBand, // V2.7c: the true-width bike lane from z ≥ 15
     closureCasing,
     closureDash,
@@ -2435,7 +2550,9 @@ export default function MapView() {
     incidentMarkerDot,
     incidentMarkerGlyph,
     windowBadge,
-    ...(stage === 'build' ? [editEdges, draftOverlay, snapTargets, drawPreview] : []),
+    ...(stage === 'build'
+      ? [editEdges, draftRoadCasing, draftRoadBody, draftRoadStripes, draftOverlay, snapTargets, drawPreviewCasing, drawPreview, drawPreviewStripes]
+      : []),
   ];
   const editing = stage === 'build';
   // Draw interactions are live only while actually drawing — NOT while a run card is shown (else background
@@ -2551,7 +2668,7 @@ export default function MapView() {
               </span>
             ) : (
               <>
-                <span style={{ ...legendSwatch, background: css(overlayItems[0].type === 'new_road' ? NEW_ROAD_OVERLAY : overlayItems[0].type === 'bike_lane' ? BIKE_BAND : EDIT_OVERLAY) }} />
+                <span style={{ ...legendSwatch, background: css(overlayItems[0].type === 'new_road' ? CHEVRON : overlayItems[0].type === 'bike_lane' ? BIKE_BAND : EDIT_OVERLAY) }} />
                 {overlayItems.length === 1
                   ? (overlayItems[0].type === 'new_road' ? 'proposed road' : overlayItems[0].type === 'bike_lane' ? 'bike lane' : 'edited street')
                   : `${overlayItems.length} changes`}

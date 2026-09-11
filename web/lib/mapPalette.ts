@@ -47,8 +47,7 @@ export const CAP_DASH_COLOR: Record<string, Rgba> = {
 export const CAP_DASH: Record<string, [number, number]> = {
   lane_closure: [4, 3], road_closure: [1.5, 1.5], incident: [3, 2],
 };
-/** The legacy overlay pair: a proposed road (teal) and an edited street (amber). C5 restyles new_road. */
-export const NEW_ROAD_OVERLAY: Rgba = [20, 200, 170, 235];
+/** An edited street (speed limit) — amber. A drawn road is a ROAD BODY under a CHEVRON-brown casing (C5). */
 export const EDIT_OVERLAY: Rgba = [245, 170, 40, 230];
 /** The school-zone designation tint (always shown) — school-bus yellow. */
 export const ZONE: Rgba = [255, 200, 40, 255];

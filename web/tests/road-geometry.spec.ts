@@ -17,6 +17,7 @@ import {
   deriveRoadRows,
   laneModel,
   metersPerPixel,
+  newRoadRows,
   offsetPolyline,
 } from '../lib/roadGeometry';
 import { positionAtCached, segmentAt } from '../lib/viz';
@@ -260,6 +261,28 @@ test('segmentAt: position matches positionAtCached and the bearing is the segmen
   expect(segmentAt(path, ts, 99).bearing).toBeCloseTo(0, 0);
   // a one-point trajectory has no heading — 0, never NaN
   expect(segmentAt([[-79.25, 43.75]], [7], 7)).toEqual({ position: [-79.25, 43.75], bearing: 0 });
+});
+
+// ---- a DRAWN road (C5): "the preview is the road at its real width — grey with white striping, never a
+// schematic line." Width derives from the change's lane count (Change.lanes is REQUIRED for new_road —
+// the minted edge's numLanes), never a literal; a minted road has no sidewalk lane. The "proposed" mark
+// is a thin chevron-brown casing under the grey body. The drawn path itself is never replaced.
+
+test('newRoadRows: body at lanes × 3.2 m, a 0.8 m brown edge each side, stripes on the internal boundaries only', () => {
+  const bent: LonLat[] = [[-79.25, 43.75], [-79.245, 43.752], [-79.24, 43.75]];
+  const two = newRoadRows(bent, 2);
+  expect(two.bodyWidthM).toBeCloseTo(6.4, 6);
+  expect(two.casingWidthM).toBeCloseTo(8.0, 6);
+  expect(two.stripes).toHaveLength(1);
+  expect(two.stripes[0]).toEqual(bent); // the one internal boundary of a 2-lane road IS the centreline (offset 0)
+  const one = newRoadRows(bent, 1);
+  expect(one.bodyWidthM).toBeCloseTo(3.2, 6);
+  expect(one.stripes).toHaveLength(0);
+  const three = newRoadRows(bent, 3);
+  expect(three.stripes).toHaveLength(2);
+  expect(three.stripes[0]).toHaveLength(3); // a bent path keeps its vertex count through the offset
+  // a legacy change without lanes falls back to ONE lane — stated, never a crash
+  expect(newRoadRows(bent, undefined).bodyWidthM).toBeCloseTo(3.2, 6);
 });
 
 test('metersPerPixel uses the 512-px world (deck.gl and maplibre), not the 256-tile constant', () => {

@@ -218,6 +218,39 @@ test('travellers are dots below z16 and mode icons from z16 — every active tra
   expect((await trav())!.dots).toBe(far.dots);
 });
 
+// ---- a drawn road (C5): the playback overlay of a new_road renders as a ROAD BODY at Change.lanes × 3.2 m
+// with white striping from the lanes band and a thin chevron-brown casing as the "proposed" mark — never
+// the V2.6d teal schematic line. `path` (A + vias + B) is untouched; the seam mirrors the rendering. ----
+
+test('a new_road change renders as a road body: legend + swatch, stripes from the lanes band, path untouched', async ({ page }) => {
+  await mockBackend(page, NET, (a) => {
+    const meta = a.meta as { scenario: { changes: Record<string, unknown>[] } };
+    meta.scenario.changes = [{
+      type: 'new_road', target_edge: 'nr_1', from_junction: 'J1', to_junction: 'J2', lanes: 2, speed_mps: 13.89,
+      via: ['-79.245,43.752'], description: 'New road J1→J2',
+    }];
+  });
+  // the new_road resolver fetches the junction coordinates from the backend (the ONE backend call an overlay makes)
+  await page.unroute('**/api/junctions**');
+  await page.route('**/api/junctions**', (route) =>
+    route.fulfill({ json: { junctions: [{ id: 'J1', lon: -79.25, lat: 43.75 }, { id: 'J2', lon: -79.24, lat: 43.75 }], count: 2 } }),
+  );
+  await openWatch(page);
+  type Seam = { items: { type: string; vertices: number; roadBody: boolean; stripes: number }[] };
+  const seam = () => page.evaluate(() => (window as unknown as { __nadiChangeOverlay?: Seam }).__nadiChangeOverlay ?? null);
+  await expect.poll(async () => (await seam())?.items[0]?.type, { timeout: 20_000 }).toBe('new_road');
+  const legend = page.getByTestId('change-legend');
+  await expect(legend).toContainText('proposed road');
+  await expect(legend.locator('span').first()).toHaveCSS('background-color', 'rgb(150, 98, 92)');
+  const far = (await seam())!.items[0];
+  expect(far.vertices).toBe(3); // A + 1 via + B — the V2.6d pin's shape, untouched
+  expect(far.roadBody).toBe(true);
+  expect(far.stripes).toBe(0); // no striping at the far band
+  await jumpTo(page, CENTER[0], CENTER[1], 15.2);
+  await expect.poll(async () => (await seam())?.items[0]?.stripes, { timeout: 10_000 }).toBe(1); // 2 lanes → 1 internal boundary
+  expect((await seam())!.items[0].vertices).toBe(3);
+});
+
 // ---- the bike-lane CHANGE band (C3c): a scenario's bike_lane is a REAL dedicated lane, so it renders in
 // the design's bike-band green — a thin line at the far band, the curb-side car lane at TRUE width from the
 // lanes band. (`allows.bike` on 98 % of the net's edges is mixed traffic, never a band.) The overlay's `path`

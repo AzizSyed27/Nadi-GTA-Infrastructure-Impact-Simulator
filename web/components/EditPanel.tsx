@@ -76,6 +76,8 @@ interface EditPanelProps {
 // what 5.1's acceptance run drew). NOT the backend SimChange request defaults (lanes 1 / one-way), which stay
 // conservative on the wire; the FORM presents the ratified product decision.
 const DEFAULTS: DrawParams = { lanes: 2, speed_mps: 13.9, bidirectional: true };
+/** V2.7c C5: the draw PREVIEW renders the road at this lane count until the form is filled in. */
+export const DEFAULT_DRAW_PARAMS: Readonly<DrawParams> = DEFAULTS;
 
 /** The params mini-form. Keyed by the endpoint pair so each fresh draw remounts with the ratified defaults. */
 function DrawForm({
