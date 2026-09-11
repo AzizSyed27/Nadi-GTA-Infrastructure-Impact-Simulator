@@ -1,7 +1,7 @@
 // V2.7c C4 — the three mode glyphs (car / bicycle / pedestrian) for the icons band (z ≥ 16), drawn ONCE
 // on a Canvas2D atlas and handed to deck as a PNG data URL — synchronous, deterministic, no binary asset
 // in the repo, and the layer's colour applies because every glyph is a MASK (white on transparent).
-// Top-down, heading NORTH at angle 0 (the arrow.png / chevron convention), so `getAngle = 360 − bearing`.
+// Top-down, heading NORTH at angle 0 (the chevron convention), so `getAngle = 360 − bearing`.
 // Sizes are in METRES on the layer (a car ~4.6 m, a bicycle ~1.9, a walker ~1.0) with a pixel floor so a
 // walker at z16 is still a glyph — mode is legible from the SHAPE, never from colour (TRAVELER is one hue).
 

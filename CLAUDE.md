@@ -1734,7 +1734,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   display: 7.0 or 13.6 ms) — read p95.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (689 tests — sections: golden spine; contract
+- **Tests:** `python -m pytest python/tests` (693 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -1749,7 +1749,9 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   display-label and projection lockstep pins + C11's live finds — the cancelled-discourse assembly
   shape, the corpus handle collision, the held-lock-vs-stale rule and the projection floor) and
   `cd web && npx playwright test`
-  (185 tests across 28 spec files incl. seeds, compare, school-zone, scorecard-scope, enrich-stream,
+  (217 tests across 30 spec files incl. the V2.7c `map-ladder` (zoom bands, per-band layer counts,
+  the travellers' dots↔icons conservation, the new_road / bike_lane rungs, the basemap read-back) and
+  `road-geometry` (pure pins: lane model, offsets, chevron chains, `segmentAt`) specs, seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,
   compact-run, via-rules, the V2.7a run-document/run-list/app-shell (the landing matrix + ride-along 6a + the follow-up title-precedence/one-source-name/no-duplication pins) specs, the V2.6d curved-draw/refused-clicks/Escape/playback-curve pins, the V2.5b ends
   rendering, the V2.5c/d pointer-independence + labeled-landing pins, and the V2.7b

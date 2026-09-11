@@ -144,19 +144,16 @@ await page.waitForTimeout(300);
 // defaults to the artifact bbox centre; pass --center to sit the frame on traffic.
 const ZOOM = opt('zoom', null);
 if (ZOOM !== null) {
-  const center = opt('center', null)?.split(',').map(Number) ?? null;
-  await page.evaluate(
-    async ([runId, c, z]) => {
-      let centre = c;
-      if (!centre) {
-        const a = await (await fetch(`/${runId}.json`)).json();
-        const [w, s, e, n] = a.meta.bbox;
-        centre = [(w + e) / 2, (s + n) / 2];
-      }
-      window.__nadiViewport.jumpTo(centre[0], centre[1], z);
-    },
-    [RUN_ID, center, Number(ZOOM)],
-  );
+  // Resolved ONCE and reused by every jump below (the crossing probe included): a bare --zoom
+  // with no --center used to send the second jump to lon 0 / lat 0 — the Gulf of Guinea.
+  const center =
+    opt('center', null)?.split(',').map(Number) ??
+    (await page.evaluate(async (runId) => {
+      const a = await (await fetch(`/${runId}.json`)).json();
+      const [w, s, e, n] = a.meta.bbox;
+      return [(w + e) / 2, (s + n) / 2];
+    }, RUN_ID));
+  await page.evaluate(([lon, lat, z]) => window.__nadiViewport.jumpTo(lon, lat, z), [...center, Number(ZOOM)]);
   const band = Number(ZOOM) >= 16 ? 'icons' : Number(ZOOM) >= 15 ? 'lanes' : 'far';
   await page.waitForFunction((b) => window.__nadiViewport?.band === b, band, { timeout: 10_000 });
   await page.waitForTimeout(500);
@@ -166,13 +163,7 @@ if (ZOOM !== null) {
   // and record the longest rAF gap in the two seconds after the jump.
   if (Number(ZOOM) >= 16) {
     await page.locator('button[aria-label="Play"]').click({ timeout: 15_000 });
-    await page.evaluate(([lon, lat]) => window.__nadiViewport.jumpTo(lon, lat, 15.9), [
-      ...(center ?? (await page.evaluate(async (runId) => {
-        const a = await (await fetch(`/${runId}.json`)).json();
-        const [w, s, e, n] = a.meta.bbox;
-        return [(w + e) / 2, (s + n) / 2];
-      }, RUN_ID))),
-    ]);
+    await page.evaluate(([lon, lat]) => window.__nadiViewport.jumpTo(lon, lat, 15.9), center);
     await page.waitForFunction(() => window.__nadiViewport?.band === 'lanes', undefined, { timeout: 10_000 });
     await page.waitForTimeout(400);
     const crossing = await page.evaluate(
@@ -190,7 +181,7 @@ if (ZOOM !== null) {
           requestAnimationFrame(tick);
           window.__nadiViewport.jumpTo(lon, lat, z);
         }),
-      [...(center ?? [0, 0]), Number(ZOOM)],
+      [...center, Number(ZOOM)],
     );
     console.log(`crossing z15.9 → z${ZOOM} while playing: longest rAF gap ${crossing.maxGapMs} ms (band now ${crossing.band})`);
     await page.locator('button[aria-label="Pause"]').click({ timeout: 15_000 });

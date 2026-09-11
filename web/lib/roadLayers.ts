@@ -20,7 +20,7 @@ import type { Layer } from '@deck.gl/core';
 import type { CenterlineRow, ChevronAnchor, RoadRow, RoadRows } from './roadGeometry';
 import { CENTERLINE, CHEVRON, ROADWAY, SIDEWALK } from './mapPalette';
 
-// The chevron glyph: an SVG data URL (no binary asset), pointing NORTH at angle 0 like /arrow.png did,
+// The chevron glyph: an SVG data URL (no binary asset — the V2.0b /arrow.png is deleted), NORTH at angle 0,
 // masked so the layer's colour applies. Explicit width/height — loaders.gl needs them on an SVG root.
 const CHEVRON_ICON = {
   url:
