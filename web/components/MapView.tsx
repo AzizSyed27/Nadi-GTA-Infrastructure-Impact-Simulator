@@ -15,9 +15,9 @@ import type { Agent, ChangeType, Conflict, LonLat, MandateAgent, Person, PinnedS
 import { changesOf, isMandateAgent, MANDATE_VERSIONS } from '@/lib/types';
 import { loadNetwork, type NetworkEdge } from '@/lib/network';
 import { buildRoadLayers, describeLayers, quantizeZoom, zoomBand, type ZoomBand } from '@/lib/roadLayers';
-import { deriveRoadRows } from '@/lib/roadGeometry';
+import { LANE_M, chevronAnchors, chevronSizePx, deriveRoadRows, laneModel, metersPerPixel, offsetPolyline, type ChevronAnchor } from '@/lib/roadGeometry';
 import {
-  BASEMAP, CAP_CASING, CAP_DASH, CAP_DASH_COLOR, CONFLICT_DOT, CONFLICT_PULSE, DRAFT_HOVER, EDIT_OVERLAY,
+  BASEMAP, BIKE_BAND, CAP_CASING, CAP_DASH, CAP_DASH_COLOR, CONFLICT_DOT, CONFLICT_PULSE, DRAFT_HOVER, EDIT_OVERLAY,
   EDIT_TINT_NEUTRAL, GHOST_CASING, GHOST_CORE, NEW_ROAD_OVERLAY, TRAIL, TRAVELER, TRAVELER_RIM, ZONE, ZONE_TINT, css,
 } from '@/lib/mapPalette';
 
@@ -97,6 +97,8 @@ const CONFLICT_FADE_S = 10; // a near-miss pulse fades over ~this many sim-secon
 type OverlayItem = {
   path: LonLat[];
   type: ChangeType;
+  /** The canonical edge the change targets (V2.7c: the bike band derives its lane offset from it). */
+  edge?: string;
   window?: { start_s: number; end_s: number } | null;
   target_lanes?: number[] | null;
   effect?: { blocked?: boolean | null; speed_factor?: number | null } | null;
@@ -151,6 +153,7 @@ async function resolveOverlayItems(
     // TIME (windowed items appear/disappear at their window during playback).
     if (geom) items.push({
       path: geom, type: change.type as ChangeType,
+      edge: change.target_edge,
       window: change.window ?? null,
       target_lanes: change.target_lanes ?? null,
       effect: change.effect ?? null,
@@ -902,7 +905,20 @@ export default function MapView() {
   // the PURE roadLayers builder turns them into the band's layers (the graphLayers precedent). A
   // band change rebuilds the Layer objects but never the row arrays, so deck keeps the buffers.
   const roadRows = useMemo(() => deriveRoadRows(networkEdges), [networkEdges]);
-  const baseNetworkLayers = useMemo<Layer[]>(() => buildRoadLayers({ rows: roadRows, band }), [roadRows, band]);
+  // C3b — chevron anchors at the CURRENT quantized zoom: a walk over the whole net once per zoom
+  // gesture (never per frame), skipped entirely at the far band, which draws no direction marks.
+  // Metres-per-pixel is taken at the artifact's bbox centre latitude (constant per run, so the
+  // memo key is the zoom alone — a 0.05° latitude span moves the scale by ~0.1 %).
+  const bboxLatC = artifact ? (artifact.meta.bbox[1] + artifact.meta.bbox[3]) / 2 : 43.75;
+  const chevrons = useMemo<ChevronAnchor[]>(
+    () => (band === 'far' ? [] : chevronAnchors(networkEdges, roadRows.body.map((r) => r.path), metersPerPixel(zoomQ, bboxLatC))),
+    [networkEdges, roadRows, zoomQ, band, bboxLatC],
+  );
+  const chevronSize = chevronSizePx(metersPerPixel(zoomQ, bboxLatC));
+  const baseNetworkLayers = useMemo<Layer[]>(
+    () => buildRoadLayers({ rows: roadRows, band, chevrons, chevronSizePx: chevronSize }),
+    [roadRows, band, chevrons, chevronSize],
+  );
 
   // V2.7c test seams — SIBLING globals of __nadiRenderStats (whose whole-object pin forbids new
   // keys): the viewport's settled zoom + band, with `jumpTo` calling the REAL map (late-bound
@@ -1744,9 +1760,12 @@ export default function MapView() {
         active: !d.window || !playbackNow || (currentTime >= d.window.start_s && currentTime <= d.window.end_s),
         // V2.6d: the rendered polyline's vertex count (a curved new_road = 2 + via points)
         vertices: d.path.length,
+        // V2.7c C3c: a bike_lane change renders as the TRUE-WIDTH curb-side lane from the lanes band
+        // (a rendering of `path`, which itself never changes — the vertex pin above stays honest)
+        laneBand: d.type === 'bike_lane' && band !== 'far' && !!(d.edge && networkLookup[d.edge]),
       })),
     };
-  }, [changeGeom, artifact, currentTime, stage, socialIds, watchedRunNotLoaded, ghostGeom, feedRunId]);
+  }, [changeGeom, artifact, currentTime, stage, socialIds, watchedRunNotLoaded, ghostGeom, feedRunId, band, networkLookup]);
   // (No __nadiSeek seam: a raw setState seek loses races against the Timeline's rAF loop —
   // specs scrub the Timeline slider instead, the app's own pause-and-seek path.)
 
@@ -2140,7 +2159,34 @@ export default function MapView() {
   // V2.2d: time-gating now covers ANY windowed item — a windowed speed_limit (the school zone's
   // members) appears/disappears at its window during playback exactly like the capacity types.
   // Unwindowed legacy items pass isOverlayActive unconditionally (pixel-identical to before).
-  const legacyItems = overlayItems.filter((d) => !CAPACITY_TYPES.has(d.type) && isOverlayActive(d));
+  const legacyActive = overlayItems.filter((d) => !CAPACITY_TYPES.has(d.type) && isOverlayActive(d));
+  // V2.7c C3c — the BIKE BAND: a scenario's bike_lane is a real dedicated lane, so from the lanes band
+  // it renders as the curb-side car lane at TRUE width (the lane model's rightmost car lane, offset
+  // off the sidewalk) in the design's bike green; at the far band it stays a thin green line on the
+  // edge (the change-overlay). `d.path` is never replaced — the band is a rendering of it — so the
+  // overlay seam's vertex pins hold. A bike_lane change is never windowed (not a windowable type),
+  // and the per-frame offset of one or two short polylines is microseconds.
+  const bikeBandRows = band === 'far'
+    ? []
+    : legacyActive.flatMap((d) => {
+        const e = d.type === 'bike_lane' && d.edge ? networkLookup[d.edge] : undefined;
+        if (!e) return [];
+        const m = laneModel(e);
+        const laneCentre = m.bodyOffsetM + m.carWidthM / 2 - LANE_M / 2; // the rightmost car lane
+        return [{ path: offsetPolyline(d.path, laneCentre) }];
+      });
+  const legacyItems = bikeBandRows.length ? legacyActive.filter((d) => !(d.type === 'bike_lane' && d.edge && networkLookup[d.edge])) : legacyActive;
+  const bikeBand = new PathLayer<{ path: LonLat[] }>({
+    id: 'bike-band',
+    data: bikeBandRows,
+    getPath: (d) => d.path,
+    getColor: BIKE_BAND,
+    getWidth: LANE_M,
+    widthUnits: 'meters',
+    widthMinPixels: 2,
+    capRounded: false,
+    jointRounded: true,
+  });
   const capItems = overlayItems.filter((d) => CAPACITY_TYPES.has(d.type) && isOverlayActive(d));
   // V2.2d — the zone TINT: a school zone is a DESIGNATION (like signage, it exists all day), so
   // the tint is ALWAYS visible; the speed-limit overlay items above carry the time-truth. The
@@ -2195,7 +2241,7 @@ export default function MapView() {
     id: 'change-overlay',
     data: legacyItems,
     getPath: (d) => d.path,
-    getColor: (d) => (d.type === 'new_road' ? NEW_ROAD_OVERLAY : EDIT_OVERLAY), // teal proposed road / amber edit
+    getColor: (d) => (d.type === 'new_road' ? NEW_ROAD_OVERLAY : d.type === 'bike_lane' ? BIKE_BAND : EDIT_OVERLAY), // teal proposed road / bike green / amber edit
     getWidth: 6,
     widthUnits: 'pixels',
     capRounded: true,
@@ -2274,6 +2320,7 @@ export default function MapView() {
     ghostCasing, // V2.7c: the ghost's dark casing — reads on the light ground either side of a road
     ghostOverlay, // V2.7b: Act I only — the computing run's member, not in force in this playback
     changeOverlay, // below the dots (above base) → rerouting cars visibly travel ON the proposed road
+    bikeBand, // V2.7c: the true-width bike lane from z ≥ 15
     closureCasing,
     closureDash,
     backgroundVehicleDots,
@@ -2401,9 +2448,9 @@ export default function MapView() {
               </span>
             ) : (
               <>
-                <span style={{ ...legendSwatch, background: css(overlayItems[0].type === 'new_road' ? NEW_ROAD_OVERLAY : EDIT_OVERLAY) }} />
+                <span style={{ ...legendSwatch, background: css(overlayItems[0].type === 'new_road' ? NEW_ROAD_OVERLAY : overlayItems[0].type === 'bike_lane' ? BIKE_BAND : EDIT_OVERLAY) }} />
                 {overlayItems.length === 1
-                  ? (overlayItems[0].type === 'new_road' ? 'proposed road' : 'edited street')
+                  ? (overlayItems[0].type === 'new_road' ? 'proposed road' : overlayItems[0].type === 'bike_lane' ? 'bike lane' : 'edited street')
                   : `${overlayItems.length} changes`}
               </>
             )}
