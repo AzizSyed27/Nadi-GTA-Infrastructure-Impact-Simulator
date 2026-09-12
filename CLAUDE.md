@@ -478,10 +478,27 @@ Suites at the V2.7b close: 689 pytest + 185 Playwright.
 six commits C1–C5 (C2 split a/b), every one gated on the FULL suites; NO contract change, NO data change —
 network.json / golden / artifacts byte-identical after every commit, checked; plan + execution log at
 `~/.claude/plans/begin-v2-7c-map-styling-shimmering-kernighan.md`). Suites at close: **693 pytest + 217
-Playwright**. THE DESIGN DELTA GATE STAYED PENDING ALL ARC: the 0.4 canvas needs the user's `/design-login`
-(refused twice); the arc shipped on the recovered cleanup-turn text under the stated rule (recovered-text-wins
-unless the user re-ratifies from the canvas) — a re-read is the one open closeout item, and any delta it
-surfaces is a ratification stop for the affected element. THE ARC'S CONFLICTS TABLE (ratified vs shipped, all
+Playwright**. THE DESIGN DELTA GATE — CLOSED 2026-09-12: **canvas matches recovery.** It stayed PENDING all
+arc (the 0.4 canvas needed `/design-login`, refused twice; the arc shipped on the recovered cleanup-turn text
+under the stated rule — recovered-text-wins unless the user re-ratifies from the canvas). After `/design-login`
+the canvas was read through `DesignSync get_file` on the design project "Nadi traffic simulation redesign"
+(`36ad50f3-…`, the id in `docs-assets/design-v27/README.md`) — NOT the "Industry" design-system project that
+`list_projects` returns, which is why the earlier attempts found nothing. Every transcribed value the arc
+was reviewed against is in the 0.4 canvas verbatim: the eight palette hexes bound to the same MAP KEY labels,
+the 0.7 opacities, z ≥ 15 / z ≥ 16, "one chevron per 160 screen-px per direction" (+ `{{ arrowEvery }}` in
+§1b), the on-screen-geometry curve rule, the three ladder paragraphs, the centerline rule (1.4 solid + a
+`9 12` dash on #f2f2f3), the draw-preview sentence (in canvas §1e — the recovery labelled it §1d, a label
+slip, no value change) and the printed-transit-map intent. The delta table is EMPTY; no ratification stop.
+Two recovery-SILENT details recorded for V2.7d (not contradictions): the canvas draws the collector dash
+1.1 wide (shipped 1 px, under the 1.4 arterial) and its z ≥ 15 stripe illustration is `14 11` at 1.6 while
+shipped stripes are `[4,4]` path-relative at 1 px — mockup geometry, import rule 1. **THE p95 A/B
+(2026-09-12, same box, both trees rebuilt and measured in one session, quiet box):** the pre-C2a tree
+(`84b934e`) read p95 **14.0 / 14.0 / 13.9 / 14.0 ms** (fat fit / z15.2 / z16.5 ×2) and **14.0 / 14.0 /
+13.9** (pinned fit / z15.2 / z16.5); the shipped tree (`8119ad8`) read **14.1 / 14.0 / 14.1** (fat fit /
+z16.5 ×2) and **13.9** (pinned z16.5) — IDENTICAL. The 16.0–16.1 ms readings recorded at C2a–C5 were
+ENVIRONMENTAL (the 144 Hz display's 8/16 ms quantum on those runs, not the 7/14 one), not styling's cost:
+at frame level the restyle costs less than one vsync quantum on both artifacts. The crossing probe read
+56 ms on the fat run today (32–39 at C4/C5; still far under the 100 ms selector). THE ARC'S CONFLICTS TABLE (ratified vs shipped, all
 recorded): the sidewalk derives from `allows.ped` + a pinned net invariant (no per-lane table on the wire —
 V2.7d's); the bus band renders nowhere (no data); the bike band renders for the bike_lane CHANGE only; the
 collector centerline dash is a z ≥ 15 rung (z13 stipple, looked-at); the chevron glyph and the mode-icon
