@@ -8,6 +8,7 @@ import { RunCard } from '@/components/RunCard';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { DropForm, type DropKind } from '@/components/DropForm';
 import type { Blocker } from '@/lib/draftBlockers';
+import { VIA_CAP } from '@/lib/viaRules';
 
 /** What a tile arms: the five drop kinds, plus the two that enter their own modes (zone-select, the draw). */
 export type ArmKind = DropKind | 'school_zone' | 'new_road';
@@ -451,13 +452,27 @@ export function EditPanel(props: EditPanelProps) {
               <button style={linkBtn} onClick={onReset} data-testid="draw-cancel">
                 cancel
               </button>
+              {/* V2.7d C7 — the ratified §1e caption: the via count against the cap, the two ways out */}
+              <div style={caption} data-testid="draw-caption">
+                VIA {props.viaCount} OF {VIA_CAP} · CLICK A JUNCTION TO END · ESC CANCELS
+              </div>
             </div>
           )}
-          {hint && (
+          {hint && (GENERIC_HINTS.has(hint) ? (
             <div style={hintText} data-testid="draw-hint">
               {hint}
             </div>
-          )}
+          ) : (
+            // V2.7d C7 — the ratified §1e container for a REFUSED click: the treatment is designed, the
+            // words are not (the sentence stays the server's own, verbatim, under the same `draw-hint` pin)
+            <div style={refusal} data-testid="draw-refusal">
+              <div style={refusalKicker}>REFUSED · ENGINE SENTENCE, VERBATIM</div>
+              <div style={hintText} data-testid="draw-hint">
+                {hint}
+              </div>
+              <div style={refusalNote}>the click is not added — the drawing stays as it was; click farther along to continue</div>
+            </div>
+          ))}
           {ptA && ptB && (
             <DrawForm
               key={`${ptA.id}-${ptB.id}`}
@@ -568,6 +583,13 @@ const tileBtn: React.CSSProperties = {
   padding: '8px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', textAlign: 'left',
 };
 const tileActive: React.CSSProperties = { background: '#eef4ff', border: '1px solid #1f4e9c', color: '#1f4e9c' };
+// V2.7d C7 — the draw card's via caption and the refused-click container (behaviour commit; C8 restyles).
+// The two GENERIC draw hints are guidance, not refusals — they never get the REFUSED treatment.
+const GENERIC_HINTS = new Set(['Click nearer a junction.', 'Pick a different junction for the end point.']);
+const caption: React.CSSProperties = { marginTop: 8, fontSize: 10.5, letterSpacing: '0.1em', color: '#8a9099' };
+const refusal: React.CSSProperties = { marginTop: 8, padding: '8px 10px', border: '1px solid #e3b4b4', borderRadius: 8, background: '#fff7f7' };
+const refusalKicker: React.CSSProperties = { fontSize: 10.5, letterSpacing: '0.1em', color: '#b23a3a', marginBottom: 2 };
+const refusalNote: React.CSSProperties = { marginTop: 4, fontSize: 11.5, color: '#6b7280', lineHeight: 1.4 };
 const voiceRow: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 1, marginTop: 8 };
 const voiceLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#1f2937' };
 const voiceComment: React.CSSProperties = { fontSize: 11, color: '#4b5563', lineHeight: 1.4 };

@@ -681,7 +681,14 @@ verbatim pin holds on `.reason` (the sentence stays the change_scheduler literal
 Run button gains "blocked — resolve the conflict on member N to run". Looked at:
 `docs-assets/v27d-c6-blocker.png` (an ELEMENT capture of the draft panel — the card sits below the
 rail's 720 px fold). Gates: draft-basket 27; brake 13 + closure-palette 5 + school-zone 6 + seeds 2
-+ the older basket tests = 43.
++ the older basket tests = 43. (A NADI_SHOTS chunk over brake.spec re-captured four historical
+`v27b-c10-*` frames — restored from git before the commit; the c-plan's overwrite hazard, again.)
+**C7 — §1e: the via caption and the refused-click container.** Mid-draw the card says "VIA {n} OF 8 ·
+CLICK A JUNCTION TO END · ESC CANCELS" (n = the bends placed, 8 = `VIA_CAP` — never a literal); a REFUSED
+via click renders its server sentence VERBATIM under the same `draw-hint` pin, inside a designed
+container ("REFUSED · ENGINE SENTENCE, VERBATIM" + "the click is not added — the drawing stays as it
+was; click farther along to continue"); the two GENERIC draw hints keep the plain treatment — they are
+guidance, not refusals. Gates: edit 12 + via-rules 9.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street

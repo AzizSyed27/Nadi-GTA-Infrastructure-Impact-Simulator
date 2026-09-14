@@ -307,10 +307,13 @@ test('draw a curved road — bends render, the wire carries via, the shape stays
   // — assert each click's UI reflection before the next.
   await seamClick(page, J1.lon, J1.lat);
   await expect(page.getByTestId('draw-card')).toContainText('Start:');
+  // V2.7d C7 — the ratified §1e caption: the via count against the cap, the two ways out
+  await expect(page.getByTestId('draw-caption')).toHaveText('VIA 0 OF 8 · CLICK A JUNCTION TO END · ESC CANCELS');
   await seamClick(page, V1[0], V1[1]);
   await expect(page.getByTestId('bend-count')).toContainText('1 bend');
   await seamClick(page, V2[0], V2[1]);
   await expect(page.getByTestId('bend-count')).toContainText('2 bends');
+  await expect(page.getByTestId('draw-caption')).toHaveText('VIA 2 OF 8 · CLICK A JUNCTION TO END · ESC CANCELS');
   await page.screenshot({ path: 'test-results/edit-curved-draw.png' });
 
   await seamClick(page, J2.lon, J2.lat);
@@ -356,6 +359,9 @@ test('invalid via clicks are refused with the server sentences — no bend added
   // out-of-bbox (also the lat/lon-swap class): the study-area sentence, verbatim
   await seamClick(page, -79.5, 43.75);
   await expect(page.getByTestId('draw-hint')).toHaveText('via point 1 is outside the study area');
+  // V2.7d C7 — the refusal's designed CONTAINER: the treatment is designed, the words are not
+  await expect(page.getByTestId('draw-refusal')).toContainText('REFUSED · ENGINE SENTENCE, VERBATIM');
+  await expect(page.getByTestId('draw-refusal')).toContainText('the click is not added — the drawing stays as it was; click farther along to continue');
   await expect(page.getByTestId('bend-count')).toBeHidden();
 
   // a valid bend, then a second click ~5 m from it -> the min-segment sentence
