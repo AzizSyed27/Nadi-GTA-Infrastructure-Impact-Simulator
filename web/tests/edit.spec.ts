@@ -254,6 +254,8 @@ test('a speed_limit submit walks the regen-free stages and reads 0-reroute as de
   await expect(page.getByTestId('reroute-number')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('reroute-number')).toContainText('absorbed as delay');
   await expect(page.getByTestId('car-delay')).toBeVisible();
+  // V2.7d C8b — the finished run card after the restyle (an element capture)
+  if (process.env.NADI_SHOTS) await page.getByTestId('run-card').screenshot({ path: '../docs-assets/v27d-c8-run-card.png' });
 });
 
 // ---- V2.7d C8a: the restyle's STRUCTURAL pin (looks are looked at; this pins what a test can see) ----

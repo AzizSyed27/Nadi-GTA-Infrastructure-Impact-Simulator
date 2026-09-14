@@ -721,6 +721,28 @@ in six foreground chunks (60 · 65 · 44 · 48 · act-two 15 · act-one 22; chun
 plus the known act-two:478 "no aggregate framing" in-file failure, green alone 1/1 (the pre-existing
 order-sensitive weakness recorded at C1b, unchanged in kind). No python or asset change (pytest not
 re-run; data neutrality checked — golden / fixtures / contract / artifacts / network.json clean). No perf.
+**C8b — the drop form, the zone card and the run card (looks only; file-disjoint from C8a).** The
+three remaining editor surfaces drop their inline style constants for the same `.ed-*` / `.btn`
+classes (DropForm §1d: kicker "NEW MEMBER · <KIND>", the name-plus-id title, the lane table's inert
+sidewalk rows, the window fields, Add as `.btn-primary`; ZonePalette: "NEW MEMBERS · SCHOOL ZONE";
+RunCard: the staged rail's dots read the row's `data-state`, enrich buttons and Clone as
+`.btn-secondary`, the identity form on `.ed-input`). **One structural change a test can see:** the
+road card's Close lanes / Close road / Incident row is a SEGMENTED control — the three
+`palette-type-*` buttons carry `aria-pressed` (the C8b RED, `draft-basket.spec`, which also pins the
+Add button's `btn-primary` class and captures the §1d frame). A kicker first written onto the run
+card ("RUN COMPLETE" over "Run complete") was removed on the looked-at frame — duplication, not
+design. Frames: `v27d-c8-drop-form.png` (the mini-form with a ticked direction and its sentence),
+`v27d-c8-zone.png`, `v27d-c8-run-card.png` (element captures). The border-longhand grep over all
+five editor files: nothing. THE GATE: tsc/lint; **FULL Playwright — 255 ran in six chunks (61 · 65
+· 44 · 48 · act-two 15 · act-one 22).** Five in-chunk failures, every one re-run on the SAME tree:
+edit:418 (the junctions `waitForResponse` in the setup helper, the C4a cold-load class; the file
+13/13 alone), enrich-stream:287 and group-interview:346 (the unrendered-shell / click-stability
+class after a reload; alone 4/4 and 2/2), and the two recorded order-sensitive tests —
+**run-identity:118 failed 2 of 3 ALONE, and the decisive experiment was the stash: the committed
+C8a tree failed 2 of 3 at the same line on the same server**, so it was the box, not C8b; on a
+FRESH dev server it passed 2/2 (the seven-hour-old server had hot-reloaded through a stash cycle —
+the stale-server memory, again); act-two:478 passed 1 of 2 on the fresh server — the pre-arc
+weakness, unchanged in kind, its BACKLOG item written at C9. No python or asset change; no perf.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street

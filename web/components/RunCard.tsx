@@ -102,9 +102,9 @@ export function RunCard({
 
   if (notFound && !status) {
     return (
-      <div style={card} data-testid="run-card">
-        <div style={title}>Run not found</div>
-        <div style={sub}>{runId}</div>
+      <div className="ed-card" data-testid="run-card">
+        <div className="ed-title">Run not found</div>
+        <div className="ed-sub">{runId}</div>
       </div>
     );
   }
@@ -277,22 +277,22 @@ export function RunCard({
   };
 
   return (
-    <div style={card} data-testid="run-card">
-      <div style={title}>{done ? 'Run complete' : failed ? 'Run failed' : 'Running…'}</div>
+    <div className="ed-card" data-testid="run-card">
+      <div className="ed-title">{done ? 'Run complete' : failed ? 'Run failed' : 'Running…'}</div>
       {status?.name && !editingIdentity && (
-        <div style={{ ...title, fontSize: 13, color: '#1f4e9c' }} data-testid="run-name">
+        <div className="ed-run-name" data-testid="run-name">
           {status.name}
         </div>
       )}
-      <div style={sub}>{status?.description || runId}</div>
+      <div className="ed-sub">{status?.description || runId}</div>
       {status?.note && !editingIdentity && (
-        <div style={{ ...sub, opacity: 0.85, whiteSpace: 'pre-wrap' }} data-testid="run-note">
+        <div className="ed-sub" style={{ whiteSpace: 'pre-wrap' }} data-testid="run-note">
           {status.note}
         </div>
       )}
       {status && !editingIdentity && (
         <button
-          style={renameLink}
+          className="ed-link ed-sub"
           data-testid="rename-toggle"
           onClick={() => {
             setNameInput(status.name ?? '');
@@ -305,9 +305,9 @@ export function RunCard({
         </button>
       )}
       {editingIdentity && (
-        <div data-testid="identity-form" style={{ marginBottom: 8 }}>
+        <div data-testid="identity-form" className="ed-window">
           <input
-            style={identityInput}
+            className="ed-input ed-wide"
             value={nameInput}
             maxLength={60}
             placeholder="name (optional)"
@@ -315,7 +315,8 @@ export function RunCard({
             data-testid="name-input"
           />
           <textarea
-            style={{ ...identityInput, resize: 'vertical' }}
+            className="ed-input ed-wide"
+            style={{ resize: 'vertical' }}
             value={noteInput}
             maxLength={500}
             rows={2}
@@ -323,56 +324,56 @@ export function RunCard({
             onChange={(e) => setNoteInput(e.target.value)}
             data-testid="note-input"
           />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button style={enrichBtn} disabled={identityBusy} onClick={saveIdentity} data-testid="identity-save">
+          <div className="ed-actions">
+            <button className="btn btn-secondary" disabled={identityBusy} onClick={saveIdentity} data-testid="identity-save">
               Save
             </button>
-            <button style={renameLink} onClick={() => setEditingIdentity(false)} data-testid="identity-cancel">
+            <button className="ed-link" onClick={() => setEditingIdentity(false)} data-testid="identity-cancel">
               cancel
             </button>
           </div>
           {identityError && (
-            <div style={errText} data-testid="identity-error">
+            <div className="ed-warn" data-testid="identity-error">
               {identityError}
             </div>
           )}
         </div>
       )}
       {demandChip && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="demand-chip">
+        <div className="ed-sub" data-testid="demand-chip">
           demand: {demandChip}
         </div>
       )}
       {status?.demand_profile === 'calibrated_am_peak' && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="comparison-validity-chip">
+        <div className="ed-sub" data-testid="comparison-validity-chip">
           absolute volumes approximate · scenario-vs-baseline is like-for-like
         </div>
       )}
       {status?.assignment === 'settled' && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="assignment-chip">
+        <div className="ed-sub" data-testid="assignment-chip">
           settled response (iterated assignment, drivers only)
           {stage.startsWith('settle') && status?.detail ? ` — ${status.detail}` : ''}
         </div>
       )}
       {zoneChip && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="zone-chip">
+        <div className="ed-sub" data-testid="zone-chip">
           {zoneChip}
         </div>
       )}
       {/* the zone chip already carries the composite's window range — the untagged composite
           chip and the single-change window chip each cover their own shape */}
       {compositeChip && !zoneChip && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="composite-chip">
+        <div className="ed-sub" data-testid="composite-chip">
           {compositeChip}
         </div>
       )}
       {windowChip && !zoneChip && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="window-chip">
+        <div className="ed-sub" data-testid="window-chip">
           {windowChip}
         </div>
       )}
       {(status?.n_seeds ?? 1) > 1 && (
-        <div style={{ ...sub, opacity: 0.8 }} data-testid="seeds-chip">
+        <div className="ed-sub" data-testid="seeds-chip">
           robustness probe: {status?.n_seeds} seeds (42, 43, 44)
           {(stage === 'baseline' || stage === 'scenario') && status?.detail?.startsWith('seed probe')
             ? ` — ${status.detail}`
@@ -381,12 +382,12 @@ export function RunCard({
       )}
 
       {/* staged rail — only the stages this run actually has (runtime changes skip regen) */}
-      <ol style={rail} data-testid="run-stages">
+      <ol className="ed-stages" data-testid="run-stages">
         {STAGES.map((s, i) => {
           const state = failed ? 'idle' : i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'idle';
           return (
-            <li key={s} style={{ ...stageRow, ...(state === 'active' ? stageActive : null) }} data-stage={s} data-state={state}>
-              <span style={{ ...dot, ...(state === 'done' ? dotDone : state === 'active' ? dotActive : null) }} />
+            <li key={s} className="ed-stage" data-stage={s} data-state={state}>
+              <span className="ed-dot" />
               {STAGE_LABEL[s]}
             </li>
           );
@@ -394,53 +395,53 @@ export function RunCard({
       </ol>
 
       {enriching && (
-        <div style={enrichNote} data-testid="enrich-running">
+        <div className="ed-winlabel" data-testid="enrich-running">
           Enriching: {stage.replace('enrich:', '')}…{enrichProgressText ? ` ${enrichProgressText}` : ''}
         </div>
       )}
       {enriching && streamDegraded && (
-        <div style={{ ...sub, opacity: 0.85, marginTop: 4 }} data-testid="enrich-stream-degraded">
+        <div className="ed-sub" data-testid="enrich-stream-degraded">
           live stream unavailable — updating by poll
         </div>
       )}
-      {failed && <div style={errText} data-testid="run-failed">{status?.detail || 'the run failed'}</div>}
+      {failed && <div className="ed-warn" data-testid="run-failed">{status?.detail || 'the run failed'}</div>}
 
       {done && (
         <>
-          <div style={theNumber} data-testid="reroute-number">{rerouteLabel}</div>
-          {carDelay && <div style={carDelayLine} data-testid="car-delay">{carDelay}</div>}
+          <div className="ed-number" data-testid="reroute-number">{rerouteLabel}</div>
+          {carDelay && <div className="ed-hint" data-testid="car-delay">{carDelay}</div>}
           {ncLine && (
-            <div style={carDelayLine} data-testid="non-completions">{ncLine}</div>
+            <div className="ed-hint" data-testid="non-completions">{ncLine}</div>
           )}
           {responseLine && rd && (
-            <div style={{ ...sub, opacity: 0.85 }} data-testid="response-access-chip">
+            <div className="ed-sub" data-testid="response-access-chip">
               response access: {responseLine}
-              <div style={{ opacity: 0.75, fontSize: '0.85em' }}>
+              <div className="ed-sub-note">
                 {rd.framing}; {rd.lower_bound_note}
               </div>
             </div>
           )}
-          <div style={enrichLabel}>Enrich this run</div>
-          <div style={enrichRow} data-testid="enrich-buttons">
+          <div className="ed-label">Enrich this run</div>
+          <div className="ed-btnrow" data-testid="enrich-buttons">
             {ENRICH.map((e) => (
               <button
                 key={e.stage}
-                style={{ ...enrichBtn, ...(enrichBusy ? enrichBtnBusy : null) }}
+                className="btn btn-secondary"
                 title={e.tip}
                 disabled={enrichBusy !== null}
                 onClick={() => runEnrich(e.stage)}
                 data-testid={`enrich-${e.stage}`}
               >
-                {e.label} <span style={costTag}>{e.cost}</span>
+                {e.label} <span className="ed-cost">{e.cost}</span>
               </button>
             ))}
           </div>
-          {enrichError && <div style={errText} data-testid="enrich-error">{enrichError}</div>}
+          {enrichError && <div className="ed-warn" data-testid="enrich-error">{enrichError}</div>}
           {/* V2.4c — clone this run's changes[] into a fresh draft (D4: iterate by adjusting the
               thing that almost worked; name/note never copied — a new scenario earns its own) */}
           {members.length > 0 && onClone && status && (
             <button
-              style={{ ...enrichBtn, marginTop: 8 }}
+              className="btn btn-secondary ed-mt"
               onClick={() => onClone(status)}
               data-testid="clone-to-draft"
             >
@@ -453,50 +454,4 @@ export function RunCard({
   );
 }
 
-const card: React.CSSProperties = {
-  flexShrink: 0,
-  pointerEvents: 'auto',
-  background: 'rgba(255,255,255,0.98)',
-  border: '1px solid #d7dbe0',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-  padding: '12px 14px',
-  fontFamily: 'system-ui, sans-serif',
-  color: '#374151',
-};
-const title: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 2 };
-const sub: React.CSSProperties = { fontSize: 11, color: '#8a9099', marginBottom: 10, wordBreak: 'break-all' };
-// V2.4c — the identity affordance
-const renameLink: React.CSSProperties = {
-  border: 'none', background: 'transparent', color: '#8a9099', fontSize: 11,
-  cursor: 'pointer', textDecoration: 'underline', padding: 0, marginBottom: 8,
-};
-const identityInput: React.CSSProperties = {
-  display: 'block', width: '100%', boxSizing: 'border-box', border: '1px solid #cbd3dc',
-  borderRadius: 8, padding: '6px 8px', fontSize: 12, color: '#374151', marginBottom: 6,
-  fontFamily: 'system-ui, sans-serif',
-};
-const rail: React.CSSProperties = { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 5 };
-const stageRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9aa0a8' };
-const stageActive: React.CSSProperties = { color: '#1f4e9c', fontWeight: 600 };
-const dot: React.CSSProperties = { width: 9, height: 9, borderRadius: '50%', background: '#d4d8de', flex: '0 0 auto' };
-const dotDone: React.CSSProperties = { background: '#3caa5a' };
-const dotActive: React.CSSProperties = { background: '#1f4e9c' };
-const enrichNote: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#1f4e9c', fontWeight: 600 };
-const theNumber: React.CSSProperties = { marginTop: 10, fontSize: 13, color: '#374151', lineHeight: 1.4, fontWeight: 600 };
-const carDelayLine: React.CSSProperties = { marginTop: 4, fontSize: 12, color: '#6b7280' };
-const enrichLabel: React.CSSProperties = { marginTop: 12, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8a9099' };
-const enrichRow: React.CSSProperties = { marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' };
-const enrichBtn: React.CSSProperties = {
-  border: '1px solid #cbd3dc',
-  background: '#f6f8fa',
-  borderRadius: 8,
-  padding: '6px 10px',
-  fontSize: 12,
-  fontWeight: 600,
-  color: '#374151',
-  cursor: 'pointer',
-};
-const enrichBtnBusy: React.CSSProperties = { opacity: 0.5, cursor: 'default' };
-const costTag: React.CSSProperties = { color: '#8a9099', fontWeight: 500, marginLeft: 3 };
-const errText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23a3a' };
+// V2.7d C8b — every look lives in app/nadi.css under `.nadi-shell .ed-*` / `.btn` (the rail carries the class).

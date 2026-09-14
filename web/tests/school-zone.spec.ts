@@ -101,6 +101,8 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
 
   await page.getByTestId('zone-mode-toggle').click();
   await expect(page.getByTestId('zone-palette')).toBeVisible();
+  // V2.7d C8b: the zone card after the restyle (an element capture; looks are looked at, not pinned)
+  if (process.env.NADI_SHOTS) await page.getByTestId('zone-palette').screenshot({ path: '../docs-assets/v27d-c8-zone.png' });
   // a zone draft is windowed BY DESIGN → the D1 lock engages on entry, with the exact reason
   await expect(page.getByTestId('option-assignment')).toBeDisabled();
   await expect(page.getByTestId('assignment-locked-reason')).toHaveText(D1_REASON);

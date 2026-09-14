@@ -53,24 +53,25 @@ export function ZonePalette({
         : `${Number(winStart)}–${Number(winStart) + Number(winDur)} min`;
 
   return (
-    <div style={card} data-testid="zone-palette">
-      <div style={title}>🏫 School zone</div>
-      <div style={hint}>
+    <div className="ed-card" data-testid="zone-palette">
+      <div className="ed-kicker">NEW MEMBERS · SCHOOL ZONE</div>
+      <div className="ed-title">🏫 School zone</div>
+      <div className="ed-muted">
         Click streets on the map to add them to the zone. Each gets the same reduced limit during
         the window.
       </div>
 
-      <div style={fieldLabel}>Zone streets ({edges.length})</div>
+      <div className="ed-label">Zone streets ({edges.length})</div>
       {edges.length === 0 ? (
-        <div style={hint} data-testid="zone-empty-hint">
+        <div className="ed-hint" data-testid="zone-empty-hint">
           none yet — click a street on the map
         </div>
       ) : (
-        <ul style={edgeList} data-testid="zone-edge-list">
+        <ul className="ed-members" data-testid="zone-edge-list">
           {edges.map((id) => (
-            <li key={id} style={edgeRow} data-testid={`zone-edge-${id}`}>
-              <code style={edgeCode}>{id}</code>
-              <button style={removeBtn} onClick={() => onRemoveEdge(id)} disabled={submitting}
+            <li key={id} className="ed-member" data-testid={`zone-edge-${id}`}>
+              <span className="ed-code">{id}</span>
+              <button className="ed-x" onClick={() => onRemoveEdge(id)} disabled={submitting}
                       data-testid={`zone-remove-${id}`} aria-label={`remove ${id}`}>
                 ✕
               </button>
@@ -79,52 +80,53 @@ export function ZonePalette({
         </ul>
       )}
 
-      <label style={field}>
-        Zone speed limit (km/h)
+      <label className="ed-field">
+        <span className="ed-muted">Zone speed limit (km/h)</span>
         <input
           type="number"
           min={5}
           step={5}
           value={speedKmh}
           onChange={(e) => setSpeedKmh(Math.max(5, Number(e.target.value) || 5))}
-          style={input}
+          className="ed-input"
           data-testid="zone-speed"
         />
       </label>
 
-      <div style={fieldLabel}>Active window (required — the zone is a time-of-day designation)</div>
-      <div style={winRow}>
-        <label style={winField}>
-          start (min)
+      <div className="ed-label">Active window (required — the zone is a time-of-day designation)</div>
+      <div className="ed-winrow">
+        <label className="ed-field">
+          <span className="ed-muted">start (min)</span>
           <input type="number" min={0} step={1} value={winStart} onChange={(e) => setWinStart(e.target.value)}
-                 style={input} data-testid="zone-window-start" />
+                 className="ed-input" data-testid="zone-window-start" />
         </label>
-        <label style={winField}>
-          duration (min)
+        <label className="ed-field">
+          <span className="ed-muted">duration (min)</span>
           <input type="number" min={1} step={1} value={winDur} onChange={(e) => setWinDur(e.target.value)}
-                 style={input} data-testid="zone-window-duration" />
+                 className="ed-input" data-testid="zone-window-duration" />
         </label>
       </div>
       {windowLabel && (
-        <div style={winLabel} data-testid="zone-window-label">
+        <div className="ed-winlabel" data-testid="zone-window-label">
           reduced limits apply {windowLabel}
         </div>
       )}
 
-      <button
-        style={{ ...primaryBtn, marginTop: 10, ...(canApply ? null : disabledBtn) }}
-        disabled={!canApply}
-        onClick={() => window && onSubmit(speedKmh / 3.6, window)}
-        data-testid="apply-school-zone"
-      >
-        Add to draft ({edges.length} street{edges.length === 1 ? '' : 's'})
-      </button>
-
-      <button style={linkBtn} onClick={onCancel} disabled={submitting} data-testid="zone-cancel">
-        cancel
-      </button>
+      <div className="ed-actions">
+        <button
+          className="btn btn-primary"
+          disabled={!canApply}
+          onClick={() => window && onSubmit(speedKmh / 3.6, window)}
+          data-testid="apply-school-zone"
+        >
+          Add to draft ({edges.length} street{edges.length === 1 ? '' : 's'})
+        </button>
+        <button className="ed-link" onClick={onCancel} disabled={submitting} data-testid="zone-cancel">
+          cancel
+        </button>
+      </div>
       {submitError && (
-        <div style={errText} data-testid="zone-error">
+        <div className="ed-warn" data-testid="zone-error">
           {submitError}
         </div>
       )}
@@ -132,47 +134,4 @@ export function ZonePalette({
   );
 }
 
-const card: React.CSSProperties = {
-  flexShrink: 0,
-  pointerEvents: 'auto',
-  background: 'rgba(255,255,255,0.98)',
-  border: '1px solid #d7dbe0',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-  padding: '12px 14px',
-  fontFamily: 'system-ui, sans-serif',
-  color: '#374151',
-};
-const title: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 6 };
-const hint: React.CSSProperties = { fontSize: 12, color: '#6b7280', marginBottom: 8, lineHeight: 1.5 };
-const fieldLabel: React.CSSProperties = { fontSize: 12, color: '#6b7280', marginBottom: 4 };
-const edgeList: React.CSSProperties = { listStyle: 'none', margin: '0 0 8px', padding: 0, maxHeight: 130, overflowY: 'auto' };
-const edgeRow: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '2px 0' };
-const edgeCode: React.CSSProperties = { fontSize: 11.5, wordBreak: 'break-all' };
-const removeBtn: React.CSSProperties = { border: 'none', background: 'transparent', color: '#8a9099', cursor: 'pointer', fontSize: 12 };
-const field: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6b7280', marginBottom: 8 };
-const input: React.CSSProperties = { border: '1px solid #cbd3dc', borderRadius: 8, padding: '6px 8px', fontSize: 13, color: '#374151' };
-const winRow: React.CSSProperties = { display: 'flex', gap: 8 };
-const winField: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, color: '#6b7280', flex: 1 };
-const winLabel: React.CSSProperties = { marginTop: 5, fontSize: 12, color: '#1f4e9c', fontWeight: 600 };
-const primaryBtn: React.CSSProperties = {
-  border: 'none',
-  background: '#1f4e9c',
-  color: '#fff',
-  borderRadius: 8,
-  padding: '8px 14px',
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: 'pointer',
-};
-const disabledBtn: React.CSSProperties = { opacity: 0.5, cursor: 'not-allowed' };
-const linkBtn: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: '#8a9099',
-  fontSize: 12,
-  cursor: 'pointer',
-  textDecoration: 'underline',
-  marginTop: 10,
-};
-const errText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23a3a' };
+// V2.7d C8b — every look lives in app/nadi.css under `.nadi-shell .ed-*` / `.btn` (the rail carries the class).

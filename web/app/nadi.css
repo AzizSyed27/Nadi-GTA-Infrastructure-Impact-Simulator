@@ -333,3 +333,45 @@
 .nadi-shell .ed-voice { display: flex; flex-direction: column; gap: 1px; margin-top: var(--space-2); }
 .nadi-shell .ed-voice-label { font-size: 11.5px; font-weight: 600; }
 .nadi-shell .ed-voice-text { font-size: 11.5px; line-height: 1.4; color: var(--color-neutral-800); }
+/* C8b — the drop form (§1d), the school-zone card and the run card */
+.nadi-shell .ed-section { border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); padding-top: var(--space-3); margin-top: var(--space-2); }
+.nadi-shell .ed-window { margin-top: var(--space-2); }
+.nadi-shell .ed-mt { margin-top: var(--space-3); }
+.nadi-shell .ed-wide { width: 100%; box-sizing: border-box; }
+.nadi-shell .ed-lanes { display: grid; gap: var(--space-1); margin-bottom: var(--space-1); }
+.nadi-shell .ed-lane-inert { font-size: 12.5px; color: var(--color-neutral-500); padding-left: 22px; }
+.nadi-shell .ed-check-off { color: var(--color-neutral-500); cursor: not-allowed; }
+.nadi-shell .ed-winrow { display: flex; gap: var(--space-2); }
+.nadi-shell .ed-winrow > .ed-field { flex: 1 1 0; margin-bottom: 0; }
+.nadi-shell .ed-winlabel {
+  margin-top: var(--space-1);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+}
+.nadi-shell .ed-note-strong { margin: var(--space-1) 0; font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+.nadi-shell .ed-sub { font-size: 12px; line-height: 1.4; color: var(--color-neutral-700); margin-bottom: var(--space-2); overflow-wrap: anywhere; }
+.nadi-shell .ed-sub-note { font-size: 11px; color: var(--color-neutral-600); margin-top: 2px; }
+.nadi-shell .ed-run-name {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 15px;
+  color: var(--color-accent-700);
+  margin-bottom: var(--space-1);
+  overflow-wrap: anywhere;
+}
+.nadi-shell .ed-number { margin-top: var(--space-3); font-size: 14px; font-weight: 600; line-height: 1.4; }
+.nadi-shell .ed-btnrow { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+.nadi-shell .ed-btnrow .btn, .nadi-shell .ed-actions .btn-secondary { font-size: 12px; letter-spacing: 0.04em; padding: var(--space-1) var(--space-2); }
+.nadi-shell .ed-cost { color: var(--color-neutral-600); font-weight: 400; margin-left: 2px; }
+/* the run card's staged rail — the dot reads the row's data-state */
+.nadi-shell .ed-stages { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.nadi-shell .ed-stage { display: flex; align-items: center; gap: var(--space-2); font-size: 12.5px; color: var(--color-neutral-500); }
+.nadi-shell .ed-stage[data-state="active"] { color: var(--color-accent-700); font-weight: 600; }
+.nadi-shell .ed-stage[data-state="done"] { color: var(--color-neutral-700); }
+.nadi-shell .ed-dot { width: 9px; height: 9px; border-radius: 0; background: var(--color-neutral-300); flex: 0 0 auto; }
+.nadi-shell .ed-stage[data-state="done"] > .ed-dot { background: var(--color-accent-400); }
+.nadi-shell .ed-stage[data-state="active"] > .ed-dot { background: var(--color-accent); }

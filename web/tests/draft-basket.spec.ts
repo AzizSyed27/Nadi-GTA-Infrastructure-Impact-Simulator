@@ -279,6 +279,29 @@ test('V2.7d C4a: the seam opens the drop form pre-set to a kind, with lane rows 
   await expect(page.getByTestId('palette-type-lane-closure')).toBeVisible();
 });
 
+test('V2.7d C8b: the road card\'s kind row is a segmented control; the form\'s Add is the DS primary button', async ({ page }) => {
+  await mockBackend(page, { names: { E_A: 'Lawrence Avenue East' }, partner: true });
+  await openEdit(page);
+  await pickEdge(page, 'E_A');
+  // the ROAD CARD (no kind): the three kind buttons carry a pressed state, none pressed at first
+  await expect(page.getByTestId('palette-type-lane-closure')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('palette-type-lane-closure').click();
+  await expect(page.getByTestId('palette-type-lane-closure')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('palette-type-road-closure')).toHaveAttribute('aria-pressed', 'false');
+  // the DS button classes resolve under the rail's .nadi-shell — Add is primary, cancel is a link
+  await expect(page.getByTestId('apply-lane-closure')).toHaveClass(/(^|\s)btn-primary(\s|$)/);
+  await page.getByTestId('palette-cancel').click();
+  // the §1d frame: the drop form pre-set to a kind, one direction ticked, the consequence said
+  await page.evaluate(() =>
+    (window as unknown as { __nadiEditEdge: (x: string, k?: string) => void }).__nadiEditEdge('E_A', 'lane_closure'));
+  await expect(page.getByTestId('drop-form')).toContainText('NEW MEMBER · LANE CLOSURE');
+  await page.getByTestId('lane-check-1').check();
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('closes northbound only — southbound stays open');
+  if (process.env.NADI_SHOTS) await page.getByTestId('drop-form').screenshot({ path: '../docs-assets/v27d-c8-drop-form.png' });
+  const body = await page.getByTestId('edit-panel').innerText();
+  expect(body).not.toMatch(BANNED);
+});
+
 test('V2.7d C4a: ticking one direction SAYS so before Run; ticking both emits one member per directional edge', async ({ page }) => {
   const getBody = await mockBackend(page, { partner: true });
   await openEdit(page);

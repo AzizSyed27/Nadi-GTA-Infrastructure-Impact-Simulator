@@ -122,18 +122,18 @@ export function DropForm({
   // input count stays the car-lane count). `bothSides` lists the partner's rows too (lane closure);
   // an incident stays single-edge (positional).
   const lanePicker = (bothSides: boolean) => (
-    <div style={laneRow} data-testid="lane-picker">
+    <div className="ed-lanes" data-testid="lane-picker">
       {rows.filter((r) => bothSides || r.side === 'primary').map((r) => {
         const tid = r.side === 'primary' ? `lane-check-${r.sumoIndex}` : `lane-check-rev-${r.sumoIndex}`;
         if (r.kind !== 'general') {
           return (
-            <span key={tid} style={laneInert} title="not a car lane — not closable">
+            <span key={tid} className="ed-lane-inert" title="not a car lane — not closable">
               {r.label}
             </span>
           );
         }
         return (
-          <label key={tid} style={{ ...laneCheck, ...(r.closable ? null : laneOff) }} title={r.reason}>
+          <label key={tid} className={r.closable ? 'ed-check' : 'ed-check ed-check-off'} title={r.reason}>
             <input
               type="checkbox"
               checked={laneSel[r.side].includes(r.sumoIndex)}
@@ -149,24 +149,24 @@ export function DropForm({
   );
 
   const windowBlock = (required: boolean) => (
-    <div style={{ marginTop: 8 }}>
-      <div style={fieldLabel}>
+    <div className="ed-window">
+      <div className="ed-label">
         Active window {required ? '(required — a temporary event)' : '(optional — leave empty for the whole run)'}
       </div>
-      <div style={winRow}>
-        <label style={winField}>
-          start (min)
+      <div className="ed-winrow">
+        <label className="ed-field">
+          <span className="ed-muted">start (min)</span>
           <input type="number" min={0} step={1} value={winStart} onChange={(e) => setWinStart(e.target.value)}
-                 style={input} data-testid="window-start" />
+                 className="ed-input" data-testid="window-start" />
         </label>
-        <label style={winField}>
-          duration (min)
+        <label className="ed-field">
+          <span className="ed-muted">duration (min)</span>
           <input type="number" min={1} step={1} value={winDur} onChange={(e) => setWinDur(e.target.value)}
-                 style={input} data-testid="window-duration" />
+                 className="ed-input" data-testid="window-duration" />
         </label>
       </div>
       {windowLabel && (
-        <div style={winLabel} data-testid="window-label">
+        <div className="ed-winlabel" data-testid="window-label">
           active {windowLabel}
         </div>
       )}
@@ -178,24 +178,24 @@ export function DropForm({
   const targets = bothDirs && partner ? [edge, partner] : [edge];
   // the both-directions box: only on a two-way street, for the road closure and the speed limit
   const bothBox = (verb: 'closes' | 'applies') => (
-    <div style={{ marginTop: 6 }}>
+    <div className="ed-window">
       {partner && (
-        <label style={laneCheck}>
+        <label className="ed-check">
           <input type="checkbox" checked={bothDirs} onChange={(e) => setBothDirs(e.target.checked)} data-testid="both-directions" />
           both directions ({edgeLabel(partner.network.name, partner.id)} too)
         </label>
       )}
-      <div style={noteText} data-testid="drop-direction-note">{applyNote(edge.network, pn, bothDirs, verb)}</div>
+      <div className="ed-note-strong" data-testid="drop-direction-note">{applyNote(edge.network, pn, bothDirs, verb)}</div>
     </div>
   );
   const bothVerb: 'closes' | 'applies' | null =
     eventKind === 'road_closure' ? 'closes' : eventKind === null && kind !== 'bike_lane' ? 'applies' : null;
 
   return (
-    <div style={card} data-testid={kind ? 'drop-form' : 'edge-palette'}>
-      <div style={kicker}>{kind ? `NEW MEMBER · ${KIND_TITLE[kind]}` : 'EDIT THIS ROAD'}</div>
-      <div style={title}>{edgeLabel(edge.network.name, edge.id)}</div>
-      <div style={meta}>
+    <div className="ed-card" data-testid={kind ? 'drop-form' : 'edge-palette'}>
+      <div className="ed-kicker">{kind ? `NEW MEMBER · ${KIND_TITLE[kind]}` : 'EDIT THIS ROAD'}</div>
+      <div className="ed-title">{edgeLabel(edge.network.name, edge.id)}</div>
+      <div className="ed-muted">
         {betweenText ? `${betweenText} · ` : ''}
         {laneCount} {laneCount === 1 ? 'lane' : 'lanes'} · {edge.car_lane_count} car {edge.car_lane_count === 1 ? 'lane' : 'lanes'} this direction · current speed{' '}
         {(edge.speed_mps * 3.6).toFixed(0)} km/h
@@ -206,21 +206,21 @@ export function DropForm({
       {bothVerb && bothBox(bothVerb)}
 
       {(!kind || kind === 'speed_limit') && (
-          <div style={section}>
-            <label style={field}>
-              New speed limit (m/s)
+          <div className="ed-section">
+            <label className="ed-field">
+              <span className="ed-muted">New speed limit (m/s)</span>
               <input
                 type="number"
                 min={1}
                 step={0.1}
                 value={speed}
                 onChange={(e) => setSpeed(Math.max(1, Number(e.target.value) || 1))}
-                style={input}
+                className="ed-input"
                 data-testid="palette-speed"
               />
             </label>
             <button
-              style={{ ...primaryBtn, ...(submitting ? busyBtn : null) }}
+              className="btn btn-primary"
               disabled={submitting}
               onClick={() => onSpeedLimits(targets.map((t) => ({
                 type: 'speed_limit', target_edge: t.id, value_mps: speed,
@@ -235,9 +235,9 @@ export function DropForm({
 
       {(!kind || kind === 'bike_lane') && (
         <>
-          <div style={section}>
+          <div className="ed-section">
             <button
-              style={{ ...secondaryBtn, ...(edge.eligible_bike_lane && !submitting ? null : disabledBtn) }}
+              className="btn btn-secondary ed-wide"
               disabled={!edge.eligible_bike_lane || submitting}
               title={edge.eligible_bike_lane ? undefined : edge.eligibility_reason}
               onClick={onBikeLane}
@@ -246,7 +246,7 @@ export function DropForm({
               Convert curbside lane to bike lane
             </button>
             {!edge.eligible_bike_lane && (
-              <div style={reasonText} data-testid="bike-ineligible-reason">
+              <div className="ed-hint" data-testid="bike-ineligible-reason">
                 {edge.eligibility_reason}
               </div>
             )}
@@ -255,20 +255,21 @@ export function DropForm({
       )}
 
       {/* V2.2c — temporary events (closures + incident). Mechanical copy only, never asserted benefit. */}
-      <div style={section}>
+      <div className="ed-section">
         {!kind && (
           <>
-            <div style={fieldLabel}>Close / disrupt</div>
-            <div style={kindRow}>
-              <button style={{ ...kindBtn, ...(eventKind === 'lane_closure' ? kindActive : null) }}
+            <div className="ed-label">Close / disrupt</div>
+            {/* V2.7d C8b: the kind row is a SEGMENTED control (aria-pressed = the picked kind) */}
+            <div className="ed-seg" role="group" aria-label="Close / disrupt">
+              <button type="button" aria-pressed={eventKind === 'lane_closure'}
                       onClick={() => pickKind('lane_closure')} data-testid="palette-type-lane-closure">
                 Close lanes
               </button>
-              <button style={{ ...kindBtn, ...(eventKind === 'road_closure' ? kindActive : null) }}
+              <button type="button" aria-pressed={eventKind === 'road_closure'}
                       onClick={() => pickKind('road_closure')} data-testid="palette-type-road-closure">
                 Close road
               </button>
-              <button style={{ ...kindBtn, ...(eventKind === 'incident' ? kindActive : null) }}
+              <button type="button" aria-pressed={eventKind === 'incident'}
                       onClick={() => pickKind('incident')} data-testid="palette-type-incident">
                 Incident
               </button>
@@ -278,15 +279,15 @@ export function DropForm({
 
         {eventKind === 'lane_closure' && (
           <>
-            <div style={fieldLabel}>Which lanes — from this road&rsquo;s lane table</div>
+            <div className="ed-label">Which lanes — from this road&rsquo;s lane table</div>
             {lanePicker(true)}
             {note && (
-              <div style={noteText} data-testid="drop-direction-note">
+              <div className="ed-note-strong" data-testid="drop-direction-note">
                 {note}
               </div>
             )}
             {windowBlock(false)}
-            <button style={{ ...primaryBtn, marginTop: 10, ...(canApply ? null : disabledBtn) }}
+            <button className="btn btn-primary ed-mt"
                     disabled={!canApply}
                     onClick={() => onLaneClosures(emitLaneClosures(edge.network, partner?.network ?? null, laneSel, window))}
                     data-testid="apply-lane-closure">
@@ -298,7 +299,7 @@ export function DropForm({
         {eventKind === 'road_closure' && (
           <>
             {windowBlock(false)}
-            <button style={{ ...primaryBtn, marginTop: 10, ...(canApply ? null : disabledBtn) }}
+            <button className="btn btn-primary ed-mt"
                     disabled={!canApply}
                     onClick={() => onRoadClosures(targets.map((t) => ({
                       type: 'road_closure', target_edge: t.id, ...(window ? { window } : {}),
@@ -311,12 +312,12 @@ export function DropForm({
 
         {eventKind === 'incident' && (
           <>
-            <div style={fieldLabel}>Blocked lanes (optional if a slowdown is set)</div>
+            <div className="ed-label">Blocked lanes (optional if a slowdown is set)</div>
             {lanePicker(false)}
-            <label style={{ ...field, marginTop: 6 }}>
-              Slowdown
+            <label className="ed-field ed-window">
+              <span className="ed-muted">Slowdown</span>
               <select value={slowdown} onChange={(e) => setSlowdown(e.target.value as typeof slowdown)}
-                      style={input} data-testid="incident-slowdown">
+                      className="ed-input" data-testid="incident-slowdown">
                 <option value="">none</option>
                 <option value="75">to 75% speed</option>
                 <option value="50">to 50% speed</option>
@@ -324,7 +325,7 @@ export function DropForm({
               </select>
             </label>
             {windowBlock(true)}
-            <button style={{ ...primaryBtn, marginTop: 10, ...(canApply ? null : disabledBtn) }}
+            <button className="btn btn-primary ed-mt"
                     disabled={!canApply}
                     onClick={() =>
                       window && onIncident({ lanes: laneSel.primary, speedFactor: slowdown === '' ? null : Number(slowdown) / 100, window })}
@@ -335,11 +336,13 @@ export function DropForm({
         )}
       </div>
 
-      <button style={linkBtn} onClick={onCancel} disabled={submitting} data-testid="palette-cancel">
-        cancel
-      </button>
+      <div className="ed-actions">
+        <button className="ed-link" onClick={onCancel} disabled={submitting} data-testid="palette-cancel">
+          cancel
+        </button>
+      </div>
       {submitError && (
-        <div style={errText} data-testid="palette-error">
+        <div className="ed-warn" data-testid="palette-error">
           {submitError}
         </div>
       )}
@@ -347,80 +350,4 @@ export function DropForm({
   );
 }
 
-const card: React.CSSProperties = {
-  flexShrink: 0,
-  pointerEvents: 'auto',
-  background: 'rgba(255,255,255,0.98)',
-  border: '1px solid #d7dbe0',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-  padding: '12px 14px',
-  fontFamily: 'system-ui, sans-serif',
-  color: '#374151',
-};
-const kicker: React.CSSProperties = { fontSize: 10.5, letterSpacing: '0.1em', color: '#8a9099', marginBottom: 2 };
-const title: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 4 };
-const meta: React.CSSProperties = { fontSize: 12, color: '#6b7280', marginBottom: 10, lineHeight: 1.5, wordBreak: 'break-word' };
-const section: React.CSSProperties = { borderTop: '1px solid #eef1f4', paddingTop: 10, marginTop: 6 };
-const field: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6b7280', marginBottom: 8 };
-const fieldLabel: React.CSSProperties = { fontSize: 12, color: '#6b7280', marginBottom: 4 };
-const noteText: React.CSSProperties = { fontSize: 12, color: '#374151', fontWeight: 600, margin: '4px 0 2px' };
-const input: React.CSSProperties = { border: '1px solid #cbd3dc', borderRadius: 8, padding: '6px 8px', fontSize: 13, color: '#374151' };
-const primaryBtn: React.CSSProperties = {
-  border: 'none',
-  background: '#1f4e9c',
-  color: '#fff',
-  borderRadius: 8,
-  padding: '8px 14px',
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: 'pointer',
-};
-const busyBtn: React.CSSProperties = { opacity: 0.6, cursor: 'default' };
-const secondaryBtn: React.CSSProperties = {
-  width: '100%',
-  border: '1px solid #cbd3dc',
-  background: '#f6f8fa',
-  color: '#374151',
-  borderRadius: 8,
-  padding: '8px 12px',
-  fontSize: 12.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-const disabledBtn: React.CSSProperties = { opacity: 0.5, cursor: 'not-allowed', color: '#9aa0a8' };
-const reasonText: React.CSSProperties = { marginTop: 6, fontSize: 11.5, color: '#8a9099', lineHeight: 1.4 };
-const linkBtn: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: '#8a9099',
-  fontSize: 12,
-  cursor: 'pointer',
-  textDecoration: 'underline',
-  marginTop: 10,
-};
-const errText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23a3a' };
-const kindRow: React.CSSProperties = { display: 'flex', gap: 6, marginBottom: 6 };
-const kindBtn: React.CSSProperties = {
-  flex: 1,
-  border: '1px solid #cbd3dc',
-  background: '#f6f8fa',
-  color: '#374151',
-  borderRadius: 8,
-  padding: '6px 4px',
-  fontSize: 11.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-// the FULL shorthand, not `borderColor`: this object is spread over `kindBtn` (which carries
-// `border`), and a shorthand meeting its longhand across a spread is where the colour gets dropped
-const kindActive: React.CSSProperties = {
-  background: '#eef4ff', border: '1px solid #1f4e9c', color: '#1f4e9c',
-};
-const laneRow: React.CSSProperties = { display: 'grid', gap: 5, marginBottom: 4 };
-const laneCheck: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#374151' };
-const laneOff: React.CSSProperties = { color: '#9aa0a8' };
-const laneInert: React.CSSProperties = { fontSize: 12, color: '#9aa0a8', paddingLeft: 22 };
-const winRow: React.CSSProperties = { display: 'flex', gap: 8 };
-const winField: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, color: '#6b7280', flex: 1 };
-const winLabel: React.CSSProperties = { marginTop: 5, fontSize: 12, color: '#1f4e9c', fontWeight: 600 };
+// V2.7d C8b — every look lives in app/nadi.css under `.nadi-shell .ed-*` / `.btn` (the rail carries the class).
