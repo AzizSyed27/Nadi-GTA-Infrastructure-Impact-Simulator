@@ -8,7 +8,7 @@ import {
   severs,
 } from '../lib/draftBlockers';
 import type { EdgeEligibility, SimChange } from '../lib/api';
-import { netEdge } from './support/net';
+import { CAR, laneTable, netEdge } from './support/net';
 
 /**
  * V2.4a — the draft basket. Two halves:
@@ -144,31 +144,41 @@ type DraftSeam = {
   items: { id: string; type: string; windowed: boolean }[];
 };
 
-async function mockBackend(page: Page, opts: { reject?: { status: number; detail: string }; names?: Record<string, string> } = {}) {
+async function mockBackend(page: Page, opts: { reject?: { status: number; detail: string }; names?: Record<string, string>; partner?: boolean } = {}) {
   await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   let lastBody: Record<string, unknown> | null = null;
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
+  // V2.7d C4a: `partner` adds `-E_A`, the westbound NODE-PAIR partner of E_A (one car lane), and links
+  // the two through `reverse` — the both-directions lane rows read it
+  // The table must AGREE with each edge's `car_lane_indices` (C4a's closable set is their intersection):
+  // E_A [1,2] carries the curb sidewalk at 0; E_B [0,1] and E_C [0] have a car lane AT the curb, so they
+  // are the net's ped-on-car-lane shape (allows.ped, no sidewalk lane — 28 such edges exist).
+  const netEdges = EDGES.map((e) => netEdge({
+    id: e.id, geometry: e.geometry,
+    lanes: e.car_lane_indices.includes(0) ? e.car_lane_indices.map(() => CAR) : laneTable(e.car_lane_indices.length + 1, true),
+    speed_mps: 13.9,
+    oneway: false, allows: { car: true, bike: true, ped: true }, name: opts.names?.[e.id] ?? null,
+    reverse: opts.partner && e.id === 'E_A' ? '-E_A' : null,
+  }));
+  if (opts.partner) {
+    netEdges.push(netEdge({ id: '-E_A', geometry: [...EDGES[0].geometry].reverse(), lanes: 2, speed_mps: 13.9, oneway: false,
+      allows: { car: true, bike: true, ped: true }, name: opts.names?.E_A ?? null, reverse: 'E_A' }));
+  }
+  const eligEdges = EDGES.map((e) => ({
+    id: e.id, car_lane_count: e.car_lane_indices.length, car_lane_indices: e.car_lane_indices,
+    eligible_bike_lane: true, eligibility_reason: 'eligible',
+  }));
+  if (opts.partner) eligEdges.push({ id: '-E_A', car_lane_count: 1, car_lane_indices: [1], eligible_bike_lane: false, eligibility_reason: 'one lane' });
   await page.route('**/network.json', (route) =>
     route.fulfill({
       json: {
         // V2.7d: edges are UNNAMED unless a test names one — the single-change wire pin below reads the
         // client's id-only description, and a named E_A would (correctly) change it
-        edges: EDGES.map((e) => netEdge({
-          id: e.id, geometry: e.geometry, lanes: e.car_lane_indices.length + 1, speed_mps: 13.9,
-          oneway: false, allows: { car: true, bike: true, ped: true }, name: opts.names?.[e.id] ?? null,
-        })),
+        edges: netEdges,
       },
     }));
   await page.route('**/api/edges**', (route) =>
-    route.fulfill({
-      json: {
-        edges: EDGES.map((e) => ({
-          id: e.id, car_lane_count: e.car_lane_indices.length, car_lane_indices: e.car_lane_indices,
-          eligible_bike_lane: true, eligibility_reason: 'eligible',
-        })),
-        count: EDGES.length,
-      },
-    }));
+    route.fulfill({ json: { edges: eligEdges, count: eligEdges.length } }));
   await page.route('**/api/simulate', (route) => {
     lastBody = route.request().postDataJSON();
     if (opts.reject) return route.fulfill({ status: opts.reject.status, json: { detail: opts.reject.detail } });
@@ -214,6 +224,54 @@ test('V2.7d: a member on a NAMED edge summarizes name-plus-id; an unnamed edge k
   await page.getByTestId('apply-speed').click();
   await expect(draftRows(page)).toHaveCount(2);
   await expect(page.getByTestId('draft-member-d2')).toContainText('Speed limit 29 km/h · edge E_C');
+});
+
+// ---- V2.7d C4a — the drop form: a kind arrives WITH the edge; lanes come from the table, both directions ----
+
+test('V2.7d C4a: the seam opens the drop form pre-set to a kind, with lane rows from the table', async ({ page }) => {
+  await mockBackend(page, { names: { E_A: 'Lawrence Avenue East' }, partner: true });
+  await openEdit(page);
+  await page.evaluate(() =>
+    (window as unknown as { __nadiEditEdge: (x: string, k?: string) => void }).__nadiEditEdge('E_A', 'lane_closure'));
+  await expect(page.getByTestId('drop-form')).toBeVisible();
+  await expect(page.getByTestId('drop-form')).toContainText('Lawrence Avenue East (edge E_A)');
+  // rows: E_A [sidewalk, general 1 (curb), general 2] then -E_A [sidewalk, general 1 (curb)] — the ratified
+  // "which lanes — from this road's lane table", both directions. E_A's mock geometry runs NORTH, so the
+  // initials derive as NB / SB (data, never a label written by hand).
+  await expect(page.getByTestId('lane-check-1')).toBeVisible();
+  await expect(page.getByTestId('lane-check-2')).toBeVisible();
+  await expect(page.getByTestId('lane-check-rev-1')).toBeVisible();
+  await expect(page.getByTestId('lane-picker')).toContainText('NB general 1 (curb)');
+  await expect(page.getByTestId('lane-picker')).toContainText('SB general 1 (curb)');
+  await expect(page.getByTestId('apply-lane-closure')).toBeDisabled(); // nothing ticked yet
+  // the no-kind seam call still opens the ROAD CARD exactly as before (the eight seam specs ride it)
+  await page.getByTestId('palette-cancel').click();
+  await pickEdge(page, 'E_A');
+  await expect(page.getByTestId('palette-type-lane-closure')).toBeVisible();
+});
+
+test('V2.7d C4a: ticking one direction SAYS so before Run; ticking both emits one member per directional edge', async ({ page }) => {
+  const getBody = await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await page.evaluate(() =>
+    (window as unknown as { __nadiEditEdge: (x: string, k?: string) => void }).__nadiEditEdge('E_A', 'lane_closure'));
+  await expect(page.getByTestId('drop-form')).toBeVisible();
+  await page.getByTestId('lane-check-1').check();
+  // THE RATIFICATION CONDITION: the per-direction consequence is a sentence, pinned verbatim
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('closes northbound only — southbound stays open');
+  await page.getByTestId('lane-check-rev-1').check();
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('closes both directions — 2 members');
+  await page.getByTestId('apply-lane-closure').click();
+  await expect(draftRows(page)).toHaveCount(2);
+  await expect(page.getByTestId('draft-member-d1')).toContainText('1 lane(s) closed · edge E_A');
+  await expect(page.getByTestId('draft-member-d2')).toContainText('1 lane(s) closed · edge -E_A');
+  await page.getByTestId('draft-run').click();
+  await expect.poll(() => getBody()?.changes).toBeTruthy();
+  const body = getBody() as { changes: { type: string; target_edge: string; target_lanes: number[] }[] };
+  expect(body.changes.map((c) => [c.type, c.target_edge, c.target_lanes])).toEqual([
+    ['lane_closure', 'E_A', [1]],
+    ['lane_closure', '-E_A', [1]],
+  ]);
 });
 const draftSeam = (page: Page) =>
   page.evaluate(() => (window as unknown as { __nadiDraftOverlay: DraftSeam }).__nadiDraftOverlay);

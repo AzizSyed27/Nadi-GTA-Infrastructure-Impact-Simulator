@@ -53,6 +53,8 @@ import { ExampleBuildView, RunDocument, type ReportState } from '@/components/Ru
 import { RunListPopover } from '@/components/RunListPopover';
 import { HeldMoment, RunExperience, useHeldMomentSeen } from '@/components/run/RunExperience';
 import { ActTwo } from '@/components/run/ActTwo';
+import type { EventKind } from '@/components/DropForm';
+import { betweenLine, buildNodeIndex, crossStreets } from '@/lib/streetNames';
 import { WatchArticle } from '@/components/run/WatchArticle';
 import { DiscourseStage } from '@/components/run/DiscourseStage';
 import { ReportStage } from '@/components/run/ReportStage';
@@ -286,6 +288,9 @@ export default function MapView() {
   // whole net, fetched once), not a per-viewport geometry fetch. selectedEdge is the MERGED edge the palette reads.
   const [eligById, setEligById] = useState<Record<string, EdgeEligibility>>({});
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null); // the edge whose palette is open
+  // V2.7d C4a: the kind that arrived WITH the selected edge (a tile drop / the seam's second argument);
+  // null = the road card. Cleared with the selection.
+  const [dropKind, setDropKind] = useState<EventKind | null>(null);
   const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
   // V2.7c — the ZOOM LADDER's band (thresholds in roadLayers.ts), written from the map's own zoom
   // events in EVERY stage. The Build-only `zoom` state above STAYS: canEditEdges must not shift by
@@ -1015,7 +1020,7 @@ export default function MapView() {
       if (!ne) return null;
       const el = eligById[id];
       return {
-        id, geometry: ne.geometry, speed_mps: ne.speed_mps,
+        id, geometry: ne.geometry, speed_mps: ne.speed_mps, network: ne,
         car_lane_count: el?.car_lane_count ?? 0,
         car_lane_indices: el?.car_lane_indices ?? [],
         eligible_bike_lane: el?.eligible_bike_lane ?? false,
@@ -1023,6 +1028,20 @@ export default function MapView() {
       };
     },
     [networkLookup, eligById],
+  );
+
+  // V2.7d C4a — the drop form's context: the selected edge's NODE-PAIR partner (the opposite
+  // direction, from the export's `reverse` — never derived from the id) merged like the edge itself,
+  // and the cross-street line from the same-name walk (streetNames.crossStreets over a node index
+  // built once per network identity).
+  const nodeIndex = useMemo(() => buildNodeIndex(networkEdges), [networkEdges]);
+  const dropPartner = useMemo(
+    () => (selectedEdge?.network.reverse ? mergeEdge(selectedEdge.network.reverse) : null),
+    [selectedEdge, mergeEdge],
+  );
+  const dropBetween = useMemo(
+    () => (selectedEdge ? betweenLine(crossStreets(selectedEdge.network, networkLookup, nodeIndex)) : null),
+    [selectedEdge, networkLookup, nodeIndex],
   );
 
   // On entering edit mode: junctions per viewport (snap targets), eligibility once (whole net). Track zoom.
@@ -1401,6 +1420,7 @@ export default function MapView() {
         const merged = mergeEdge((info.object as NetworkEdge).id);
         if (merged) {
           setSelectedEdge(merged);
+          setDropKind(null); // a plain road click is the ROAD CARD (a kind arrives only with a drop / the seam)
           setDrawHint(null);
         }
         return;
@@ -1487,7 +1507,8 @@ export default function MapView() {
     setHoverCoord(null);
     setDrawHint(null);
     setSelectedEdge(null);
-  }, []);
+    setDropKind(null);
+  }, [setDropKind]);
 
   const onDraftRemove = useCallback((id: string) => {
     setDraft((d) => d.filter((m) => m.id !== id));
@@ -1564,13 +1585,28 @@ export default function MapView() {
   // V2.2c — temporary events. NO client description: the server composes the canonical
   // clock-time description (fmt_window; single source with the report/chips).
   const [draftWindowed, setDraftWindowed] = useState(false);
-  const onEdgeLaneClosure = useCallback(
-    (lanes: number[], window: ChangeWindow | null) => {
+  // V2.7d C4a: several members in ONE draftSeq bump (the zone-macro idiom — ids minted outside the
+  // updater) — the both-directions lane closure adds one member per directional edge.
+  const addMembers = useCallback((changes: SimChange[]) => {
+    if (changes.length === 0) return;
+    const base = draftSeq.current;
+    draftSeq.current += changes.length;
+    setDraft((d) => [...d, ...changes.map((change, i) => ({ id: `d${base + i + 1}`, change, valid: true }))]);
+    setDraftError(null);
+    setPtA(null);
+    setPtB(null);
+    setVias([]);
+    setHoverCoord(null);
+    setDrawHint(null);
+    setSelectedEdge(null);
+    setDropKind(null);
+  }, [setDropKind]);
+  const onEdgeLaneClosures = useCallback(
+    (members: SimChange[]) => {
       if (!selectedEdge) return;
-      addToDraft({ type: 'lane_closure', target_edge: selectedEdge.id, target_lanes: lanes,
-        ...(window ? { window } : {}) });
+      addMembers(members);
     },
-    [selectedEdge, addToDraft],
+    [selectedEdge, addMembers],
   );
   const onEdgeRoadClosure = useCallback(
     (window: ChangeWindow | null) => {
@@ -1739,14 +1775,18 @@ export default function MapView() {
     const w = window as unknown as {
       __nadiEdit?: (lon: number, lat: number) => void;
       __nadiEditHover?: (lon: number, lat: number) => void;
-      __nadiEditEdge?: (id: string) => void;
+      __nadiEditEdge?: (id: string, kind?: EventKind) => void;
     };
     w.__nadiEdit = (lon, lat) => onEditClick({ coordinate: [lon, lat] } as PickingInfo);
     w.__nadiEditHover = (lon, lat) => onEditHover({ coordinate: [lon, lat] } as PickingInfo);
     // V2.0b: select an existing edge by ID (geometry now lives in the network map, not the API response).
-    w.__nadiEditEdge = (id) => {
+    // V2.7d C4a: an optional KIND is a drop — the form opens pre-set to it (the tile → road path the
+    // pointer drag lands on in C5). No kind = the road card, exactly as before: behaviour-identical.
+    w.__nadiEditEdge = (id, kind) => {
       const ne = networkLookup[id];
-      if (ne) onEditClick({ layer: { id: 'edit-edges' }, object: ne } as unknown as PickingInfo);
+      if (!ne) return;
+      onEditClick({ layer: { id: 'edit-edges' }, object: ne } as unknown as PickingInfo);
+      setDropKind(kind ?? null);
     };
     return () => {
       delete w.__nadiEdit;
@@ -2732,11 +2772,14 @@ export default function MapView() {
           hasSocial={hasSocial}
           scorecard={artifact.scorecard}
           selectedEdge={selectedEdge}
+          dropKind={dropKind}
+          dropPartner={dropPartner}
+          dropBetween={dropBetween}
           canEditEdges={zoom >= EDGE_ZOOM}
           onEdgeSpeed={onEdgeSpeed}
           onEdgeBike={onEdgeBike}
-          onEdgeCancel={() => setSelectedEdge(null)}
-          onEdgeLaneClosure={onEdgeLaneClosure}
+          onEdgeCancel={() => { setSelectedEdge(null); setDropKind(null); }}
+          onEdgeLaneClosures={onEdgeLaneClosures}
           onEdgeRoadClosure={onEdgeRoadClosure}
           onEdgeIncident={onEdgeIncident}
           onWindowedDraft={setDraftWindowed}

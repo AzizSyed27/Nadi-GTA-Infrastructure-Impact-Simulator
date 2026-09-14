@@ -614,6 +614,26 @@ not on (the invented-geography case the V2.7b rule forbids); the same presence g
 `crossStreets` (for C4's mini-form) walks same-name chains: unique successor, never the reverse
 partner, a fork or the hop cap ends it, then between / near / nothing. Gates: street-names 9 +
 draft-basket 15 + edit 12; act-two 14/15 (the same pre-existing in-file failure).
+**C4a — THE DROP FORM (`web/components/DropForm.tsx`, EdgePalette absorbed and RETIRED) + the lane
+rows (`web/lib/laneRows.ts`):** the ratified §1d mini-form — "WHICH LANES — FROM THIS ROAD'S LANE TABLE",
+BOTH directions: rows derive from the export's per-lane table for the dropped edge AND its node-pair
+partner (the export's `reverse`, merged like the edge), labelled from data only (the compass initial from
+the end-to-end bearing, sectors at 45/135/225/315; kind from the table; ordinals for GENERAL lanes only;
+"(curb)" on the curbmost non-sidewalk lane: "NB general 1 (curb) · NB general 2 · SB general 1 (curb)");
+sidewalk / bus / bike rows listed INERT (text, never an input — the V2.2c picker's input count stays the
+car-lane count); closable = the server's `car_lane_indices` ∩ the table's car lanes, a disagreement
+rendered disabled with its reason, never a 400 surprise. Ticks across directions add ONE `lane_closure`
+member PER directional edge (`addMembers`, one draftSeq bump). **THE RATIFICATION'S CONDITION IS A
+PIN:** `drop-direction-note` says the per-direction consequence before Run — "closes northbound only —
+southbound stays open" / "closes both directions — 2 members" / "one-way street — eastbound only"
+(`toHaveText`, draft-basket.spec). The title is name-plus-id with the cross-street line and the lane
+count. `__nadiEditEdge(id, kind?)` is ADDITIVE: no kind opens the ROAD CARD exactly as before (the eight
+seam specs ran GREEN untouched — 30 + 34, one edit.spec cold-load flake re-run 12/12), a kind opens the
+form pre-set (`drop-form`). Three catches, each resolved on the honest side: the bus row carries no
+ordinal (the design's "EB bus (curb)"); the initials derive from the mock's real NORTH-running
+geometry, so the pins read NB/SB; and the draft-basket mock's table disagreed with its own server lane
+list (E_C: a sidewalk at index 0 vs `car_lane_indices [0]`) — the table EXPOSED it, and the mock now
+derives its table from its indices (E_B/E_C become the net's ped-on-car shape).
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street

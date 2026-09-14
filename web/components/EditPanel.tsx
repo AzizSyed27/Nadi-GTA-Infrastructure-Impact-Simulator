@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import type { ChangeWindow, Junction, Edge, RunOptions, RunStatus } from '@/lib/api';
+import type { ChangeWindow, Junction, Edge, RunOptions, RunStatus, SimChange } from '@/lib/api';
 import type { RunFeed } from '@/lib/useRunFeed';
 import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
-import { EdgePalette } from '@/components/EdgePalette';
+import { DropForm, type EventKind } from '@/components/DropForm';
 import { ZonePalette } from '@/components/ZonePalette';
 import { DraftPanel, type DraftMember } from '@/components/DraftPanel';
 
@@ -43,12 +43,19 @@ interface EditPanelProps {
   scorecard: Scorecard | undefined; // the active run's scorecard (shown once its artifact is loaded)
   // edit-an-edge (5.2b)
   selectedEdge: Edge | null;
+  /** V2.7d C4a: the kind that arrived with the selection (a drop); null = the road card. */
+  dropKind: EventKind | null;
+  /** The selected edge's node-pair partner (the opposite direction), merged; null on a one-way street. */
+  dropPartner: Edge | null;
+  /** The cross-street line for the selected edge ("between X and Y" / "near X"), or null. */
+  dropBetween: string | null;
   canEditEdges: boolean; // zoomed in enough that existing edges are rendered/clickable
   onEdgeSpeed: (valueMps: number) => void;
   onEdgeBike: () => void;
   onEdgeCancel: () => void;
   // V2.2c — temporary events (closures + incident) + the windowed → day_one lock
-  onEdgeLaneClosure: (lanes: number[], window: ChangeWindow | null) => void;
+  /** V2.7d C4a: one `lane_closure` member per directional edge with a tick (the both-directions form). */
+  onEdgeLaneClosures: (members: SimChange[]) => void;
   onEdgeRoadClosure: (window: ChangeWindow | null) => void;
   onEdgeIncident: (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => void;
   onWindowedDraft: (active: boolean) => void;
@@ -299,15 +306,18 @@ export function EditPanel(props: EditPanelProps) {
           onCancel={props.onZoneCancel}
         />
       ) : props.selectedEdge ? (
-        <EdgePalette
-          key={props.selectedEdge.id}
+        <DropForm
+          key={`${props.selectedEdge.id}:${props.dropKind ?? 'card'}`}
           edge={props.selectedEdge}
+          partner={props.dropPartner}
+          betweenText={props.dropBetween}
+          kind={props.dropKind}
           demandProfile={props.runOptions.demand_profile ?? 'synthetic_demo'}
           submitting={submitting}
           submitError={submitError}
           onSpeedLimit={props.onEdgeSpeed}
           onBikeLane={props.onEdgeBike}
-          onLaneClosure={props.onEdgeLaneClosure}
+          onLaneClosures={props.onEdgeLaneClosures}
           onRoadClosure={props.onEdgeRoadClosure}
           onIncident={props.onEdgeIncident}
           onWindowedDraft={props.onWindowedDraft}

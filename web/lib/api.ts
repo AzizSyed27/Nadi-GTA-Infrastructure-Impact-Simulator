@@ -4,6 +4,7 @@
 // statically from web/public/<run_id>.json (the switcher + refresh fetch those directly, not via this client).
 
 import type { Grounding } from '@/lib/types';
+import type { NetworkEdge } from '@/lib/network';
 
 export const API_BASE = 'http://localhost:8000';
 
@@ -36,6 +37,8 @@ export interface EdgeEligibility {
 export interface Edge extends EdgeEligibility {
   geometry: [number, number][]; // [lon,lat] polyline (from network.json)
   speed_mps: number; // from network.json
+  /** V2.7d: the whole network row — the per-lane table, name, from/to, reverse (the drop form reads it). */
+  network: NetworkEdge;
 }
 
 /** The edits the editor POSTs. Discriminated by `type`; mirrors server.py SimChange dispatch. */
