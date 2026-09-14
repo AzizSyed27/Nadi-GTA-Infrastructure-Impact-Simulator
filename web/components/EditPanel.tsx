@@ -6,7 +6,46 @@ import type { RunFeed } from '@/lib/useRunFeed';
 import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
-import { DropForm, type EventKind } from '@/components/DropForm';
+import { DropForm, type DropKind } from '@/components/DropForm';
+
+/** What a tile arms: the five drop kinds, plus the two that enter their own modes (zone-select, the draw). */
+export type ArmKind = DropKind | 'school_zone' | 'new_road';
+
+const TILES: { kind: ArmKind; testid: string; label: string }[] = [
+  { kind: 'road_closure', testid: 'tile-road-closure', label: 'ROAD CLOSURE' },
+  { kind: 'lane_closure', testid: 'tile-lane-closure', label: 'LANE CLOSURE' },
+  { kind: 'speed_limit', testid: 'tile-speed-limit', label: 'SPEED LIMIT' },
+  { kind: 'incident', testid: 'tile-incident', label: 'TIMED INCIDENT' },
+  { kind: 'bike_lane', testid: 'tile-bike-lane', label: 'BIKE-LANE CONVERSION' },
+  // the SCHOOL ZONE tile keeps the `zone-mode-toggle` testid — school-zone.spec / draft-basket.spec ride it
+  { kind: 'school_zone', testid: 'zone-mode-toggle', label: '🏫 SCHOOL ZONE' },
+  { kind: 'new_road', testid: 'tile-draw-road', label: 'DRAW A NEW ROAD' },
+];
+
+/** V2.7d C4b — "02 · ADD A CHANGE": the seven tiles (the ratified §1c palette). A tile ARMS a kind; the
+ *  next road click carries it into the drop form (C5 adds the pointer drag onto the road). The zone and
+ *  draw tiles enter the existing modes. Looks are C8's. */
+function ChangeTiles({ armed, onArm }: { armed: ArmKind | null; onArm: (k: ArmKind) => void }) {
+  return (
+    <div style={card} data-testid="change-tiles">
+      <div style={title}>Add a change</div>
+      <div style={subStep}>pick a change, then click the road it applies to</div>
+      <div style={tileGrid}>
+        {TILES.map((t) => (
+          <button
+            key={t.kind}
+            style={{ ...tileBtn, ...(armed === t.kind ? tileActive : null) }}
+            aria-pressed={armed === t.kind}
+            onClick={() => onArm(t.kind)}
+            data-testid={t.testid}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 import { ZonePalette } from '@/components/ZonePalette';
 import { DraftPanel, type DraftMember } from '@/components/DraftPanel';
 
@@ -44,19 +83,24 @@ interface EditPanelProps {
   // edit-an-edge (5.2b)
   selectedEdge: Edge | null;
   /** V2.7d C4a: the kind that arrived with the selection (a drop); null = the road card. */
-  dropKind: EventKind | null;
+  dropKind: DropKind | null;
+  /** V2.7d C4b: the tile currently ARMED (the accessible drop path) — the next road click carries it. */
+  armedKind: ArmKind | null;
+  onArm: (kind: ArmKind) => void;
   /** The selected edge's node-pair partner (the opposite direction), merged; null on a one-way street. */
   dropPartner: Edge | null;
   /** The cross-street line for the selected edge ("between X and Y" / "near X"), or null. */
   dropBetween: string | null;
   canEditEdges: boolean; // zoomed in enough that existing edges are rendered/clickable
-  onEdgeSpeed: (valueMps: number) => void;
+  /** V2.7d C4b: one `speed_limit` member per directional edge (two with the both-directions box). */
+  onEdgeSpeeds: (members: SimChange[]) => void;
   onEdgeBike: () => void;
   onEdgeCancel: () => void;
   // V2.2c — temporary events (closures + incident) + the windowed → day_one lock
   /** V2.7d C4a: one `lane_closure` member per directional edge with a tick (the both-directions form). */
   onEdgeLaneClosures: (members: SimChange[]) => void;
-  onEdgeRoadClosure: (window: ChangeWindow | null) => void;
+  /** V2.7d C4b: one `road_closure` member per directional edge (two with the both-directions box). */
+  onEdgeRoadClosures: (members: SimChange[]) => void;
   onEdgeIncident: (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => void;
   onWindowedDraft: (active: boolean) => void;
   windowLocked: boolean; // a windowed draft is pending → assignment locks to day_one
@@ -239,6 +283,8 @@ export function EditPanel(props: EditPanelProps) {
       {!activeRunId && (
         <RunOptionsBlock options={props.runOptions} onChange={props.onRunOptions} windowLocked={props.windowLocked} />
       )}
+      {/* V2.7d C4b — 02 · ADD A CHANGE: the seven tiles, always in the rail while composing */}
+      {!activeRunId && <ChangeTiles armed={props.armedKind} onArm={props.onArm} />}
 
       {activeRunId ? (
         <>
@@ -315,10 +361,10 @@ export function EditPanel(props: EditPanelProps) {
           demandProfile={props.runOptions.demand_profile ?? 'synthetic_demo'}
           submitting={submitting}
           submitError={submitError}
-          onSpeedLimit={props.onEdgeSpeed}
+          onSpeedLimits={props.onEdgeSpeeds}
           onBikeLane={props.onEdgeBike}
           onLaneClosures={props.onEdgeLaneClosures}
-          onRoadClosure={props.onEdgeRoadClosure}
+          onRoadClosures={props.onEdgeRoadClosures}
           onIncident={props.onEdgeIncident}
           onWindowedDraft={props.onWindowedDraft}
           onCancel={props.onEdgeCancel}
@@ -341,12 +387,7 @@ export function EditPanel(props: EditPanelProps) {
                 : 'Zoom in to click an existing road (speed limit / bike lane).'}
             </div>
           )}
-          {!ptA && !props.junctionsDown && (
-            <button style={{ ...secondaryBtn, marginTop: 8 }} onClick={props.onZoneToggle}
-                    data-testid="zone-mode-toggle">
-              🏫 Draw a school zone
-            </button>
-          )}
+          {/* V2.7d C4b: the school-zone entry moved onto its tile (`zone-mode-toggle` lives there now) */}
           {ptA && !ptB && (
             <div style={step}>
               Start: <code>{ptA.id}</code>
@@ -469,6 +510,14 @@ const hintText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23
 const contains: React.CSSProperties = { fontSize: 12, color: '#4b5563' };
 // V2.3a — the streamed-voices ticker (newest first; capped, the rest summarized)
 const STREAM_SHOWN = 6;
+// V2.7d C4b — the tiles (behaviour commit; C8 restyles). The FULL `border` shorthand in `tileActive`
+// on purpose: it is spread over `tileBtn`, which carries `border` (the border-longhand ban).
+const tileGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 };
+const tileBtn: React.CSSProperties = {
+  border: '1px solid #cbd3dc', background: '#f6f8fa', color: '#374151', borderRadius: 8,
+  padding: '8px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', textAlign: 'left',
+};
+const tileActive: React.CSSProperties = { background: '#eef4ff', border: '1px solid #1f4e9c', color: '#1f4e9c' };
 const voiceRow: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 1, marginTop: 8 };
 const voiceLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#1f2937' };
 const voiceComment: React.CSSProperties = { fontSize: 11, color: '#4b5563', lineHeight: 1.4 };

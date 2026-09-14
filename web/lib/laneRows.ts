@@ -103,6 +103,15 @@ export function emitLaneClosures(
   return out;
 }
 
+/** The both-directions checkbox's sentence for a road closure (`closes`) or a speed limit (`applies`). */
+export function applyNote(edge: NetworkEdge, partner: NetworkEdge | null, both: boolean, verb: 'closes' | 'applies'): string {
+  const p = DIR_WORD[edgeDirection(edge)];
+  if (!partner) return `one-way street — ${p} only`;
+  const q = DIR_WORD[edgeDirection(partner)];
+  if (verb === 'closes') return both ? 'closes both directions — 2 members' : `closes ${p} only — ${q} stays open`;
+  return both ? 'applies to both directions — 2 members' : `applies to ${p} only — ${q} unchanged`;
+}
+
 /** THE RATIFIED SENTENCE — said before Run. Null only when nothing is ticked on a two-way street. */
 export function directionNote(edge: NetworkEdge, partner: NetworkEdge | null, sel: LaneSelection): string | null {
   const p = DIR_WORD[edgeDirection(edge)];

@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeWindow, Edge, SimChange } from '@/lib/api';
 import { fmtWindowRange } from '@/lib/simTime';
-import { edgeLabel } from '@/lib/streetNames';
-import { directionNote, emitLaneClosures, laneRowsFor, type LaneSelection } from '@/lib/laneRows';
+import { clientEdgeRef, edgeLabel } from '@/lib/streetNames';
+import { applyNote, directionNote, emitLaneClosures, laneRowsFor, type LaneSelection } from '@/lib/laneRows';
 
 export type EventKind = 'lane_closure' | 'road_closure' | 'incident';
+/** What a tile / a drop can carry: the three temporary events plus the two edge edits. */
+export type DropKind = EventKind | 'speed_limit' | 'bike_lane';
+const isEvent = (k: DropKind | null): k is EventKind => k === 'lane_closure' || k === 'road_closure' || k === 'incident';
 
 interface DropFormProps {
   /** The dropped / clicked edge, merged (network + eligibility). */
@@ -17,22 +20,25 @@ interface DropFormProps {
   betweenText: string | null;
   /** A kind that arrived WITH the edge (a tile drop, the seam's second argument) — pre-selects the
    *  event; null is the ROAD CARD (a plain road click), which offers the kinds as buttons. */
-  kind: EventKind | null;
+  kind: DropKind | null;
   demandProfile: 'synthetic_demo' | 'calibrated_am_peak';
   submitting: boolean;
   submitError: string | null;
-  onSpeedLimit: (valueMps: number) => void;
+  /** One `speed_limit` member per directional edge (two when the both-directions box is ticked). */
+  onSpeedLimits: (members: SimChange[]) => void;
   onBikeLane: () => void;
   /** One `lane_closure` member per directional edge with a tick (the both-directions form). */
   onLaneClosures: (members: SimChange[]) => void;
-  onRoadClosure: (window: ChangeWindow | null) => void;
+  /** One `road_closure` member per directional edge (two when the both-directions box is ticked). */
+  onRoadClosures: (members: SimChange[]) => void;
   onIncident: (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => void;
   onWindowedDraft: (active: boolean) => void; // the D1 lock signal (assignment → day_one)
   onCancel: () => void;
 }
 
-const KIND_TITLE: Record<EventKind, string> = {
+const KIND_TITLE: Record<DropKind, string> = {
   lane_closure: 'LANE CLOSURE', road_closure: 'ROAD CLOSURE', incident: 'TIMED INCIDENT',
+  speed_limit: 'SPEED LIMIT', bike_lane: 'BIKE-LANE CONVERSION',
 };
 
 /**
@@ -48,10 +54,13 @@ const KIND_TITLE: Record<EventKind, string> = {
  */
 export function DropForm({
   edge, partner, betweenText, kind, demandProfile, submitting, submitError,
-  onSpeedLimit, onBikeLane, onLaneClosures, onRoadClosure, onIncident, onWindowedDraft, onCancel,
+  onSpeedLimits, onBikeLane, onLaneClosures, onRoadClosures, onIncident, onWindowedDraft, onCancel,
 }: DropFormProps) {
   const [speed, setSpeed] = useState<number>(Math.round(edge.speed_mps * 10) / 10);
-  const [eventKind, setEventKind] = useState<EventKind | null>(kind);
+  const [eventKind, setEventKind] = useState<EventKind | null>(isEvent(kind) ? kind : null);
+  // C4b: the both-directions box for a road closure / speed limit — DEFAULT OFF (the single-change
+  // wire pin stands); its consequence is said either way (`drop-direction-note`).
+  const [bothDirs, setBothDirs] = useState(false);
   const [laneSel, setLaneSel] = useState<LaneSelection>({ primary: [], partner: [] });
   const [winStart, setWinStart] = useState<string>(''); // minutes from sim start
   const [winDur, setWinDur] = useState<string>(''); // minutes
@@ -164,7 +173,23 @@ export function DropForm({
     </div>
   );
 
-  const note = eventKind === 'lane_closure' ? directionNote(edge.network, partner?.network ?? null, laneSel) : null;
+  const pn = partner?.network ?? null;
+  const note = eventKind === 'lane_closure' ? directionNote(edge.network, pn, laneSel) : null;
+  const targets = bothDirs && partner ? [edge, partner] : [edge];
+  // the both-directions box: only on a two-way street, for the road closure and the speed limit
+  const bothBox = (verb: 'closes' | 'applies') => (
+    <div style={{ marginTop: 6 }}>
+      {partner && (
+        <label style={laneCheck}>
+          <input type="checkbox" checked={bothDirs} onChange={(e) => setBothDirs(e.target.checked)} data-testid="both-directions" />
+          both directions ({edgeLabel(partner.network.name, partner.id)} too)
+        </label>
+      )}
+      <div style={noteText} data-testid="drop-direction-note">{applyNote(edge.network, pn, bothDirs, verb)}</div>
+    </div>
+  );
+  const bothVerb: 'closes' | 'applies' | null =
+    eventKind === 'road_closure' ? 'closes' : eventKind === null && kind !== 'bike_lane' ? 'applies' : null;
 
   return (
     <div style={card} data-testid={kind ? 'drop-form' : 'edge-palette'}>
@@ -176,8 +201,11 @@ export function DropForm({
         {(edge.speed_mps * 3.6).toFixed(0)} km/h
       </div>
 
-      {!kind && (
-        <>
+      {/* ONE both-directions box per form: the speed section's (road card / speed form) or the road
+          closure's — never two `drop-direction-note`s; the lane closure carries its own note. */}
+      {bothVerb && bothBox(bothVerb)}
+
+      {(!kind || kind === 'speed_limit') && (
           <div style={section}>
             <label style={field}>
               New speed limit (m/s)
@@ -194,13 +222,19 @@ export function DropForm({
             <button
               style={{ ...primaryBtn, ...(submitting ? busyBtn : null) }}
               disabled={submitting}
-              onClick={() => onSpeedLimit(speed)}
+              onClick={() => onSpeedLimits(targets.map((t) => ({
+                type: 'speed_limit', target_edge: t.id, value_mps: speed,
+                description: `Speed limit on ${clientEdgeRef(t.network.name, t.id)} -> ${speed} m/s`,
+              })))}
               data-testid="apply-speed"
             >
               Apply speed limit
             </button>
           </div>
+      )}
 
+      {(!kind || kind === 'bike_lane') && (
+        <>
           <div style={section}>
             <button
               style={{ ...secondaryBtn, ...(edge.eligible_bike_lane && !submitting ? null : disabledBtn) }}
@@ -265,7 +299,10 @@ export function DropForm({
           <>
             {windowBlock(false)}
             <button style={{ ...primaryBtn, marginTop: 10, ...(canApply ? null : disabledBtn) }}
-                    disabled={!canApply} onClick={() => onRoadClosure(window)}
+                    disabled={!canApply}
+                    onClick={() => onRoadClosures(targets.map((t) => ({
+                      type: 'road_closure', target_edge: t.id, ...(window ? { window } : {}),
+                    })))}
                     data-testid="apply-road-closure">
               Close the whole road
             </button>

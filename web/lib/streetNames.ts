@@ -37,6 +37,14 @@ export function describeEdge(lookup: EdgeLookup, id: string): string {
   return edgeLabel(nameOf(lookup, id), id);
 }
 
+/** The CLIENT-composed description's edge reference (`Speed limit on … -> v m/s`, `Bike lane on …`):
+ *  name-plus-id when named; the BARE id when unnamed — the pre-V2.7d client form, which the V2.4a
+ *  single-change wire pin holds byte-identical (`Speed limit on E_A -> 8 m/s`). The server's own
+ *  unnamed form is `edge X`; the client's stays the bare id on purpose. */
+export function clientEdgeRef(name: string | null, id: string): string {
+  return name ? `${name} (edge ${id})` : id;
+}
+
 /** `from A to B` / `along A` / null when either end did not resolve (the card omits the line). */
 export function odLine(origin: string | null, dest: string | null): string | null {
   if (!origin || !dest) return null;

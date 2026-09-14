@@ -53,7 +53,8 @@ import { ExampleBuildView, RunDocument, type ReportState } from '@/components/Ru
 import { RunListPopover } from '@/components/RunListPopover';
 import { HeldMoment, RunExperience, useHeldMomentSeen } from '@/components/run/RunExperience';
 import { ActTwo } from '@/components/run/ActTwo';
-import type { EventKind } from '@/components/DropForm';
+import type { DropKind } from '@/components/DropForm';
+import type { ArmKind } from '@/components/EditPanel';
 import { betweenLine, buildNodeIndex, crossStreets } from '@/lib/streetNames';
 import { WatchArticle } from '@/components/run/WatchArticle';
 import { DiscourseStage } from '@/components/run/DiscourseStage';
@@ -290,7 +291,9 @@ export default function MapView() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null); // the edge whose palette is open
   // V2.7d C4a: the kind that arrived WITH the selected edge (a tile drop / the seam's second argument);
   // null = the road card. Cleared with the selection.
-  const [dropKind, setDropKind] = useState<EventKind | null>(null);
+  const [dropKind, setDropKind] = useState<DropKind | null>(null);
+  // V2.7d C4b: the tile currently ARMED — the next road click carries it into the drop form.
+  const [armedKind, setArmedKind] = useState<ArmKind | null>(null);
   const [zoom, setZoom] = useState(12); // tracked map zoom (edge layer is gated on EDGE_ZOOM)
   // V2.7c — the ZOOM LADDER's band (thresholds in roadLayers.ts), written from the map's own zoom
   // events in EVERY stage. The Build-only `zoom` state above STAYS: canEditEdges must not shift by
@@ -1420,7 +1423,8 @@ export default function MapView() {
         const merged = mergeEdge((info.object as NetworkEdge).id);
         if (merged) {
           setSelectedEdge(merged);
-          setDropKind(null); // a plain road click is the ROAD CARD (a kind arrives only with a drop / the seam)
+          // C4b: an ARMED tile is a drop — the click carries its kind; otherwise the ROAD CARD
+          setDropKind(armedKind && armedKind !== 'school_zone' && armedKind !== 'new_road' ? armedKind : null);
           setDrawHint(null);
         }
         return;
@@ -1463,7 +1467,7 @@ export default function MapView() {
         setDrawHint('Pick a different junction for the end point.');
       }
     },
-    [ptA, ptB, vias, artifact, junctions, mergeEdge, zoneMode],
+    [ptA, ptB, vias, artifact, junctions, mergeEdge, zoneMode, armedKind],
   );
 
   // Overlay-level hover: drive the rubber-band only while placing the second point (bounds re-renders).
@@ -1508,7 +1512,27 @@ export default function MapView() {
     setDrawHint(null);
     setSelectedEdge(null);
     setDropKind(null);
-  }, [setDropKind]);
+    setArmedKind(null); // C4b: adding a member disarms the tile
+  }, [setDropKind, setArmedKind]);
+
+  // V2.7d C4a: several members in ONE draftSeq bump (the zone-macro idiom — ids minted outside the
+  // updater) — the both-directions lane closure / road closure / speed limit add one member per
+  // directional edge.
+  const addMembers = useCallback((changes: SimChange[]) => {
+    if (changes.length === 0) return;
+    const base = draftSeq.current;
+    draftSeq.current += changes.length;
+    setDraft((d) => [...d, ...changes.map((change, i) => ({ id: `d${base + i + 1}`, change, valid: true }))]);
+    setDraftError(null);
+    setPtA(null);
+    setPtB(null);
+    setVias([]);
+    setHoverCoord(null);
+    setDrawHint(null);
+    setSelectedEdge(null);
+    setDropKind(null);
+    setArmedKind(null); // C4b: adding a member disarms the tile
+  }, [setDropKind, setArmedKind]);
 
   const onDraftRemove = useCallback((id: string) => {
     setDraft((d) => d.filter((m) => m.id !== id));
@@ -1568,13 +1592,14 @@ export default function MapView() {
     [ptA, ptB, vias, addToDraft],
   );
 
-  const onEdgeSpeed = useCallback(
-    (valueMps: number) => {
+  // V2.7d C4b: the form composes the members (one per directional edge, descriptions included — the
+  // client's `Speed limit on <ref> -> v m/s` form, name-plus-id when named, the bare id when not).
+  const onEdgeSpeeds = useCallback(
+    (members: SimChange[]) => {
       if (!selectedEdge) return;
-      addToDraft({ type: 'speed_limit', target_edge: selectedEdge.id, value_mps: valueMps,
-        description: `Speed limit on ${selectedEdge.id} -> ${valueMps} m/s` });
+      addMembers(members);
     },
-    [selectedEdge, addToDraft],
+    [selectedEdge, addMembers],
   );
 
   const onEdgeBike = useCallback(() => {
@@ -1585,22 +1610,6 @@ export default function MapView() {
   // V2.2c — temporary events. NO client description: the server composes the canonical
   // clock-time description (fmt_window; single source with the report/chips).
   const [draftWindowed, setDraftWindowed] = useState(false);
-  // V2.7d C4a: several members in ONE draftSeq bump (the zone-macro idiom — ids minted outside the
-  // updater) — the both-directions lane closure adds one member per directional edge.
-  const addMembers = useCallback((changes: SimChange[]) => {
-    if (changes.length === 0) return;
-    const base = draftSeq.current;
-    draftSeq.current += changes.length;
-    setDraft((d) => [...d, ...changes.map((change, i) => ({ id: `d${base + i + 1}`, change, valid: true }))]);
-    setDraftError(null);
-    setPtA(null);
-    setPtB(null);
-    setVias([]);
-    setHoverCoord(null);
-    setDrawHint(null);
-    setSelectedEdge(null);
-    setDropKind(null);
-  }, [setDropKind]);
   const onEdgeLaneClosures = useCallback(
     (members: SimChange[]) => {
       if (!selectedEdge) return;
@@ -1608,12 +1617,12 @@ export default function MapView() {
     },
     [selectedEdge, addMembers],
   );
-  const onEdgeRoadClosure = useCallback(
-    (window: ChangeWindow | null) => {
+  const onEdgeRoadClosures = useCallback(
+    (members: SimChange[]) => {
       if (!selectedEdge) return;
-      addToDraft({ type: 'road_closure', target_edge: selectedEdge.id, ...(window ? { window } : {}) });
+      addMembers(members);
     },
-    [selectedEdge, addToDraft],
+    [selectedEdge, addMembers],
   );
   const onEdgeIncident = useCallback(
     (p: { lanes: number[]; speedFactor: number | null; window: ChangeWindow }) => {
@@ -1700,6 +1709,30 @@ export default function MapView() {
     setSelectedEdge(null);
   }, []);
 
+  // V2.7d C4b — a tile ARMS a kind (click-to-arm, the accessible path; C5 adds the pointer drag). The
+  // zone and draw tiles enter their EXISTING modes instead (a recorded decision); the five drop kinds
+  // toggle, and the next road click carries the armed kind into the form. Any open form closes.
+  const onArm = useCallback((kind: ArmKind) => {
+    if (kind === 'school_zone') {
+      setArmedKind(null);
+      setSelectedEdge(null);
+      setDropKind(null);
+      if (!zoneMode) onZoneToggle();
+      return;
+    }
+    if (kind === 'new_road') {
+      setArmedKind(null);
+      setDropKind(null);
+      resetDraw();
+      if (zoneMode) onZoneCancel();
+      return;
+    }
+    setSelectedEdge(null);
+    setDropKind(null);
+    if (zoneMode) onZoneCancel();
+    setArmedKind((cur) => (cur === kind ? null : kind));
+  }, [zoneMode, onZoneToggle, onZoneCancel, resetDraw]);
+
   // V2.6d — the app's first keyboard surface, mounted only mid-draw: Escape pops the last bend;
   // with none left it cancels the draw (the visible undo-bend button mirrors the pop for
   // discoverability, the zone-remove idiom).
@@ -1775,7 +1808,7 @@ export default function MapView() {
     const w = window as unknown as {
       __nadiEdit?: (lon: number, lat: number) => void;
       __nadiEditHover?: (lon: number, lat: number) => void;
-      __nadiEditEdge?: (id: string, kind?: EventKind) => void;
+      __nadiEditEdge?: (id: string, kind?: DropKind) => void;
     };
     w.__nadiEdit = (lon, lat) => onEditClick({ coordinate: [lon, lat] } as PickingInfo);
     w.__nadiEditHover = (lon, lat) => onEditHover({ coordinate: [lon, lat] } as PickingInfo);
@@ -1786,7 +1819,7 @@ export default function MapView() {
       const ne = networkLookup[id];
       if (!ne) return;
       onEditClick({ layer: { id: 'edit-edges' }, object: ne } as unknown as PickingInfo);
-      setDropKind(kind ?? null);
+      if (kind) setDropKind(kind); // no kind: the click branch already applied the armed tile (or none)
     };
     return () => {
       delete w.__nadiEdit;
@@ -2776,17 +2809,19 @@ export default function MapView() {
           dropPartner={dropPartner}
           dropBetween={dropBetween}
           canEditEdges={zoom >= EDGE_ZOOM}
-          onEdgeSpeed={onEdgeSpeed}
+          onEdgeSpeeds={onEdgeSpeeds}
           onEdgeBike={onEdgeBike}
-          onEdgeCancel={() => { setSelectedEdge(null); setDropKind(null); }}
+          onEdgeCancel={() => { setSelectedEdge(null); setDropKind(null); setArmedKind(null); }}
           onEdgeLaneClosures={onEdgeLaneClosures}
-          onEdgeRoadClosure={onEdgeRoadClosure}
+          onEdgeRoadClosures={onEdgeRoadClosures}
           onEdgeIncident={onEdgeIncident}
           onWindowedDraft={setDraftWindowed}
           windowLocked={windowLocked}
           zoneMode={zoneMode}
           zoneEdges={zoneEdges}
           onZoneToggle={onZoneToggle}
+          armedKind={armedKind}
+          onArm={onArm}
           onZoneRemove={onZoneRemove}
           onZoneSubmit={onZoneSubmit}
           onZoneCancel={onZoneCancel}

@@ -244,6 +244,9 @@ test('V2.7d C4a: the seam opens the drop form pre-set to a kind, with lane rows 
   await expect(page.getByTestId('lane-picker')).toContainText('NB general 1 (curb)');
   await expect(page.getByTestId('lane-picker')).toContainText('SB general 1 (curb)');
   await expect(page.getByTestId('apply-lane-closure')).toBeDisabled(); // nothing ticked yet
+  await page.getByTestId('lane-check-1').check(); // the looked-at frame shows a ticked direction and its note
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27d-c4-drop-form.png' });
+  await page.getByTestId('lane-check-1').uncheck();
   // the no-kind seam call still opens the ROAD CARD exactly as before (the eight seam specs ride it)
   await page.getByTestId('palette-cancel').click();
   await pickEdge(page, 'E_A');
@@ -271,6 +274,69 @@ test('V2.7d C4a: ticking one direction SAYS so before Run; ticking both emits on
   expect(body.changes.map((c) => [c.type, c.target_edge, c.target_lanes])).toEqual([
     ['lane_closure', 'E_A', [1]],
     ['lane_closure', '-E_A', [1]],
+  ]);
+});
+
+// ---- V2.7d C4b — the seven tiles ARM a kind (the accessible path); the both-directions checkbox ----
+
+test('V2.7d C4b: a tile arms a kind — the next road click opens the form pre-set; draw / zone tiles enter their modes', async ({ page }) => {
+  await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await expect(page.getByTestId('change-tiles')).toBeVisible();
+  for (const k of ['road-closure', 'lane-closure', 'speed-limit', 'incident', 'bike-lane', 'draw-road']) {
+    await expect(page.getByTestId(`tile-${k}`)).toBeVisible();
+  }
+  await page.getByTestId('tile-lane-closure').click();
+  await expect(page.getByTestId('tile-lane-closure')).toHaveAttribute('aria-pressed', 'true');
+  // a plain road click (the seam without a kind) now lands the ARMED kind
+  await page.evaluate(() => (window as unknown as { __nadiEditEdge: (x: string) => void }).__nadiEditEdge('E_A'));
+  await expect(page.getByTestId('drop-form')).toBeVisible();
+  await expect(page.getByTestId('lane-check-1')).toBeVisible();
+  await page.getByTestId('palette-cancel').click();
+  await expect(page.getByTestId('tile-lane-closure')).toHaveAttribute('aria-pressed', 'false'); // cancel disarms
+  // DRAW A NEW ROAD → the draw card's first step; SCHOOL ZONE keeps the `zone-mode-toggle` testid (school-zone.spec)
+  await page.getByTestId('tile-draw-road').click();
+  await expect(page.getByTestId('draw-card')).toContainText('Click a junction on the map to start.');
+  await page.getByTestId('zone-mode-toggle').click();
+  await expect(page.getByTestId('zone-palette')).toBeVisible();
+});
+
+test('V2.7d C4b: a road closure on a two-way street — one direction by default, SAID; both directions = 2 members', async ({ page }) => {
+  const getBody = await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await page.evaluate(() =>
+    (window as unknown as { __nadiEditEdge: (x: string, k?: string) => void }).__nadiEditEdge('E_A', 'road_closure'));
+  await expect(page.getByTestId('drop-form')).toBeVisible();
+  await expect(page.getByTestId('both-directions')).not.toBeChecked(); // default OFF — the single-change wire pin stands
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('closes northbound only — southbound stays open');
+  await page.getByTestId('both-directions').check();
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('closes both directions — 2 members');
+  await page.getByTestId('apply-road-closure').click();
+  await expect(draftRows(page)).toHaveCount(2);
+  await expect(page.getByTestId('draft-member-d1')).toContainText('Road closed · edge E_A');
+  await expect(page.getByTestId('draft-member-d2')).toContainText('Road closed · edge -E_A');
+  await page.getByTestId('draft-run').click();
+  await expect.poll(() => getBody()?.changes).toBeTruthy();
+  const body = getBody() as { changes: { type: string; target_edge: string }[] };
+  expect(body.changes.map((c) => [c.type, c.target_edge])).toEqual([['road_closure', 'E_A'], ['road_closure', '-E_A']]);
+});
+
+test('V2.7d C4b: a speed limit from the road card applies to both directions only when asked, with its own note', async ({ page }) => {
+  const getBody = await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await pickEdge(page, 'E_A'); // the road card
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('applies to northbound only — southbound unchanged');
+  await page.getByTestId('both-directions').check();
+  await expect(page.getByTestId('drop-direction-note')).toHaveText('applies to both directions — 2 members');
+  await page.getByTestId('palette-speed').fill('8');
+  await page.getByTestId('apply-speed').click();
+  await expect(draftRows(page)).toHaveCount(2);
+  await page.getByTestId('draft-run').click();
+  await expect.poll(() => getBody()?.changes).toBeTruthy();
+  const body = getBody() as { changes: { type: string; target_edge: string; description: string }[] };
+  expect(body.changes.map((c) => [c.type, c.target_edge, c.description])).toEqual([
+    ['speed_limit', 'E_A', 'Speed limit on E_A -> 8 m/s'],
+    ['speed_limit', '-E_A', 'Speed limit on -E_A -> 8 m/s'],
   ]);
 });
 const draftSeam = (page: Page) =>

@@ -12,7 +12,7 @@
 // (index 0), "(curb)" on the curbmost NON-sidewalk lane. Closable = the SUMO index is in the server's
 // `car_lane_indices` AND the table says the lane allows cars — both must agree.
 import { test, expect } from '@playwright/test';
-import { compassInitial, directionNote, emitLaneClosures, laneRowsFor } from '../lib/laneRows';
+import { applyNote, compassInitial, directionNote, emitLaneClosures, laneRowsFor } from '../lib/laneRows';
 import type { NetworkEdge } from '../lib/network';
 import { BUS, CAR, PED, netEdge } from './support/net';
 
@@ -86,4 +86,16 @@ test('directionNote: the ratified sentence — the partial tick on a two-way str
   const one = eastbound('B', [CAR], { oneway: true, reverse: null });
   expect(directionNote(one, null, { primary: [0], partner: [] })).toBe('one-way street — eastbound only');
   expect(directionNote(one, null, { primary: [], partner: [] })).toBe('one-way street — eastbound only');
+});
+
+test('applyNote (C4b): the both-directions checkbox on a road closure / speed limit says its consequence too', () => {
+  const eb = eastbound('E_A', [PED, CAR, CAR], { reverse: '-E_A' });
+  const wb = westbound('-E_A', [PED, CAR], { reverse: 'E_A' });
+  expect(applyNote(eb, wb, false, 'closes')).toBe('closes eastbound only — westbound stays open');
+  expect(applyNote(eb, wb, true, 'closes')).toBe('closes both directions — 2 members');
+  expect(applyNote(eb, wb, false, 'applies')).toBe('applies to eastbound only — westbound unchanged');
+  expect(applyNote(eb, wb, true, 'applies')).toBe('applies to both directions — 2 members');
+  const one = eastbound('B', [CAR], { oneway: true, reverse: null });
+  expect(applyNote(one, null, false, 'closes')).toBe('one-way street — eastbound only');
+  expect(applyNote(one, null, true, 'applies')).toBe('one-way street — eastbound only');
 });

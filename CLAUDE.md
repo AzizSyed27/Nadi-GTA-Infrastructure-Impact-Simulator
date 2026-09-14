@@ -634,6 +634,25 @@ ordinal (the design's "EB bus (curb)"); the initials derive from the mock's real
 geometry, so the pins read NB/SB; and the draft-basket mock's table disagreed with its own server lane
 list (E_C: a sidewalk at index 0 vs `car_lane_indices [0]`) — the table EXPOSED it, and the mock now
 derives its table from its indices (E_B/E_C become the net's ped-on-car shape).
+**C4b — THE SEVEN TILES + the both-directions box.** "Add a change — pick a change, then click the road
+it applies to": the ratified §1c seven (`tile-road-closure` / `-lane-closure` / `-speed-limit` /
+`-incident` / `-bike-lane` / `-draw-road`, and the SCHOOL ZONE tile carrying the `zone-mode-toggle`
+testid — the draw card's old zone button retired). A tile ARMS a kind (`aria-pressed`; the accessible
+path — C5 adds the pointer drag): the next road click carries it into the drop form pre-set; adding a
+member or cancelling disarms; the zone and draw tiles enter the EXISTING modes (a recorded decision).
+`DropKind` = the three events + speed limit + bike lane (the form shows the section its kind names; the
+road card shows all). A road closure or a speed limit on a two-way street gets a `both-directions`
+checkbox — DEFAULT OFF, so the V2.4a single-change wire pin (`Speed limit on E_A -> 8 m/s`) stands —
+and ONE `drop-direction-note` per form says its consequence either way ("closes northbound only —
+southbound stays open" / "applies to both directions — 2 members"); ticked, it adds one member per
+directional edge (`onSpeedLimits` / `onRoadClosures` → `addMembers`). The client's speed / bike
+descriptions read name-plus-id when named and keep the BARE id when unnamed (`clientEdgeRef` — the
+server's own unnamed form is `edge X`; the client's stays the bare id on purpose, the pin's form).
+Looked at: `docs-assets/v27d-c4-drop-form.png` — the tiles, the name-plus-id title with the lane count,
+the both-direction rows with the sidewalks inert, the ticked direction's sentence. (The tiles card
+overlaps the loaded run's caption at the rail's top — the pre-existing rail layout; C8's.) Gates:
+lane-rows 7 + draft-basket 20 + closure-palette 5 + school-zone 6 = 38; edit + seeds + run-identity +
+brake 30 + one rename click-timeout flake (the C3 class; re-run 1/1).
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street
