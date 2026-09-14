@@ -11,9 +11,10 @@ planner concludes**, never the other way around.
 ![The pinned 212-voice run mid-playback: dots, the reaction feed, the per-stakeholder scorecard](docs-assets/v25d-hero-playback.png)
 
 **Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`), **V2.7a** (the four-stage shell +
-the run document) and **V2.7b** (the run experience — two acts over one event stream) complete ·
+the run document), **V2.7b** (the run experience — two acts over one event stream), **V2.7c** (map
+styling) and **V2.7d** (the editor restyle + street names + the per-lane table) complete ·
 trajectory contract
-**v0.10.0** · **689 pytest + 185 Playwright** tests · study corridor: Scarborough / Pickering /
+**v0.10.0** · **715 pytest + 255 Playwright** tests · study corridor: Scarborough / Pickering /
 Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
@@ -275,9 +276,23 @@ cd web && npx playwright test        # 185 tests, 28 specs
   accidental refresh — a mid-run reload restores the run you were watching, beats and live cost
   included, because the screen is a projection of a durable event log rather than of anything held
   in memory.
+- **V2.7c ✅** — **map styling**: the transit-map palette, a zoom ladder (centerlines far out,
+  lane stripes and direction chevrons closer in, overhead mode icons closest), and drawn roads that
+  render as roads — a body at their lane count under a "proposed" casing, bends included.
+- **V2.7d ✅** — the **editor restyle + street names + the per-lane table**: drag a change tile
+  onto a road (or arm it and click), an inline mini-form fed by the road's REAL lane table for both
+  directions — one member per direction, and the form says which direction it closes before you
+  run — blocker cards carrying the engine's sentence verbatim beside the fix they offer, refused
+  clicks in a designed container, the whole Build rail on the design system. Street names now ride
+  the network export (from the tracked OSM extract by way id — the netconvert regeneration was
+  measured first and NOT taken, because it moves 112 edges) and reach the draft rows, the run card,
+  the report, the chat corpus and the voice cards, always as name-plus-id so the id stays the
+  falsifiable reference. The wire carries each lane's width and permitted modes, so the sidewalk
+  and bus-lane bands draw from data instead of a rule.
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
-  changes the saturation finding), editor styling + the netconvert-regen work (V2.7d; the map styling SHIPPED in V2.7c — the transit-map palette, the zoom ladder, the curved-road restyle),
-  a real student-demand segment, periodic mandate re-verification, the settled-basis
+  changes the saturation finding), street labels on the map itself and street names in the persona
+  prompts (V2.7e; both deferred with their costs recorded), the window-preset chips on the drop
+  form, a real student-demand segment, periodic mandate re-verification, the settled-basis
   re-verification rerun.
 
 

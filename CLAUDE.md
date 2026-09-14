@@ -536,8 +536,67 @@ Zoom baselines (this tree, identical rendering to C0): fat z15.2 / z16.5 p95 14.
 **C3 (the lanes band, LANDED — one commit, three sequenced parts):** **C3a** lane stripes — one row per INTERNAL car-lane boundary (never the sidewalk edge), ~2,300 rows on the net, built at load and `visible` from z ≥ 15 (the lazy build the plan sketched buys nothing at that size). **C3b** CHEVRONS at constant on-screen spacing (`roadGeometry.chevronAnchors`): 160 px of ARC LENGTH at the current quantized zoom, phase carried across GEOMETRIC successor chains — a successor starts within 30 m of the edge's end and continues the heading within 35°; a fork or a T-junction ends the chain; the junction gap counts toward arc; unique-claimant merges; chains start from predecessor-less edges in id order (deterministic) — the arrow clustering on curvy streets is gone by construction (V2.0b's one-arrow-per-edge-at-its-middle-vertex is retired). Chains are NEVER id-based: base-id chains bridge 834 m holes on this net and exact endpoint coincidence finds ONE pair (SUMO edge shapes stop ~14 m short of junctions). Rendered on EVERY direction (reading 4b — each directional edge is a direction), on each direction's own car body; the walk runs once per zoom gesture (never per frame) and is skipped at the far band. road-geometry.spec pins the boundaries BOTH sides (29/31 m, 34/36°), the T-junction non-bridge, the fork break, the gap-in-phase case, two-way both directions; map-ladder pins 9 / 21 chevrons over the fixture net at z15.2 / z16.2 (hand-derived from mpp) — a test-helper bug (34° from NORTH, not off the predecessor) was caught by the RED→GREEN cycle, not by the code. **C3c** the BIKE BAND: a scenario's `bike_lane` change renders as the curb-side car lane at TRUE width in #8fae87 from z ≥ 15 (a thin green line below); legend 'bike lane' + the swatch literal; the overlay seam gains `laneBand` while `path` (the vertex pins) is untouched; `allows.bike` on 98 % of edges is mixed traffic and never a band. **LOOKED-AT (the two ratified-vs-data readings):** 4(a) at z15.2 stripes are a fine but legible pattern on 2 px lanes — the pixel-pitch exit NOT taken; 4(b) two-way chevrons read as direction marks, not noise — the one-way-only fallback NOT taken; but the fixed 11 px glyph overflowed a 3 px road, so the glyph SCALES with the lane pixel pitch (`chevronSizePx` = 2.2 × lane px, floored 7 / capped 12; pinned) — a lever inside the rule, not a divergence. Perf (headed, prod): fat 4.19 / 3.82 / 3.72 s (fit on a 3.3 s fetch), p95 16.1 ×3; pinned 1.21 / 1.12 / 1.13 s, p95 16.0 / 16.0 / 15.1 — stripes + chevrons cost nothing at frame level. AFTER triple `v27c-after-c3-z*.png`. Gate: **693 pytest + 202 Playwright** (nine chunks; one load flake — run-identity's rename click timed out at 60 s under memory pressure and the file re-ran 4/4 on the same tree).
 **C4 (the icons band, LANDED — THE GATE PASSED, no contingency taken):** from z ≥ 16 travellers are overhead MODE ICONS rotated to heading (`web/lib/modeIcons.ts`: a Canvas2D atlas — car / bicycle / pedestrian masks — handed to deck as a PNG data URL, no binary asset; `viz.segmentAt` gives position AND heading from ONE cached bracket lookup; sizes in metres with a 12 px floor — at a 9 px floor the magnified z16.5 frame showed rounded marks, not cars, and the rung exists so mode reads from the SHAPE; `Pinned` carries `mode` from the join because the agent record has no vehicle type). The swap is a DATA swap, never `visible` (a hidden per-frame layer still regenerates its attributes every tick): the dot layers get EMPTY at z ≥ 16 and three IconLayers get the active arrays; the sibling seam `__nadiTravelers` counts dots vs icons per family and map-ladder pins CONSERVATION — every active traveller drawn once, dots below z16, icons from z16, dots again at the lanes band (the lane switch and the icon switch never share a gesture). Background icons keep the one TRAVELER hue; instrumented icons keep sentiment colour and the trigger-time swell (as size) and stay clickable. **THE GATE (headed, prod, fat 90 MB, both selector measurements):** z16.5 playback p95 **16.1 ms (62 fps)** against ≥ 30; the harness's NEW crossing probe (z15.9 → z16.5 while playing) recorded a longest rAF gap of **32 ms** (pinned 39), 0 longtasks — neither the viewport cull nor the instrumented-only retreat fires, so the conflicts table gains no row. fit 3.85 s / z15.2 3.76 s / z16.5 3.96 s; pinned 1.21 / 1.18 / 1.16 s, p95 ≤ 16.0 ms. Gate: **693 pytest + 202 Playwright** (nine chunks; one load flake — act-two's card click timed out waiting for "stable" mid-stream and the file re-ran 13/13; the same click-timeout class as C3's run-identity flake, both on a box at ~3 GB free).
 **C5 (the curved-road restyle + closeout, LANDED):** a DRAWN ROAD is a road, not a schematic line — in playback (`new-road-casing` / `new-road-body` / `new-road-stripes`), in the draft basket (`draft-road-*`) and in the live draw preview (`draw-preview-casing` / `draw-preview` / `draw-preview-stripes`) alike: a #515459 body at `Change.lanes × 3.2` m (`roadGeometry.newRoadRows`; lanes is REQUIRED for new_road — the minted edge's numLanes — a legacy change without it draws ONE lane, stated), white stripes on the internal boundaries from z ≥ 15, under a chevron-brown casing 0.8 m each side as the "proposed" mark (the legend swatch is the same tuple: `rgb(150, 98, 92)`, pinned). The preview uses the form's DEFAULT lane count (`DEFAULT_DRAW_PARAMS`, exported from EditPanel) until B is clicked. The drawn path (A + vias + B) is never replaced — the V2.6d vertex pins hold unmodified; the overlay seam gains `roadBody` + `stripes`, the draft seam `roadBody`. The V2.6d teal/orange idiom is retired (BACKLOG:136 reconciled; the in-source "explicitly deferred" note gone). LOOKED AT: the draft curve in Build (`v27c-after-c5-draft-curve.png`, from edit.spec's curved-draw test under NADI_SHOTS) and the V2.6d acceptance run's 3-bend connector in playback at z15.2 / z16.5 (`v27c-after-c5-curve-z*.png` — the new_road resolver needs the API server's junctions, which the quiet-box rule had stopped; relaunched for the frame). The corridor frames are unchanged by C5 (the example run has no new_road), so the arc's final AFTER triple is C4's. Perf (headed, prod): fat 3.96 / 3.70 / 3.70 s, p95 16.1 ×3, crossing 39 ms; pinned 1.18 / 1.16 / 1.17 s, p95 ≤ 16.0, crossing 32 ms — the new-road layers are empty on both artifacts and cost nothing. Gate: **693 pytest + 217 Playwright** (eight chunks, no flakes).
-**V2.7d — EDITOR RESTYLE + STREET NAMES + THE PER-LANE TABLE (in progress; plan at
-`~/.claude/plans/begin-v2-7c-map-styling-shimmering-kernighan.md`, the file name is historical).** The
+**V2.7d IS COMPLETE — EDITOR RESTYLE + STREET NAMES + THE PER-LANE TABLE (C0–C9, twelve commits
+`7586d75` · `b7b2ca2` · `52b6eb2` · `581b52e` · `401ec8e` · `f5200ba` · `c4bc214` · `6fdfe4b` ·
+`fa35ad2` · `9035dd4` · `7bda28a` · `69ff5d5`; NO contract change; the ONE data move is
+`web/public/network.json` v2 at C1a — the golden trajectory, the golden report, every fixture,
+`contract/` and every committed artifact byte-identical all arc, checked per commit; plan + execution
+log at `~/.claude/plans/begin-v2-7c-map-styling-shimmering-kernighan.md`, the file name historical).
+Suites at close: **715 pytest + 255 Playwright** (32 spec files). THE ROLLUP:** the Build stage is
+the ratified Map & Build §1c/§1d/§1e — seven change TILES dragged onto a road (pointer capture, a DOM
+ghost, `pickObject` at the release point) or armed and clicked; an inline DROP FORM fed by the road's
+REAL lane table for BOTH directions, emitting one member per directional edge with the per-direction
+consequence SAID before Run; BLOCKER cards carrying the engine sentence verbatim plus the resolution it
+offers; refusals in a designed container under the via caption; the whole rail on the design system.
+Street names ride the export (`name`, from the tracked OSM extract by way id — the regen was MEASURED
+and NOT taken) and reach the draft rows, the drop form, the server's descriptions, the report and chat
+corpus (name-plus-id, never name-instead-of-id) and the voice cards (nearest edge within 25 m at both
+trip ends, else the line is omitted). The per-lane wire table (`lanes[{width_m, allows{car,bike,ped,
+bus}}]`, `reverse`, `from`/`to`) replaced c's sidewalk rule with exact data: the invariant test is
+RE-DERIVED over the table (4,214 sidewalks · 28 / 23 / 6 residuals now FACTS the renderer draws right ·
+`bus_only_lanes == 23` · the width histogram), and the bus band draws on Midland Avenue's 23 lanes.
+**THE CONFLICTS TABLE (ratified vs shipped, every row recorded):** (1) Map & Build §1c SUPERSEDES the
+Shell v2 "Step 1/2/3" Build article (ratified 2026-09-13). (2) Both directions' lanes list in one form;
+ticks emit ONE `lane_closure` member per directional edge; road closure / speed limit get a
+`both-directions` box DEFAULT OFF (the V2.4a single-change wire pin stands) — and the consequence
+sentence ("closes northbound only — southbound stays open" / "closes both directions — 2 members") is
+a `toHaveText` pin, the ratification's one condition. (3) Name-plus-id, id-only when unnamed (byte-
+identical to the pre-arc forms). (4) R1: the reverse partner is EXPORTED (`reverse`), never derived
+from the id — 3,186 of 4,192 two-way edges have a partner whose `#k` differs. (5) R2: the table
+carries `bus`; c's conflicts row "no bus band — the wire carries no bus data" was FALSE-PREMISED and
+is corrected: 23 bus+bike lanes, all on Midland Avenue, drawn from z ≥ 15. (6) R3: cross streets need
+a same-name walk (≤ 6 hops, unique successor, never the reverse partner): both ends resolve for
+2,963 named edges, one for 1,027, neither for 497 → "between X and Y" / "near X" / omitted. (7) The
+SCHOOL ZONE and DRAW A NEW ROAD tiles enter the EXISTING modes (zone-select; the ptA flow). (8) The
+od line: nearest edge of ANY kind within 25 m (inclusive) at both trip ends; an unnamed nearest edge
+OMITS the line (skipping it would name a street the traveller was not on). (9) RESPONSE renders as a
+DAY-ONE button beside the REAL `option-assignment` checkbox in one segmented row, not two pressed-
+state buttons — four specs `.check()`/`.uncheck()`/`toBeDisabled()` it; looks, chosen for the spec
+API. (10) WINDOW PRESETS (AM PEAK / SCHOOL PM / ALL DAY) are NOT implemented — the form keeps V2.2c's
+start + duration minutes; the preset row is a BACKLOG item (derive from the profile, never a literal).
+(11) The run card has no §-source on the canvas; it wears the same classes by idiom. (12) C0 EXIT B:
+the regen drifted, so the canonical net is a FIXED ASSET — the invariant literals were re-verified at
+C1a against the v2 export of the UNCHANGED net (4,570 / 4,214 / 28 / 23 / the six off-width ids /
+{3.2: 6717, 1.6: 4, 7.0: 2}) — unchanged; checked, recorded as checked. **DEFERRED, with reasons:**
+map STREET LABELS (a TextLayer on the perf-gated hot path; the design shows named streets on the map,
+the product does not until it lands — e/f, cost stated) and `reactions.py` PROMPT NAMES (a
+generation-pipeline change wearing street-names clothing — a V2.7e RATIFICATION item; committed
+voices speak edge ids, new voices would speak names: a vocabulary vintage divergence to state when it
+lands). **THE RESIDUAL FROM c CLOSED:** both ghost frames were reviewed (`v27c-ghost-c8b-act-one.png`
++ the magnified crop; `v27c-ghost-network-only-blocked.png`) — the ghost reads as a hollow outlined
+road distinct from every solid one, the network-only caption head legible on the new ground; as
+intended. **PERF (C1b, the only layer-touching commit; headed, prod, quiet box):** fat 3.87 / 3.83 /
+3.68 s, p95 16.1 / 16.1 / 16.0 ms, heap 198 MB (+8 — the asset is 1.36 → 2.64 MB raw, 255 → 361 KB
+gzip), crossing 32 ms; pinned 1.17 / 1.19 / 1.16 s, p95 ≤ 16.1 — budgets hold. **FRAMES:**
+`docs-assets/v27d-after-c1b-z*.png` + `-midland-z*.png` (the bus band), `v27d-c4-drop-form.png`,
+`v27d-c6-blocker.png`, `v27d-c8-panel / -drop-form / -blocker / -draw-refusal / -zone / -run-card.png`.
+**THREE METHOD LESSONS PAID FOR:** a bash heredoc turned a regex's `\b` into a BACKSPACE byte and
+mis-encoded the middots in a spec (the reporter printed `/nadi-shell/` with no visible backslashes;
+caught by the advisor before GREEN — the heredoc memory, again); a red that reproduces ALONE is not
+yet the commit's until the committed tree is tried — the stash bisect showed run-identity:118 failing
+2 of 3 on HEAD too, and a fresh dev server made it green; and the act-two:478 / run-identity:118 pair
+is now a BACKLOG item with its mechanism named (Playwright's two-frame stability wait on a card that
+re-renders under load). **The per-step record follows.** The
 first data-moving arc since V2.7b. **C0 (2026-09-14) — THE DRY-RUN REGEN DECIDED: EXIT B, THE CANONICAL
 NET STAYS UNTOUCHED.** Both netconvert stages were re-run into scratch from the tracked extract with the
 same netconvert 1.27.0, the Stage-1 recipe verbatim plus `--output.street-names`, and the Stage-1b flags
@@ -745,15 +804,16 @@ the stale-server memory, again); act-two:478 passed 1 of 2 on the fresh server �
 weakness, unchanged in kind, its BACKLOG item written at C9. No python or asset change; no perf.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
-**V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street
-names and the `network.json`/golden staleness they cause belong to d, never to c, because styling
-touches no data) · **V2.7e doorways/room** +
+**V2.7d editor restyle + street names + the per-lane table — SHIPPED** (twelve commits; see the
+V2.7d box — the netconvert regen was measured at C0 and NOT taken: names ride the export from the
+tracked OSM extract, the canonical net is a fixed asset) · **V2.7e doorways/room** (+ the two V2.7d
+deferrals: map street labels, `reactions.py` prompt names as a ratification item) +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
-V2.6b, the document humanization's REMAINING half — street names, which need a netconvert regen
-that stales `network.json` and the golden trajectory together (the clock half shipped in V2.7b
-C10b) — the `scorecard._SAFETY_NOTE` recompute ceremony, and the V2.7b follow-ons: the
+V2.6b, the document humanization CLOSED at V2.7d (street names ride the export — no regen; the clock
+half shipped in V2.7b C10b) — the `scorecard._SAFETY_NOTE` recompute ceremony, the V2.7d follow-ons
+(map street labels, the window-preset row, the order-sensitive Playwright pair), and the V2.7b follow-ons: the
 interpretation's SHAPE as a product decision now that it is metered (the chat index alone is 53%
 of a run's spend), per-step cascade events, the two C11 residuals — the FORWARD-ONLY corpus-handle
 fix (the pinned run's served index still missing 115 of its 1,355 posts) and the lock-scoped
@@ -1958,7 +2018,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   display: 7.0 or 13.6 ms) — read p95.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (693 tests — sections: golden spine; contract
+- **Tests:** `python -m pytest python/tests` (715 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -1971,9 +2031,17 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   run-events/ledger/stage-runner/skip-resume/terminal-state (the exit-path PROPERTY test) +
   act-one beats + facts-only + the persisted draft + the event-vocabulary, bucket-label,
   display-label and projection lockstep pins + C11's live finds — the cancelled-discourse assembly
-  shape, the corpus handle collision, the held-lock-vs-stale rule and the projection floor) and
+  shape, the corpus handle collision, the held-lock-vs-stale rule and the projection floor; V2.7d
+  network-export v2 + the lane invariant RE-DERIVED over the wire table + the street-name resolver
+  and its server / scheduler / report / corpus consumers — unnamed forms byte-identical, the golden
+  report untouched) and
   `cd web && npx playwright test`
-  (217 tests across 30 spec files incl. the V2.7c `map-ladder` (zoom bands, per-band layer counts,
+  (255 tests across 32 spec files incl. the V2.7d `lane-rows` (compass initials at the sector
+  boundaries, the table's rows both directions, closable = server list ∩ table, one member per
+  directional edge, the direction sentences) and `street-names` (the name-plus-id lockstep forms,
+  nearest edge at 25.0 in / 25.001 out, the od line, the cross-street walk with fork stop) specs plus
+  the drop-form / tiles / real-mouse drag / blocker-card / draw-caption / rail-restyle pins riding
+  draft-basket and edit, the V2.7c `map-ladder` (zoom bands, per-band layer counts,
   the travellers' dots↔icons conservation, the new_road / bike_lane rungs, the basemap read-back) and
   `road-geometry` (pure pins: lane model, offsets, chevron chains, `segmentAt`) specs, seeds, compare, school-zone, scorecard-scope, enrich-stream,
   interview, institutions, graphs, draft-basket, composite-runcard, run-identity, group-interview,

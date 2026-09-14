@@ -320,17 +320,28 @@ why in the demo) but is optional, not required.
   payloads render no structured document callouts (the md keeps them) — both honest omissions,
   revisit if a document surface wants them.
 
-## V2.7a follow-up — humanize the document's identifiers (SPLIT at V2.7b; the clock half SHIPPED)
+## V2.7a follow-up — humanize the document's identifiers — CLOSED (clock half V2.7b C10b; street-name half V2.7d)
 The document spoke edge-ids and raw sim-seconds; the ratified design speaks street names and
 clock times. **The CLOCK half shipped in V2.7b C10b** — `Timeline`'s profile-blind local `fmt()`
 (which rendered `10:00` elapsed where a calibrated run reads `08:40`) and the near-miss tooltip
 now route through `simTime`, with a python↔TS lockstep pin on the anchor map.
-**The STREET-NAME half remains open, and its coupling is the reason it is its own step:** names
-need `--output.street-names` on the canonical net, and `network.json` and
-`python/tests/golden_trajectory.json` go stale TOGETHER because both derive from that net. So it
-is a netconvert regen plus two refreshes, not a rendering change. Scheduled V2.7d.
+**The STREET-NAME half shipped in V2.7d WITHOUT the regen this entry predicted:** C0's dry run
+showed the recipe does not reproduce the canonical net (32 normal + 80 internal edges added), so
+the net stayed a fixed asset and names come from the tracked OSM extract by way id at export time
+(`network_export.py --names-from`; `street_names.py` both halves). The golden never moved. Names
+reach the draft rows, the drop form, the server's descriptions, the report + chat corpus
+(name-plus-id, never name-instead-of-id) and the voice cards (nearest edge within 25 m at both
+ends, else omitted). Two consumers were DEFERRED with reasons — see the V2.7d follow-ons below.
 
-## V2.7c follow-on — the PER-LANE TABLE on the wire (V2.7d's network_export change)
+## V2.7c follow-on — the PER-LANE TABLE on the wire — SHIPPED (V2.7d C1a/C1b)
+**Landed as predicted, with two corrections to the prediction:** the invariant test was RE-DERIVED
+over the wire table, not retired (`test_wire_table_equals_the_net_per_lane` + the sidewalk property
+at 4,214 + the residuals 28 / 23 / 6 recounted as facts + `bus_only_lanes == 23` + the width
+histogram) — a pin that would only ever agree with the export is still the guard against the export
+drifting from the net; and the net DOES carry bus lanes — 23 bus+bike (psv) lanes, all on Midland
+Avenue — so the band is not "drawable if" but DRAWN (`road-bus-band`, #96625c, z ≥ 15; the c-arc
+conflicts row "no bus data" is corrected in CLAUDE.md). `laneModel` walks the table from the curb;
+the three residuals are now drawn right by construction. The original record follows.
 `web/public/network.json` carries `lanes` (a COUNT that includes sidewalk lanes) and per-EDGE
 `allows{car,bike,ped}` — no per-lane widths or modes. V2.7c derives the sidewalk from a rule probed
 on the canonical net and PINNED by `python/tests/test_lane_model_invariant.py` (`allows.ped` => one
@@ -440,3 +451,38 @@ Closing it means distinguishing "no url yet" from "url arrived, fetch failed" �
 flag set by the fetch effect's error path, plus a third caption body. That is new reader-facing
 copy, so it wants ratifying rather than inventing; the state is pinned either way by
 `act-one.spec.ts`'s failed-fetch case, which asserts the head and the entity counts, not the body.
+
+## V2.7d follow-ons (recorded at the C9 closeout, 2026-09-14)
+- **Map STREET LABELS — DEFERRED, cost stated.** The ratified Map & Build canvas shows named streets
+  on the map; the product does not. A label layer is a deck `TextLayer` on the perf-gated hot path
+  (the V2.7c ladder's budgets: p95 ≥ 30 fps at every band, the icons-band crossing probe) — its own
+  commit with the harness re-run at fit / z15.2 / z16.5, in e or f. Until it lands, street names are
+  legible in the draft rows, the drop form, the run card, the report and the voice cards, but not on
+  the map itself. Data is ready: `network.json` carries `name` per edge (4,487 named / 83 unnamed).
+- **`reactions.py` PROMPT NAMES — a V2.7e RATIFICATION item, not a rendering change.** Giving the
+  persona prompts the street name beside the edge id changes what the generation pipeline says, so it
+  is a generation-pipeline change wearing street-names clothing. Its cost to state when ratifying:
+  every committed artifact's voices speak edge ids (`edge -1288863201`) while new voices would speak
+  names — a VOCABULARY VINTAGE DIVERGENCE readers will meet across runs, the same class as the
+  C10 "unreachable" wording divergence. Sits beside the scorecard work in e.
+- **Window PRESETS on the drop form (AM PEAK / SCHOOL PM / ALL DAY) — NOT implemented.** The ratified
+  §1d form shows preset chips; the shipped form keeps V2.2c's start + duration minutes. When built:
+  AM PEAK derives from the calibrated profile's anchor map (`simTime` / `demand_profiles` — never a
+  literal; the mockup's 08:00→09:00 is illustrative), SCHOOL PM renders only when the profile spans
+  it (hidden on the AM profile), ALL DAY clears both, and on `synthetic_demo` only ALL DAY renders (no
+  clock exists). A conflicts-table row in CLAUDE.md's V2.7d box says so.
+- **The order-sensitive Playwright pair — harden the spec or the card, never `force`.**
+  `act-two.spec.ts:478` ("Act II adds no aggregate framing of its own, on any stage") and
+  `run-identity.spec.ts:118` (the rename round-trip) both fail on a click that Playwright's call log
+  shows RESOLVED, then "waiting for element to be visible, enabled and stable" (act-two) or the
+  post-scroll hang — the two-frame stability wait on a card that re-renders under load (the running
+  stage card's `data-status="running"` animation; the run card right after a status merge). Measured
+  this arc: act-two:478 fails in-file after its 12 siblings and 1-of-2 ALONE on a fresh dev server;
+  run-identity:118 failed 2-of-3 alone on BOTH the C8b tree and the committed C8a tree (stash-
+  verified) on a seven-hour-old dev server, then 2/2 on a fresh one. Pre-existing (act-two:478
+  reproduces on the pre-arc tree, verified at C1b), NOT this arc's regression — but every full gate
+  now pays a re-run for them. Candidate fixes: wait on a settled `data-status` before the click, or
+  give the running card a `prefers-reduced-motion`-style test hook; either way a pin that the fix
+  actually removes the instability (Playwright's `--repeat-each 5` green on the loaded box).
+- **The RunCard's `rename-toggle` uses `.ed-link .ed-sub`** — a button styled as a sub-line; if the
+  run card gets a §-source in a later design session, its identity affordance is the row to revisit.
