@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { netEdge } from './support/net';
 
 // V2.1d part ii — the comparison view. NEW spec file; every existing spec stays byte-identical.
 // Fixtures are derived IN-SPEC from the committed seeds-run.json (a REAL 0.8.0 artifact whose
@@ -93,10 +94,10 @@ async function mockBackend(page: Page, opts: { delayA?: boolean } = {}) {
   // Non-empty network/junction stubs (the seeds.spec shapes) — an empty network.json destabilizes
   // the map layer stack under the dev overlay and the mode toggle never settles.
   const J1 = { id: 'J1', lon: -79.2229, lat: 43.7443, type: 'priority', n_in: 4, n_out: 4 };
-  const NET_EDGE = {
+  const NET_EDGE = netEdge({
     id: 'E1', geometry: [[-79.222, 43.744], [-79.214, 43.75]], lanes: 2, speed_mps: 13.9,
     oneway: false, allows: { car: true, bike: true, ped: true },
-  };
+  });
   await page.route('**/api/junctions**', (r) => r.fulfill({ json: { junctions: [J1], count: 1 } }));
   await page.route('**/api/edges**', (r) =>
     r.fulfill({ json: { edges: [{ id: 'E1', car_lane_count: 2, eligible_bike_lane: true, eligibility_reason: 'eligible' }], count: 1 } }));

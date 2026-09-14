@@ -49,7 +49,8 @@ export interface LaneModel {
 
 export function laneModel(e: NetworkEdge): LaneModel {
   const sidewalk: 0 | 1 = e.allows.ped ? 1 : 0;
-  const carLanes = Math.max(1, e.lanes - sidewalk);
+  // V2.7d C1a: the count moved to `lane_count` (the table is `lanes`); the RULE stays until C1b reads the table.
+  const carLanes = Math.max(1, e.lane_count - sidewalk);
   const carWidthM = carLanes * LANE_M;
   const sidewalkWidthM = sidewalk * SIDEWALK_M;
   const totalWidthM = carWidthM + sidewalkWidthM;

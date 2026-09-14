@@ -8,6 +8,7 @@ import {
   severs,
 } from '../lib/draftBlockers';
 import type { EdgeEligibility, SimChange } from '../lib/api';
+import { netEdge } from './support/net';
 
 /**
  * V2.4a — the draft basket. Two halves:
@@ -150,7 +151,7 @@ async function mockBackend(page: Page, opts: { reject?: { status: number; detail
   await page.route('**/network.json', (route) =>
     route.fulfill({
       json: {
-        edges: EDGES.map((e) => ({
+        edges: EDGES.map((e) => netEdge({
           id: e.id, geometry: e.geometry, lanes: e.car_lane_indices.length + 1, speed_mps: 13.9,
           oneway: false, allows: { car: true, bike: true, ped: true },
         })),

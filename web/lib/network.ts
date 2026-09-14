@@ -4,15 +4,31 @@
 
 import type { LonLat } from './types';
 
+/** One SUMO lane's permissions — `bus` because 23 lanes on the net are bus+bike (psv) lanes (V2.7d). */
+export interface LaneAllows { car: boolean; bike: boolean; ped: boolean; bus: boolean }
+/** One row of the per-lane TABLE (V2.7d): index = SUMO lane index, 0 = the curb. */
+export interface NetworkLane { width_m: number; allows: LaneAllows }
+
 export interface NetworkEdge {
   id: string;
   /** Ordered [lon, lat] polyline (WGS84), from-node → to-node. */
   geometry: LonLat[];
-  lanes: number;
+  /** The per-lane table (V2.7d) — the exact data `laneModel` reads; replaces V2.7c's sidewalk rule. */
+  lanes: NetworkLane[];
+  /** `lanes.length`, kept as a number for readers that only want a count. */
+  lane_count: number;
   speed_mps: number;
   /** True if there is no reverse-partner edge (derived server-side by node pair). */
   oneway: boolean;
+  /** Edge-level OR over the table (car/bike/ped only — the shape every pre-V2.7d reader knows). */
   allows: { car: boolean; bike: boolean; ped: boolean };
+  /** The OSM street name, or null when the way is unnamed (V2.7d; from the tracked extract by way id). */
+  name: string | null;
+  /** Node ids — the cross-street walk starts here. */
+  from: string;
+  to: string;
+  /** The NODE-PAIR partner edge (never derived from the id — 3,186 two-way edges break the `-id` guess). */
+  reverse: string | null;
 }
 
 export interface NetworkData {

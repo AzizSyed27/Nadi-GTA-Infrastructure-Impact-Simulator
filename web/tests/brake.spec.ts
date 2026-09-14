@@ -24,6 +24,7 @@ import * as path from 'node:path';
 import { mockDefaultArtifactBody, DEFAULT_RUN_ID } from './support/default-artifact';
 import { gate, openRunFromList, openStage } from './support/shell';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
+import { netEdge } from './support/net';
 
 const RUN = DEFAULT_RUN_ID;
 
@@ -109,7 +110,7 @@ async function mockRun(
  *  a pick before `/api/edges` lands snapshots an empty lane picker. */
 async function openDraft(page: Page) {
   await page.route('**/network.json', (r) =>
-    r.fulfill({ json: { edges: [{ id: 'E_A', geometry: [[-79.23, 43.77], [-79.22, 43.775]], lanes: 2, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } }] } }));
+    r.fulfill({ json: { edges: [netEdge({ id: 'E_A', geometry: [[-79.23, 43.77], [-79.22, 43.775]], lanes: 2, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } })] } }));
   await page.unroute('**/api/edges**');
   await page.route('**/api/edges**', (r) =>
     r.fulfill({ json: { edges: [{ id: 'E_A', car_lane_count: 1, car_lane_indices: [0], eligible_bike_lane: true, eligibility_reason: 'eligible' }], count: 1 } }));

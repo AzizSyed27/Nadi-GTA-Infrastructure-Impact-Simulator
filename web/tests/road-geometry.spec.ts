@@ -23,11 +23,10 @@ import {
 import { positionAtCached, segmentAt } from '../lib/viz';
 import type { NetworkEdge } from '../lib/network';
 import type { LonLat } from '../lib/types';
+import { netEdge } from './support/net';
 
-const edge = (lanes: number, ped: boolean, oneway = false): NetworkEdge => ({
-  id: 'e', geometry: [[-79.25, 43.75], [-79.24, 43.75]], lanes, speed_mps: 13.89, oneway,
-  allows: { car: true, bike: true, ped },
-});
+const edge = (lanes: number, ped: boolean, oneway = false): NetworkEdge =>
+  netEdge({ id: 'e', geometry: [[-79.25, 43.75], [-79.24, 43.75]], lanes, speed_mps: 13.89, oneway, allows: { car: true, bike: true, ped } });
 
 test('lane widths are the probed net literals', () => {
   expect(LANE_M).toBe(3.2);
@@ -147,7 +146,7 @@ test('deriveRoadRows: lane stripes are the INTERNAL car-lane boundaries only —
 
 const DEG_PER_M_LON = 1 / (111195 * Math.cos((43.75 * Math.PI) / 180)); // at the fixture latitude
 /** An east-bound one-way edge of `lenM` metres starting at `lon0`, at lat 43.75 (+ `dLat`). */
-const east = (id: string, lon0: number, lenM: number, dLat = 0, ped = false): NetworkEdge => ({
+const east = (id: string, lon0: number, lenM: number, dLat = 0, ped = false): NetworkEdge => netEdge({
   id, geometry: [[lon0, 43.75 + dLat], [lon0 + lenM * DEG_PER_M_LON, 43.75 + dLat]], lanes: ped ? 2 : 1,
   speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped },
 });
@@ -200,8 +199,8 @@ test('the chain rule boundaries: 29 m chains and 31 m does not; 34° chains and 
     // in math-angle terms (ccw from east) that is simply `deg`
     const rad = (deg * Math.PI) / 180;
     const lon0 = -79.25 + 114 * DEG_PER_M_LON;
-    return { id, geometry: [[lon0, 43.75], [lon0 + 100 * Math.cos(rad) * DEG_PER_M_LON, 43.75 + (100 * Math.sin(rad)) / 111195]],
-      lanes: 1, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false } };
+    return netEdge({ id, geometry: [[lon0, 43.75], [lon0 + 100 * Math.cos(rad) * DEG_PER_M_LON, 43.75 + (100 * Math.sin(rad)) / 111195]],
+      lanes: 1, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false } });
   };
   expect(chevronAnchors([s1, turn('t34', 34)], [s1.geometry, turn('t34', 34).geometry], MPP15)).toHaveLength(1);
   expect(chevronAnchors([s1, turn('t36', 36)], [s1.geometry, turn('t36', 36).geometry], MPP15)).toHaveLength(0);
@@ -210,10 +209,10 @@ test('the chain rule boundaries: 29 m chains and 31 m does not; 34° chains and 
 test('a T-junction never bridges into the cross street, and a fork breaks the chain', () => {
   const s1 = east('a', -79.25, 100);
   const lonEnd = -79.25 + 114 * DEG_PER_M_LON;
-  const cross: NetworkEdge = { // starts 14 m past s1's end, heads NORTH (90° off)
+  const cross: NetworkEdge = netEdge({ // starts 14 m past s1's end, heads NORTH (90° off)
     id: 'x', geometry: [[lonEnd, 43.75], [lonEnd, 43.75 + 100 / 111195]], lanes: 1, speed_mps: 13.89, oneway: true,
     allows: { car: true, bike: true, ped: false },
-  };
+  });
   expect(chevronAnchors([s1, cross], [s1.geometry, cross.geometry], MPP15)).toHaveLength(0);
   // two in-tolerance successors (a fork): ambiguous → the chain ends at s1; each fork arm is its own
   // 100 m stub → nothing anywhere

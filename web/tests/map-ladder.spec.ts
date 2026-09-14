@@ -23,11 +23,15 @@ const FIXTURE = path.join(__dirname, 'fixtures', 'compact-run.json'); // bbox [-
 // The fixture net: one two-way pair — A (3 lanes: 2 car + a sidewalk → an ARTERIAL direction) and
 // -A (2 lanes: 1 car + a sidewalk → a COLLECTOR direction), both allows.ped — and one one-way edge
 // (B, 1 lane, no sidewalk). Lon/lat inside the artifact's bbox.
+// V2.7d: the wire carries the per-lane TABLE (index 0 = curb) + name / from / to / reverse. Written
+// LITERALLY here (no helper) so this fixture stays independent of every other file — regen-proof.
+const PED = { width_m: 2.0, allows: { car: false, bike: false, ped: true, bus: false } };
+const CAR = { width_m: 3.2, allows: { car: true, bike: true, ped: false, bus: true } };
 const NET = {
   edges: [
-    { id: 'A', geometry: [[-79.26, 43.75], [-79.25, 43.75]], lanes: 3, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true } },
-    { id: '-A', geometry: [[-79.25, 43.7501], [-79.26, 43.7501]], lanes: 2, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true } },
-    { id: 'B', geometry: [[-79.25, 43.76], [-79.24, 43.76]], lanes: 1, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false } },
+    { id: 'A', geometry: [[-79.26, 43.75], [-79.25, 43.75]], lanes: [PED, CAR, CAR], lane_count: 3, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true }, name: 'A Street', from: 'n1', to: 'n2', reverse: '-A' },
+    { id: '-A', geometry: [[-79.25, 43.7501], [-79.26, 43.7501]], lanes: [PED, CAR], lane_count: 2, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true }, name: 'A Street', from: 'n2', to: 'n1', reverse: 'A' },
+    { id: 'B', geometry: [[-79.25, 43.76], [-79.24, 43.76]], lanes: [CAR], lane_count: 1, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false }, name: null, from: 'n3', to: 'n4', reverse: null },
   ],
 };
 const CENTER: [number, number] = [-79.25, 43.755];

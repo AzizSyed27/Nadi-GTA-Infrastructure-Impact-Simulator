@@ -3,6 +3,7 @@ import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { netEdge } from './support/net';
 
 // V2.2d — the school zone: the FIRST real multi-change scenario. Palette flow (accumulate-select →
 // one composite POST + tags), the always-visible zone tint with its DESIGNATION legend sentence,
@@ -77,7 +78,7 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
   await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) =>
-    route.fulfill({ json: { edges: zone.map((e) => ({ id: e.id, geometry: e.geometry, lanes: 2, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } })) } }));
+    route.fulfill({ json: { edges: zone.map((e) => netEdge({ id: e.id, geometry: e.geometry, lanes: 2, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } })) } }));
   await page.route('**/api/edges**', (route) =>
     route.fulfill({ json: { edges: zone.map((e) => ({ id: e.id, car_lane_count: 2, car_lane_indices: [0, 1], eligible_bike_lane: true, eligibility_reason: 'eligible' })), count: 3 } }));
   await page.route('**/api/simulate', (route) => {

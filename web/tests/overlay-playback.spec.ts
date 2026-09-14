@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { netEdge } from './support/net';
 
 // V2.2c — the overlay tells the truth in TIME: a windowed capacity change appears/disappears AT
 // its window during playback (asserted via the __nadiChangeOverlay seam + __nadiSeek, never WebGL
@@ -31,7 +32,7 @@ function fixtureWithWindowedClosure(): { body: string; window: { start_s: number
 async function mockBackend(page: Page, artifactBody: string) {
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) =>
-    route.fulfill({ json: { edges: [{ id: EDGE_ID, geometry: [[-79.22, 43.744], [-79.21, 43.75]], lanes: 3, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } }] } }));
+    route.fulfill({ json: { edges: [netEdge({ id: EDGE_ID, geometry: [[-79.22, 43.744], [-79.21, 43.75]], lanes: 3, speed_mps: 13.9, oneway: false, allows: { car: true, bike: true, ped: true } })] }}));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));
   await page.route('**/api/runs', (route) =>
     route.fulfill({ json: { runs: [{ id: RUN_ID, description: 'overlay fixture', status: 'done', stage: 'done', started_at: 1 }] } }));

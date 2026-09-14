@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockDefaultArtifact } from './support/default-artifact';
+import { netEdge } from './support/net';
 
 // V2.2c — the palette's closure/incident actions: the lane picker (REAL car-lane indices), the
 // window inputs (minutes -> sim-seconds on the wire; clock labels on calibrated), the windowed →
@@ -22,7 +23,7 @@ async function mockBackend(page: Page, opts: { reject400?: string } = {}) {
   let lastBody: Record<string, unknown> | null = null;
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [J1], count: 1 } }));
   await page.route('**/network.json', (route) =>
-    route.fulfill({ json: { edges: [{ id: E.id, geometry: E.geometry, lanes: 3, speed_mps: E.speed_mps, oneway: false, allows: { car: true, bike: true, ped: true } }] } }));
+    route.fulfill({ json: { edges: [netEdge({ id: E.id, geometry: E.geometry, lanes: 3, speed_mps: E.speed_mps, oneway: false, allows: { car: true, bike: true, ped: true } })] } }));
   await page.route('**/api/edges**', (route) =>
     route.fulfill({ json: { edges: [{ id: E.id, car_lane_count: E.car_lane_count, car_lane_indices: E.car_lane_indices, eligible_bike_lane: E.eligible_bike_lane, eligibility_reason: E.eligibility_reason }], count: 1 } }));
   await page.route('**/api/simulate', (route) => {

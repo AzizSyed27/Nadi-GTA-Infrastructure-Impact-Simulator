@@ -3,6 +3,7 @@ import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { netEdge } from './support/net';
 
 // V2.1d — seeds as a run option, ranges in the scorecard. NEW spec file: every existing spec stays
 // byte-identical (single-seed rails/renders unchanged). The finished run resolves to the committed
@@ -29,7 +30,7 @@ async function mockBackend(page: Page, opts: { seedDetail?: boolean } = {}) {
 
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [J1], count: 1 } }));
   await page.route('**/network.json', (route) =>
-    route.fulfill({ json: { edges: [{ id: E_ELIG.id, geometry: E_ELIG.geometry, lanes: 2, speed_mps: E_ELIG.speed_mps, oneway: false, allows: { car: true, bike: true, ped: true } }] } }));
+    route.fulfill({ json: { edges: [netEdge({ id: E_ELIG.id, geometry: E_ELIG.geometry, lanes: 2, speed_mps: E_ELIG.speed_mps, oneway: false, allows: { car: true, bike: true, ped: true } })] } }));
   await page.route('**/api/edges**', (route) =>
     route.fulfill({ json: { edges: [{ id: E_ELIG.id, car_lane_count: 2, eligible_bike_lane: true, eligibility_reason: 'eligible' }], count: 1 } }));
   await page.route('**/api/simulate', (route) => {

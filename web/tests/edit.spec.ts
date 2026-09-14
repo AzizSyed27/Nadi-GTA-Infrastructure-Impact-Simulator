@@ -21,7 +21,8 @@ const E_ELIG = { id: 'E_ELIG', geometry: [[-79.222, 43.744], [-79.214, 43.75]], 
 const E_INELIG = { id: 'E_INELIG', geometry: [[-79.205, 43.752], [-79.198, 43.758]], speed_mps: 8.3, car_lane_count: 1, eligible_bike_lane: false, eligibility_reason: "bike_lane needs >= 2 car lanes on edge 'E_INELIG' so >= 1 remains for cars; found 1 ([0]). Refusing to block the edge.", oneway: true };
 // Split each into its two V2.0b sources: the network-export geometry entry and the /api/edges eligibility record.
 type FullEdge = typeof E_ELIG;
-const netEntry = (e: FullEdge) => ({ id: e.id, geometry: e.geometry, lanes: e.car_lane_count, speed_mps: e.speed_mps, oneway: e.oneway, allows: { car: true, bike: e.eligible_bike_lane, ped: true } });
+// V2.7d: the wire carries the per-lane TABLE — `car_lane_count` car lanes plus the curb sidewalk (index 0).
+const netEntry = (e: FullEdge) => netEdge({ id: e.id, geometry: e.geometry, lanes: [PED, ...Array.from({ length: e.car_lane_count }, () => CAR)], speed_mps: e.speed_mps, oneway: e.oneway, allows: { car: true, bike: e.eligible_bike_lane, ped:true } });
 const eligEntry = (e: FullEdge) => ({ id: e.id, car_lane_count: e.car_lane_count, eligible_bike_lane: e.eligible_bike_lane, eligibility_reason: e.eligibility_reason });
 
 // The referendum guard (same litmus as discourse.spec) — must hold over the edit UI + empty states too.
@@ -403,6 +404,7 @@ test('Escape pops bends, undo-bend mirrors it, a bare Escape cancels the draw', 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { mockDefaultArtifactBody } from './support/default-artifact';
+import { CAR, PED, netEdge } from './support/net';
 
 function curvedRunBody(via: string[]): string {
   const raw = JSON.parse(
