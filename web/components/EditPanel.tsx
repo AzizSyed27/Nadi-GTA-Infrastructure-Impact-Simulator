@@ -25,24 +25,63 @@ const TILES: { kind: ArmKind; testid: string; label: string }[] = [
 /** V2.7d C4b — "02 · ADD A CHANGE": the seven tiles (the ratified §1c palette). A tile ARMS a kind; the
  *  next road click carries it into the drop form (C5 adds the pointer drag onto the road). The zone and
  *  draw tiles enter the existing modes. Looks are C8's. */
-function ChangeTiles({ armed, onArm }: { armed: ArmKind | null; onArm: (k: ArmKind) => void }) {
+const DRAG_THRESHOLD_PX = 6;
+const isDropKind = (k: ArmKind): k is DropKind => k !== 'school_zone' && k !== 'new_road';
+
+function ChangeTiles({ armed, onArm, onDrop, dropMiss }: {
+  armed: ArmKind | null; onArm: (k: ArmKind) => void;
+  onDrop: (kind: DropKind, clientX: number, clientY: number) => void; dropMiss: boolean;
+}) {
+  // V2.7d C5 — POINTER-based drag (never HTML5 DnD onto the canvas): pointerdown captures the pointer
+  // on the tile, a fixed DOM ghost follows it, and pointerup past the threshold is a DROP at the
+  // release point (MapView picks the road there). A release within the threshold is the click — ARM.
+  const [drag, setDrag] = useState<{ kind: DropKind; label: string; x: number; y: number; moved: boolean; x0: number; y0: number } | null>(null);
+  const onPointerDown = (t: (typeof TILES)[number]) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isDropKind(t.kind) || e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ kind: t.kind, label: t.label, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false });
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    setDrag((d) => (d ? { ...d, x: e.clientX, y: e.clientY, moved: d.moved || Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > DRAG_THRESHOLD_PX } : d));
+  };
+  const onPointerUp = (t: (typeof TILES)[number]) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!drag) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    const d = drag;
+    setDrag(null);
+    if (d.moved && isDropKind(t.kind)) onDrop(t.kind, e.clientX, e.clientY);
+    else onArm(t.kind);
+  };
   return (
     <div style={card} data-testid="change-tiles">
       <div style={title}>Add a change</div>
-      <div style={subStep}>pick a change, then click the road it applies to</div>
+      <div style={subStep}>drag a change onto a road — or pick it, then click the road it applies to</div>
       <div style={tileGrid}>
         {TILES.map((t) => (
           <button
             key={t.kind}
-            style={{ ...tileBtn, ...(armed === t.kind ? tileActive : null) }}
+            style={{ ...tileBtn, ...(armed === t.kind ? tileActive : null), touchAction: 'none' }}
             aria-pressed={armed === t.kind}
-            onClick={() => onArm(t.kind)}
+            onClick={isDropKind(t.kind) ? undefined : () => onArm(t.kind)}
+            onPointerDown={onPointerDown(t)}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp(t)}
             data-testid={t.testid}
           >
             {t.label}
           </button>
         ))}
       </div>
+      {dropMiss && (
+        <div style={hintText} data-testid="drop-miss">
+          That spot is not on a road — drop the change onto a road.
+        </div>
+      )}
+      {drag?.moved && (
+        <div style={{ position: 'fixed', left: drag.x, top: drag.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 20, ...tileBtn, ...tileActive }}>
+          {drag.label}
+        </div>
+      )}
     </div>
   );
 }
@@ -87,6 +126,10 @@ interface EditPanelProps {
   /** V2.7d C4b: the tile currently ARMED (the accessible drop path) — the next road click carries it. */
   armedKind: ArmKind | null;
   onArm: (kind: ArmKind) => void;
+  /** V2.7d C5: a tile DROPPED on the map at client pixels — MapView picks the road under the pointer. */
+  onDrop: (kind: DropKind, clientX: number, clientY: number) => void;
+  /** The last drop landed on no road (shown ~1.5 s). */
+  dropMiss: boolean;
   /** The selected edge's node-pair partner (the opposite direction), merged; null on a one-way street. */
   dropPartner: Edge | null;
   /** The cross-street line for the selected edge ("between X and Y" / "near X"), or null. */
@@ -284,7 +327,7 @@ export function EditPanel(props: EditPanelProps) {
         <RunOptionsBlock options={props.runOptions} onChange={props.onRunOptions} windowLocked={props.windowLocked} />
       )}
       {/* V2.7d C4b — 02 · ADD A CHANGE: the seven tiles, always in the rail while composing */}
-      {!activeRunId && <ChangeTiles armed={props.armedKind} onArm={props.onArm} />}
+      {!activeRunId && <ChangeTiles armed={props.armedKind} onArm={props.onArm} onDrop={props.onDrop} dropMiss={props.dropMiss} />}
 
       {activeRunId ? (
         <>

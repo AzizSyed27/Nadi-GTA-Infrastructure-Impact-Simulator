@@ -161,7 +161,9 @@ async function mockBackend(page: Page, opts: { reject?: { status: number; detail
     reverse: opts.partner && e.id === 'E_A' ? '-E_A' : null,
   }));
   if (opts.partner) {
-    netEdges.push(netEdge({ id: '-E_A', geometry: [...EDGES[0].geometry].reverse(), lanes: 2, speed_mps: 13.9, oneway: false,
+    // the partner runs the other way ~5 m to the side (real partners are parallel offset polylines —
+    // identical geometry would make the pick under a drop ambiguous)
+    netEdges.push(netEdge({ id: '-E_A', geometry: [...EDGES[0].geometry].reverse().map(([lon, lat]) => [lon + 0.0003, lat]), lanes: 2, speed_mps: 13.9, oneway: false,
       allows: { car: true, bike: true, ped: true }, name: opts.names?.E_A ?? null, reverse: 'E_A' }));
   }
   const eligEdges = EDGES.map((e) => ({
@@ -299,6 +301,77 @@ test('V2.7d C4b: a tile arms a kind — the next road click opens the form pre-s
   await expect(page.getByTestId('draw-card')).toContainText('Click a junction on the map to start.');
   await page.getByTestId('zone-mode-toggle').click();
   await expect(page.getByTestId('zone-palette')).toBeVisible();
+});
+
+// ---- V2.7d C5 — the pointer drag: a tile dragged ONTO a road opens the form at the drop point ----
+
+/** Container-relative pixels of a lon/lat through the map's own projection (the `__nadiViewport` seam). */
+async function projectPx(page: Page, lonlat: [number, number]) {
+  // z17 (0.43 m/px): the two directions of a street sit tens of pixels apart, so a drop's pick is
+  // unambiguous — at the landing zoom both directions share the same pixels (deck picks the topmost)
+  await page.evaluate(
+    ([lon, lat]) => (window as unknown as { __nadiViewport: { jumpTo: (a: number, b: number, z: number) => void } }).__nadiViewport.jumpTo(lon, lat, 17),
+    lonlat,
+  );
+  await page.waitForTimeout(500);
+  const canvas = page.locator('canvas.maplibregl-canvas').first();
+  const box = (await canvas.boundingBox())!;
+  const px = await page.evaluate(
+    ([lon, lat]) => (window as unknown as { __nadiViewport: { project: (a: number, b: number) => { x: number; y: number } } }).__nadiViewport.project(lon, lat),
+    lonlat,
+  );
+  return { x: box.x + px.x, y: box.y + px.y, box };
+}
+
+async function dragTileTo(page: Page, tile: string, x: number, y: number) {
+  const t = (await page.getByTestId(tile).boundingBox())!;
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(x, y, { steps: 10 });
+  await page.mouse.up();
+}
+
+test('V2.7d C5: dragging LANE CLOSURE onto a road opens the drop form for THAT road', async ({ page }) => {
+  await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await page.waitForFunction(() => typeof (window as unknown as { __nadiViewport?: { project?: unknown } }).__nadiViewport?.project === 'function');
+  const g = EDGES[0].geometry;
+  const mid: [number, number] = [(g[0][0] + g[g.length - 1][0]) / 2, (g[0][1] + g[g.length - 1][1]) / 2];
+  const p = await projectPx(page, mid);
+  await dragTileTo(page, 'tile-lane-closure', p.x, p.y);
+  await expect(page.getByTestId('drop-form')).toBeVisible();
+  await expect(page.getByTestId('drop-form')).toContainText('edge E_A');
+  await expect(page.getByTestId('lane-check-1')).toBeVisible();
+  await expect(page.getByTestId('tile-lane-closure')).toHaveAttribute('aria-pressed', 'false'); // a drop never leaves a tile armed
+});
+
+test('V2.7d C5: a drop on empty map says so and adds nothing', async ({ page }) => {
+  await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await page.waitForFunction(() => typeof (window as unknown as { __nadiViewport?: { project?: unknown } }).__nadiViewport?.project === 'function');
+  const box = (await page.locator('canvas.maplibregl-canvas').first().boundingBox())!;
+  await dragTileTo(page, 'tile-road-closure', box.x + 40, box.y + box.height - 40); // the corner: no mock edge there
+  await expect(page.getByTestId('drop-miss')).toBeVisible();
+  await expect(page.getByTestId('drop-form')).toHaveCount(0);
+  await expect(draftRows(page)).toHaveCount(0);
+});
+
+test('V2.7d C5: a member added from a drop pins its tile icon at the drop point', async ({ page }) => {
+  await mockBackend(page, { partner: true });
+  await openEdit(page);
+  await page.waitForFunction(() => typeof (window as unknown as { __nadiViewport?: { project?: unknown } }).__nadiViewport?.project === 'function');
+  const g = EDGES[0].geometry;
+  const mid: [number, number] = [(g[0][0] + g[g.length - 1][0]) / 2, (g[0][1] + g[g.length - 1][1]) / 2];
+  const p = await projectPx(page, mid);
+  await dragTileTo(page, 'tile-road-closure', p.x, p.y);
+  await expect(page.getByTestId('drop-form')).toBeVisible();
+  await page.getByTestId('apply-road-closure').click();
+  await expect(draftRows(page)).toHaveCount(1);
+  await expect(page.getByTestId('draft-pin-d1')).toBeVisible();
+  // the pin is DOM, anchored by the map's projection — within a few px of where the tile was released
+  const pin = (await page.getByTestId('draft-pin-d1').boundingBox())!;
+  expect(Math.abs(pin.x + pin.width / 2 - p.x)).toBeLessThan(12);
+  expect(Math.abs(pin.y + pin.height / 2 - p.y)).toBeLessThan(12);
 });
 
 test('V2.7d C4b: a road closure on a two-way street — one direction by default, SAID; both directions = 2 members', async ({ page }) => {

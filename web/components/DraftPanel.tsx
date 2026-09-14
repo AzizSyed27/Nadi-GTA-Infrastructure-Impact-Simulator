@@ -21,6 +21,8 @@ export interface DraftMember {
   valid: boolean;
   origin?: 'zone';
   path?: [number, number][];
+  /** V2.7d C5: where a DROPPED member landed (lon/lat) — its tile icon is pinned there; absent otherwise. */
+  at?: [number, number];
 }
 
 interface DraftPanelProps {

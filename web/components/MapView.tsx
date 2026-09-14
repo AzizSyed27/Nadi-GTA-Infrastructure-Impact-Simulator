@@ -210,18 +210,74 @@ function DeckOverlay({
   onClick,
   onHover,
   getCursor,
+  overlayRef,
 }: {
   layers: Layer[];
   getTooltip: (info: PickingInfo) => { html: string; style?: Record<string, string> } | null;
   onClick?: (info: PickingInfo) => void;
   onHover?: (info: PickingInfo) => void;
   getCursor?: (state: { isDragging: boolean; isHovering: boolean }) => string;
+  /** V2.7d C5: the overlay instance, exposed so a tile DROP can `pickObject` the road under the pointer. */
+  overlayRef?: React.MutableRefObject<MapboxOverlay | null>;
 }) {
   const overlay = useControl(() => new MapboxOverlay({ interleaved: false }));
+  useEffect(() => {
+    if (overlayRef) overlayRef.current = overlay;
+  }, [overlay, overlayRef]);
   // getCursor is NEVER undefined (would crash deck's per-frame _updateCursor); onClick/onHover may be (deck null-checks).
   overlay.setProps({ layers, getTooltip, onClick, onHover, getCursor: getCursor ?? DEFAULT_CURSOR });
   return null;
 }
+
+/** V2.7d C5 — a DOM element anchored to a lon/lat through the map's own projection. Subscribes to
+ *  the map's `move` with ITS OWN state, so MapView never re-renders per pan frame. */
+function MapAnchored({ mapRef, at, children, testid }: {
+  mapRef: React.RefObject<MapRef | null>; at: LonLat; children: React.ReactNode; testid?: string;
+}) {
+  const [px, setPx] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const update = () => {
+      const p = map.project(at);
+      setPx({ x: p.x, y: p.y });
+    };
+    update();
+    map.on('move', update);
+    return () => {
+      map.off('move', update);
+    };
+  }, [mapRef, at]);
+  if (!px) return null;
+  return (
+    <div style={{ position: 'absolute', left: px.x, top: px.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 3 }}
+         data-testid={testid}>
+      {children}
+    </div>
+  );
+}
+
+const PIN_GLYPH: Record<string, string> = {
+  road_closure: '⛔', lane_closure: '⚠', speed_limit: '40', incident: '!', bike_lane: '🚲', new_road: '＋',
+};
+
+/** The tile icons pinned where each dropped member landed (the ratified "confirming … pins this icon at
+ *  the drop point"). Members added by click or clone carry no `at` and get no pin. */
+function DraftPins({ mapRef, members }: { mapRef: React.RefObject<MapRef | null>; members: DraftMember[] }) {
+  return (
+    <>
+      {members.filter((m) => m.at).map((m) => (
+        <MapAnchored key={m.id} mapRef={mapRef} at={m.at!} testid={`draft-pin-${m.id}`}>
+          <div style={pinStyle} title={m.change.type.replace(/_/g, ' ')}>{PIN_GLYPH[m.change.type] ?? '•'}</div>
+        </MapAnchored>
+      ))}
+    </>
+  );
+}
+const pinStyle: React.CSSProperties = {
+  width: 22, height: 22, borderRadius: 4, background: '#1d1f20', color: '#f2f2f3', fontSize: 11, fontWeight: 700,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+};
 
 export default function MapView() {
   const [artifact, setArtifact] = useState<TrajectoryArtifact | null>(null);
@@ -398,6 +454,10 @@ export default function MapView() {
     return m;
   }, [networkEdges]);
   const mapRef = useRef<MapRef | null>(null);
+  // V2.7d C5: the deck overlay (for a drop's pickObject) and where a dropped member landed.
+  const overlayRef = useRef<MapboxOverlay | null>(null);
+  const dropAtRef = useRef<LonLat | null>(null);
+  const [dropMiss, setDropMiss] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -977,6 +1037,11 @@ export default function MapView() {
       basemap,
       jumpTo: (lon: number, lat: number, z: number) =>
         mapRef.current?.getMap().jumpTo({ center: [lon, lat], zoom: z }),
+      // V2.7d C5: container-relative pixels of a lon/lat — the drag tests aim a REAL mouse drop with it
+      project: (lon: number, lat: number) => {
+        const p = mapRef.current?.getMap().project([lon, lat]);
+        return p ? { x: p.x, y: p.y } : null;
+      },
     };
   }, [viewZoom, band, basemap]);
   useEffect(() => {
@@ -1502,7 +1567,9 @@ export default function MapView() {
     // mint the id OUTSIDE the updater — StrictMode double-invokes updaters, and an impure
     // ++ref inside one skips every other id (d2, d4, …)
     const id = `d${++draftSeq.current}`;
-    setDraft((d) => [...d, { id, change, valid: true, ...extra }]);
+    const at = dropAtRef.current; // C5: a member added from a DROP pins its icon at the drop point
+    dropAtRef.current = null;
+    setDraft((d) => [...d, { id, change, valid: true, ...(at ? { at } : {}), ...extra }]);
     setDraftError(null);
     // close the contributing tool — the same clears the old submit-on-apply did on success
     setPtA(null);
@@ -1522,7 +1589,10 @@ export default function MapView() {
     if (changes.length === 0) return;
     const base = draftSeq.current;
     draftSeq.current += changes.length;
-    setDraft((d) => [...d, ...changes.map((change, i) => ({ id: `d${base + i + 1}`, change, valid: true }))]);
+    // C5: members added from a DROP remember the drop point (their pinned icon); the ref is consumed
+    const at = dropAtRef.current;
+    dropAtRef.current = null;
+    setDraft((d) => [...d, ...changes.map((change, i) => ({ id: `d${base + i + 1}`, change, valid: true, ...(at ? { at } : {}) }))]);
     setDraftError(null);
     setPtA(null);
     setPtB(null);
@@ -1732,6 +1802,34 @@ export default function MapView() {
     if (zoneMode) onZoneCancel();
     setArmedKind((cur) => (cur === kind ? null : kind));
   }, [zoneMode, onZoneToggle, onZoneCancel, resetDraw]);
+
+  // V2.7d C5 — a tile DROPPED on the map: the road under the pointer through deck's own picking on the
+  // `edit-edges` layer (container-relative px; radius 8), the form opens for THAT road pre-set to the
+  // tile's kind, and the drop point is remembered so the member it adds pins its icon there. A miss
+  // says so (`drop-miss`, 1.5 s) and adds nothing. Never HTML5 DnD onto the canvas (pointer-based).
+  const onDropAt = useCallback((kind: DropKind, clientX: number, clientY: number) => {
+    const map = mapRef.current?.getMap();
+    const overlay = overlayRef.current;
+    if (!map || !overlay) return;
+    const r = map.getContainer().getBoundingClientRect();
+    const x = clientX - r.left;
+    const y = clientY - r.top;
+    const info = overlay.pickObject({ x, y, layerIds: ['edit-edges'], radius: 8 });
+    const hit = info?.object as NetworkEdge | undefined;
+    const merged = hit ? mergeEdge(hit.id) : null;
+    setArmedKind(null);
+    if (!merged) {
+      setDropMiss(true);
+      window.setTimeout(() => setDropMiss(false), 1500);
+      return;
+    }
+    const ll = map.unproject([x, y]);
+    dropAtRef.current = [ll.lng, ll.lat];
+    setSelectedEdge(merged);
+    setDropKind(kind);
+    setDrawHint(null);
+    if (zoneMode) onZoneCancel();
+  }, [mergeEdge, zoneMode, onZoneCancel]);
 
   // V2.6d — the app's first keyboard surface, mounted only mid-draw: Escape pops the last bend;
   // with none left it cancels the draw (the visible undo-bend button mirrors the pop for
@@ -2694,8 +2792,11 @@ export default function MapView() {
           onClick={drawing ? onEditClick : undefined}
           onHover={drawing ? onEditHover : undefined}
           getCursor={drawing ? ({ isDragging }) => (isDragging ? 'grabbing' : 'crosshair') : undefined}
+          overlayRef={overlayRef}
         />
       </Map>
+      {/* V2.7d C5 — the tile icons pinned where dropped members landed (DOM, map-anchored) */}
+      {stage === 'build' && <DraftPins mapRef={mapRef} members={draft} />}
 
       {/* Map chrome (header / sample note / change legend) belongs to the MAP — hidden while a
           full SHEET covers it (compare and the V2.3d graph split-view both occlude the map). */}
@@ -2822,6 +2923,8 @@ export default function MapView() {
           onZoneToggle={onZoneToggle}
           armedKind={armedKind}
           onArm={onArm}
+          onDrop={onDropAt}
+          dropMiss={dropMiss}
           onZoneRemove={onZoneRemove}
           onZoneSubmit={onZoneSubmit}
           onZoneCancel={onZoneCancel}

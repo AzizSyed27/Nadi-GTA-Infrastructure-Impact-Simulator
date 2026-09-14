@@ -653,6 +653,22 @@ the both-direction rows with the sidewalks inert, the ticked direction's sentenc
 overlaps the loaded run's caption at the rail's top — the pre-existing rail layout; C8's.) Gates:
 lane-rows 7 + draft-basket 20 + closure-palette 5 + school-zone 6 = 38; edit + seeds + run-identity +
 brake 30 + one rename click-timeout flake (the C3 class; re-run 1/1).
+**C5 — DRAG ONTO A ROAD (the ratified §1c/§1d gesture).** POINTER-based, never HTML5 DnD onto the canvas:
+pointerdown on a tile captures the pointer, a fixed DOM ghost follows it past a 6 px threshold, and
+pointerup past it is a DROP — MapView turns the client pixels into container pixels and asks deck's own
+picking (`MapboxOverlay.pickObject` on the `edit-edges` layer, radius 8, the overlay exposed through a
+ref assigned in an effect); the form opens for THAT road pre-set to the tile's kind, the drop point is
+`unproject`ed and remembered, and the member it adds PINS the tile's icon there (`DraftMember.at` →
+`DraftPins`, DOM markers anchored through `MapAnchored`, which subscribes to the map's `move` with its
+own state so MapView never re-renders per pan frame; no deck layer added — no perf gate). A drop on no
+road says so (`drop-miss`, 1.5 s) and adds nothing; a release within the threshold is the click — ARM.
+The `__nadiViewport` seam gains `project(lon, lat)` so the specs aim a REAL `page.mouse` drag at a road's
+projected midpoint (at z17 — at the landing zoom a street's two directions share the same pixels and
+deck picks the topmost, which the first run showed as the partner's title; the mock's partner now sits
+~24 m aside, as real partners do). Gates: draft-basket 23 (+3: the drag opens the form for that road,
+the miss, the pin within 12 px of the release) + closure-palette + seeds + school-zone + lane-rows = 43;
+edit + brake + run-identity 28 + run-identity's rename test failed IN-CHUNK again (last in a 9.7-min
+chunk; alone 4/4) — with act-two:478 it is the order-sensitive pair recorded for BACKLOG at C9.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street
