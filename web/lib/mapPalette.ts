@@ -23,6 +23,9 @@ export const CENTERLINE: Rgba = [242, 242, 243, 255];
 export const CHEVRON: Rgba = [150, 98, 92, 255];
 /** #8fae87 — a dedicated bike lane band (rendered for the scenario's bike_lane CHANGE only). */
 export const BIKE_BAND: Rgba = [143, 174, 135, 255];
+/** #96625c — a dedicated BUS lane band (the design's "muted red"). V2.7c's "no bus data" row was
+ *  false-premised: the per-lane table (V2.7d) shows 23 bus+bike lanes on the canonical net. */
+export const BUS_BAND: Rgba = [150, 98, 92, 255];
 /** #2f3133 — one traveller, any mode (mode is legible from the icon at z ≥ 16, never from colour). */
 export const TRAVELER: Rgba = [47, 49, 51, 255];
 /** The 1 px light rim on a background traveller — a dark dot on the dark roadway needs one. */

@@ -18,7 +18,7 @@ import { IconLayer, PathLayer } from '@deck.gl/layers';
 import { PathStyleExtension } from '@deck.gl/extensions';
 import type { Layer } from '@deck.gl/core';
 import type { CenterlineRow, ChevronAnchor, RoadRow, RoadRows } from './roadGeometry';
-import { CENTERLINE, CHEVRON, ROADWAY, SIDEWALK } from './mapPalette';
+import { BUS_BAND, CENTERLINE, CHEVRON, ROADWAY, SIDEWALK } from './mapPalette';
 
 // The chevron glyph: an SVG data URL (no binary asset — the V2.0b /arrow.png is deleted), NORTH at angle 0,
 // masked so the layer's colour applies. Explicit width/height — loaders.gl needs them on an SVG root.
@@ -94,6 +94,15 @@ export function buildRoadLayers({ rows, band, chevrons, chevronSizePx }: RoadLay
     getWidth: (d) => d.widthM, widthUnits: 'meters', widthMinPixels: 1.5, widthMaxPixels: 60,
     capRounded: true, jointRounded: true, pickable: false,
   });
+  // V2.7d C1b — the BUS band: bus-only lanes (23 on the canonical net) at their true offset and width,
+  // drawn ON the body in the design's muted red. Static like the sidewalk ribbon: a thin band at the
+  // overview (the 1.5 px floor), the true lane from the lanes band — "dedicated lanes as colored edge
+  // bands" at every zoom, widening at z ≥ 15. (The bike band stays the scenario's CHANGE — MapView.)
+  const busBand = new PathLayer<RoadRow>({
+    id: 'road-bus-band', data: rows.busBand, getPath: (d) => d.path, getColor: BUS_BAND,
+    getWidth: (d) => d.widthM, widthUnits: 'meters', widthMinPixels: 1.5, widthMaxPixels: 30,
+    capRounded: false, jointRounded: true, pickable: false,
+  });
   const centerline = new PathLayer<CenterlineRow>({
     id: 'road-centerline', data: rows.centerline, getPath: (d) => d.path, getColor: CENTERLINE,
     getWidth: 1.4, widthUnits: 'pixels', capRounded: false, jointRounded: true, pickable: false,
@@ -123,7 +132,7 @@ export function buildRoadLayers({ rows, band, chevrons, chevronSizePx }: RoadLay
     pickable: false, visible: band !== 'far',
     updateTriggers: { getSize: chevronSizePx },
   });
-  return [sidewalk, body, centerline, collector, stripes, chevronLayer];
+  return [sidewalk, body, busBand, centerline, collector, stripes, chevronLayer];
 }
 
 /** The seam's view of a layer list: id, visibility, row count — what map-ladder.spec pins. */

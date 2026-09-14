@@ -27,11 +27,14 @@ const FIXTURE = path.join(__dirname, 'fixtures', 'compact-run.json'); // bbox [-
 // LITERALLY here (no helper) so this fixture stays independent of every other file — regen-proof.
 const PED = { width_m: 2.0, allows: { car: false, bike: false, ped: true, bus: false } };
 const CAR = { width_m: 3.2, allows: { car: true, bike: true, ped: false, bus: true } };
+// A bus+bike (psv) lane — the shape of the 23 such lanes on the canonical net (V2.7d C1b: a bus band).
+const BUS = { width_m: 3.2, allows: { car: false, bike: true, ped: false, bus: true } };
 const NET = {
   edges: [
     { id: 'A', geometry: [[-79.26, 43.75], [-79.25, 43.75]], lanes: [PED, CAR, CAR], lane_count: 3, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true }, name: 'A Street', from: 'n1', to: 'n2', reverse: '-A' },
     { id: '-A', geometry: [[-79.25, 43.7501], [-79.26, 43.7501]], lanes: [PED, CAR], lane_count: 2, speed_mps: 13.89, oneway: false, allows: { car: true, bike: true, ped: true }, name: 'A Street', from: 'n2', to: 'n1', reverse: 'A' },
-    { id: 'B', geometry: [[-79.25, 43.76], [-79.24, 43.76]], lanes: [CAR], lane_count: 1, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false }, name: null, from: 'n3', to: 'n4', reverse: null },
+    // B: a curb bus lane (index 0) beside one car lane — still 1 car lane (no stripe), no sidewalk.
+    { id: 'B', geometry: [[-79.25, 43.76], [-79.24, 43.76]], lanes: [BUS, CAR], lane_count: 2, speed_mps: 13.89, oneway: true, allows: { car: true, bike: true, ped: false }, name: null, from: 'n3', to: 'n4', reverse: null },
   ],
 };
 const CENTER: [number, number] = [-79.25, 43.755];
@@ -108,9 +111,12 @@ test('the landing is the far band: fitBounds zoom is published and the road laye
   // the C2a frame), so the collector dash joins the lane-detail rung.
   // C3a: the lane stripes (every INTERNAL car-lane boundary) are built at load and hidden below z15:
   // A has 2 car lanes → 1 stripe; -A and B have 1 car lane → none.
+  // V2.7d C1b: the bus band — B's curb bus lane, a static row at every band (a thin band at the
+  // overview, true width from the lanes band, like the sidewalk ribbon) drawn ON the body.
   expect(rl!.layers).toEqual([
     { id: 'road-sidewalk', visible: true, count: 2 },
     { id: 'road-body', visible: true, count: 3 },
+    { id: 'road-bus-band', visible: true, count: 1 },
     { id: 'road-centerline', visible: true, count: 1 },
     { id: 'road-centerline-collector', visible: false, count: 1 },
     { id: 'road-stripes', visible: false, count: 1 },

@@ -21,9 +21,9 @@ import {
   offsetPolyline,
 } from '../lib/roadGeometry';
 import { positionAtCached, segmentAt } from '../lib/viz';
-import type { NetworkEdge } from '../lib/network';
+import type { NetworkEdge, NetworkLane } from '../lib/network';
 import type { LonLat } from '../lib/types';
-import { netEdge } from './support/net';
+import { BUS, CAR, PED, netEdge } from './support/net';
 
 const edge = (lanes: number, ped: boolean, oneway = false): NetworkEdge =>
   netEdge({ id: 'e', geometry: [[-79.25, 43.75], [-79.24, 43.75]], lanes, speed_mps: 13.89, oneway, allows: { car: true, bike: true, ped } });
@@ -72,6 +72,61 @@ test('laneModel: internal car-lane boundaries sit at 3.2 m pitch inside the car 
 
 test('laneModel never yields zero car lanes (a defensive floor, not a net fact)', () => {
   expect(laneModel(edge(1, true)).carLanes).toBe(1);
+});
+
+// ---- V2.7d C1b: the model reads the per-lane TABLE — true widths, true offsets, the bus lane ----
+const tableEdge = (lanes: NetworkLane[], oneway = false): NetworkEdge =>
+  netEdge({ id: 't', geometry: [[-79.25, 43.75], [-79.24, 43.75]], lanes, speed_mps: 13.89, oneway, allows: { car: lanes.some((l) => l.allows.car), bike: true, ped: lanes.some((l) => l.allows.ped) } });
+const WIDE_CAR: NetworkLane = { width_m: 7.0, allows: { car: true, bike: true, ped: false, bus: true } };
+
+test('laneModel (table): a 7.0 m car lane beside the sidewalk draws at 7.0 m, not 3.2', () => {
+  // the two `27040771` edges — V2.7c drew them 3.2 m wide (residual 3); the table makes them exact
+  const m = laneModel(tableEdge([PED, WIDE_CAR]));
+  expect(m.carLanes).toBe(1);
+  expect(m.carWidthM).toBeCloseTo(7.0, 6);
+  expect(m.totalWidthM).toBeCloseTo(9.0, 6);
+  expect(m.bodyOffsetM).toBeCloseTo(-1.0, 6); // half a sidewalk to the LEFT of the bundle centre
+  expect(m.sidewalkOffsetM).toBeCloseTo(3.5, 6); // half the car width to the right
+  expect(m.leftBoundaryOffsetM).toBeCloseTo(-4.5, 6);
+});
+
+test('laneModel (table): a bus-only lane widens the bundle, carries its own offset, and breaks stripe adjacency', () => {
+  // [sidewalk, car, bus, car]: 2.0 + 3.2 + 3.2 + 3.2 = 11.6 m; index 0 is the curb (positive = right)
+  // lane edges walking from the curb (right, +5.8): sidewalk [5.8, 3.8], car [3.8, 0.6], bus [0.6, −2.6], car [−2.6, −5.8]
+  const m = laneModel(tableEdge([PED, CAR, BUS, CAR]));
+  expect(m.carLanes).toBe(2);
+  expect(m.totalWidthM).toBeCloseTo(11.6, 6);
+  expect(m.busLanes.map((b) => Number(b.offsetM.toFixed(6)))).toEqual([-1.0]); // the bus lane's centre
+  expect(m.busLanes[0].widthM).toBeCloseTo(3.2, 6);
+  // the two car lanes are NOT adjacent (the bus lane sits between them) → no internal car boundary
+  expect(m.laneBoundaryOffsetsM).toEqual([]);
+  // the car BODY spans from the curbmost car lane's outer edge (3.8) to the inner one's (−5.8): the bus
+  // lane lies inside it and draws its own band on top — 9.6 m centred at −1.0
+  expect(m.carWidthM).toBeCloseTo(9.6, 6);
+  expect(m.bodyOffsetM).toBeCloseTo(-1.0, 6);
+  expect(m.arterial).toBe(true);
+});
+
+test('laneModel (table): adjacent car lanes keep the internal boundary at their shared edge', () => {
+  // [sidewalk, car, car] = the old (3, 2, 1) shape — the boundary literal V2.7c pinned must hold
+  const m = laneModel(tableEdge([PED, CAR, CAR]));
+  expect(m.laneBoundaryOffsetsM.map((x) => Number(x.toFixed(6)))).toEqual([-1.0]);
+  expect(m.busLanes).toEqual([]);
+});
+
+test('laneModel (table): a pedestrian-only lane NOT at the curb is not a sidewalk', () => {
+  const m = laneModel(tableEdge([CAR, PED]));
+  expect(m.sidewalk).toBe(0);
+  expect(m.sidewalkOffsetM).toBeNull();
+  expect(m.carLanes).toBe(1);
+  expect(m.totalWidthM).toBeCloseTo(5.2, 6); // the odd lane still takes its width in the bundle
+});
+
+test('deriveRoadRows: bus-only lanes become bus-band rows at their true offset', () => {
+  const rows = deriveRoadRows([tableEdge([PED, CAR, BUS, CAR]), tableEdge([PED, CAR])]);
+  expect(rows.busBand).toHaveLength(1);
+  expect(rows.busBand[0].widthM).toBeCloseTo(3.2, 6);
+  expect(rows.body).toHaveLength(2);
 });
 
 test('offsetPolyline: negative is LEFT of travel — an east-bound segment moves north', () => {

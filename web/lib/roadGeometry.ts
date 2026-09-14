@@ -1,17 +1,16 @@
 // V2.7c — the road GEOMETRY the transit-map styling derives from network.json. PURE: no React, no
 // deck, no window; MapView memoizes `deriveRoadRows` on the network identity so it runs once.
 //
-// THE LANE MODEL. The wire carries per edge only `lanes` (a COUNT) and `allows{car,bike,ped}` — no
-// per-lane table (that is V2.7d's network_export change, BACKLOG). Two facts probed on the canonical
-// net make a derivation honest, and python/tests/test_lane_model_invariant.py PINS them so a regen
-// that breaks either fails loudly instead of drawing every stripe half a lane off:
-//   1. the exported geometry is the lane-bundle CENTRE (edge shape vs the mean of lane shapes:
-//      median 0.0 m, p90 0.2 m);
-//   2. `allows.ped` ⇔ exactly ONE 2.0 m pedestrian-only sidewalk lane at index 0 — the curb side
-//      of each directional edge — on 4,214 of 4,570 edges; car lanes are 3.2 m.
-// Stated residuals the rule draws wrong (counts pinned by the same test): 28 edges allow
-// pedestrians on a car lane with no sidewalk lane (they get a ribbon they lack); 23 carry one
-// extra non-car non-ped lane (drawn 3.2 m); six carry off-width car lanes (drawn 3.2 m).
+// THE LANE MODEL (V2.7d C1b: read from the per-lane TABLE). The wire carries per edge `lanes:
+// [{width_m, allows{car,bike,ped,bus}}]` with index 0 = the curb, so nothing is derived any more:
+// every lane's width and modes are the net's own (python/tests/test_lane_model_invariant.py proves
+// the table equals the net lane for lane). One geometric fact still carries the model, probed on
+// the canonical net: the exported geometry is the lane-bundle CENTRE (edge shape vs the mean of
+// lane shapes: median 0.0 m, p90 0.2 m) — so lane i's centre sits at
+//   totalWidth/2 − (Σ_{j<i} w_j + w_i/2)   metres to the RIGHT of the geometry.
+// V2.7c's rule (`allows.ped` ⇒ a 2.0 m sidewalk at index 0, the rest 3.2 m car lanes) is retired;
+// its three residuals are now drawn exactly: the 28 ped-on-car edges get no ribbon, the 23 bus+bike
+// lanes get a BUS band, the six off-width car lanes their true 1.6 / 7.0 m.
 //
 // OFFSETS are signed metres perpendicular to travel: NEGATIVE = LEFT of the direction of travel
 // (the road's inner side, where the opposing direction runs), POSITIVE = RIGHT (the curb).
@@ -28,12 +27,14 @@ export const SIDEWALK_M = 2.0;
 const M_PER_DEG = 111_195;
 
 export interface LaneModel {
-  /** 1 iff the edge carries a sidewalk lane (index 0, the curb side). */
+  /** 1 iff lane 0 (the curb) is a pedestrian-only lane. */
   sidewalk: 0 | 1;
-  /** Car lanes = `lanes − sidewalk`, floored at 1 (a defensive floor — no net edge hits it). */
+  /** Lanes that allow cars, floored at 1 for the width maths (a defensive floor — no net edge hits it). */
   carLanes: number;
+  /** The car BODY's width: from the outer edge of the curbmost car lane to the outer edge of the
+   *  innermost one — a bus lane BETWEEN car lanes is inside the body (it draws its own band on top). */
   carWidthM: number;
-  /** Car body + sidewalk — the bundle the geometry is the centre of. */
+  /** Every lane in the table — the bundle the geometry is the centre of. */
   totalWidthM: number;
   /** Where the car body's centreline sits relative to the geometry. */
   bodyOffsetM: number;
@@ -41,30 +42,64 @@ export interface LaneModel {
   sidewalkOffsetM: number | null;
   /** The bundle's inner (left) edge — the painted centerline's home on a two-way road. */
   leftBoundaryOffsetM: number;
-  /** INTERNAL car-lane boundaries (the z ≥ 15 stripes), left to right; empty for one car lane. */
+  /** Boundaries between ADJACENT car lanes (the z ≥ 15 stripes), left to right; empty for one car lane
+   *  or when a non-car lane separates them. */
   laneBoundaryOffsetsM: number[];
+  /** Bus-only lanes (bus && !car): their centre offsets and true widths — the bus band. */
+  busLanes: { offsetM: number; widthM: number }[];
   /** ≥ 2 car lanes per direction reads as an arterial (solid centerline); 1 as a collector (dashed). */
   arterial: boolean;
 }
 
+/** −0 never leaves the model (a seam prints it, a pin sees it). */
+const clean = (x: number) => (Math.abs(x) < 1e-9 ? 0 : x);
+
 export function laneModel(e: NetworkEdge): LaneModel {
-  const sidewalk: 0 | 1 = e.allows.ped ? 1 : 0;
-  // V2.7d C1a: the count moved to `lane_count` (the table is `lanes`); the RULE stays until C1b reads the table.
-  const carLanes = Math.max(1, e.lane_count - sidewalk);
-  const carWidthM = carLanes * LANE_M;
-  const sidewalkWidthM = sidewalk * SIDEWALK_M;
-  const totalWidthM = carWidthM + sidewalkWidthM;
-  const bodyOffsetM = sidewalk ? -sidewalkWidthM / 2 : 0; // never −0 (a seam prints it, a pin sees it)
-  const bodyLeft = bodyOffsetM - carWidthM / 2;
+  const table = e.lanes;
+  const totalWidthM = table.reduce((s, l) => s + l.width_m, 0);
+  // lane centres, index 0 = curb = the RIGHT edge of the bundle (positive offsets)
+  let cursor = totalWidthM / 2; // the right edge of the lane being walked
+  const centre: number[] = [];
+  const rightEdge: number[] = [];
+  const leftEdge: number[] = [];
+  for (const l of table) {
+    rightEdge.push(cursor);
+    centre.push(cursor - l.width_m / 2);
+    cursor -= l.width_m;
+    leftEdge.push(cursor);
+  }
+  const isCar = table.map((l) => l.allows.car);
+  const isBus = table.map((l) => l.allows.bus && !l.allows.car);
+  const sidewalk: 0 | 1 = table.length > 0 && table[0].allows.ped && !table[0].allows.car ? 1 : 0;
+  const carIdx = isCar.map((c, i) => (c ? i : -1)).filter((i) => i >= 0);
+  const carLanes = Math.max(1, carIdx.length);
+  let carWidthM: number;
+  let bodyOffsetM: number;
+  if (carIdx.length === 0) {
+    // unreachable on the net (every edge allows cars) — draw one nominal lane on the bundle centre
+    carWidthM = LANE_M;
+    bodyOffsetM = 0;
+  } else {
+    const right = rightEdge[carIdx[0]];
+    const left = leftEdge[carIdx[carIdx.length - 1]];
+    carWidthM = right - left;
+    bodyOffsetM = clean((right + left) / 2);
+  }
+  const laneBoundaryOffsetsM: number[] = [];
+  for (let i = 0; i < table.length - 1; i++) {
+    if (isCar[i] && isCar[i + 1]) laneBoundaryOffsetsM.push(clean(leftEdge[i]));
+  }
+  laneBoundaryOffsetsM.sort((a, b) => a - b);
   return {
     sidewalk,
     carLanes,
     carWidthM,
     totalWidthM,
     bodyOffsetM,
-    sidewalkOffsetM: sidewalk ? carWidthM / 2 : null,
+    sidewalkOffsetM: sidewalk ? clean(centre[0]) : null,
     leftBoundaryOffsetM: -totalWidthM / 2,
-    laneBoundaryOffsetsM: Array.from({ length: carLanes - 1 }, (_, k) => bodyLeft + (k + 1) * LANE_M),
+    laneBoundaryOffsetsM,
+    busLanes: table.map((l, i) => ({ offsetM: clean(centre[i]), widthM: l.width_m })).filter((_, i) => isBus[i]),
     arterial: carLanes >= 2,
   };
 }
@@ -330,6 +365,8 @@ export interface RoadRows {
   body: RoadRow[];
   /** Sidewalk edges only: the 2.0 m ribbon at the curb. */
   sidewalk: RoadRow[];
+  /** Bus-only lanes (V2.7d — 23 on the canonical net): the muted-red band at true width, drawn ON the body. */
+  busBand: RoadRow[];
   /** Two-way ARTERIAL directions (≥ 2 car lanes): the solid painted line on the inner boundary, every zoom. */
   centerline: CenterlineRow[];
   /** Two-way COLLECTOR directions (1 car lane): the dashed line — built once, shown from the lanes band
@@ -346,6 +383,7 @@ export function deriveRoadRows(edges: NetworkEdge[]): RoadRows {
   const models: LaneModel[] = [];
   const body: RoadRow[] = [];
   const sidewalk: RoadRow[] = [];
+  const busBand: RoadRow[] = [];
   const centerline: CenterlineRow[] = [];
   const collectorCenterline: CenterlineRow[] = [];
   const stripes: CenterlineRow[] = [];
@@ -354,7 +392,10 @@ export function deriveRoadRows(edges: NetworkEdge[]): RoadRows {
     models.push(m);
     body.push({ id: e.id, path: offsetPolyline(e.geometry, m.bodyOffsetM), widthM: m.carWidthM });
     if (m.sidewalkOffsetM !== null) {
-      sidewalk.push({ id: e.id, path: offsetPolyline(e.geometry, m.sidewalkOffsetM), widthM: SIDEWALK_M });
+      sidewalk.push({ id: e.id, path: offsetPolyline(e.geometry, m.sidewalkOffsetM), widthM: e.lanes[0].width_m });
+    }
+    for (const b of m.busLanes) {
+      busBand.push({ id: e.id, path: offsetPolyline(e.geometry, b.offsetM), widthM: b.widthM });
     }
     if (!e.oneway) {
       const row = { id: e.id, path: offsetPolyline(e.geometry, m.leftBoundaryOffsetM) };
@@ -364,5 +405,5 @@ export function deriveRoadRows(edges: NetworkEdge[]): RoadRows {
       stripes.push({ id: e.id, path: offsetPolyline(e.geometry, off) });
     }
   }
-  return { models, body, sidewalk, centerline, collectorCenterline, stripes };
+  return { models, body, sidewalk, busBand, centerline, collectorCenterline, stripes };
 }

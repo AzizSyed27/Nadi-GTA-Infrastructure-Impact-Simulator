@@ -559,6 +559,36 @@ simulation, so under a name-only regen the golden stays green and that green wou
 a red golden means geometry moved — the STOP condition, not the arc's expected red. The scratch diff
 (`%LOCALAPPDATA%\Temp\nadi-v27d-c0\net.diff`, first 40 lines saved beside it) is the evidence; nothing in
 the repo moved except SKILL.md and this record.
+**C1a (`b7b2ca2`) — network.json v2:** per edge `lanes: [{width_m, allows{car,bike,ped,bus}}]` (the
+PER-LANE TABLE, index 0 = curb), `lane_count`, `name` (the OSM way name by way id — 4,487 named / 83
+unnamed; a ramp edge whose way is an unnamed highway link is honestly `null`), `from`/`to` node ids and
+`reverse` (the NODE-PAIR partner: 3,186 of 4,192 two-way edges have a partner whose `#k` differs from
+the `-id` guess, so the client never derives one; `oneway ⇔ reverse null`, 378). `test_network_export`
+proves the table equals the net lane for lane; the lane-model invariant is RE-DERIVED over the table
+(the sidewalk property with 4,214; the 28 / 23 / 6 residuals recounted as facts — the 23 are BUS+BIKE
+lanes). Asset 1.36 → 2.64 MB raw, gzip 249 → 352 KB. TS `NetworkEdge` fields are REQUIRED; the untyped
+route mocks migrated through `tests/support/net.ts`; map-ladder's fixture stays a literal.
+**C1b — `laneModel` reads the table; the BUS band (the corrected c row):** lane centres walk from the
+curb (total/2 − Σw − w/2), the car BODY spans the outermost car lanes (a bus lane between them lies
+inside it and draws its band on top), stripes only between ADJACENT car lanes, six off-width lanes now
+at their true 1.6 / 7.0 m, the 28 ped-on-car edges without a ribbon, and `road-bus-band` (#96625c, a
+static row per bus-only lane — a thin edge band at the overview, true width from z ≥ 15). **V2.7c's
+conflicts row "no bus band — the wire carries no bus data" was FALSE-PREMISED and is corrected: the net
+carries 23 bus+bike lanes, all on Midland Avenue, and the band is drawn** (`docs-assets/
+v27d-after-c1b-midland-z{15_2,16_5,17_5}.png`, looked at: a muted-red curb lane on the southbound
+carriageway only, matching the data). The corridor triple `v27d-after-c1b-z*.png` is identical to c's
+after-C4 triple (no bus or off-width lane in that viewport). Perf (headed, prod, quiet box): fat 3.87 /
+3.83 / 3.68 s (fit / z15.2 / z16.5), p95 16.1 / 16.1 / 16.0 ms, heap 198 MB (+8 for the larger asset),
+crossing 32 ms; pinned 1.17 / 1.19 / 1.16 s, p95 ≤ 16.1, heap 60 MB (+7), crossing 40 ms — every
+budget holds. Gates: 705 pytest; tsc/lint; Playwright 222 in seven foreground chunks (act-one and two
+others overran the 10-min cap and finished in the background) — 221 green; **`act-two.spec.ts:444`
+("no aggregate framing") fails IN-FILE and passes alone (1/1)**: a click on the last stage card waits
+for "stable" and never gets it after its 12 siblings; it reproduces on the stale AND a fresh dev server
+AND on the PRE-ARC asset + lib (3/3 in-file), so it is NOT this arc's regression — a pre-existing
+order-sensitive weakness (it flaked once at c's C4) recorded for BACKLOG at C9. enrich-stream's two
+timeouts in a chunk were unrendered-shell load flakes (file re-run 4/4). The stale-server rule bit
+once more: the first isolation run of the act-two test failed on the day-old dev server and passed on a
+fresh one — restart before acting on a red.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street
