@@ -158,9 +158,11 @@ def any_capacity_event(changes: list[Change]) -> bool:
 
 
 def incident_base_desc(target_lanes: list[int] | None, speed_factor: float | None,
-                       edge_id: str) -> str:
+                       edge_id: str, edge_label: str | None = None) -> str:
     """The MECHANICAL incident description (no crash words, no asserted benefit) — shared
-    verbatim by the server and harness defaults; callers append fmt_window."""
+    verbatim by the server and harness defaults; callers append fmt_window. V2.7d: `edge_label`
+    (the server passes `street_names.describe_edge(edge_id, tail="incident")`) replaces the
+    `edge <id> (incident)` tail with the name-plus-id form; unlabeled output is byte-identical."""
     parts = []
     if target_lanes:
         n = len(target_lanes)
@@ -168,7 +170,7 @@ def incident_base_desc(target_lanes: list[int] | None, speed_factor: float | Non
     if speed_factor is not None:
         verb = "reduced" if parts else "Reduced"
         parts.append(f"{verb} speed to {speed_factor * 100:.0f}%")
-    return f"{' and '.join(parts)} on edge {edge_id} (incident)"
+    return f"{' and '.join(parts)} on {edge_label or f'edge {edge_id} (incident)'}"
 
 
 def assignment_rejection_reason(assignment: str, change_type: str, windowed: bool,

@@ -589,6 +589,19 @@ order-sensitive weakness (it flaked once at c's C4) recorded for BACKLOG at C9. 
 timeouts in a chunk were unrendered-shell load flakes (file re-run 4/4). The stale-server rule bit
 once more: the first isolation run of the act-two test failed on the day-old dev server and passed on a
 fresh one — restart before acting on a red.
+**C2 — the python name resolver and its consumers (no web files):** `street_names.name_of` /
+`describe_edge` / `closed_all_lanes_desc` / `report_edge_ref` read names back from `network.json` (the
+ONE runtime source on both sides; a missing or damaged asset → id-only, never a raise). **NAME-PLUS-ID,
+NEVER NAME-INSTEAD-OF-ID:** `"Markham Road (edge -1288863201)"` in every server description ("Reduced max
+speed on …", "Closed 1 of 3 car lanes on …", "Closed all lanes of …", "Speed limit on …", "Bike lane
+on …", and the incident tag inside the parenthetical: "… on Markham Road (edge X, incident)"),
+`"(Markham Road, edge \`-1288863201\`, lane 1)"` in the report's change lines, `"Target edge X (Markham
+Road)"` in the chat corpus. **Every unnamed form is byte-identical to the pre-V2.7d wording**, which is
+why `golden_report_unwindowed.md` (edge `E1`) did not move and the fixtures' hand-built descriptions
+stand; a red golden here would have meant the format leaked into the unnamed branch — it did not. One
+pre-existing pin migrated (`"(incident)"` → `"incident)"`, the tag now rides inside the parenthetical on
+a named edge). Suites: **715 pytest** (+10). The committed protected runs keep their old id-only
+descriptions (composed at run time into the artifact — a known-vintage divergence, like C10's).
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street

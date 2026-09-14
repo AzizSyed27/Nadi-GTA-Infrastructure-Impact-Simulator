@@ -41,6 +41,7 @@ from pydantic import BaseModel
 import personas as personas_mod
 import run_events
 import run_state
+import street_names
 import trajectory_io
 from contract_models import MANDATE_VERSIONS, ScorecardCell, ScorecardGroup, TrajectoryArtifact, changes_of
 from llm_provider import LLMClient, get_client
@@ -1649,9 +1650,10 @@ def render_markdown(facts, framing, glosses, syntheses, caveat_intro, caveats, m
         elif ch.type in ("lane_closure", "road_closure", "incident"):
             lanes_txt = f", lanes {ch.target_lanes}" if ch.target_lanes else ""
             window_txt = f" — active {fmt_window(ch.window, profile)}" if getattr(ch, "window", None) else ""
-            L.append(f"- **Change:** {ch.description} (edge `{ch.target_edge}`{lanes_txt}){window_txt}")
+            # V2.7d: name-plus-id (`Markham Road, edge \`X\``), never name-instead-of-id; unnamed → `edge \`X\`` as before
+            L.append(f"- **Change:** {ch.description} ({street_names.report_edge_ref(ch.target_edge)}{lanes_txt}){window_txt}")
         else:
-            L.append(f"- **Change:** {ch.description} (edge `{ch.target_edge}`{lane})")
+            L.append(f"- **Change:** {ch.description} ({street_names.report_edge_ref(ch.target_edge)}{lane})")
     L.append(f"- **Corridor / network:** `{facts['network']}` — one Toronto corridor")
     L.append(f"- **Demand simulated:** {facts['demand']['car']} cars, {facts['demand']['bicycle']} bicycles, "
              f"{facts['demand']['pedestrian']} pedestrians")

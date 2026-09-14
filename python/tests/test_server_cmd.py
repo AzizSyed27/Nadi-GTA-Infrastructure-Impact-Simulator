@@ -451,12 +451,19 @@ def test_post_composite_mixed_members_spec_carries_per_type_truth() -> None:
         spec = _json.loads(spec_path.read_text(encoding="utf-8"))
         rc, lc, inc = spec["changes"]
         assert rc["type"] == "road_closure" and rc["window"] == {"start_s": 600.0, "end_s": 1200.0}
-        assert rc["description"].startswith("Closed edge ") and "(all lanes)" in rc["description"]
+        # V2.7d C2: descriptions are NAME-PLUS-ID on a named edge (these three are Lawrence Avenue East
+        # on the canonical net — the literal, not a constant-vs-constant tautology), id-only otherwise.
+        import street_names
+        assert rc["description"].startswith(f"Closed all lanes of {street_names.describe_edge(members[0]['target_edge'])}")
+        assert "Lawrence Avenue East (edge " in rc["description"]
         assert lc["type"] == "lane_closure" and lc["target_lanes"] == members[1]["target_lanes"]
         assert lc["description"].startswith("Closed 1 of ")
+        assert f"car lanes on {street_names.describe_edge(members[1]['target_edge'])}" in lc["description"]
+        assert f"on {street_names.describe_edge(members[2]['target_edge'], tail='incident')}" in inc["description"]
         assert inc["type"] == "incident" and inc["effect"] == {"speed_factor": 0.5}
         assert inc["window"] == {"start_s": 600.0, "end_s": 1800.0}
-        assert "(incident)" in inc["description"]
+        # V2.7d: the tag rides INSIDE the parenthetical on a named edge — `(edge X, incident)`; `(incident)` unnamed
+        assert "incident)" in inc["description"]
         for c in spec["changes"]:
             for leaked in ("value_mps", "lanes", "speed_mps", "bidirectional", "from_junction"):
                 assert leaked not in c, (c["type"], leaked)

@@ -71,6 +71,20 @@ def _corpus():
     return report_agent.build_corpus(_artifact(), _outcomes(), verdict=None)
 
 
+def test_corpus_change_line_carries_the_street_name_beside_the_id():
+    """V2.7d C2: name-plus-id in the chat corpus — the id stays the falsifiable reference; an unnamed
+    (fixture) edge renders exactly the pre-V2.7d line."""
+    import street_names
+    if street_names.name_of("-1288863201") is None:
+        pytest.skip("network.json unavailable")
+    art = _artifact()
+    art.meta.scenario.change.target_edge = "-1288863201"
+    text = " ".join(d["text"] for d in report_agent.build_corpus(art, _outcomes(), verdict=None))
+    assert "Target edge -1288863201 (Markham Road), lane 1." in text
+    plain = " ".join(d["text"] for d in _corpus())
+    assert "Target edge E1, lane 1." in plain
+
+
 def test_corpus_split_sentence_carries_attribution_parenthetical():
     """V2.2c USER-CONFIRMED INVARIANT, pinned on the CHAT surface too: the non-completions split
     must never render without the backlog attribution parenthetical (not_inserted is causally

@@ -161,8 +161,8 @@ def test_valence_resolves_direction_so_the_gloss_cannot_invert_it():
 # A fixture artifact + outcomes (hermetic — no run on disk needed).
 # --------------------------------------------------------------------------------------------------
 
-def _artifact() -> TrajectoryArtifact:
-    change = Change(type="bike_lane", target_edge="E1", target_lane=1, value_mps=None,
+def _artifact(edge: str = "E1") -> TrajectoryArtifact:
+    change = Change(type="bike_lane", target_edge=edge, target_lane=1, value_mps=None,
                     description="Converted a car lane to a bike lane")
     meta = Meta(run_id="scen-TEST", network="corridor.net.xml", bbox=[-79.3, 43.7, -79.1, 43.8],
                 sim_start=0.0, sim_end=100.0, step_length=1.0, created_at="2026-07-04T00:00:00+00:00",
@@ -190,6 +190,30 @@ def _outcomes() -> dict:
         "modes": {m: {"counts": {"total_demand": d}} for m, d in
                   (("car", 300), ("bicycle", 82), ("pedestrian", 129))},
     }
+
+
+def _render_markdown(art: TrajectoryArtifact, out: dict) -> str:
+    facts = report.gather_facts(art, out, verdict=None)
+    glosses = {gid: f"Stub gloss for {gid}." for gid in report.GROUP_ORDER}
+    caveats = report.build_caveats(facts)
+    meta = {"generated_at": "2026-07-28T00:00:00+00:00", "provider": "none", "model": "stub",
+            "audit_summary": "stub"}
+    return report.render_markdown(facts, "Stub framing paragraph.", glosses, {}, "Stub caveat intro.", caveats, meta)
+
+
+def test_report_change_line_is_name_plus_id_on_a_named_edge():
+    """V2.7d C2: the report's change line names the street beside the backticked id — never instead of it."""
+    import street_names
+    if street_names.name_of("-1288863201") is None:
+        pytest.skip("network.json unavailable")
+    md = _render_markdown(_artifact("-1288863201"), _outcomes())
+    assert "(Markham Road, edge `-1288863201`, lane 1)" in md
+
+
+def test_report_change_line_is_byte_identical_on_an_unnamed_edge():
+    """The golden's `E1` renders exactly the pre-V2.7d form — a leak here would move the golden."""
+    md = _render_markdown(_artifact(), _outcomes())
+    assert "Converted a car lane to a bike lane (edge `E1`, lane 1)" in md
 
 
 def test_verify_facts_passes_on_consistent_render():

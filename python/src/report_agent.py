@@ -34,6 +34,7 @@ import llm_provider
 import personas as personas_mod
 import report
 import run_events
+import street_names
 import trajectory_io
 from contract_models import TrajectoryArtifact
 
@@ -203,7 +204,10 @@ def build_corpus(artifact: TrajectoryArtifact, outcomes: dict, verdict: dict | N
     change_lines = []
     for ch in facts["changes"]:
         lane = f", lane {ch.target_lane}" if ch.target_lane is not None else ""
-        change_lines.append(f"{ch.description}. Change type: {ch.type}. Target edge {ch.target_edge}{lane}.")
+        # V2.7d: the street name beside the id (never instead of it); unnamed edges render exactly as before
+        _name = street_names.name_of(ch.target_edge)
+        _named = f" ({_name})" if _name else ""
+        change_lines.append(f"{ch.description}. Change type: {ch.type}. Target edge {ch.target_edge}{_named}{lane}.")
     joined = " ".join(change_lines)
     prefix = "The proposed change being previewed" if len(change_lines) == 1 else \
         f"The proposed scenario composes {len(change_lines)} changes"

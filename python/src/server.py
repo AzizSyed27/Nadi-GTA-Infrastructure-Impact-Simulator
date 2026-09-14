@@ -35,6 +35,7 @@ import interview  # noqa: E402
 import llm_provider  # noqa: E402
 import trajectory_io  # noqa: E402  (the pinned-run enrich guard)
 import network_edit  # noqa: E402  (SUMO junctions + the new_road patch)
+import street_names  # noqa: E402  (V2.7d: descriptions are name-plus-id, id-only when unnamed)
 import report  # noqa: E402
 import report_agent  # noqa: E402
 import run_state  # noqa: E402
@@ -988,16 +989,16 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
         if ch.type == "speed_limit":
             if not ch.value_mps:
                 raise HTTPException(400, f"change {i}: speed_limit requires target_edge and value_mps")
-            base_desc = f"Reduced max speed on edge {ch.target_edge} to {ch.value_mps * 3.6:.0f} km/h"
+            base_desc = f"Reduced max speed on {street_names.describe_edge(ch.target_edge)} to {ch.value_mps * 3.6:.0f} km/h"
         elif ch.type == "lane_closure":
             reason = change_scheduler.validate_target_lanes(ch.target_lanes, edge["car_lane_indices"],
                                                             ch.target_edge)
             if reason is not None:
                 raise HTTPException(400, f"change {i}: {reason}")
             base_desc = (f"Closed {len(ch.target_lanes)} of {len(edge['car_lane_indices'])} car lanes "
-                         f"on edge {ch.target_edge}")
+                         f"on {street_names.describe_edge(ch.target_edge)}")
         elif ch.type == "road_closure":
-            base_desc = f"Closed edge {ch.target_edge} (all lanes)"
+            base_desc = street_names.closed_all_lanes_desc(ch.target_edge)
         else:  # incident
             if ch.window is None:
                 raise HTTPException(400, f"change {i}: incident requires a window (a temporary event; "
@@ -1009,7 +1010,8 @@ async def _simulate_composite(req: SimulateReq, bg: BackgroundTasks):
             if reason is not None:
                 raise HTTPException(400, f"change {i}: {reason}")
             base_desc = change_scheduler.incident_base_desc(
-                ch.target_lanes if blocked else None, speed_factor, ch.target_edge)
+                ch.target_lanes if blocked else None, speed_factor, ch.target_edge,
+                edge_label=street_names.describe_edge(ch.target_edge, tail="incident"))
         if ch.window is not None and ch.window.end_s <= ch.window.start_s:
             raise HTTPException(400, f"change {i}: window.end_s ({ch.window.end_s:g}) must be > "
                                      f"window.start_s ({ch.window.start_s:g})")
@@ -1125,7 +1127,7 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
             raise HTTPException(400, "speed_limit requires target_edge and value_mps")
         if ch.target_edge not in _edges_by_id():
             raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
-        desc = ch.description or f"Speed limit on {ch.target_edge} -> {ch.value_mps} m/s"
+        desc = ch.description or f"Speed limit on {street_names.describe_edge(ch.target_edge)} -> {ch.value_mps} m/s"
     elif ch.type == "bike_lane":
         if not ch.target_edge:
             raise HTTPException(400, "bike_lane requires target_edge")
@@ -1134,7 +1136,7 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
             raise HTTPException(400, f"edge {ch.target_edge!r} is not in the network")
         if not edge["eligible_bike_lane"]:
             raise HTTPException(400, edge["eligibility_reason"])  # the backend's own words, verbatim
-        desc = ch.description or f"Bike lane on {ch.target_edge}"
+        desc = ch.description or f"Bike lane on {street_names.describe_edge(ch.target_edge)}"
     elif ch.type in ("lane_closure", "road_closure"):
         # V2.2a — closures (windowable). Same validators + reason strings as the harness (single source).
         import change_scheduler
@@ -1151,10 +1153,10 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
             if reason is not None:
                 raise HTTPException(400, reason)
             closes_all = set(edge["car_lane_indices"]) <= set(ch.target_lanes)
-            base_desc = f"Closed {len(ch.target_lanes)} of {len(edge['car_lane_indices'])} car lanes on edge {ch.target_edge}"
+            base_desc = f"Closed {len(ch.target_lanes)} of {len(edge['car_lane_indices'])} car lanes on {street_names.describe_edge(ch.target_edge)}"
         else:
             closes_all = True
-            base_desc = f"Closed edge {ch.target_edge} (all lanes)"
+            base_desc = street_names.closed_all_lanes_desc(ch.target_edge)
         window_txt = f" {fmt_window(ch.window, req.demand_profile)}" if ch.window is not None else ""
         desc = ch.description or (base_desc + window_txt)
     elif ch.type == "incident":
@@ -1178,7 +1180,8 @@ async def simulate(req: SimulateReq, bg: BackgroundTasks):
         closes_all = bool(blocked) and set(edge["car_lane_indices"]) <= set(ch.target_lanes or [])
         desc = ch.description or (
             change_scheduler.incident_base_desc(ch.target_lanes if blocked else None,
-                                                speed_factor, ch.target_edge)
+                                                speed_factor, ch.target_edge,
+                                                edge_label=street_names.describe_edge(ch.target_edge, tail="incident"))
             + f" {fmt_window(ch.window, req.demand_profile)}")
     else:
         raise HTTPException(400, f"unsupported change type {ch.type!r} (new_road | speed_limit | bike_lane | "

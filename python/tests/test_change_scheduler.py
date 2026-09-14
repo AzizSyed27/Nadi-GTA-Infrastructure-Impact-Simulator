@@ -528,6 +528,13 @@ def test_capacity_predicates() -> None:
     assert not cs.capacity_event("speed_limit") and not cs.capacity_event("new_road")
 
 
+def test_incident_base_desc_takes_a_street_label_without_changing_the_unlabeled_form() -> None:
+    # V2.7d C2: the server passes describe_edge(id, tail="incident") as the label; unlabeled stays byte-identical
+    assert cs.incident_base_desc([1, 2], None, "E", edge_label="Markham Road (edge E, incident)") == \
+        "Blocked 2 car lanes on Markham Road (edge E, incident)"
+    assert cs.incident_base_desc([1, 2], None, "E", edge_label=None) == "Blocked 2 car lanes on edge E (incident)"
+
+
 def test_incident_base_desc_mechanical() -> None:
     assert cs.incident_base_desc([1, 2], None, "E") == "Blocked 2 car lanes on edge E (incident)"
     assert cs.incident_base_desc(None, 0.5, "E") == "Reduced speed to 50% on edge E (incident)"

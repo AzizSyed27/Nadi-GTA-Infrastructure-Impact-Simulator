@@ -52,3 +52,62 @@ def osm_way_names(osm_path: Path) -> dict[str, str]:
 def resolve_name(edge_id: str, way_names: dict[str, str]) -> str | None:
     """The street name for an edge, or None when its way is unnamed or not a way at all."""
     return way_names.get(way_id_of(edge_id))
+
+
+# ---- RUNTIME half (C2): names read back from the export — the ONE runtime source on both sides ----
+
+NETWORK_JSON = Path(__file__).resolve().parents[2] / "web" / "public" / "network.json"
+_NAMES: dict[str, str] | None = None
+
+
+def reset_name_cache() -> None:
+    """Forget the loaded names (tests repoint `NETWORK_JSON`; the server never needs this)."""
+    global _NAMES
+    _NAMES = None
+
+
+def _names() -> dict[str, str]:
+    """{edge id: name} for every NAMED edge in `network.json`; `{}` when the asset is missing or damaged —
+    id-only rendering everywhere, never a raise (the asset is a render artefact, not the contract)."""
+    global _NAMES
+    if _NAMES is None:
+        names: dict[str, str] = {}
+        try:
+            import json
+
+            data = json.loads(NETWORK_JSON.read_text(encoding="utf-8"))
+            for e in data.get("edges", []):
+                n = e.get("name")
+                if isinstance(n, str) and n:
+                    names[e["id"]] = n
+        except (OSError, ValueError, TypeError, AttributeError):
+            names = {}
+        _NAMES = names
+    return _NAMES
+
+
+def name_of(edge_id: str) -> str | None:
+    return _names().get(edge_id)
+
+
+def describe_edge(edge_id: str, tail: str | None = None) -> str:
+    """NAME-PLUS-ID, never name-instead-of-id: `Markham Road (edge -1288863201)`; unnamed → `edge -1288863201`
+    (byte-identical to the pre-V2.7d wording). A `tail` rides inside the parenthetical:
+    `Markham Road (edge X, incident)` / unnamed `edge X (incident)` — the incident description's tag."""
+    name = name_of(edge_id)
+    if name:
+        return f"{name} (edge {edge_id}, {tail})" if tail else f"{name} (edge {edge_id})"
+    return f"edge {edge_id} ({tail})" if tail else f"edge {edge_id}"
+
+
+def closed_all_lanes_desc(edge_id: str) -> str:
+    """The road-closure description: `Closed all lanes of Markham Road (edge X)`; unnamed keeps the
+    pre-V2.7d `Closed edge X (all lanes)` byte-identical (the pinned wording in fixtures and specs)."""
+    return (f"Closed all lanes of {describe_edge(edge_id)}" if name_of(edge_id)
+            else f"Closed edge {edge_id} (all lanes)")
+
+
+def report_edge_ref(edge_id: str) -> str:
+    """The report's backticked form: `Markham Road, edge \\`X\\`` / unnamed `edge \\`X\\`` (the golden's form)."""
+    name = name_of(edge_id)
+    return f"{name}, edge `{edge_id}`" if name else f"edge `{edge_id}`"
