@@ -596,7 +596,23 @@ caught by the advisor before GREEN — the heredoc memory, again); a red that re
 yet the commit's until the committed tree is tried — the stash bisect showed run-identity:118 failing
 2 of 3 on HEAD too, and a fresh dev server made it green; and the act-two:478 / run-identity:118 pair
 is now a BACKLOG item with its mechanism named (Playwright's two-frame stability wait on a card that
-re-renders under load). **The per-step record follows.** The
+re-renders under load). **LIVE ACCEPTANCE (C9, against the running API + dev server, the SPEND-FREE
+HALF — Run was NOT pressed, because the chain is armed by default and a chained run spends thousands
+of model calls):** `__nadiEditEdge('-439600156#2', 'lane_closure')` on the real net opened the drop
+form titled "Lawrence Avenue East (edge -439600156#2)" with the between-line "between Burnview
+Crescent and McCowan Road · 7 lanes · 4 car lanes this direction · current speed 60 km/h", rows EB
+sidewalk / EB general 1 (curb) … 4 / WB sidewalk / WB general 1 (curb) … 3 (the partner is the
+EXPORTED `43307631#6` — a different way id, R1 live), one tick per side → "closes eastbound only —
+westbound stays open" then "closes both directions — 2 members", Add → two rows "1 lane(s) closed ·
+Lawrence Avenue East (edge -439600156#2)" / "(edge 43307631#6)", the overlay counting 2
+(`docs-assets/v27d-c9-live-lawrence.png`, `-live-drop-form.png`, `-live-draft.png`). **NOT DONE from
+the plan's acceptance list, stated plainly:** the Run half (the RunCard / run document reading "Closed
+1 of N car lanes on Lawrence Avenue East (edge …)") and the voice-card od line on a real run — both
+need a real run; runnable on request with `NADI_AUTO_ENRICH=0` for a spend-free quant-only run. **One
+defect the live frame found that no spec could:** the drop form's two window inputs overflowed the
+rail by 8 px through their intrinsic width, growing the rail a horizontal scrollbar — fixed in
+`nadi.css` (`min-width: 0` on the window fields, 100 % inputs) and re-measured live (scrollWidth ==
+clientWidth). **The per-step record follows.** The
 first data-moving arc since V2.7b. **C0 (2026-09-14) — THE DRY-RUN REGEN DECIDED: EXIT B, THE CANONICAL
 NET STAYS UNTOUCHED.** Both netconvert stages were re-run into scratch from the tracked extract with the
 same netconvert 1.27.0, the Stage-1 recipe verbatim plus `--output.street-names`, and the Stage-1b flags

@@ -342,7 +342,10 @@
 .nadi-shell .ed-lane-inert { font-size: 12.5px; color: var(--color-neutral-500); padding-left: 22px; }
 .nadi-shell .ed-check-off { color: var(--color-neutral-500); cursor: not-allowed; }
 .nadi-shell .ed-winrow { display: flex; gap: var(--space-2); }
-.nadi-shell .ed-winrow > .ed-field { flex: 1 1 0; margin-bottom: 0; }
+/* min-width 0 + a 100 % input: a number input's INTRINSIC width (~20ch) otherwise overflows the
+   rail by 8 px and grows it a horizontal scrollbar — found on the C9 live frame, not by any spec */
+.nadi-shell .ed-winrow > .ed-field { flex: 1 1 0; min-width: 0; margin-bottom: 0; }
+.nadi-shell .ed-field > .ed-input { width: 100%; min-width: 0; box-sizing: border-box; }
 .nadi-shell .ed-winlabel {
   margin-top: var(--space-1);
   font-family: var(--font-heading);
