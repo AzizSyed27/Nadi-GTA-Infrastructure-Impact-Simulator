@@ -101,27 +101,30 @@ export function DraftPanel({
     void getProjection().then((r) => setSpend(r.ok ? r.value : null));
   }, []);
   return (
-    <div style={card} data-testid="draft-panel">
+    // V2.7d C8a — looks only: the DS classes (app/nadi.css `.ed-*`, `.btn`) resolve under the rail's
+    // `.nadi-shell`; every testid and string below is frozen.
+    <div className="ed-card" data-testid="draft-panel">
+      <div className="ed-kicker">03 · DRAFT</div>
       <div style={titleRow}>
-        <span style={title}>Draft scenario ({n})</span>
+        <span className="ed-title" style={{ marginBottom: 0 }}>Draft scenario ({n})</span>
         {tags.includes('school_zone') && (
-          <span style={tagChip} data-testid="draft-tag">
+          <span className="tag tag-accent" data-testid="draft-tag">
             school_zone
           </span>
         )}
       </div>
-      <ul style={memberList}>
+      <ul className="ed-members">
         {members.map((m) => (
           <li
             key={m.id}
-            style={memberRow}
+            className="ed-member"
             data-testid={`draft-member-${m.id}`}
             onMouseEnter={() => onHover(m.id)}
             onMouseLeave={() => onHover(null)}
           >
-            <span style={memberText}>{memberSummary(m.change, demandProfile, nameOf)}</span>
+            <span className="ed-member-text">{memberSummary(m.change, demandProfile, nameOf)}</span>
             <button
-              style={removeBtn}
+              className="ed-x"
               onClick={() => onRemove(m.id)}
               disabled={submitting}
               data-testid={`draft-remove-${m.id}`}
@@ -139,26 +142,26 @@ export function DraftPanel({
       {blockers.map((b) => {
         const member = members[b.memberIdx];
         return (
-          <div key={b.reason} style={blockerCard} data-testid="draft-blocker-card">
-            <div style={blockerKicker}>BLOCKER · ENGINE SENTENCE, VERBATIM</div>
-            <div style={blockerText} data-testid="draft-blocker">
+          <div key={b.reason} className="ed-refusal" data-testid="draft-blocker-card">
+            <div className="ed-refusal-kicker">BLOCKER · ENGINE SENTENCE, VERBATIM</div>
+            <div className="ed-sentence" data-testid="draft-blocker">
               {b.reason}
             </div>
-            <div style={fixRow}>
+            <div className="ed-fixes">
               {b.fix === 'switch_day_one' && (
-                <button style={fixBtn} onClick={onSwitchDayOne} data-testid="blocker-switch-day-one">
+                <button className="btn btn-secondary" onClick={onSwitchDayOne} data-testid="blocker-switch-day-one">
                   SWITCH TO DAY-ONE
                 </button>
               )}
               {b.fix === 'remove_window' && member && (
-                <button style={fixBtn} onClick={() => onRemoveWindow(member.id)} data-testid="blocker-remove-window">
+                <button className="btn btn-secondary" onClick={() => onRemoveWindow(member.id)} data-testid="blocker-remove-window">
                   REMOVE THE WINDOW
                 </button>
               )}
               {b.fix === 'remove_member' && member && (
                 <>
-                  <span style={fixNote}>an incident needs its window — remove the member instead</span>
-                  <button style={fixBtn} onClick={() => onRemoveMember(member.id)} data-testid="blocker-remove-member">
+                  <span className="ed-note">an incident needs its window — remove the member instead</span>
+                  <button className="btn btn-secondary" onClick={() => onRemoveMember(member.id)} data-testid="blocker-remove-member">
                     REMOVE THE MEMBER
                   </button>
                 </>
@@ -173,28 +176,30 @@ export function DraftPanel({
           used to write the ledger's projection); if the endpoint is unreachable the sentence loses
           its number rather than inventing one, and if the chain is disarmed it says so instead of
           promising a spend that will not happen. */}
-      <div style={spendNote} data-testid="draft-spend-note">
+      <div className="ed-hint" data-testid="draft-spend-note">
         {spend == null
           ? 'Runs the physics, then interpretation — skippable.'
           : spend.armed
             ? `Runs the physics, then interpretation (~${spend.calls.toLocaleString()} model calls, skippable).`
             : 'Runs the physics. Interpretation is off on this server — nothing is spent.'}
       </div>
-      <button
-        style={{ ...primaryBtn, ...(canRun ? null : disabledBtn) }}
-        disabled={!canRun}
-        onClick={onRun}
-        data-testid="draft-run"
-      >
-        {submitting ? 'Submitting…' : `Run scenario (${n} change${n === 1 ? '' : 's'})`}
-      </button>
+      <div className="ed-actions">
+        <button
+          className="btn btn-primary"
+          disabled={!canRun}
+          onClick={onRun}
+          data-testid="draft-run"
+        >
+          {submitting ? 'Submitting…' : `Run scenario (${n} change${n === 1 ? '' : 's'})`}
+        </button>
+      </div>
       {blockers.length > 0 && (
-        <div style={blockedNote} data-testid="draft-run-blocked-note">
+        <div className="ed-hint" data-testid="draft-run-blocked-note">
           blocked — resolve the conflict on member {blockers[0].memberIdx + 1} to run
         </div>
       )}
       {error && (
-        <div style={errText} data-testid="draft-error">
+        <div className="ed-warn" data-testid="draft-error">
           {error}
         </div>
       )}
@@ -202,51 +207,6 @@ export function DraftPanel({
   );
 }
 
-const card: React.CSSProperties = {
-  flexShrink: 0,
-  pointerEvents: 'auto',
-  background: 'rgba(255,255,255,0.98)',
-  border: '1px solid #d7dbe0',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-  padding: '12px 14px',
-  fontFamily: 'system-ui, sans-serif',
-  color: '#374151',
-};
+// V2.7d C8a — the one layout rule that stays inline (a flex row for the title + the school-zone tag);
+// every look lives in app/nadi.css under `.nadi-shell .ed-*`.
 const titleRow: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 };
-const title: React.CSSProperties = { fontSize: 14, fontWeight: 700 };
-const tagChip: React.CSSProperties = {
-  fontSize: 10.5, fontWeight: 600, color: '#7a5b0a', background: '#fdeec7',
-  border: '1px solid #e8cf8a', borderRadius: 999, padding: '1px 8px',
-};
-const memberList: React.CSSProperties = { listStyle: 'none', margin: '0 0 8px', padding: 0, maxHeight: 180, overflowY: 'auto' };
-const memberRow: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 0' };
-const memberText: React.CSSProperties = { fontSize: 11.5, lineHeight: 1.4, wordBreak: 'break-all' };
-const removeBtn: React.CSSProperties = { border: 'none', background: 'transparent', color: '#8a9099', cursor: 'pointer', fontSize: 12 };
-const spendNote: React.CSSProperties = {
-  fontSize: 11, lineHeight: 1.45, color: 'var(--color-neutral-600)', margin: '6px 0 6px',
-};
-const blockerText: React.CSSProperties = { marginTop: 6, fontSize: 12, color: '#b23a3a', lineHeight: 1.5 };
-// V2.7d C6 — the blocker card (behaviour commit; C8 restyles). FULL `border` shorthand, never a longhand.
-const blockerCard: React.CSSProperties = { marginTop: 8, padding: '8px 10px', border: '1px solid #e3b4b4', borderRadius: 8, background: '#fff7f7' };
-const blockerKicker: React.CSSProperties = { fontSize: 10.5, letterSpacing: '0.1em', color: '#b23a3a' };
-const fixRow: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 6 };
-const fixBtn: React.CSSProperties = {
-  border: '1px solid #cbd3dc', background: '#fff', color: '#374151', borderRadius: 6, padding: '4px 8px',
-  fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', cursor: 'pointer',
-};
-const fixNote: React.CSSProperties = { fontSize: 11.5, color: '#6b7280', flexBasis: '100%' };
-const blockedNote: React.CSSProperties = { marginTop: 6, fontSize: 12, color: '#8a9099' };
-const primaryBtn: React.CSSProperties = {
-  marginTop: 10,
-  border: 'none',
-  background: '#1f4e9c',
-  color: '#fff',
-  borderRadius: 8,
-  padding: '8px 14px',
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: 'pointer',
-};
-const disabledBtn: React.CSSProperties = { opacity: 0.5, cursor: 'not-allowed' };
-const errText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23a3a' };

@@ -4,13 +4,15 @@ import type { Scenario } from '@/lib/types';
 
 /** Top bar naming the proposed change(s). Frames output as anticipation, never a verdict (CLAUDE.md).
  *  v0.5.0: a scenario may compose several changes — render every description (a single change is unchanged). */
-export function ScenarioHeader({ scenario }: { scenario?: Scenario }) {
+export function ScenarioHeader({ scenario, rightInset = 16 }: { scenario?: Scenario; rightInset?: number }) {
   if (!scenario) return null;
   // Normalize the scenario's change(s) to a list (mirrors changesOf, but ScenarioHeader gets only the scenario).
   const changes = scenario.changes ?? (scenario.change ? [scenario.change] : []);
   if (changes.length === 0) return null;
+  // V2.7d C8a: in Build the bar centres in the space LEFT of the rail (the C4b frame showed the rail
+  // covering its right end) — `rightInset` is the rail's width plus its gutters; 16 elsewhere.
   return (
-    <div style={bar} data-testid="scenario-header">
+    <div style={{ ...bar, right: rightInset }} data-testid="scenario-header">
       <div style={kicker}>
         PROPOSED CHANGE{changes.length > 1 ? 'S' : ''} — anticipated reactions, a preview not a verdict
       </div>

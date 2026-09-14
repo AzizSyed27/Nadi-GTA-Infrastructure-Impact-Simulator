@@ -55,14 +55,15 @@ function ChangeTiles({ armed, onArm, onDrop, dropMiss }: {
     else onArm(t.kind);
   };
   return (
-    <div style={card} data-testid="change-tiles">
-      <div style={title}>Add a change</div>
-      <div style={subStep}>drag a change onto a road — or pick it, then click the road it applies to</div>
-      <div style={tileGrid}>
+    <div className="ed-card" data-testid="change-tiles">
+      <div className="ed-kicker">02 · ADD A CHANGE</div>
+      <div className="ed-title">Add a change</div>
+      <div className="ed-muted">drag a change onto a road — or pick it, then click the road it applies to</div>
+      <div className="ed-tiles">
         {TILES.map((t) => (
           <button
             key={t.kind}
-            style={{ ...tileBtn, ...(armed === t.kind ? tileActive : null), touchAction: 'none' }}
+            className="ed-tile"
             aria-pressed={armed === t.kind}
             onClick={isDropKind(t.kind) ? undefined : () => onArm(t.kind)}
             onPointerDown={onPointerDown(t)}
@@ -75,12 +76,13 @@ function ChangeTiles({ armed, onArm, onDrop, dropMiss }: {
         ))}
       </div>
       {dropMiss && (
-        <div style={hintText} data-testid="drop-miss">
+        <div className="ed-warn" data-testid="drop-miss">
           That spot is not on a road — drop the change onto a road.
         </div>
       )}
       {drag?.moved && (
-        <div style={{ position: 'fixed', left: drag.x, top: drag.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 20, ...tileBtn, ...tileActive }}>
+        // the ghost keeps the tile's PRESSED look through `ed-tile-ghost` (no test sees it — stated)
+        <div className="ed-tile ed-tile-ghost" style={{ position: 'fixed', left: drag.x, top: drag.y, transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 20 }}>
           {drag.label}
         </div>
       )}
@@ -199,33 +201,33 @@ function DrawForm({
   const [params, setParams] = useState<DrawParams>(DEFAULTS);
   return (
     <div data-testid="params-form">
-      <div style={endpoints}>
-        <code>{ptA.id}</code> → <code>{ptB.id}</code>
+      <div className="ed-label">
+        <span className="ed-code">{ptA.id}</span> → <span className="ed-code">{ptB.id}</span>
       </div>
-      <label style={field}>
-        Lanes (per direction)
+      <label className="ed-field">
+        <span className="ed-muted">Lanes (per direction)</span>
         <input
           type="number"
           min={1}
           value={params.lanes}
           onChange={(e) => setParams((p) => ({ ...p, lanes: Math.max(1, Number(e.target.value) || 1) }))}
-          style={input}
+          className="ed-input"
           data-testid="param-lanes"
         />
       </label>
-      <label style={field}>
-        Speed (m/s)
+      <label className="ed-field">
+        <span className="ed-muted">Speed (m/s)</span>
         <input
           type="number"
           min={1}
           step={0.1}
           value={params.speed_mps}
           onChange={(e) => setParams((p) => ({ ...p, speed_mps: Math.max(1, Number(e.target.value) || 1) }))}
-          style={input}
+          className="ed-input"
           data-testid="param-speed"
         />
       </label>
-      <label style={checkRow}>
+      <label className="ed-check">
         <input
           type="checkbox"
           checked={params.bidirectional}
@@ -235,21 +237,21 @@ function DrawForm({
         Two-way (both directions)
       </label>
 
-      <div style={actions}>
+      <div className="ed-actions">
         <button
-          style={{ ...primaryBtn, ...(submitting ? busyBtn : null) }}
+          className="btn btn-primary"
           disabled={submitting}
           onClick={() => onSubmit(params)}
           data-testid="simulate-btn"
         >
           {submitting ? 'Submitting…' : 'Add to draft'}
         </button>
-        <button style={linkBtn} onClick={onReset} disabled={submitting} data-testid="params-cancel">
+        <button className="ed-link" onClick={onReset} disabled={submitting} data-testid="params-cancel">
           cancel
         </button>
       </div>
       {submitError && (
-        <div style={hintText} data-testid="submit-error">
+        <div className="ed-warn" data-testid="submit-error">
           {submitError}
         </div>
       )}
@@ -264,42 +266,63 @@ function RunOptionsBlock({ options, onChange, windowLocked }: {
 }) {
   const assignment = options.assignment ?? 'day_one';
   const seeds = options.n_seeds ?? 1;
+  const demand = options.demand_profile ?? 'synthetic_demo';
+  const settled = !windowLocked && assignment === 'settled';
+  const setDemand = (d: RunOptions['demand_profile']) => onChange({ ...options, demand_profile: d });
   return (
-    <div style={card} data-testid="run-options">
-      <label style={field}>
-        Traffic volumes
-        <select
-          value={options.demand_profile ?? 'synthetic_demo'}
-          onChange={(e) => onChange({ ...options, demand_profile: e.target.value as RunOptions['demand_profile'] })}
-          style={input}
-          data-testid="option-demand"
-        >
-          <option value="synthetic_demo">Synthetic demo (fast)</option>
-          <option value="calibrated_am_peak">Calibrated AM peak (count-anchored; slower)</option>
-        </select>
-      </label>
-      <label style={{ ...checkRow, ...(windowLocked ? { opacity: 0.55 } : null) }}>
-        <input
-          type="checkbox"
-          checked={!windowLocked && assignment === 'settled'}
+    <div className="ed-card" data-testid="run-options">
+      <div className="ed-kicker">01 · RUN OPTIONS</div>
+      {/* V2.7d C8a — the ratified §1c SEGMENTED controls. TRAFFIC is two pressed-state buttons (the
+          <select> is gone; closure-palette.spec migrated in the same commit). RESPONSE keeps the REAL
+          `option-assignment` checkbox — four specs .check()/.uncheck()/toBeDisabled() it — inside its
+          segmented row beside a DAY-ONE button; the D1 lock sentence is verbatim, as before. */}
+      <div className="ed-label">Traffic volumes</div>
+      <div className="ed-seg" role="group" aria-label="Traffic volumes">
+        <button type="button" aria-pressed={demand === 'synthetic_demo'} onClick={() => setDemand('synthetic_demo')} data-testid="option-demand-synthetic">
+          Synthetic demo
+        </button>
+        <button type="button" aria-pressed={demand === 'calibrated_am_peak'} onClick={() => setDemand('calibrated_am_peak')} data-testid="option-demand-calibrated">
+          Calibrated counts
+        </button>
+      </div>
+      <div className="ed-hint">
+        {/* the old <option> texts, kept on the surface as the explainer line (looks only — no new copy) */}
+        {demand === 'calibrated_am_peak' ? 'Calibrated AM peak (count-anchored; slower)' : 'Synthetic demo (fast)'}
+      </div>
+      <div className="ed-label">Response</div>
+      <div className="ed-seg" role="group" aria-label="Response">
+        <button
+          type="button"
+          aria-pressed={!settled}
           disabled={windowLocked}
-          onChange={(e) => onChange({ ...options, assignment: e.target.checked ? 'settled' : 'day_one' })}
-          data-testid="option-assignment"
-        />
-        Settled response
-      </label>
+          onClick={() => onChange({ ...options, assignment: 'day_one' })}
+          data-testid="option-assignment-day-one"
+        >
+          Day-one
+        </button>
+        <label className={settled ? 'ed-seg-on' : windowLocked ? 'ed-seg-locked' : undefined}>
+          <input
+            type="checkbox"
+            checked={settled}
+            disabled={windowLocked}
+            onChange={(e) => onChange({ ...options, assignment: e.target.checked ? 'settled' : 'day_one' })}
+            data-testid="option-assignment"
+          />
+          Settled response
+        </label>
+      </div>
       {windowLocked && (
         // the EXACT D1 sentence — client copy of change_scheduler.REASON_WINDOWED_SETTLED
         // (python/src/change_scheduler.py); the server 400 with the same words is the backstop.
-        <div style={hintText} data-testid="assignment-locked-reason">
+        <div className="ed-warn" data-testid="assignment-locked-reason">
           temporary events have no equilibrium; use day-one response
         </div>
       )}
-      <div style={hintText}>
+      <div className="ed-hint">
         Day-one response: travelers react with today&apos;s habits (minutes). Settled response: travelers
         have adjusted to the change (iterated assignment; takes substantially longer).
       </div>
-      <label style={{ ...checkRow, marginTop: 10 }}>
+      <label className="ed-check" style={{ marginTop: 'var(--space-3)' }}>
         <input
           type="checkbox"
           checked={seeds === 3}
@@ -308,12 +331,12 @@ function RunOptionsBlock({ options, onChange, windowLocked }: {
         />
         Robustness probe (3 seeds)
       </label>
-      <div style={hintText}>
+      <div className="ed-hint">
         Runs the baseline+scenario pair three times (seeds 42, 43, 44) and shows per-cell ranges —
         roughly 3&times; the simulation time.
       </div>
       {seeds === 3 && options.demand_profile === 'calibrated_am_peak' && (
-        <div style={hintText} data-testid="seeds-cost-warning">
+        <div className="ed-warn" data-testid="seeds-cost-warning">
           With calibrated demand this is a batch-scale run — expect hours, not minutes.
         </div>
       )}
@@ -325,7 +348,9 @@ export function EditPanel(props: EditPanelProps) {
   const { ptA, ptB, hint, submitting, submitError, onSubmit, onReset, activeRunId, onDrawAnother } = props;
 
   return (
-    <div style={rail} data-testid="edit-panel">
+    // V2.7d C8a — the rail carries `.nadi-shell` ITSELF so the DS classes resolve inside it; the
+    // pointer-events pair (rail none / each card auto) is untouched and stays inline.
+    <div className="nadi-shell" style={rail} data-testid="edit-panel">
       {/* V2.7a: the edit-rail run picker retired — the header's run list (RunListPopover) is
           the one open/clone/compare surface; Compare keeps its two RunSwitcher instances. */}
       {!activeRunId && (
@@ -338,24 +363,24 @@ export function EditPanel(props: EditPanelProps) {
         <>
           <RunCard key={activeRunId} runId={activeRunId} feed={props.feed} onClone={props.onClone} />
           {props.streamedVoices.length > 0 && (
-            <div style={card} data-testid="voice-stream-panel">
-              <div style={contains}>
+            <div className="ed-card" data-testid="voice-stream-panel">
+              <div className="ed-muted">
                 Voices streaming in — {props.streamedVoices.length} so far (anticipated reactions, not a poll)
               </div>
               {props.streamedVoices
                 .slice(-STREAM_SHOWN)
                 .reverse()
                 .map((a, i) => (
-                  <div key={`${a.persona.id}:${props.streamedVoices.length - i}`} style={voiceRow} data-testid="voice-stream-row">
-                    <span style={voiceLabel}>
+                  <div key={`${a.persona.id}:${props.streamedVoices.length - i}`} className="ed-voice" data-testid="voice-stream-row">
+                    <span className="ed-voice-label">
                       {a.persona.label}
                       {a.grounding === 'inferred' ? ' — community perspective' : a.grounding === 'mandate' ? ' — institutional (mandate lens)' : ''}
                     </span>
-                    <span style={voiceComment}>{a.reaction.comment}</span>
+                    <span className="ed-voice-text">{a.reaction.comment}</span>
                   </div>
                 ))}
               {props.streamedVoices.length > STREAM_SHOWN && (
-                <div style={voiceMore}>…and {props.streamedVoices.length - STREAM_SHOWN} earlier</div>
+                <div className="ed-caption">…and {props.streamedVoices.length - STREAM_SHOWN} earlier</div>
               )}
             </div>
           )}
@@ -364,26 +389,26 @@ export function EditPanel(props: EditPanelProps) {
               <ScorecardPanel scorecard={props.scorecard} activeGroup={null} onSelectGroup={() => {}} />
             </div>
           )}
-          <div style={card}>
+          <div className="ed-card">
             {props.runLoaded && (
               <>
-                <div style={contains} data-testid="run-contains">
+                <div className="ed-muted" data-testid="run-contains">
                   This run has: scorecard ✓ · voices {props.hasVoices ? '✓' : '—'} · discourse{' '}
                   {props.hasSocial ? '✓' : '—'}
                 </div>
                 {!props.hasVoices && (
-                  <div style={emptyHint} data-testid="no-voices">
+                  <div className="ed-hint" data-testid="no-voices">
                     No stakeholder voices yet — run <b>voices</b> above to hear individual anticipated reactions.
                   </div>
                 )}
                 {!props.hasSocial && (
-                  <div style={emptyHint} data-testid="no-discourse">
+                  <div className="ed-hint" data-testid="no-discourse">
                     Discourse not run — run <b>discourse</b> above to unlock the cascade view.
                   </div>
                 )}
               </>
             )}
-            <button style={secondaryBtn} onClick={onDrawAnother} data-testid="draw-another">
+            <button className="btn btn-secondary" style={{ marginTop: 'var(--space-2)' }} onClick={onDrawAnother} data-testid="draw-another">
               ＋ Draw another road
             </button>
           </div>
@@ -418,18 +443,18 @@ export function EditPanel(props: EditPanelProps) {
           onCancel={props.onEdgeCancel}
         />
       ) : (
-        <div style={card} data-testid="draw-card">
-          <div style={title}>Draw a road</div>
+        <div className="ed-card" data-testid="draw-card">
+          <div className="ed-title">Draw a road</div>
           {props.junctionsDown ? (
-            <div style={hintText} data-testid="junctions-down">
+            <div className="ed-warn" data-testid="junctions-down">
               Junctions unavailable — start the backend (<code>uvicorn server:app --port 8000</code>), then
               re-enter Edit mode.
             </div>
           ) : (
-            !ptA && <div style={step}>Click a junction on the map to start.</div>
+            !ptA && <div>Click a junction on the map to start.</div>
           )}
           {!ptA && !props.junctionsDown && (
-            <div style={subStep} data-testid="edge-zoom-hint">
+            <div className="ed-hint" data-testid="edge-zoom-hint">
               {props.canEditEdges
                 ? 'Or click an existing road to change its speed limit / add a bike lane.'
                 : 'Zoom in to click an existing road (speed limit / bike lane).'}
@@ -437,40 +462,42 @@ export function EditPanel(props: EditPanelProps) {
           )}
           {/* V2.7d C4b: the school-zone entry moved onto its tile (`zone-mode-toggle` lives there now) */}
           {ptA && !ptB && (
-            <div style={step}>
-              Start: <code>{ptA.id}</code>
+            <div>
+              Start: <span className="ed-code">{ptA.id}</span>
               <br />
               Click a second junction to finish — or click along a street to bend the road.
               {props.viaCount > 0 && (
-                <div data-testid="bend-count">
-                  {props.viaCount} bend{props.viaCount === 1 ? '' : 's'} (Esc removes the last)
-                  <button style={linkBtn} onClick={props.onUndoBend} data-testid="undo-bend">
+                <div className="ed-hint" data-testid="bend-count">
+                  {props.viaCount} bend{props.viaCount === 1 ? '' : 's'} (Esc removes the last){' '}
+                  <button className="ed-link" onClick={props.onUndoBend} data-testid="undo-bend">
                     undo bend
                   </button>
                 </div>
               )}
-              <button style={linkBtn} onClick={onReset} data-testid="draw-cancel">
-                cancel
-              </button>
+              <div className="ed-actions">
+                <button className="ed-link" onClick={onReset} data-testid="draw-cancel">
+                  cancel
+                </button>
+              </div>
               {/* V2.7d C7 — the ratified §1e caption: the via count against the cap, the two ways out */}
-              <div style={caption} data-testid="draw-caption">
+              <div className="ed-caption" data-testid="draw-caption">
                 VIA {props.viaCount} OF {VIA_CAP} · CLICK A JUNCTION TO END · ESC CANCELS
               </div>
             </div>
           )}
           {hint && (GENERIC_HINTS.has(hint) ? (
-            <div style={hintText} data-testid="draw-hint">
+            <div className="ed-warn" data-testid="draw-hint">
               {hint}
             </div>
           ) : (
             // V2.7d C7 — the ratified §1e container for a REFUSED click: the treatment is designed, the
             // words are not (the sentence stays the server's own, verbatim, under the same `draw-hint` pin)
-            <div style={refusal} data-testid="draw-refusal">
-              <div style={refusalKicker}>REFUSED · ENGINE SENTENCE, VERBATIM</div>
-              <div style={hintText} data-testid="draw-hint">
+            <div className="ed-refusal" data-testid="draw-refusal">
+              <div className="ed-refusal-kicker">REFUSED · ENGINE SENTENCE, VERBATIM</div>
+              <div className="ed-sentence" data-testid="draw-hint">
                 {hint}
               </div>
-              <div style={refusalNote}>the click is not added — the drawing stays as it was; click farther along to continue</div>
+              <div className="ed-note">the click is not added — the drawing stays as it was; click farther along to continue</div>
             </div>
           ))}
           {ptA && ptB && (
@@ -521,77 +548,8 @@ const rail: React.CSSProperties = {
   zIndex: 20,
   pointerEvents: 'none',
 };
-const card: React.CSSProperties = {
-  flexShrink: 0,
-  pointerEvents: 'auto',
-  background: 'rgba(255,255,255,0.98)',
-  border: '1px solid #d7dbe0',
-  borderRadius: 10,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-  padding: '12px 14px',
-  fontFamily: 'system-ui, sans-serif',
-  color: '#374151',
-};
-const title: React.CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 8 };
-const step: React.CSSProperties = { fontSize: 12.5, lineHeight: 1.5, color: '#4b5563' };
-const subStep: React.CSSProperties = { fontSize: 12, lineHeight: 1.5, color: '#8a9099', marginTop: 8 };
-const endpoints: React.CSSProperties = { fontSize: 13, marginBottom: 10, color: '#1f4e9c', fontWeight: 600 };
-const field: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6b7280', marginBottom: 8 };
-const input: React.CSSProperties = { border: '1px solid #cbd3dc', borderRadius: 8, padding: '6px 8px', fontSize: 13, color: '#374151' };
-const checkRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#4b5563', marginBottom: 10 };
-const actions: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 };
-const primaryBtn: React.CSSProperties = {
-  border: 'none',
-  background: '#1f4e9c',
-  color: '#fff',
-  borderRadius: 8,
-  padding: '8px 16px',
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: 'pointer',
-};
-const busyBtn: React.CSSProperties = { opacity: 0.6, cursor: 'default' };
-const secondaryBtn: React.CSSProperties = {
-  marginTop: 10,
-  border: '1px solid #cbd3dc',
-  background: '#f6f8fa',
-  color: '#374151',
-  borderRadius: 8,
-  padding: '7px 12px',
-  fontSize: 12.5,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-const linkBtn: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: '#8a9099',
-  fontSize: 12,
-  cursor: 'pointer',
-  textDecoration: 'underline',
-  marginLeft: 8,
-};
-const hintText: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#b23a3a' };
-const contains: React.CSSProperties = { fontSize: 12, color: '#4b5563' };
 // V2.3a — the streamed-voices ticker (newest first; capped, the rest summarized)
 const STREAM_SHOWN = 6;
-// V2.7d C4b — the tiles (behaviour commit; C8 restyles). The FULL `border` shorthand in `tileActive`
-// on purpose: it is spread over `tileBtn`, which carries `border` (the border-longhand ban).
-const tileGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 };
-const tileBtn: React.CSSProperties = {
-  border: '1px solid #cbd3dc', background: '#f6f8fa', color: '#374151', borderRadius: 8,
-  padding: '8px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', cursor: 'pointer', textAlign: 'left',
-};
-const tileActive: React.CSSProperties = { background: '#eef4ff', border: '1px solid #1f4e9c', color: '#1f4e9c' };
-// V2.7d C7 — the draw card's via caption and the refused-click container (behaviour commit; C8 restyles).
-// The two GENERIC draw hints are guidance, not refusals — they never get the REFUSED treatment.
+// V2.7d C7 — the two GENERIC draw hints are guidance, not refusals — they never get the REFUSED treatment.
 const GENERIC_HINTS = new Set(['Click nearer a junction.', 'Pick a different junction for the end point.']);
-const caption: React.CSSProperties = { marginTop: 8, fontSize: 10.5, letterSpacing: '0.1em', color: '#8a9099' };
-const refusal: React.CSSProperties = { marginTop: 8, padding: '8px 10px', border: '1px solid #e3b4b4', borderRadius: 8, background: '#fff7f7' };
-const refusalKicker: React.CSSProperties = { fontSize: 10.5, letterSpacing: '0.1em', color: '#b23a3a', marginBottom: 2 };
-const refusalNote: React.CSSProperties = { marginTop: 4, fontSize: 11.5, color: '#6b7280', lineHeight: 1.4 };
-const voiceRow: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 1, marginTop: 8 };
-const voiceLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#1f2937' };
-const voiceComment: React.CSSProperties = { fontSize: 11, color: '#4b5563', lineHeight: 1.4 };
-const voiceMore: React.CSSProperties = { marginTop: 8, fontSize: 10, color: '#8a9099' };
-const emptyHint: React.CSSProperties = { marginTop: 8, fontSize: 12, color: '#6b7280', lineHeight: 1.5 };
+// V2.7d C8a — every other look lives in app/nadi.css under `.nadi-shell .ed-*` (the rail carries the class).

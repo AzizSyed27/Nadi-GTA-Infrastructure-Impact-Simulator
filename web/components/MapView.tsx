@@ -2821,7 +2821,7 @@ export default function MapView() {
           there, and the floating header/legend collide with the panel. */}
       {/* V2.7b C8b: hidden during Act I — it names the LOADED run's change, and the caption two
           inches away is talking about a different one (the screenshot walk caught the collision). */}
-      {!sheetMode && !docPanelOpen && !watchedRunNotLoaded && <ScenarioHeader scenario={meta.scenario} />}
+      {!sheetMode && !docPanelOpen && !watchedRunNotLoaded && <ScenarioHeader scenario={meta.scenario} rightInset={editing ? 372 : 16} />}
 
       {/* V2.1b render-sample framing: a capped artifact ALWAYS says it renders a sample — the map showing
           fewer dots than the simulated population must never read as the population itself. */}

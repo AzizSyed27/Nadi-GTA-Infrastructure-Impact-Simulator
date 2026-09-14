@@ -689,6 +689,38 @@ via click renders its server sentence VERBATIM under the same `draw-hint` pin, i
 container ("REFUSED · ENGINE SENTENCE, VERBATIM" + "the click is not added — the drawing stays as it
 was; click farther along to continue"); the two GENERIC draw hints keep the plain treatment — they are
 guidance, not refusals. Gates: edit 12 + via-rules 9.
+**C8a — the rail restyle (looks only; every testid and string frozen, verified by the full gate).** The
+rail div carries `.nadi-shell` ITSELF (its pointer-events pair — rail none / each card auto — stays
+inline and untouched), and `app/nadi.css` gains the `.ed-*` classes under it (card, kicker, title,
+label, hint/warn, segmented control, checkbox row, field/input, tiles + the drag ghost's pressed look,
+the engine-sentence container shared by REFUSED and BLOCKER, member rows, the voices ticker); EditPanel's
+and DraftPanel's inline style constants are DELETED, not shadowed (the border-longhand grep over the
+five editor files returns nothing). The ratified §1c numbering: "01 · RUN OPTIONS" / "02 · ADD A CHANGE"
+/ "03 · DRAFT" kickers. **RUN OPTIONS became SEGMENTED CONTROLS with ONE deliberate divergence:**
+TRAFFIC is two `aria-pressed` buttons (`option-demand-synthetic` / `option-demand-calibrated`; the
+`<select>` is gone — closure-palette.spec's `selectOption` caller migrated in the same commit, no
+hidden-select shim; the old option texts survive as the explainer line under the row); RESPONSE keeps
+the REAL `option-assignment` checkbox inside its segmented row beside a DAY-ONE button
+(`option-assignment-day-one`) — four specs `.check()` / `.uncheck()` / `toBeDisabled()` it and the D1
+lock sentence renders verbatim as before, so the settled control is a visible native checkbox, not a
+second pressed-state button (a C9 conflicts-table row: looks, chosen for the spec API). The
+ScenarioHeader takes a `rightInset` (372 in Build) so the loaded run's caption centres in the space LEFT
+of the rail — the C4b frame had shown the rail covering its right end. RED first: the edit.spec
+structural pin (shell class on the rail, both kickers, the segmented pair's pressed states, the
+checkbox's type) + the migrated closure-palette caller. **A method lesson paid for on the way:** the
+spec lines were first written through a bash heredoc, which turned the regex's `\b` into a literal
+BACKSPACE byte and mis-encoded the middots — the reporter printed the regex as `/nadi-shell/` with no
+visible backslashes; caught by the advisor before GREEN (the `bash-heredoc-backslash-mangling` memory,
+again). Frames LOOKED AT against §1c/§1e: `docs-assets/v27d-c8-panel.png` (the run-options segments,
+the tiles, the caption clear of the rail), `v27d-c8-blocker.png` (an element capture — the BLOCKER
+sentence in the red-bordered container over a square SWITCH TO DAY-ONE), `v27d-c8-draw-refusal.png`
+(the REFUSED container under the via caption); the historical `v27d-c6-blocker.png` was re-captured by
+its own test's NADI_SHOTS line and restored from git. THE GATE: tsc/lint; **FULL Playwright — 254 ran
+in six foreground chunks (60 · 65 · 44 · 48 · act-two 15 · act-one 22; chunks C and D overran the
+10-minute cap and finished in the background at 10.0 / 17.0 min, both green)** — 253 green in-chunk
+plus the known act-two:478 "no aggregate framing" in-file failure, green alone 1/1 (the pre-existing
+order-sensitive weakness recorded at C1b, unchanged in kind). No python or asset change (pytest not
+re-run; data neutrality checked — golden / fixtures / contract / artifacts / network.json clean). No perf.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street

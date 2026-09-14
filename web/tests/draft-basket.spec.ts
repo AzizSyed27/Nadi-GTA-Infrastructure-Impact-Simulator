@@ -613,6 +613,8 @@ test('V2.7d C6: settled + severing → the card offers SWITCH TO DAY-ONE, and th
   await expect(page.getByTestId('blocker-remove-window')).toHaveCount(0);
   // the draft panel sits below the rail's fold at 720 px — an ELEMENT capture shows the card itself
   if (process.env.NADI_SHOTS) await page.getByTestId('draft-panel').screenshot({ path: '../docs-assets/v27d-c6-blocker.png' });
+  // V2.7d C8a — the same card after the restyle (the C6 frame above stays as the behaviour-commit record)
+  if (process.env.NADI_SHOTS) await page.getByTestId('draft-panel').screenshot({ path: '../docs-assets/v27d-c8-blocker.png' });
   await page.getByTestId('blocker-switch-day-one').click();
   await expect(page.getByTestId('option-assignment')).not.toBeChecked();
   await expect(page.getByTestId('draft-blocker')).toHaveCount(0);

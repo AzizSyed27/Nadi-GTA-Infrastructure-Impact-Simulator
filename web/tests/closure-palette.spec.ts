@@ -93,7 +93,8 @@ test('window inputs lock assignment to day_one with the exact D1 reason; clearin
 test('calibrated profile renders the window label as clock times (t=0 == 07:00)', async ({ page }) => {
   await mockBackend(page);
   await openPalette(page);
-  await page.getByTestId('option-demand').selectOption('calibrated_am_peak');
+  // V2.7d C8a: TRAFFIC is a segmented control (the old <select> is gone — no hidden-select shim)
+  await page.getByTestId('option-demand-calibrated').click();
   await page.getByTestId('palette-type-road-closure').click();
   await page.getByTestId('window-start').fill('10');
   await page.getByTestId('window-duration').fill('20');

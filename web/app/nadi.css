@@ -157,3 +157,179 @@
   padding: var(--space-2);
   border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
 }
+
+/* ── V2.7d C8 — the Build rail (Map & Build §1c/§1d/§1e). Every class scopes to .nadi-shell,
+      which the rail div carries itself (its pointer-events:none / card auto pair is inline and
+      untouched). Looks only: no testid, string or behaviour lives here. ──────────────────── */
+.nadi-shell .ed-card {
+  position: relative;
+  flex-shrink: 0;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--color-bg) 97%, transparent);
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+  box-shadow: var(--shadow-md);
+  padding: var(--space-4);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+.nadi-shell .ed-kicker {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+  margin-bottom: var(--space-2);
+}
+.nadi-shell .ed-title {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 18px;
+  line-height: 1.15;
+  margin-bottom: var(--space-2);
+}
+.nadi-shell .ed-label {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  margin: var(--space-3) 0 var(--space-1);
+}
+.nadi-shell .ed-label:first-child { margin-top: 0; }
+.nadi-shell .ed-hint { margin-top: var(--space-2); font-size: 12px; line-height: 1.45; color: var(--color-neutral-700); }
+.nadi-shell .ed-muted { font-size: 12px; line-height: 1.45; color: var(--color-neutral-600); }
+.nadi-shell .ed-warn { margin-top: var(--space-2); font-size: 12px; line-height: 1.45; color: #9a3434; }
+.nadi-shell .ed-caption {
+  margin-top: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+/* segmented controls — one row of square buttons; the pressed one is filled */
+.nadi-shell .ed-seg { display: flex; border: 1px solid var(--color-divider); }
+.nadi-shell .ed-seg > * {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+.nadi-shell .ed-seg > * + * { border-left: 1px solid var(--color-divider); }
+.nadi-shell .ed-seg > [aria-pressed="true"],
+.nadi-shell .ed-seg > .ed-seg-on { background: var(--color-accent); color: var(--color-bg); }
+.nadi-shell .ed-seg > :disabled, .nadi-shell .ed-seg > .ed-seg-locked { opacity: 0.55; cursor: not-allowed; }
+.nadi-shell .ed-seg input[type="checkbox"] { margin: 0; accent-color: var(--color-accent); }
+.nadi-shell .ed-check { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; cursor: pointer; }
+.nadi-shell .ed-check input[type="checkbox"] { margin: 0; accent-color: var(--color-accent); }
+.nadi-shell .ed-field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
+.nadi-shell .ed-input {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
+  padding: var(--space-1) var(--space-2);
+}
+.nadi-shell .ed-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--color-accent-800); }
+.nadi-shell .ed-actions { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
+.nadi-shell .ed-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.nadi-shell .ed-link:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 02 · the change tiles (drag onto a road, or press to arm) */
+.nadi-shell .ed-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); margin-top: var(--space-2); }
+.nadi-shell .ed-tile {
+  display: block;
+  text-align: left;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--color-text);
+  background: var(--color-neutral-100);
+  border: 1px solid var(--color-divider);
+  border-left: 3px solid var(--color-accent-400);
+  border-radius: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.nadi-shell .ed-tile:hover { background: var(--color-accent-100); }
+.nadi-shell .ed-tile[aria-pressed="true"], .nadi-shell .ed-tile.ed-tile-ghost {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: var(--color-accent-700);
+}
+.nadi-shell .ed-tile.ed-tile-ghost { cursor: grabbing; box-shadow: var(--shadow-lg); }
+/* the engine-sentence containers: a REFUSED click (§1e) and a draft BLOCKER (§1c) */
+.nadi-shell .ed-refusal {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, #9a3434 45%, transparent);
+  border-left: 3px solid #9a3434;
+  background: color-mix(in srgb, #9a3434 6%, var(--color-bg));
+}
+.nadi-shell .ed-refusal-kicker {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a3434;
+  margin-bottom: 2px;
+}
+.nadi-shell .ed-refusal .ed-sentence { margin-top: var(--space-1); font-size: 12.5px; line-height: 1.45; color: var(--color-text); }
+.nadi-shell .ed-refusal .ed-note { margin-top: var(--space-1); font-size: 11.5px; line-height: 1.4; color: var(--color-neutral-700); }
+.nadi-shell .ed-fixes { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-2); }
+.nadi-shell .ed-fixes .ed-note { flex-basis: 100%; }
+.nadi-shell .ed-fixes .btn { font-size: 12px; letter-spacing: 0.06em; padding: var(--space-1) var(--space-2); }
+/* 03 · the draft member rows */
+.nadi-shell .ed-members { list-style: none; margin: 0 0 var(--space-2); padding: 0; max-height: 200px; overflow-y: auto; }
+.nadi-shell .ed-member {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.nadi-shell .ed-member:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.nadi-shell .ed-member-text { font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.nadi-shell .ed-x { background: transparent; border: 0; padding: 0 2px; color: var(--color-neutral-600); font-size: 13px; cursor: pointer; }
+.nadi-shell .ed-x:hover { color: var(--color-text); }
+.nadi-shell .ed-x:disabled { opacity: 0.45; cursor: not-allowed; }
+/* the streamed-voices ticker rows */
+.nadi-shell .ed-voice { display: flex; flex-direction: column; gap: 1px; margin-top: var(--space-2); }
+.nadi-shell .ed-voice-label { font-size: 11.5px; font-weight: 600; }
+.nadi-shell .ed-voice-text { font-size: 11.5px; line-height: 1.4; color: var(--color-neutral-800); }

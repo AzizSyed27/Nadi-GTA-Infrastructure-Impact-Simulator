@@ -256,6 +256,29 @@ test('a speed_limit submit walks the regen-free stages and reads 0-reroute as de
   await expect(page.getByTestId('car-delay')).toBeVisible();
 });
 
+// ---- V2.7d C8a: the restyle's STRUCTURAL pin (looks are looked at; this pins what a test can see) ----
+test('V2.7d C8: the rail is a design-system surface — the shell class, the numbered kickers, the segmented traffic control', async ({ page }) => {
+  await mockBackend(page);
+  await enterEditForEdges(page);
+  // the DS classes (.btn, .ed-*) resolve only under .nadi-shell — the rail div carries it itself
+  await expect(page.getByTestId('edit-panel')).toHaveClass(/(^|\s)nadi-shell(\s|$)/);
+  // the ratified §1c panel: 01 · RUN OPTIONS / 02 · ADD A CHANGE (03 · DRAFT rides the draft panel)
+  await expect(page.getByTestId('run-options')).toContainText('01 · RUN OPTIONS');
+  await expect(page.getByTestId('change-tiles')).toContainText('02 · ADD A CHANGE');
+  // TRAFFIC is a segmented control now: two pressed-state buttons, synthetic by default
+  await expect(page.getByTestId('option-demand-synthetic')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('option-demand-calibrated')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('option-demand-calibrated').click();
+  await expect(page.getByTestId('option-demand-calibrated')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('option-demand-synthetic')).toHaveAttribute('aria-pressed', 'false');
+  // RESPONSE keeps a REAL checkbox (closure-palette / draft-basket / school-zone .check() it)
+  await expect(page.getByTestId('option-assignment')).toHaveAttribute('type', 'checkbox');
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27d-c8-panel.png' });
+  const body = await page.getByTestId('edit-panel').innerText();
+  expect(body).not.toMatch(BANNED);
+  expect(body).not.toMatch(STANCE_TALLY);
+});
+
 // ---- V2.0b: the base network renderer ----
 test('the exported network renders as the base road layer (all modes)', async ({ page }) => {
   await mockBackend(page);
@@ -362,6 +385,8 @@ test('invalid via clicks are refused with the server sentences — no bend added
   // V2.7d C7 — the refusal's designed CONTAINER: the treatment is designed, the words are not
   await expect(page.getByTestId('draw-refusal')).toContainText('REFUSED · ENGINE SENTENCE, VERBATIM');
   await expect(page.getByTestId('draw-refusal')).toContainText('the click is not added — the drawing stays as it was; click farther along to continue');
+  // V2.7d C8a — the §1e frame (an ELEMENT capture of the draw card; the rail's top sits under the run caption)
+  if (process.env.NADI_SHOTS) await page.getByTestId('draw-card').screenshot({ path: '../docs-assets/v27d-c8-draw-refusal.png' });
   await expect(page.getByTestId('bend-count')).toBeHidden();
 
   // a valid bend, then a second click ~5 m from it -> the min-segment sentence
