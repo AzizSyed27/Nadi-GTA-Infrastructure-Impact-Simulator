@@ -144,16 +144,18 @@ type DraftSeam = {
   items: { id: string; type: string; windowed: boolean }[];
 };
 
-async function mockBackend(page: Page, opts: { reject?: { status: number; detail: string } } = {}) {
+async function mockBackend(page: Page, opts: { reject?: { status: number; detail: string }; names?: Record<string, string> } = {}) {
   await mockDefaultArtifact(page); // V2.5c: the default pointer pair — never the real latest.json
   let lastBody: Record<string, unknown> | null = null;
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/network.json', (route) =>
     route.fulfill({
       json: {
+        // V2.7d: edges are UNNAMED unless a test names one — the single-change wire pin below reads the
+        // client's id-only description, and a named E_A would (correctly) change it
         edges: EDGES.map((e) => netEdge({
           id: e.id, geometry: e.geometry, lanes: e.car_lane_indices.length + 1, speed_mps: 13.9,
-          oneway: false, allows: { car: true, bike: true, ped: true },
+          oneway: false, allows: { car: true, bike: true, ped: true }, name: opts.names?.[e.id] ?? null,
         })),
       },
     }));
@@ -198,6 +200,21 @@ async function pickEdge(page: Page, id: string) {
 }
 
 const draftRows = (page: Page) => page.locator('[data-testid^="draft-member-"]');
+
+test('V2.7d: a member on a NAMED edge summarizes name-plus-id; an unnamed edge keeps the id', async ({ page }) => {
+  await mockBackend(page, { names: { E_A: 'Lawrence Avenue East' } });
+  await openEdit(page);
+  await pickEdge(page, 'E_A');
+  await page.getByTestId('palette-type-road-closure').click();
+  await page.getByTestId('apply-road-closure').click();
+  await expect(draftRows(page)).toHaveCount(1);
+  await expect(page.getByTestId('draft-member-d1')).toContainText('Road closed · Lawrence Avenue East (edge E_A)');
+  await pickEdge(page, 'E_C');
+  await page.getByTestId('palette-speed').fill('8');
+  await page.getByTestId('apply-speed').click();
+  await expect(draftRows(page)).toHaveCount(2);
+  await expect(page.getByTestId('draft-member-d2')).toContainText('Speed limit 29 km/h · edge E_C');
+});
 const draftSeam = (page: Page) =>
   page.evaluate(() => (window as unknown as { __nadiDraftOverlay: DraftSeam }).__nadiDraftOverlay);
 

@@ -21,7 +21,7 @@
 
 import { memo, useMemo, useState } from 'react';
 
-import type { Agent, TrajectoryArtifact } from '@/lib/types';
+import type { Agent, LonLat, TrajectoryArtifact } from '@/lib/types';
 import {
   STAGE_COSTS_MODEL,
   type RunFeedState,
@@ -33,6 +33,8 @@ import { chipInferred, chipSim } from '@/lib/scorecardStyles';
 import { institutionDisclaimer } from '@/components/InstitutionPanel';
 import { materializeTimestamps } from '@/lib/viz';
 import { fmtSimTime } from '@/lib/simTime';
+import type { NetworkEdge } from '@/lib/network';
+import { buildEdgeGrid, nearestEdge, odLine } from '@/lib/streetNames';
 
 /** Said once, at the top, because it is the claim the whole act depends on. */
 export const ACT_TWO_HEAD = 'INTERPRETATION — the results are already complete';
@@ -60,6 +62,7 @@ const STATUS_MARK: Record<string, string> = {
 export function ActTwo({
   experience,
   artifact,
+  network,
   graphPanel,
   reportPanel,
   onSkip,
@@ -68,6 +71,8 @@ export function ActTwo({
 }: {
   experience: RunFeedState;
   artifact: TrajectoryArtifact;
+  /** V2.7d: the network export (names + geometry) — the voice card's origin→destination line derives from it. */
+  network?: NetworkEdge[];
   /** The discourse stage's body — passed in so this file doesn't pull deck.gl into every render. */
   graphPanel: React.ReactNode;
   reportPanel: React.ReactNode;
@@ -144,7 +149,7 @@ export function ActTwo({
 
       <div style={body} data-testid={`act-two-panel-${shown}`}>
         {shown === 'personas' && <PersonasPanel experience={experience} />}
-        {shown === 'voices' && <VoicesPanel experience={experience} artifact={artifact} />}
+        {shown === 'voices' && <VoicesPanel experience={experience} artifact={artifact} network={network} />}
         {shown === 'institutions' && <InstitutionsPanel experience={experience} />}
         {shown === 'discourse' && graphPanel}
         {shown === 'report' && reportPanel}
@@ -192,12 +197,15 @@ export const VOICES_NOTE =
 export function VoicesPanel({
   experience,
   artifact,
+  network,
 }: {
   experience: RunFeedState;
   artifact: TrajectoryArtifact;
+  network?: NetworkEdge[];
 }) {
   const { voices, voicesTotal } = experience;
   const departOf = useMemo(() => departLookup(artifact), [artifact]);
+  const odOf = useMemo(() => odLookup(artifact, network ?? []), [artifact, network]);
   if (voices.length === 0) return <Waiting what="the first voice" />;
   return (
     <div style={col} data-testid="act-two-voices">
@@ -208,7 +216,7 @@ export function VoicesPanel({
       <p style={muted}>{VOICES_NOTE}</p>
       <div style={cards}>
         {[...voices].reverse().map((a, i) => (
-          <VoiceCard key={`${a.persona.id}#${voices.length - i}`} agent={a} depart={departOf(a)}
+          <VoiceCard key={`${a.persona.id}#${voices.length - i}`} agent={a} depart={departOf(a)} od={odOf(a)}
                      profile={(artifact.meta as { demand_profile?: string }).demand_profile} />
         ))}
       </div>
@@ -216,7 +224,7 @@ export function VoicesPanel({
   );
 }
 
-function VoiceCard({ agent, depart, profile }: { agent: Agent; depart: number | null; profile?: string }) {
+function VoiceCard({ agent, depart, od, profile }: { agent: Agent; depart: number | null; od: string | null; profile?: string }) {
   const group = groupOfAgent(agent);
   const inferred = agent.grounding === 'inferred';
   return (
@@ -228,10 +236,33 @@ function VoiceCard({ agent, depart, profile }: { agent: Agent; depart: number | 
         {/* depart time only when this entity is actually in the artifact — a calibrated run renders
             an outcome-stratified SAMPLE, so many voices have no trajectory here to read it from */}
         {depart != null && <span style={voiceDepart}>departs {fmtSimTime(depart, profile)}</span>}
+        {/* V2.7d: origin→destination ONLY when both trajectory endpoints resolve to a NAMED nearest edge
+            within 25 m (the V2.7b rule: derivable from the network, or the line is trimmed) */}
+        {od != null && <span style={voiceDepart} data-testid="act-two-voice-od">{od}</span>}
       </div>
       <div style={voiceQuote}>{agent.reaction.comment}</div>
     </div>
   );
+}
+
+/** V2.7d: the origin→destination line for a sim voice — each trajectory endpoint resolved to the
+ *  NEAREST edge of any kind within OD_THRESHOLD_M; unnamed or too far → null (the line is omitted). */
+function odLookup(artifact: TrajectoryArtifact, network: NetworkEdge[]): (a: Agent) => string | null {
+  if (network.length === 0) return () => null;
+  const grid = buildEdgeGrid(network);
+  const ends: Record<string, [LonLat, LonLat]> = {};
+  for (const v of artifact.vehicles ?? []) if (v.path.length) ends[`v:${v.id}`] = [v.path[0], v.path[v.path.length - 1]];
+  for (const p of artifact.persons ?? []) if (p.path.length) ends[`p:${p.id}`] = [p.path[0], p.path[p.path.length - 1]];
+  const cache: Record<string, string | null> = {};
+  return (a) => {
+    const k = a.vehicle_id ? `v:${a.vehicle_id}` : a.person_id ? `p:${a.person_id}` : null;
+    if (!k || !ends[k]) return null;
+    if (!(k in cache)) {
+      const [o, d] = ends[k];
+      cache[k] = odLine(nearestEdge(o, grid)?.edge.name ?? null, nearestEdge(d, grid)?.edge.name ?? null);
+    }
+    return cache[k];
+  };
 }
 
 /** first timestamp of the entity a sim voice is pinned to, or null. */

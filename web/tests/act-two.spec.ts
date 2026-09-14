@@ -441,6 +441,40 @@ test('the run PASSES THROUGH done between the acts, and the poll comes back for 
 
 // --------------------------------------------------------------------------------------- sweeps
 
+// ---- V2.7d C3b — the voice card's origin→destination line: derived from the network, or omitted ----
+// veh0 (institutions-run.json) runs from [-79.222988, 43.744264] to [-79.225489, 43.742848]. Two hand
+// edges straddle those endpoints (100 m east-west segments centred on each), so the line is a
+// hand-known literal; an UNNAMED nearest edge omits the line — the honesty rule, never a fallback
+// to the nearest named street.
+const DEG_PER_M_LON_ACT = 1 / (111_195 * Math.cos((43.744 * Math.PI) / 180));
+function odNet(originName: string | null) {
+  const seg = (id: string, [lon, lat]: [number, number], name: string | null) => ({
+    id, geometry: [[lon - 50 * DEG_PER_M_LON_ACT, lat], [lon + 50 * DEG_PER_M_LON_ACT, lat]],
+    lanes: [{ width_m: 2.0, allows: { car: false, bike: false, ped: true, bus: false } }, { width_m: 3.2, allows: { car: true, bike: true, ped: false, bus: true } }],
+    lane_count: 2, speed_mps: 13.9, oneway: true, allows: { car: true, bike: true, ped: true }, name, from: `${id}:a`, to: `${id}:b`, reverse: null,
+  });
+  return { edges: [seg('orig', [-79.222988, 43.744264], originName), seg('dest', [-79.225489, 43.742848], 'Destination Road')] };
+}
+
+test('V2.7d: a sim voice card names its trip from origin street to destination street when both resolve', async ({ page }) => {
+  await mockActTwo(page, { events: actTwoBody() });
+  await page.route('**/network.json', (r) => r.fulfill({ json: odNet('Origin Street') })); // after mockActTwo → wins
+  await enterActTwo(page);
+  await page.getByTestId('act-two-card-voices').click();
+  await expect(page.getByTestId('act-two-voice')).toHaveCount(3); // the default body: one sim voice (veh0) + two inferred
+  await expect(page.getByTestId('act-two-voice-od')).toHaveCount(1); // the inferred voices have no trip
+  await expect(page.getByTestId('act-two-voice-od')).toHaveText('from Origin Street to Destination Road');
+});
+
+test('V2.7d: the origin→destination line is OMITTED when the nearest edge at either end is unnamed', async ({ page }) => {
+  await mockActTwo(page, { events: actTwoBody() });
+  await page.route('**/network.json', (r) => r.fulfill({ json: odNet(null) }));
+  await enterActTwo(page);
+  await page.getByTestId('act-two-card-voices').click();
+  await expect(page.getByTestId('act-two-voice')).toHaveCount(3);
+  await expect(page.getByTestId('act-two-voice-od')).toHaveCount(0);
+});
+
 test('Act II adds no aggregate framing of its own, on any stage', async ({ page }) => {
   await mockActTwo(page, { events: actTwoBody({ report: true, discourse: true, index: true }), graphs: true });
   await enterActTwo(page);

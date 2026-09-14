@@ -64,6 +64,8 @@ interface EditPanelProps {
   onClone: (st: RunStatus) => void;
   // V2.4a — the draft basket (applies ADD members; one Run submits the whole draft)
   draftMembers: DraftMember[];
+  /** V2.7d: street name for an edge id (network export), null when unnamed — the draft rows read it. */
+  nameOf: (id: string) => string | null;
   draftTags: string[];
   draftBlockers: string[]; // shared reason strings, verbatim — rendered as-is
   draftError: string | null; // Run failures (400/409), verbatim
@@ -375,6 +377,7 @@ export function EditPanel(props: EditPanelProps) {
       {!activeRunId && props.draftMembers.length > 0 && (
         <DraftPanel
           members={props.draftMembers}
+          nameOf={props.nameOf}
           tags={props.draftTags}
           blockers={props.draftBlockers}
           demandProfile={props.runOptions.demand_profile ?? 'synthetic_demo'}

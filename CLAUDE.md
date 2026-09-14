@@ -602,6 +602,18 @@ stand; a red golden here would have meant the format leaked into the unnamed bra
 pre-existing pin migrated (`"(incident)"` → `"incident)"`, the tag now rides inside the parenthetical on
 a named edge). Suites: **715 pytest** (+10). The committed protected runs keep their old id-only
 descriptions (composed at run time into the artifact — a known-vintage divergence, like C10's).
+**C3 — the TS name module (`web/lib/streetNames.ts`): draft summaries + THE VOICE-CARD LINE.**
+`edgeLabel`/`describeEdge` pin the python forms as literals (the compact-time lockstep idiom);
+DraftPanel's member rows read `Road closed · Lawrence Avenue East (edge X)` / `Speed limit 29 km/h ·
+edge E_C`. **The V2.7b origin→destination deferral comes home:** a sim voice's card carries
+`from Origin Street to Destination Road` (`act-two-voice-od`) when BOTH trajectory endpoints resolve to
+a named nearest edge within **25 m** (`OD_THRESHOLD_M`, inclusive; `nearestEdge` measures to the
+segment over a 100 m grid); the nearest edge of ANY kind decides — if it is unnamed the line is
+OMITTED, because naming the nearest NAMED street instead would put a traveller on a street they were
+not on (the invented-geography case the V2.7b rule forbids); the same presence guard as `departs`.
+`crossStreets` (for C4's mini-form) walks same-name chains: unique successor, never the reverse
+partner, a fork or the hop cap ends it, then between / near / nothing. Gates: street-names 9 +
+draft-basket 15 + edit 12; act-two 14/15 (the same pre-existing in-file failure).
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street

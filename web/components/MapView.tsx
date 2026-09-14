@@ -2748,6 +2748,7 @@ export default function MapView() {
           onZoneSubmit={onZoneSubmit}
           onZoneCancel={onZoneCancel}
           draftMembers={draft}
+          nameOf={(id) => networkLookup[id]?.name ?? null}
           draftTags={draftTags}
           draftBlockers={draftBlockers}
           draftError={draftError}
@@ -2763,6 +2764,7 @@ export default function MapView() {
         <ActTwo
           experience={runFeed.experience}
           artifact={artifact}
+          network={networkEdges}
           onSkip={onSkip}
           skipping={skipping}
           skipError={skipError}

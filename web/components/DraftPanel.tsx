@@ -6,6 +6,7 @@ import { getProjection, type SimChange } from '@/lib/api';
 import { STATIC_DEMO } from '@/lib/demo';
 import { fmtWindowRange } from '@/lib/simTime';
 import { memberWindow } from '@/lib/draftBlockers';
+import { edgeLabel } from '@/lib/streetNames';
 
 /**
  * V2.4a — one basket member. `change` is the EXACT wire object the palette callbacks build (the
@@ -32,30 +33,35 @@ interface DraftPanelProps {
   onRemove: (id: string) => void;
   onRun: () => void;
   onHover: (id: string | null) => void;
+  /** V2.7d: the street name for an edge id from the network export, null when unnamed. */
+  nameOf: (id: string) => string | null;
 }
 
 /** Mechanical one-line member summary (the RunCard chip conventions — type + edge + details +
  * window; no server-prose ports, no asserted benefit). */
-function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_peak'): string {
+function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_peak',
+                       nameOf: (id: string) => string | null): string {
   let base: string;
+  // V2.7d: the edge reads name-plus-id (`Markham Road (edge X)`), id-only (`edge X`) when unnamed
+  const edge = 'target_edge' in c && c.target_edge ? edgeLabel(nameOf(c.target_edge), c.target_edge) : '';
   switch (c.type) {
     case 'speed_limit':
-      base = `Speed limit ${Math.round(c.value_mps * 3.6)} km/h · ${c.target_edge}`;
+      base = `Speed limit ${Math.round(c.value_mps * 3.6)} km/h · ${edge}`;
       break;
     case 'bike_lane':
-      base = `Bike lane · ${c.target_edge}`;
+      base = `Bike lane · ${edge}`;
       break;
     case 'lane_closure':
       // optional-chained like the incident case: cloned members arrive through a loose status-dict
       // cast, and a malformed one must render a wrong count, never crash the panel
-      base = `${c.target_lanes?.length ?? 0} lane(s) closed · ${c.target_edge}`;
+      base = `${c.target_lanes?.length ?? 0} lane(s) closed · ${edge}`;
       break;
     case 'road_closure':
-      base = `Road closed · ${c.target_edge}`;
+      base = `Road closed · ${edge}`;
       break;
     case 'incident':
       base =
-        `Incident · ${c.target_edge}` +
+        `Incident · ${edge}` +
         (c.effect?.blocked ? ` · ${c.target_lanes?.length ?? 0} lane(s) blocked` : '') +
         (c.effect?.speed_factor != null ? ` · slowed to ${Math.round(c.effect.speed_factor * 100)}%` : '');
       break;
@@ -76,7 +82,7 @@ function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_
  * a server 400/409 renders verbatim below and the draft is retained for edit-and-retry.
  */
 export function DraftPanel({
-  members, tags, blockers, demandProfile, submitting, error, onRemove, onRun, onHover,
+  members, tags, blockers, demandProfile, submitting, error, onRemove, onRun, onHover, nameOf,
 }: DraftPanelProps) {
   const n = members.length;
   const canRun = !submitting && n > 0 && blockers.length === 0;
@@ -106,7 +112,7 @@ export function DraftPanel({
             onMouseEnter={() => onHover(m.id)}
             onMouseLeave={() => onHover(null)}
           >
-            <span style={memberText}>{memberSummary(m.change, demandProfile)}</span>
+            <span style={memberText}>{memberSummary(m.change, demandProfile, nameOf)}</span>
             <button
               style={removeBtn}
               onClick={() => onRemove(m.id)}
