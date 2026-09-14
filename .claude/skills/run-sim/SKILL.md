@@ -31,8 +31,21 @@ python "$SUMO_HOME/tools/osmGet.py" --bbox=-79.27,43.74,-79.18,43.79 --output-di
   --proj.utm \
   --keep-edges.by-vclass passenger --remove-edges.by-vclass pedestrian,bicycle \
   --ramps.guess --junctions.join --tls.guess-signals --tls.discard-simple \
-  --geometry.remove --roundabouts.guess --osm.elevation false
+  --geometry.remove --roundabouts.guess --osm.elevation false \
+  --output.street-names true
 ```
+- `--output.street-names` (added V2.7d, NOT YET APPLIED to the canonical net — see the V2.7d C0 record in
+  CLAUDE.md): writes OSM `name=` onto `<edge name="…">`. Pass it on BOTH stages; verified 2026-09-14 that
+  4,521 names survive the Stage-1b re-import when the flag rides both calls.
+- **THIS RECIPE DOES NOT REPRODUCE THE CANONICAL NET (measured 2026-09-14, V2.7d C0):** a dry run of both
+  stages with the same netconvert 1.27.0 and the tracked extract yields a SUPERSET — 4,602 normal edges vs
+  the canonical 4,570 (32 normal + 80 internal edges added, 0 removed; every canonical id survives; the
+  `<location>` line is identical; the added ways exist in the extract). The original Stage-1 flags were
+  never recorded (the tracked `netconvert.log` is a warnings-only capture with no config block), so the
+  cause is not determinable. Consequence: the canonical net is a FIXED ASSET — regenerate it only for a
+  deliberate geometry change (bbox expansion), which re-baselines the golden AND invalidates the
+  calibration. Street names come from the tracked OSM extract by way id (`python/src/street_names.py`) at
+  `network_export` time, never from a regen.
 - GOTCHA: pass the bbox as `--bbox=-79.27,...` (with `=`); argparse parses a leading-`-` value as a flag otherwise.
 - `--proj.utm` is REQUIRED — it keeps the net geo-referenced (UTM-17). Verify `<location>` has a real
   `projParameter="+proj=utm ..."`, NOT `"!"`. Without it, vehicle positions can't convert to lon/lat.
@@ -46,11 +59,17 @@ already present (SUMO roads permit `bicycle` by default), so this step is pedest
 ```bash
 "$SUMO_HOME/bin/netconvert.exe" \
   --sumo-net-file python/scenario/corridor.net.xml \
+  --no-turnarounds --offset.disable-normalization \
+  --geometry.min-radius.fix.railways false --geometry.avoid-overlap false --geometry.max-grade.fix false \
   --sidewalks.guess --sidewalks.guess.max-speed 19.5 \
   --crossings.guess --walkingareas \
+  --output.street-names true \
   --output-file python/scenario/corridor.net.new.xml    # then verify, then replace
 ```
 - `--sidewalks.guess.max-speed 19.5` (~70 km/h) so the 60 km/h arterials get sidewalks (default 13.89 skips them).
+- The five extra flags (`--no-turnarounds`, `--offset.disable-normalization`, the three `geometry.*.fix
+  false`) are what the canonical net's own `<netconvertConfiguration>` header records for this stage
+  (corrected V2.7d — the earlier recipe omitted them).
 - Do NOT add `--junctions.join`/`--geometry.remove` (off by default on `-s` reimport — keep them off).
 - VERIFY before replacing: `<location>` line unchanged (geo-ref), edge-ID set unchanged (all
   `corridor.rou.xml` edges still present), car-lane counts not dropped, and crossings/walkingareas
