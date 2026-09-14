@@ -27,7 +27,7 @@ const DASH_EXT = new PathStyleExtension({ dash: true });
 import { isSimPersonAgent, isSimVehicleAgent } from '@/lib/types';
 import { DEFAULT_DRAW_PARAMS, EditPanel, type DrawParams } from '@/components/EditPanel';
 import { type DraftMember } from '@/components/DraftPanel';
-import { deriveBlockers, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
+import { deriveBlockerCards, hasWindowedMember, memberWindow } from '@/lib/draftBlockers';
 import { getJunctions, getEdges, getRuns, postSkip, postResume, postSimulate, postSimulateComposite, postGroupInterview, type ChangeWindow, type GroupTurnWire, type InterviewMsg, type Junction, type Edge, type EdgeEligibility, type SimChange, type RunOptions, type RunStatus } from '@/lib/api';
 import type { VoiceEvent } from '@/lib/runStream';
 import { useRunFeed } from '@/lib/useRunFeed';
@@ -1604,6 +1604,23 @@ export default function MapView() {
     setArmedKind(null); // C4b: adding a member disarms the tile
   }, [setDropKind, setArmedKind]);
 
+  // V2.7d C6 — the blocker card's resolutions, each acting on the member the card points at.
+  const onFixSwitchDayOne = useCallback(() => setRunOptions((o) => ({ ...o, assignment: 'day_one' })), []);
+  const onFixRemoveWindow = useCallback((id: string) => {
+    setDraft((d) => d.map((m) => {
+      if (m.id !== id || !('window' in m.change)) return m;
+      const { window: _w, ...rest } = m.change as { window?: ChangeWindow } & SimChange;
+      void _w;
+      return { ...m, change: rest as SimChange };
+    }));
+    setDraftError(null);
+  }, []);
+  const onFixRemoveMember = useCallback((id: string) => {
+    setDraft((d) => d.filter((m) => m.id !== id));
+    setHoveredDraftId((h) => (h === id ? null : h));
+    setDraftError(null);
+  }, []);
+
   const onDraftRemove = useCallback((id: string) => {
     setDraft((d) => d.filter((m) => m.id !== id));
     setHoveredDraftId((cur) => (cur === id ? null : cur));
@@ -1720,7 +1737,7 @@ export default function MapView() {
   // Blockers over the EFFECTIVE assignment (post-lock): D2's stable predicate set only — the
   // shared reason strings verbatim, never client phrasing (web/lib/draftBlockers.ts).
   const draftBlockers = useMemo(
-    () => deriveBlockers(draftChanges, windowLocked ? 'day_one' : (runOptions.assignment ?? 'day_one'), eligById),
+    () => deriveBlockerCards(draftChanges, windowLocked ? 'day_one' : (runOptions.assignment ?? 'day_one'), eligById),
     [draftChanges, windowLocked, runOptions.assignment, eligById],
   );
   // While the draft (or an open palette) is windowed, force assignment to day_one (the toggle is
@@ -2934,6 +2951,9 @@ export default function MapView() {
           draftBlockers={draftBlockers}
           draftError={draftError}
           onDraftRemove={onDraftRemove}
+          onDraftSwitchDayOne={onFixSwitchDayOne}
+          onDraftRemoveWindow={onFixRemoveWindow}
+          onDraftRemoveMember={onFixRemoveMember}
           onDraftRun={runDraft}
           onDraftHover={setHoveredDraftId}
           onClone={cloneToDraft}

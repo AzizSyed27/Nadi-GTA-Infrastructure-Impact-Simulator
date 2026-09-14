@@ -58,6 +58,15 @@ const PHASE_APPLY = 1;
  * The returned string mirrors the Python f-string with its !r single-quoted edge id.
  */
 export function lifoConflictReason(members: SimChange[]): string | null {
+  return lifoConflict(members)?.reason ?? null;
+}
+
+/**
+ * The crossing, WITH the member it points at: the revert that could not pop its own apply belongs
+ * to the LATER-applied member on that edge (the top of the stack), which is the member a fix acts
+ * on — remove its window (or the member itself, when its window is required).
+ */
+export function lifoConflict(members: SimChange[]): { reason: string; memberIdx: number } | null {
   const raw: [number, number, number, number][] = []; // [t, phase, order, idx]
   members.forEach((c, i) => {
     const w = memberWindow(c);
@@ -73,10 +82,12 @@ export function lifoConflictReason(members: SimChange[]): string | null {
     if (phase === PHASE_APPLY) {
       st.push(idx);
     } else if (st.length === 0 || st[st.length - 1] !== idx) {
-      return (
-        `windows on the same edge ('${edge}') must be disjoint or nested — crossing ` +
-        `windows cannot be reverted correctly (LIFO revert restores captured state)`
-      );
+      return {
+        reason:
+          `windows on the same edge ('${edge}') must be disjoint or nested — crossing ` +
+          `windows cannot be reverted correctly (LIFO revert restores captured state)`,
+        memberIdx: st.length ? st[st.length - 1] : idx,
+      };
     } else {
       st.pop();
     }
@@ -84,21 +95,45 @@ export function lifoConflictReason(members: SimChange[]): string | null {
   return null;
 }
 
+/** V2.7d C6 — a blocker CARD: the engine sentence verbatim + the resolution the card offers. */
+export interface Blocker {
+  reason: string;
+  /** SWITCH TO DAY-ONE (settled + severing) · REMOVE THE WINDOW (a LIFO crossing on a member whose
+   *  window is optional) · REMOVE THE MEMBER (the crossing member is an incident — its window is
+   *  REQUIRED server-side, so the window cannot be the fix). */
+  fix: 'switch_day_one' | 'remove_window' | 'remove_member';
+  /** The member the card points at (0-based; the note says "member N" 1-based). */
+  memberIdx: number;
+}
+
 /**
- * The draft's blockers, ordered, each reason at most once. `assignment` is the EFFECTIVE one
+ * The draft's blocker cards, ordered, each reason at most once. `assignment` is the EFFECTIVE one
  * (after the D1 lock), so settled here means the user genuinely selected it on an unwindowed
  * draft. An empty array ⇔ the Run button is live.
  */
+export function deriveBlockerCards(
+  members: SimChange[],
+  assignment: 'day_one' | 'settled',
+  eligById: Record<string, EdgeEligibility>,
+): Blocker[] {
+  const out: Blocker[] = [];
+  if (assignment === 'settled') {
+    const idx = members.findIndex((c) => severs(c, eligById));
+    if (idx >= 0) out.push({ reason: REASON_SETTLED_SEVERED, fix: 'switch_day_one', memberIdx: idx });
+  }
+  const lifo = lifoConflict(members);
+  if (lifo !== null) {
+    const fix = members[lifo.memberIdx].type === 'incident' ? 'remove_member' : 'remove_window';
+    out.push({ reason: lifo.reason, fix, memberIdx: lifo.memberIdx });
+  }
+  return out;
+}
+
+/** The V2.4a string form — the cards' reasons in order (its callers and pins keep their shape). */
 export function deriveBlockers(
   members: SimChange[],
   assignment: 'day_one' | 'settled',
   eligById: Record<string, EdgeEligibility>,
 ): string[] {
-  const out: string[] = [];
-  if (assignment === 'settled' && members.some((c) => severs(c, eligById))) {
-    out.push(REASON_SETTLED_SEVERED);
-  }
-  const lifo = lifoConflictReason(members);
-  if (lifo !== null) out.push(lifo);
-  return out;
+  return deriveBlockerCards(members, assignment, eligById).map((b) => b.reason);
 }

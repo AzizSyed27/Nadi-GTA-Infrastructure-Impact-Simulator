@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { getProjection, type SimChange } from '@/lib/api';
 import { STATIC_DEMO } from '@/lib/demo';
 import { fmtWindowRange } from '@/lib/simTime';
-import { memberWindow } from '@/lib/draftBlockers';
+import { memberWindow, type Blocker } from '@/lib/draftBlockers';
 import { edgeLabel } from '@/lib/streetNames';
 
 /**
@@ -28,7 +28,11 @@ export interface DraftMember {
 interface DraftPanelProps {
   members: DraftMember[];
   tags: string[];
-  blockers: string[];
+  /** V2.7d C6: blocker CARDS — the engine sentence verbatim + the resolution each offers. */
+  blockers: Blocker[];
+  onSwitchDayOne: () => void;
+  onRemoveWindow: (id: string) => void;
+  onRemoveMember: (id: string) => void;
   demandProfile: 'synthetic_demo' | 'calibrated_am_peak';
   submitting: boolean;
   error: string | null;
@@ -85,6 +89,7 @@ function memberSummary(c: SimChange, profile: 'synthetic_demo' | 'calibrated_am_
  */
 export function DraftPanel({
   members, tags, blockers, demandProfile, submitting, error, onRemove, onRun, onHover, nameOf,
+  onSwitchDayOne, onRemoveWindow, onRemoveMember,
 }: DraftPanelProps) {
   const n = members.length;
   const canRun = !submitting && n > 0 && blockers.length === 0;
@@ -127,11 +132,41 @@ export function DraftPanel({
           </li>
         ))}
       </ul>
-      {blockers.map((b) => (
-        <div key={b} style={blockerText} data-testid="draft-blocker">
-          {b}
-        </div>
-      ))}
+      {/* V2.7d C6 — THE BLOCKER CARD (the ratified §1c "BLOCKER · ENGINE SENTENCE, VERBATIM" + resolution
+          buttons). The sentence stays the shared change_scheduler literal, byte for byte; the buttons act
+          on the member the card points at. An incident's window is REQUIRED server-side, so its card
+          says so and offers removal instead of the window. */}
+      {blockers.map((b) => {
+        const member = members[b.memberIdx];
+        return (
+          <div key={b.reason} style={blockerCard} data-testid="draft-blocker-card">
+            <div style={blockerKicker}>BLOCKER · ENGINE SENTENCE, VERBATIM</div>
+            <div style={blockerText} data-testid="draft-blocker">
+              {b.reason}
+            </div>
+            <div style={fixRow}>
+              {b.fix === 'switch_day_one' && (
+                <button style={fixBtn} onClick={onSwitchDayOne} data-testid="blocker-switch-day-one">
+                  SWITCH TO DAY-ONE
+                </button>
+              )}
+              {b.fix === 'remove_window' && member && (
+                <button style={fixBtn} onClick={() => onRemoveWindow(member.id)} data-testid="blocker-remove-window">
+                  REMOVE THE WINDOW
+                </button>
+              )}
+              {b.fix === 'remove_member' && member && (
+                <>
+                  <span style={fixNote}>an incident needs its window — remove the member instead</span>
+                  <button style={fixBtn} onClick={() => onRemoveMember(member.id)} data-testid="blocker-remove-member">
+                    REMOVE THE MEMBER
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
       {/* V2.7b C10b — THE PRE-SPEND SENTENCE. Deliberately NOT a blocker: it uses the neutral note
           style rather than the red one, and `canRun` is untouched — a cost notice tells you what
           pressing this costs, it does not stop you. The number is the SERVER'S (one function also
@@ -153,6 +188,11 @@ export function DraftPanel({
       >
         {submitting ? 'Submitting…' : `Run scenario (${n} change${n === 1 ? '' : 's'})`}
       </button>
+      {blockers.length > 0 && (
+        <div style={blockedNote} data-testid="draft-run-blocked-note">
+          blocked — resolve the conflict on member {blockers[0].memberIdx + 1} to run
+        </div>
+      )}
       {error && (
         <div style={errText} data-testid="draft-error">
           {error}
@@ -187,6 +227,16 @@ const spendNote: React.CSSProperties = {
   fontSize: 11, lineHeight: 1.45, color: 'var(--color-neutral-600)', margin: '6px 0 6px',
 };
 const blockerText: React.CSSProperties = { marginTop: 6, fontSize: 12, color: '#b23a3a', lineHeight: 1.5 };
+// V2.7d C6 — the blocker card (behaviour commit; C8 restyles). FULL `border` shorthand, never a longhand.
+const blockerCard: React.CSSProperties = { marginTop: 8, padding: '8px 10px', border: '1px solid #e3b4b4', borderRadius: 8, background: '#fff7f7' };
+const blockerKicker: React.CSSProperties = { fontSize: 10.5, letterSpacing: '0.1em', color: '#b23a3a' };
+const fixRow: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 6 };
+const fixBtn: React.CSSProperties = {
+  border: '1px solid #cbd3dc', background: '#fff', color: '#374151', borderRadius: 6, padding: '4px 8px',
+  fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', cursor: 'pointer',
+};
+const fixNote: React.CSSProperties = { fontSize: 11.5, color: '#6b7280', flexBasis: '100%' };
+const blockedNote: React.CSSProperties = { marginTop: 6, fontSize: 12, color: '#8a9099' };
 const primaryBtn: React.CSSProperties = {
   marginTop: 10,
   border: 'none',

@@ -7,6 +7,7 @@ import type { Agent, Scorecard } from '@/lib/types';
 import { RunCard } from '@/components/RunCard';
 import { ScorecardPanel } from '@/components/ScorecardPanel';
 import { DropForm, type DropKind } from '@/components/DropForm';
+import type { Blocker } from '@/lib/draftBlockers';
 
 /** What a tile arms: the five drop kinds, plus the two that enter their own modes (zone-select, the draw). */
 export type ArmKind = DropKind | 'school_zone' | 'new_road';
@@ -161,7 +162,10 @@ interface EditPanelProps {
   /** V2.7d: street name for an edge id (network export), null when unnamed — the draft rows read it. */
   nameOf: (id: string) => string | null;
   draftTags: string[];
-  draftBlockers: string[]; // shared reason strings, verbatim — rendered as-is
+  draftBlockers: Blocker[]; // V2.7d C6: cards — the shared reason verbatim + the fix each offers
+  onDraftSwitchDayOne: () => void;
+  onDraftRemoveWindow: (id: string) => void;
+  onDraftRemoveMember: (id: string) => void;
   draftError: string | null; // Run failures (400/409), verbatim
   onDraftRemove: (id: string) => void;
   onDraftRun: () => void;
@@ -478,6 +482,9 @@ export function EditPanel(props: EditPanelProps) {
           submitting={submitting}
           error={props.draftError}
           onRemove={props.onDraftRemove}
+          onSwitchDayOne={props.onDraftSwitchDayOne}
+          onRemoveWindow={props.onDraftRemoveWindow}
+          onRemoveMember={props.onDraftRemoveMember}
           onRun={props.onDraftRun}
           onHover={props.onDraftHover}
         />

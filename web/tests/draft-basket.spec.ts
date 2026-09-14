@@ -6,6 +6,7 @@ import {
   hasWindowedMember,
   lifoConflictReason,
   severs,
+  deriveBlockerCards,
 } from '../lib/draftBlockers';
 import type { EdgeEligibility, SimChange } from '../lib/api';
 import { CAR, laneTable, netEdge } from './support/net';
@@ -118,6 +119,29 @@ test.describe('draftBlockers — the change_scheduler mirror', () => {
   test('hasWindowedMember: any windowed member flips it', () => {
     expect(hasWindowedMember([sl('E_A'), rc('E_B')])).toBe(false);
     expect(hasWindowedMember([sl('E_A'), rc('E_B', [100, 500])])).toBe(true);
+  });
+
+  // V2.7d C6 — the STRUCTURED form: every card carries its reason (the verbatim pins above hold on
+  // `.reason`), the FIX the ratified card offers, and the member it points at.
+  test('deriveBlockerCards: settled + severing → SWITCH TO DAY-ONE, pointing at the first severing member', () => {
+    expect(deriveBlockerCards([sl('E_A'), rc('E_B')], 'settled', ELIG)).toEqual([
+      { reason: REASON_SETTLED_SEVERED, fix: 'switch_day_one', memberIdx: 1 },
+    ]);
+    expect(deriveBlockerCards([rc('E_A')], 'day_one', ELIG)).toEqual([]);
+  });
+
+  test('deriveBlockerCards: a LIFO crossing → REMOVE THE WINDOW on the LATER member; an incident there → REMOVE THE MEMBER', () => {
+    expect(deriveBlockerCards([lc('E_A', [1], [100, 500]), rc('E_A', [400, 800])], 'day_one', ELIG)).toEqual([
+      { reason: LIFO_A, fix: 'remove_window', memberIdx: 1 },
+    ]);
+    // an incident REQUIRES its window (server-validated), so the window cannot be the fix
+    const inc: SimChange = { type: 'incident', target_edge: 'E_A', window: { start_s: 400, end_s: 800 }, effect: { speed_factor: 0.5 } };
+    expect(deriveBlockerCards([lc('E_A', [1], [100, 500]), inc], 'day_one', ELIG)).toEqual([
+      { reason: LIFO_A, fix: 'remove_member', memberIdx: 1 },
+    ]);
+    // the string form is the cards' reasons in order (the V2.4a callers keep their shape)
+    expect(deriveBlockers([rc('E_A'), lc('E_A', [1], [100, 500]), lc('E_A', [2], [400, 800])], 'settled', ELIG))
+      .toEqual([REASON_SETTLED_SEVERED, LIFO_A]);
   });
 });
 
@@ -569,6 +593,67 @@ test('same-edge crossing windows block with the LIFO reason; touching windows st
   await expect(draftRows(page)).toHaveCount(2);
   await expect(page.getByTestId('draft-blocker')).toHaveCount(0);
   await expect(page.getByTestId('draft-run')).toBeEnabled();
+});
+
+// ---- V2.7d C6 — the BLOCKER CARD: the engine sentence verbatim + the resolution the card offers ----
+
+test('V2.7d C6: settled + severing → the card offers SWITCH TO DAY-ONE, and the blocked note names the member', async ({ page }) => {
+  await mockBackend(page);
+  await openEdit(page);
+  await pickEdge(page, 'E_A');
+  await page.getByTestId('palette-speed').fill('8');
+  await page.getByTestId('apply-speed').click();
+  await pickEdge(page, 'E_B');
+  await page.getByTestId('palette-type-road-closure').click();
+  await page.getByTestId('apply-road-closure').click();
+  await expect(draftRows(page)).toHaveCount(2);
+  await page.getByTestId('option-assignment').check();
+  await expect(page.getByTestId('draft-blocker')).toHaveText(REASON_SETTLED_SEVERED); // the verbatim pin holds on the card
+  await expect(page.getByTestId('draft-run-blocked-note')).toHaveText('blocked — resolve the conflict on member 2 to run');
+  await expect(page.getByTestId('blocker-remove-window')).toHaveCount(0);
+  // the draft panel sits below the rail's fold at 720 px — an ELEMENT capture shows the card itself
+  if (process.env.NADI_SHOTS) await page.getByTestId('draft-panel').screenshot({ path: '../docs-assets/v27d-c6-blocker.png' });
+  await page.getByTestId('blocker-switch-day-one').click();
+  await expect(page.getByTestId('option-assignment')).not.toBeChecked();
+  await expect(page.getByTestId('draft-blocker')).toHaveCount(0);
+  await expect(page.getByTestId('draft-run-blocked-note')).toHaveCount(0);
+  await expect(page.getByTestId('draft-run')).toBeEnabled();
+});
+
+test('V2.7d C6: a LIFO crossing offers REMOVE THE WINDOW on the later member; an incident there offers REMOVE THE MEMBER', async ({ page }) => {
+  await mockBackend(page);
+  await openEdit(page);
+  await pickEdge(page, 'E_A');
+  await page.getByTestId('palette-type-lane-closure').click();
+  await page.getByTestId('lane-check-1').check();
+  await page.getByTestId('window-start').fill('10');
+  await page.getByTestId('window-duration').fill('20');
+  await page.getByTestId('apply-lane-closure').click();
+  await pickEdge(page, 'E_A');
+  await page.getByTestId('palette-type-road-closure').click();
+  await page.getByTestId('window-start').fill('20');
+  await page.getByTestId('window-duration').fill('20');
+  await page.getByTestId('apply-road-closure').click();
+  await expect(page.getByTestId('draft-blocker')).toHaveText(LIFO_A);
+  await expect(page.getByTestId('draft-run-blocked-note')).toHaveText('blocked — resolve the conflict on member 2 to run');
+  await expect(page.getByTestId('draft-member-d2')).toContainText('t=1200–2400 s');
+  await page.getByTestId('blocker-remove-window').click();
+  await expect(page.getByTestId('draft-member-d2')).not.toContainText('t=1200–2400 s'); // the member stays, unwindowed
+  await expect(draftRows(page)).toHaveCount(2);
+  await expect(page.getByTestId('draft-blocker')).toHaveCount(0);
+  // an incident's window cannot be the fix (the server requires it): the card says so and offers removal
+  await pickEdge(page, 'E_A');
+  await page.getByTestId('palette-type-incident').click();
+  await page.getByTestId('incident-slowdown').selectOption('50');
+  await page.getByTestId('window-start').fill('15');
+  await page.getByTestId('window-duration').fill('20');
+  await page.getByTestId('apply-incident').click();
+  await expect(page.getByTestId('draft-blocker')).toHaveText(LIFO_A);
+  await expect(page.getByTestId('blocker-remove-window')).toHaveCount(0);
+  await expect(page.getByTestId('draft-blocker-card')).toContainText('an incident needs its window — remove the member instead');
+  await page.getByTestId('blocker-remove-member').click();
+  await expect(draftRows(page)).toHaveCount(2);
+  await expect(page.getByTestId('draft-blocker')).toHaveCount(0);
 });
 
 test('zone macro lands N members + tag in the draft; ONE POST only on Run', async ({ page }) => {

@@ -669,6 +669,19 @@ deck picks the topmost, which the first run showed as the partner's title; the m
 the miss, the pin within 12 px of the release) + closure-palette + seeds + school-zone + lane-rows = 43;
 edit + brake + run-identity 28 + run-identity's rename test failed IN-CHUNK again (last in a 9.7-min
 chunk; alone 4/4) — with act-two:478 it is the order-sensitive pair recorded for BACKLOG at C9.
+**C6 — THE BLOCKER CARD with resolution buttons (the ratified §1c "BLOCKER · ENGINE SENTENCE,
+VERBATIM").** `draftBlockers` grew a STRUCTURED form beside the V2.4a strings: `lifoConflict` returns
+the crossing WITH the member it points at (the top of the per-edge stack when a revert cannot pop its
+own apply — the LATER-applied member), and `deriveBlockerCards` yields `{reason, fix, memberIdx}`:
+settled + severing → SWITCH TO DAY-ONE (at the first severing member); a LIFO crossing → REMOVE THE
+WINDOW on the later member, or REMOVE THE MEMBER when that member is an incident, because an
+incident's window is REQUIRED server-side and cannot be the fix — the card says "an incident needs its
+window — remove the member instead". `deriveBlockers` is now the cards' reasons in order, so every V2.4a
+verbatim pin holds on `.reason` (the sentence stays the change_scheduler literal byte for byte). The
+Run button gains "blocked — resolve the conflict on member N to run". Looked at:
+`docs-assets/v27d-c6-blocker.png` (an ELEMENT capture of the draft panel — the card sits below the
+rail's 720 px fold). Gates: draft-basket 27; brake 13 + closure-palette 5 + school-zone 6 + seeds 2
++ the older basket tests = 43.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor styling PLUS every change wanting a netconvert regen** (by ratified decision — street
