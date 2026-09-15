@@ -514,5 +514,27 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   C10 exploration, pre-existing (V2.4b), not d's. Reachability doubtful: a 1-member draft takes the
   single-change path, so only a TAGGED non-speed 1-member composite could hit it. One-line fix when a
   hand is next in that function; banked with its cause, not fixed in the closeout.
+- **The run card's voices button says "~1¢"; the enrich it launches meters ~213 model calls**
+  (`RunCard.tsx:32` — a literal from the V2.3a-era button, written before V2.7b metered anything; its
+  tooltip repeats it: "Approx cost ~1¢ per run"). Seen at the V2.7d closeout's authorized manual enrich
+  (213 voice calls on `multimodal-scenario-20260915T051601Z`; the user's own estimate was about a
+  quarter dollar; even the V2.3b interview note's ~0.03¢ per short DeepSeek call gives ~6¢). An
+  UNDERSTATEMENT on a consent surface — the never-understate rule. No metered dollar figure exists for
+  this run (manual enriches are unmetered — the cost-line item above). Fix: derive the label from
+  `_project_interpretation`'s voices term (sample size × one call) through `/api/projection`, the way
+  the Run button renders M verbatim, and give the report / discourse labels ("$" / "$$") their metered
+  terms the same way.
+- **The held moment says "Interpretation is already underway below" on a chain-OFF run**
+  (`docs-assets/v27d-acceptance-build.png` / `-read.png`: the run ended "interpretation not requested",
+  yet the panel's DERIVED first clause read `HELD_NOTE_UNDERWAY`, not `HELD_NOTE_NOT_STARTED`). CAUSE,
+  verified in the live run's event log: `chainState` calls the chain 'running' once any stage leaves
+  `pending`, and the chain-off path runs `_run_facts_only` BEFORE the `auto_enrich_enabled()` check
+  (`server.py:851-854`), so `stage_end results done` (event line 13) precedes `run_ended complete`
+  (line 14) — the discriminator's premise, "the no-chain path writes NO stage events at all"
+  (`runFeed.ts` docstring above `chainState`), has been false since C10b made facts-only
+  unconditional. V2.7b territory, not d's (d touched neither file). Fix: the discriminator ignores
+  the `results` stage (code-rendered, never a model call), or keys on `run_ended` arriving with no
+  model stage started. Related: the same panel stays up over Build and Read until dismissed — by
+  design (a moment, dismissable), noted so the acceptance frames are read right.
 - **The RunCard's `rename-toggle` uses `.ed-link .ed-sub`** — a button styled as a sub-line; if the
   run card gets a §-source in a later design session, its identity affordance is the row to revisit.
