@@ -471,7 +471,14 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   literal; the mockup's 08:00→09:00 is illustrative), SCHOOL PM renders only when the profile spans
   it (hidden on the AM profile), ALL DAY clears both, and on `synthetic_demo` only ALL DAY renders (no
   clock exists). A conflicts-table row in CLAUDE.md's V2.7d box says so.
-- **The order-sensitive Playwright pair — harden the spec or the card, never `force`.**
+- **The order-sensitive Playwright pair — harden the spec or the card, never `force`. THE FAMILY,
+  not just the symptoms: this is the STALE-SERVER / SEQUENCED-MOCK class** — tests whose outcome
+  depends on what the dev server and the mock sequence happen to be doing at the moment of the
+  assertion, not on the tree. Prior members: the V2.7a F2 `/status` extra-consumer trap (a new fetch
+  to a sequence-mocked endpoint advanced seeds.spec's staged progression), the V2.7b C11
+  poll-restart hunt (a predicate blamed for a poll that had stopped; the mount fix moved twice), the
+  c-arc load flakes (C3 run-identity's rename click-timeout, C4 act-two's card click), and the
+  days-old dev server that cost 13 unrendered-shell timeouts. The two named here:
   `act-two.spec.ts:478` ("Act II adds no aggregate framing of its own, on any stage") and
   `run-identity.spec.ts:118` (the rename round-trip) both fail on a click that Playwright's call log
   shows RESOLVED, then "waiting for element to be visible, enabled and stable" (act-two) or the
@@ -481,8 +488,31 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   run-identity:118 failed 2-of-3 alone on BOTH the C8b tree and the committed C8a tree (stash-
   verified) on a seven-hour-old dev server, then 2/2 on a fresh one. Pre-existing (act-two:478
   reproduces on the pre-arc tree, verified at C1b), NOT this arc's regression — but every full gate
-  now pays a re-run for them. Candidate fixes: wait on a settled `data-status` before the click, or
-  give the running card a `prefers-reduced-motion`-style test hook; either way a pin that the fix
-  actually removes the instability (Playwright's `--repeat-each 5` green on the loaded box).
+  now pays a re-run for them. **The method rule the family teaches (also in CLAUDE.md's V2.7d lesson
+  ledger): a reproducing red is not the working change's until the committed tree is tried on the
+  SAME server, then a fresh one — record both rates.** Candidate fixes: wait on a settled
+  `data-status` before the click, or give the running card a `prefers-reduced-motion`-style test
+  hook; either way a pin that the fix actually removes the instability (Playwright's
+  `--repeat-each 5` green on the loaded box).
+- **A MANUAL enrich's Act II cost line reads "model calls: 0" while it spends** (found at the
+  V2.7d closeout's live acceptance, run `multimodal-scenario-20260915T051601Z`: a manual voices enrich
+  with the chain OFF streamed 214 voices under "model calls: 0" and the voices card's "0 calls").
+  CAUSE: the ledger's projection is written at CHAIN start (`_project_interpretation` → the ledger),
+  and a manual `POST /enrich` never passes through it, so the line has no denominator and no metered
+  count. V2.7b territory (C10a/C11 built the cost line for the chained path). It is an UNDERSTATEMENT
+  on the one surface that may never understate — fix: the enrich endpoint writes a per-stage
+  projection (voices = the run's sample size, one call each) or the line says "manual enrich — not
+  metered" instead of a zero.
+- **Act I's beat-4 held panel re-shows over Act II when Watch is entered during a manual enrich of an
+  already-finished run** ("NO WITHDRAWAL — THIS CHANGE HAS NO WINDOW", the results-ready beat, over the
+  streaming voices — `docs-assets/v27d-acceptance-voices-od.png`). CAUSE: the beats fold from the
+  durable event log on every Watch entry and the held moment keys on the results-ready beat, not on
+  whether the reader already read past it. Cosmetic ("a moment, not a gate", dismissable) — V2.7b
+  territory; decide whether a run that has ended dismisses the held moment by default.
+- **`server.py:1067/1069` — the composite description has no singular guard** ("1 changes on the
+  corridor" / "1 speed-limit changes"); only the school-zone branch at 1065 pluralizes. Found by the
+  C10 exploration, pre-existing (V2.4b), not d's. Reachability doubtful: a 1-member draft takes the
+  single-change path, so only a TAGGED non-speed 1-member composite could hit it. One-line fix when a
+  hand is next in that function; banked with its cause, not fixed in the closeout.
 - **The RunCard's `rename-toggle` uses `.ed-link .ed-sub`** — a button styled as a sub-line; if the
   run card gets a §-source in a later design session, its identity affordance is the row to revisit.

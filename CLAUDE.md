@@ -542,7 +542,9 @@ Zoom baselines (this tree, identical rendering to C0): fat z15.2 / z16.5 p95 14.
 `web/public/network.json` v2 at C1a — the golden trajectory, the golden report, every fixture,
 `contract/` and every committed artifact byte-identical all arc, checked per commit; plan + execution
 log at `~/.claude/plans/begin-v2-7c-map-styling-shimmering-kernighan.md`, the file name historical).
-Suites at close: **715 pytest + 255 Playwright** (32 spec files). THE ROLLUP:** the Build stage is
+Suites at close: **715 pytest — MEASURED at the closeout, 2026-09-15, one full run on `56c8c87`'s
+python tree ("715 passed, 14 warnings in 248.49s"), not the C2 figure carried forward — + 255
+Playwright** (32 spec files). THE ROLLUP:** the Build stage is
 the ratified Map & Build §1c/§1d/§1e — seven change TILES dragged onto a road (pointer capture, a DOM
 ghost, `pickObject` at the release point) or armed and clicked; an inline DROP FORM fed by the road's
 REAL lane table for BOTH directions, emitting one member per directional edge with the per-direction
@@ -574,6 +576,9 @@ DAY-ONE button beside the REAL `option-assignment` checkbox in one segmented row
 state buttons — four specs `.check()`/`.uncheck()`/`toBeDisabled()` it; looks, chosen for the spec
 API. (10) WINDOW PRESETS (AM PEAK / SCHOOL PM / ALL DAY) are NOT implemented — the form keeps V2.2c's
 start + duration minutes; the preset row is a BACKLOG item (derive from the profile, never a literal).
+Its SPECIES: a ratified-design element deliberately NOT BUILT — a scope decision, recorded here — which
+is a different kind of row from the data-derived divergences around it (rows 5, 6 and 8: what the net
+and the walk actually contain decided the shape) and from the spec-API looks divergence (row 9).
 (11) The run card has no §-source on the canvas; it wears the same classes by idiom. (12) C0 EXIT B:
 the regen drifted, so the canonical net is a FIXED ASSET — the invariant literals were re-verified at
 C1a against the v2 export of the UNCHANGED net (4,570 / 4,214 / 28 / 23 / the six off-width ids /
@@ -592,11 +597,16 @@ gzip), crossing 32 ms; pinned 1.17 / 1.19 / 1.16 s, p95 ≤ 16.1 — budgets hol
 `v27d-c6-blocker.png`, `v27d-c8-panel / -drop-form / -blocker / -draw-refusal / -zone / -run-card.png`.
 **THREE METHOD LESSONS PAID FOR:** a bash heredoc turned a regex's `\b` into a BACKSPACE byte and
 mis-encoded the middots in a spec (the reporter printed `/nadi-shell/` with no visible backslashes;
-caught by the advisor before GREEN — the heredoc memory, again); a red that reproduces ALONE is not
-yet the commit's until the committed tree is tried — the stash bisect showed run-identity:118 failing
-2 of 3 on HEAD too, and a fresh dev server made it green; and the act-two:478 / run-identity:118 pair
-is now a BACKLOG item with its mechanism named (Playwright's two-frame stability wait on a card that
-re-renders under load). **LIVE ACCEPTANCE (C9, against the running API + dev server, the SPEND-FREE
+caught by the advisor before GREEN — the heredoc memory, again); **THE STASH-BISECT RULE: a
+reproducing red is not the working change's until the committed tree is tried on the SAME server,
+then a fresh one — record both rates** (the stash bisect showed run-identity:118 failing 2 of 3 on
+HEAD too, and a fresh dev server made it green; a diagnostic copy of the test that sampled the
+button's box PASSED, because its own sampling delay masked the race) — the family this rule belongs
+to is the STALE-SERVER / SEQUENCED-MOCK class (the V2.7a F2 `/status` extra-consumer trap, the C11
+poll-restart hunt, the c-arc load flakes), tests whose outcome depends on what the server and the
+mock sequence are doing at the moment of the assertion rather than on the tree; and the act-two:478
+/ run-identity:118 pair is now a BACKLOG item under that family name with its mechanism
+(Playwright's two-frame stability wait on a card that re-renders under load). **LIVE ACCEPTANCE (C9, against the running API + dev server, the SPEND-FREE
 HALF — Run was NOT pressed, because the chain is armed by default and a chained run spends thousands
 of model calls):** `__nadiEditEdge('-439600156#2', 'lane_closure')` on the real net opened the drop
 form titled "Lawrence Avenue East (edge -439600156#2)" with the between-line "between Burnview
@@ -605,10 +615,32 @@ sidewalk / EB general 1 (curb) … 4 / WB sidewalk / WB general 1 (curb) … 3 (
 EXPORTED `43307631#6` — a different way id, R1 live), one tick per side → "closes eastbound only —
 westbound stays open" then "closes both directions — 2 members", Add → two rows "1 lane(s) closed ·
 Lawrence Avenue East (edge -439600156#2)" / "(edge 43307631#6)", the overlay counting 2
-(`docs-assets/v27d-c9-live-lawrence.png`, `-live-drop-form.png`, `-live-draft.png`). **NOT DONE from
-the plan's acceptance list, stated plainly:** the Run half (the RunCard / run document reading "Closed
-1 of N car lanes on Lawrence Avenue East (edge …)") and the voice-card od line on a real run — both
-need a real run; runnable on request with `NADI_AUTO_ENRICH=0` for a spend-free quant-only run. **One
+(`docs-assets/v27d-c9-live-lawrence.png`, `-live-drop-form.png`, `-live-draft.png`). **THE OTHER HALF, DONE AT THE CLOSEOUT (2026-09-15,
+spend-controlled):** the API server relaunched with `NADI_AUTO_ENRICH=0` (`/api/projection` read
+`armed: false`; the rail's spend note read "Runs the physics. Interpretation is off on this server —
+nothing is spent." before Run), a ONE-direction lane closure built through the drop form on the real
+edge (`lane-check-1` only → "closes eastbound only — westbound stays open") → run
+**`multimodal-scenario-20260915T051601Z`** (synthetic, day-one, 1 seed, permanent; quant 158 + 145 s,
+2 cars rerouted, car median +0.0 min, 4 % materially affected). **QUOTED FROM THE SCREEN, the server
+description path end to end:** the run card, the map's ScenarioHeader and the run document's H2 all
+read **"Closed 1 of 4 car lanes on Lawrence Avenue East (edge -439600156#2)"**
+(`docs-assets/v27d-acceptance-run-card.png`, `-build.png`, `-read.png`). Then ONE manual voices enrich
+(the user's authorized ~213-call spend; DeepSeek): Act II mounted in Watch during the stream and
+**214 of 214 voices** rendered — **198 sim cards carried an od line** ("from Galloway Road to Windover
+Drive" on a walk-to-transit commuter; "from Danforth Road to Mid Pines Road"; an "along Brimorton
+Drive" case), **2 sim cards OMITTED it** (a "Time-pressed commuter … departs t=469 s" card with no line
+— an endpoint > 25 m from any named edge, the rule holding rather than inventing a street), 12 inferred
++ 2 mandate cards never carry one (`v27d-acceptance-voices-od.png`, the live viewport;
+`v27d-acceptance-voice-od-card.png`). **The no-line card is DOM-quoted, not framed:** Act II unmounts on
+the enrich's done edge (the 1.5 s poll), and the card vanished between the viewport capture and its
+element capture; re-mounting needs another enrich (a report enrich, ~13 calls, would do it) — not
+spent without asking. Two observations BANKED in BACKLOG with their causes, both V2.7b territory: the
+Act II cost line read "model calls: 0" throughout a manual enrich that spent ~213 (the ledger's
+projection is written at CHAIN start only — an understatement on the one surface that may never
+understate), and Act I's beat-4 held panel ("NO WITHDRAWAL — THIS CHANGE HAS NO WINDOW") re-showed over
+Act II when Watch was entered during the manual enrich of an already-finished run. The server was
+restored to its default environment after (`armed: true`); the run sits in the run list unprotected.
+Report and discourse were NOT run. **One
 defect the live frame found that no spec could:** the drop form's two window inputs overflowed the
 rail by 8 px through their intrinsic width, growing the rail a horizontal scrollbar — fixed in
 `nadi.css` (`min-width: 0` on the window fields, 100 % inputs) and re-measured live (scrollWidth ==
