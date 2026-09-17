@@ -50,10 +50,14 @@ export const SKIP_TITLE =
   'Stops after the stage finishes what it is holding. Everything already generated is kept, and the ' +
   'figures were final before any of this started.';
 /** The running total NEVER understates: retries are real calls and the projection cannot know them,
- *  so the title says the actual can pass the estimate rather than quietly capping it. */
+ *  so the title says the actual can pass the estimate rather than quietly capping it.
+ *  V2.7d follow-up — and a stage's count lands when its process EXITS (one fresh process per stage
+ *  makes the total exact), so a zero beside an estimate is not-yet-metered, never free; the title
+ *  says that too. Words, not a number: the client still computes nothing. */
 export const COST_TITLE =
-  'Metered from the stages themselves. The estimate is a projection, not a cap — retries push the ' +
-  'actual above it.';
+  'Metered from the stages themselves; a stage’s count lands when it completes, so a zero beside ' +
+  'an estimate is not yet metered, not free. The estimate is a projection, not a cap — retries ' +
+  'push the actual above it.';
 
 const STATUS_MARK: Record<string, string> = {
   pending: '·', running: '▶', done: '✓', partial: '◐', skipped: '—', failed: '×',

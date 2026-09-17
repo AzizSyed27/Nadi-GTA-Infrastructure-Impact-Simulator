@@ -596,7 +596,12 @@ intended. **PERF (C1b, the only layer-touching commit; headed, prod, quiet box):
 gzip), crossing 32 ms; pinned 1.17 / 1.19 / 1.16 s, p95 ≤ 16.1 — budgets hold. **FRAMES:**
 `docs-assets/v27d-after-c1b-z*.png` + `-midland-z*.png` (the bus band), `v27d-c4-drop-form.png`,
 `v27d-c6-blocker.png`, `v27d-c8-panel / -drop-form / -blocker / -draw-refusal / -zone / -run-card.png`.
-**THREE METHOD LESSONS PAID FOR:** a bash heredoc turned a regex's `\b` into a BACKSPACE byte and
+**FOUR METHOD LESSONS PAID FOR** (the fourth by the follow-up): **A PIN THAT MOCKS A PREMISE CANNOT
+DETECT THE PREMISE DYING** — the three held-footer pins encoded "no ledger, one `run_ended` line" and
+stayed green through C10b while the terminal-edge ledger re-read they never modelled poisoned the
+live footer; pin against the REAL emission AND the real durable state, keyed by content, with a
+server-side pin on the same literal sequence so the two halves cannot drift apart silently. Then:
+a bash heredoc turned a regex's `\b` into a BACKSPACE byte and
 mis-encoded the middots in a spec (the reporter printed `/nadi-shell/` with no visible backslashes;
 caught by the advisor before GREEN — the heredoc memory, again); **THE STASH-BISECT RULE: a
 reproducing red is not the working change's until the committed tree is tried on the SAME server,
@@ -641,12 +646,49 @@ record first inferred), 12 inferred
 the enrich's done edge (the 1.5 s poll), and the card vanished between the viewport capture and its
 element capture; re-mounting needs another enrich (a report enrich, ~13 calls, would do it) — not
 spent without asking. Two observations BANKED in BACKLOG with their causes, both V2.7b territory: the
-Act II cost line read "model calls: 0" throughout a manual enrich that spent ~213 (the ledger's
-projection is written at CHAIN start only — an understatement on the one surface that may never
-understate), and Act I's beat-4 held panel ("NO WITHDRAWAL — THIS CHANGE HAS NO WINDOW") re-showed over
-Act II when Watch was entered during the manual enrich of an already-finished run. The server was
-restored to its default environment after (`armed: true`); the run sits in the run list unprotected.
-Report and discourse were NOT run. **One
+Act II cost line read "model calls: 0" throughout a manual enrich that spent ~213 (FIXED in the
+follow-up below — the cause recorded at the time, "the projection is written at chain start only",
+was incomplete: the manual POST wrote nothing at all and the client never asked), and Act I's beat-4
+held panel ("NO WITHDRAWAL — THIS CHANGE HAS NO WINDOW") re-showed over Act II when Watch was entered
+during the manual enrich of an already-finished run (still banked). The server was restored to its
+default environment after (`armed: true`); the run sits in the run list unprotected. Report and
+discourse were NOT run. **THE V2.7d FOLLOW-UP (2026-09-16, one commit atop the push): three honesty
+fixes on consent surfaces, all V2.7b territory, found by d's acceptance — and two of the three
+recorded causes were WRONG, which the fix's own exploration found before the fix.** (1) THE COST
+LINE: the manual `POST /enrich` wrote nothing to the ledger, `enrichLaunched` re-read none, and the
+C11 re-read fires once — so a ~60 s voices enrich showed "model calls: 0" with no denominator and no
+basis. Now `_project_stage` (one source with the whole: `_projection_terms` carries the four terms,
+`_project_interpretation` keeps its exact `{calls, basis}` shape because the chain unpacks it) is
+written into the ledger SYNCHRONOUSLY before the `stage_start` line, the client re-reads it on the
+enrich launch and REPLACES a reopened run's whole-chain number, and `COST_TITLE` says a stage's count
+lands when it completes. The RATIFIED resting state is `model calls: 0 of ~215` with the basis, then
+`47 of ~215` once `stage_usage` lands — the zero is the metered truth (metering happens at process
+exit, C6a's fresh-process design), the promise is on screen from the first frame, and a
+progress-derived floor was deliberately NOT built (a second client-derived cost model, and
+stage-inconsistent: only voices has per-call-shaped events). Pinned by content in enrich-stream.spec
+(a reconnect body gated on the test's own signal, never a timer). The per-stage pins found two more
+understatements the whole-run pin had hidden inside the index term's margin: the VOICES stage
+projected 212 against run A's metered 213 (one audit retry) — fixed by the RATIFIED
+`VOICE_RETRY_ALLOWANCE` (1 %, the measured 0.47 % rounded up, floored at one call; voices reads ~215)
+— and the DISCOURSE stage projected 2,226 against 2,231, because `CASCADE_SCORING_PER_AGENT` had
+been rounded DOWN to 1.0 while its own comment recorded the measured 1.1; it is 1.1 now (the whole
+projection: 7,157 → 7,223). (2) THE BUTTON LABELS: `~1¢` / `$` / `$$` were V2.3-era literals under a
+comment claiming metered actuals, and the report button ALSO rebuilds the chat index (the largest
+term); `GET /api/projection` now serves `stages` (the three buttons partition `calls`, pinned), the
+run card renders "~N calls" with the stage basis as its title or NO price at all when the endpoint is
+unreachable, `armed` is not consulted (the buttons spend regardless), and the unit is model calls
+because no per-call price exists in the repo. (3) THE CHAIN-STATE DISCRIMINATOR: the recorded cause
+(the facts-only `results` stage_end) was wrong at the fold level — that event has no stage key and
+folds to a no-op. The real poison is `run_ledger.end()` marking never-run stages `skipped`, the C10b
+terminal-edge re-read merging them in, and `chainState` counting any non-`pending` status as started;
+the three footer pins never saw it because they mocked a null ledger. A stage is started only when
+`running`/`done`/`partial`/`failed` now; the hook's inline copy of the check calls `chainState`; the
+chain-off pin replays the server's real tail (`cmd_start`, `cmd_end`, `stage_end results`,
+`run_ended`) over the real chain-off ledger, keyed by content on the stream having been served, with
+test_stage_runner pinning the same literal sequence server-side. Six further observations banked in
+BACKLOG with causes (the ledger's accumulate-vs-set divergence, the placeholder overwrite, the
+machinery label, the unfulfilled `instrumented=` promise, the legacy-run ledger init, the
+stage-field values no pin covers). **One
 defect the live frame found that no spec could:** the drop form's two window inputs overflowed the
 rail by 8 px through their intrinsic width, growing the rail a horizontal scrollbar — fixed in
 `nadi.css` (`min-width: 0` on the window fields, 100 % inputs) and re-measured live (scrollWidth ==

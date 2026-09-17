@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import subprocess
 import sys
@@ -604,7 +605,8 @@ AUTO_ENRICH_ENV = "NADI_AUTO_ENRICH"
 def auto_enrich_enabled() -> bool:
     """Is the interpretation chain armed? DEFAULT ON as of V2.7b C10b.
 
-    It shipped dark from C6a because the chain spends ~1,800 model calls per Run, and arming it
+    It shipped dark from C6a because the chain spends thousands of model calls per Run (the projection
+    is `_project_interpretation`'s, not this docstring's), and arming it
     before there was a way to stop it would have meant a window where pressing Run spent that with
     no brake and nothing on screen saying so. The flip therefore rode the brake rather than the
     capability, and lands in the same commit as all three halves of it: the skip control beside a
@@ -692,9 +694,74 @@ CASCADE_ACTIVATION = 0.5   # propagation.py --activation (fraction asked to act 
 # scored utterance) and the chat index re-reads the whole run corpus. Both were absent from the
 # projection, which is why it read 1,815 against a metered 5,000-odd. Re-derive them if the
 # cascade or the corpus changes shape; over-estimating is the safe side of a consent number.
-CASCADE_SCORING_PER_AGENT = 1.0   # measured: 701 scoring calls / 3 cascades / 213 agents ~= 1.1
+# The MEASURED value, not rounded down: at 1.0 the discourse STAGE projected 2,226 against run A's
+# metered 2,231 — hidden inside the whole-run total by the index term's margin, visible the moment
+# the stage got its own projection (the V2.7d follow-up's per-stage pin).
+CASCADE_SCORING_PER_AGENT = 1.1   # measured: 701 scoring calls / 3 cascades / 213 agents = 1.097
 CASCADE_POSTS_PER_CALL = 1.1      # measured: 1,740 content-bearing events / 1,530 agent calls
 INDEX_CALLS_PER_DOC = 2.4         # measured: LightRAG extract + gleaning + entity summaries
+# V2.7d follow-up — the voices term's RETRY ALLOWANCE. reactions.py retries a malformed or
+# audit-failed reaction once, and those retries are real calls: run A metered 213 for 212 records
+# (0.47 %). The allowance is the next whole percent, never less than one call — the voices stage was
+# the one stage whose projection sat BELOW its measured run, on a consent surface.
+VOICE_RETRY_ALLOWANCE = 0.01
+
+
+def retry_allowance(voices: int) -> int:
+    """Calls to add to the voices term for retries: ceil(1 % of the sample), floored at one."""
+    return max(1, math.ceil(VOICE_RETRY_ALLOWANCE * voices))
+
+
+def _projection_terms(*, cascades: int = 3, instrumented: int | None = None) -> dict:
+    """THE FOUR TERMS, in one place, for every projection this module composes — the whole
+    (`_project_interpretation`) and the per-stage ones the run card's buttons and the manual enrich
+    read (`_project_stage`). Returns the terms and the two intermediates the bases quote."""
+    voices = DEFAULT_SAMPLE_TARGET if instrumented is None else instrumented
+    retries = retry_allowance(voices)
+    acting = max(1, round(CASCADE_ACTIVATION * voices))
+    per_cascade = CASCADE_STEPS * acting + round(CASCADE_SCORING_PER_AGENT * voices)
+    discourse = cascades * per_cascade
+    # the corpus the index reads: one doc per voice, plus the cascade's content-bearing posts
+    corpus_docs = voices + round(CASCADE_POSTS_PER_CALL * cascades * CASCADE_STEPS * acting)
+    index = round(INDEX_CALLS_PER_DOC * corpus_docs)
+    return {
+        "voices": voices, "retries": retries, "report": REPORT_SLOT_ESTIMATE,
+        "discourse": discourse, "index": index,
+        "acting": acting, "corpus_docs": corpus_docs, "cascades": cascades,
+        "counted": ("travelers (the standard sample; the run's own count replaces this)"
+                    if instrumented is None else "sampled travelers"),
+    }
+
+
+_RETRY_CLAUSE = "retries push the actual above this."
+_ENRICH_STAGES = ("voices", "report", "discourse")
+
+
+def _project_stage(stage: str, *, cascades: int = 3, instrumented: int | None = None) -> dict:
+    """A STAGE's projection — what one enrich button spends — composed from the same terms as the
+    whole, so the three buttons partition the Run button's number (the chat index rides `report`,
+    because the report button rebuilds it: `report.py` then `report_agent.py --rebuild`). Written
+    into the ledger by the manual enrich POST and served by `GET /api/projection` for the labels."""
+    t = _projection_terms(cascades=cascades, instrumented=instrumented)
+    if stage == "voices":
+        return {"calls": t["voices"] + t["retries"],
+                "basis": (f"{t['voices']} {t['counted']}, one call each, plus a "
+                          f"{VOICE_RETRY_ALLOWANCE:.0%} retry allowance ({t['retries']} — measured: "
+                          f"213 calls for 212 travelers on the acceptance run); institutions cost "
+                          f"nothing (no model is called), and {_RETRY_CLAUSE}")}
+    if stage == "report":
+        return {"calls": t["report"] + t["index"],
+                "basis": (f"~{t['report']} report slots, plus the chat index this button also "
+                          f"rebuilds — it re-reads the run corpus (~{t['corpus_docs']} documents, "
+                          f"mostly cascade posts) = ~{t['index']}; the index term is an estimate from "
+                          f"a measured run, and {_RETRY_CLAUSE}")}
+    if stage == "discourse":
+        c = t["cascades"]
+        return {"calls": t["discourse"],
+                "basis": (f"{c} discourse cascade{'' if c == 1 else 's'} x {CASCADE_STEPS} steps x "
+                          f"{t['acting']} agents asked to act, plus scoring what they said = "
+                          f"{t['discourse']}; an estimate from a measured run, and {_RETRY_CLAUSE}")}
+    raise ValueError(f"no projection for stage {stage!r} (voices|report|discourse)")
 
 
 def _project_interpretation(*, cascades: int = 3, instrumented: int | None = None) -> dict:
@@ -721,22 +788,18 @@ def _project_interpretation(*, cascades: int = 3, instrumented: int | None = Non
     Pre-run there is no instrumented count yet, so it falls back to the sampler's configured sample
     size AND SAYS SO. Institutions are zero: composed deterministically over byte-pinned roster
     text, calling no model at all."""
-    voices = DEFAULT_SAMPLE_TARGET if instrumented is None else instrumented
-    counted = ("travelers (the standard sample; the run's own count replaces this)"
-               if instrumented is None else "sampled travelers")
-    acting = max(1, round(CASCADE_ACTIVATION * voices))
-    per_cascade = CASCADE_STEPS * acting + round(CASCADE_SCORING_PER_AGENT * voices)
-    discourse = cascades * per_cascade
-    # the corpus the index reads: one doc per voice, plus the cascade's content-bearing posts
-    corpus_docs = voices + round(CASCADE_POSTS_PER_CALL * cascades * CASCADE_STEPS * acting)
-    index = round(INDEX_CALLS_PER_DOC * corpus_docs)
-    calls = voices + REPORT_SLOT_ESTIMATE + discourse + index
-    basis = (f"{voices} {counted}, one call each; ~{REPORT_SLOT_ESTIMATE} report slots; "
+    # THE RETURN SHAPE IS EXACTLY {calls, basis}: the chain unpacks it into `set_projection` — the
+    # per-term breakdown lives in `_projection_terms`, and `_project_stage` composes the buttons'.
+    t = _projection_terms(cascades=cascades, instrumented=instrumented)
+    voices, discourse, index = t["voices"], t["discourse"], t["index"]
+    calls = voices + t["retries"] + REPORT_SLOT_ESTIMATE + discourse + index
+    basis = (f"{voices} {t['counted']}, one call each plus a {VOICE_RETRY_ALLOWANCE:.0%} retry "
+             f"allowance ({t['retries']}); ~{REPORT_SLOT_ESTIMATE} report slots; "
              f"{cascades} discourse cascade{'' if cascades == 1 else 's'} x {CASCADE_STEPS} steps x "
-             f"{acting} agents asked to act, plus scoring what they said = {discourse}; "
-             f"the chat index re-reads the run corpus (~{corpus_docs} documents, mostly cascade "
+             f"{t['acting']} agents asked to act, plus scoring what they said = {discourse}; "
+             f"the chat index re-reads the run corpus (~{t['corpus_docs']} documents, mostly cascade "
              f"posts) = ~{index}; institutions cost nothing (no model is called). The two large "
-             "terms are estimates from a measured run, and retries push the actual above this.")
+             f"terms are estimates from a measured run, and {_RETRY_CLAUSE}")
     return {"calls": calls, "basis": basis}
 
 
@@ -1340,8 +1403,13 @@ async def interpretation_projection(cascades: int = 3):
     a project ends up with two cost models and no idea which one a reader consented to.
 
     Also reports whether the chain is armed at all: with it off, pressing Run spends nothing, and a
-    sentence promising ~1,800 model calls would be a lie in the opposite direction."""
-    return {**_project_interpretation(cascades=cascades), "armed": auto_enrich_enabled()}
+    sentence promising thousands of model calls would be a lie in the opposite direction.
+
+    V2.7d follow-up — `stages` carries the three enrich BUTTONS' own projections (voices / report /
+    discourse, the same terms, partitioning `calls`): the run card derives its labels from here or
+    renders no price at all. The buttons spend regardless of `armed` — it is the CHAIN's switch."""
+    return {**_project_interpretation(cascades=cascades), "armed": auto_enrich_enabled(),
+            "stages": {s: _project_stage(s, cascades=cascades) for s in _ENRICH_STAGES}}
 
 
 @app.get("/api/runs/{run_id}/ledger")
@@ -1434,6 +1502,11 @@ async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     # skipped run's next manual enrich launches already-cancelled: reactions hits its checkpoint,
     # returns None for every voice, and the stage exits 0 reporting "complete" with ZERO agents.
     run_events.clear_cancel(run_id)
+    # V2.7d follow-up — THE STAGE'S PROJECTION, durable BEFORE the stage_start line. The manual
+    # path wrote none, so the Act II cost line read "model calls: 0" through a ~213-call voices
+    # enrich: no denominator, no basis — a sentence reading "this costs nothing" beside a spend.
+    # It must precede the emit below: that event is what arms the client's single ledger re-read.
+    run_ledger.set_projection(run_id, **_project_stage(req.stage))
     run_events.ensure_header(ev, run_id, description=st.get("description"),
                              changes=st.get("changes") or ([st["change"]] if st.get("change") else None),
                              demand_profile=st.get("demand_profile"), assignment=st.get("assignment"),

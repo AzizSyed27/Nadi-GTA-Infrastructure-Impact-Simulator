@@ -114,9 +114,19 @@ async function mockActOne(
      *  be mocked as one: a status that reads terminal on the first poll is never watchable, so the
      *  stream never opens, no beat ever arrives, and the held moment has nothing to hold. */
     doneAfter?: number;
+    /** V2.7d follow-up — the LEDGER, keyed BY CONTENT on whether the events body has been served
+     *  (the server writes the ledger's ending immediately before it emits `run_ended`, so "the
+     *  stream has been served" is the moment the durable ending exists; a read COUNT is not usable —
+     *  StrictMode's double mount reads the ledger twice before the stream opens). Default: null on
+     *  every read, which is what let three footer pins stay green while the live footer lied: the
+     *  client re-reads the ledger on the run's terminal edge and MERGES its stage statuses in, and
+     *  a null ledger has none to merge. A chain-off fixture must serve the real durable state —
+     *  six `skipped` stages — or it models a premise the server does not keep. */
+    ledger?: (ctx: { streamServed: boolean }) => Record<string, unknown> | null;
   } = {},
 ) {
   let polls = 0;
+  let streamServed = false;
   // the LOADED run carries a sim agent pinned to `veh0` — the collision the blanking rule guards
   await mockDefaultArtifact(page, 'institutions-run.json');
   await page.route('**/api/junctions**', (r) => r.fulfill({ json: { junctions: [], count: 0 } }));
@@ -161,9 +171,11 @@ async function mockActOne(
         changes: opts.changes ?? [{ type: 'road_closure', target_edge: GHOST_EDGE }],
       },
     }));
-  await page.route('**/api/runs/*/ledger', (r) => r.fulfill({ json: { run_id: NEW_RUN, ledger: null } }));
+  await page.route('**/api/runs/*/ledger', (r) =>
+    r.fulfill({ json: { run_id: NEW_RUN, ledger: opts.ledger ? opts.ledger({ streamServed }) : null } }));
   await page.route('**/api/runs/*/events', (r) => {
     if (opts.events == null) return r.fulfill({ status: 404, body: '{"detail":"no event stream"}' });
+    streamServed = true;
     return r.fulfill({ status: 200, contentType: 'text/event-stream', body: opts.events });
   });
 }
@@ -565,8 +577,12 @@ test('the honest variant withholds the ✓ rather than decorating a sentence tha
  * modal shows `voices —` beside manual enrich buttons. The first clause is now derived; the second
  * never is.
  */
-async function heldFooter(page: Page, tail: string) {
-  await mockActOne(page, { events: actOneBody() + tail, doneAfter: 3 });
+async function heldFooter(
+  page: Page,
+  tail: string,
+  opts: { doneAfter?: number; ledger?: (ctx: { streamServed: boolean }) => Record<string, unknown> | null } = {},
+) {
+  await mockActOne(page, { events: actOneBody() + tail, doneAfter: opts.doneAfter ?? 3, ledger: opts.ledger });
   await serveFinishedRun(page);
   await enterActOne(page, 'build');
   await expect(page.getByTestId('held-moment')).toBeVisible({ timeout: 25_000 });
@@ -579,11 +595,63 @@ test('footer, chain RUNNING: it may say interpretation is underway', async ({ pa
   await expect(note).toContainText('This panel is a moment, not a gate.');
 });
 
-test('footer, NO chain: it says so and names where the controls are', async ({ page }) => {
-  const note = await heldFooter(page, frame(7, 'run_ended', { status: 'complete', detail: '' }));
+/** The server's chain-off tail, VERBATIM (server.py `_run_cmds` + `_run_facts_only` + the armed
+ *  check; pinned as the same literal sequence in test_stage_runner.py's dark-run test). The results
+ *  document ENDS a stage nothing started — a fact of the emission, not of the fold. */
+const CHAIN_OFF_TAIL =
+  frame(7, 'cmd_start', { i: 0, n: 1, label: 'computing the results document' }) +
+  frame(8, 'cmd_end', { i: 0, n: 1, label: 'computing the results document', returncode: 0 }) +
+  frame(9, 'stage_end', { stage: 'results', status: 'done', detail: '' }) +
+  frame(10, 'run_ended', { status: 'complete', detail: '' });
+
+/** The chain-off LEDGER as `run_ledger.end(..., reason="interpretation not requested")` leaves it:
+ *  the acceptance run `multimodal-scenario-20260915T051601Z`'s shape, transcribed. Every never-run
+ *  stage is `skipped` — the honest "never ran" list, and the status the discriminator once mistook
+ *  for "started". */
+const CHAIN_OFF_LEDGER = {
+  run_id: NEW_RUN,
+  quant: { status: 'done', started_at: 1, ended_at: 2 },
+  facts_report: { status: 'done', at: 3 },
+  stages: [
+    { key: 'personas', label: 'personas sampled', llm: false, status: 'skipped', llm_calls: 0, detail: '' },
+    { key: 'voices', label: 'voices', llm: true, status: 'skipped', llm_calls: 0, detail: '' },
+    { key: 'institutions', label: 'institutions', llm: false, status: 'skipped', llm_calls: 0, detail: '' },
+    { key: 'discourse', label: 'discourse', llm: true, status: 'skipped', llm_calls: 0, detail: '' },
+    { key: 'report', label: 'report', llm: true, status: 'skipped', llm_calls: 0, detail: '' },
+    { key: 'index', label: 'chat index', llm: true, status: 'skipped', llm_calls: 0, detail: '' },
+  ],
+  projection: { calls: null, basis: '' },
+  ended: { status: 'complete', at: 4, reason: 'interpretation not requested' },
+};
+
+test('footer, NO chain: it says so and names where the controls are — against the REAL emission and the REAL ledger', async ({ page }) => {
+  // THE PIN THAT MOCKED A PREMISE. This test's old tail was one `run_ended` line over a null
+  // ledger, and it stayed green while the live footer said "already underway" on a chain-off run
+  // (V2.7d's acceptance, docs-assets/v27d-acceptance-build.png). The server writes the ledger's
+  // `ended` BEFORE it emits `run_ended`; the client re-reads the ledger on that edge and merges six
+  // `skipped` statuses in; and `chainState` counted any non-pending status as started. None of
+  // that existed in the mock. Now the tail is the server's own four lines and the ledger is the
+  // durable state it leaves — null while the run is still going (the mount reads), the chain-off
+  // ledger once the stream that ends it has been served (the terminal re-read). The held moment
+  // opens when the physics is DONE (`!actOne`), so the status must go terminal as it does in every
+  // footer pin; the panel then stays until dismissed, which is what lets the re-read be observed.
+  const note = await heldFooter(page, CHAIN_OFF_TAIL, {
+    ledger: ({ streamServed }) => (streamServed ? CHAIN_OFF_LEDGER : null),
+  });
   await expect(note).toContainText('Interpretation hasn’t started — the enrich controls are on the run card.');
+  // the terminal re-read has landed when the seam shows the ledger's six skipped stages
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const f = (window as unknown as { __nadiRunFeed?: { stages: { status: string }[] } }).__nadiRunFeed;
+        return f ? f.stages.filter((s) => s.status === 'skipped').length : 0;
+      }),
+      { timeout: 15_000 })
+    .toBe(6);
+  await expect(note).toContainText('Interpretation hasn’t started');
   await expect(note).not.toContainText('already underway');
   await expect(note).toContainText('This panel is a moment, not a gate.');
+  if (process.env.NADI_SHOTS) await page.getByTestId('held-moment').screenshot({ path: '../docs-assets/v27d-fu-held-footer-none.png' });
 });
 
 test('footer, the facts-only window: it claims neither, rather than guessing', async ({ page }) => {

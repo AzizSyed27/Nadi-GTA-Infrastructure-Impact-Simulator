@@ -334,7 +334,17 @@ export function getLedger(runId: string): Promise<ApiResult<{ run_id: string; le
  *  same function the chain later writes into the ledger, served over HTTP so the client renders the
  *  server's number and computes none of its own. `armed` is false while NADI_AUTO_ENRICH is off,
  *  where pressing Run spends nothing and promising a cost would be a lie in the other direction. */
-export function getProjection(): Promise<ApiResult<{ calls: number; basis: string; armed: boolean }>> {
+export interface StageProjection {
+  calls: number;
+  basis: string;
+}
+/** V2.7d follow-up — `stages` carries the three enrich BUTTONS' own projections (voices / report /
+ *  discourse — the same terms, partitioning `calls`; the chat index rides `report` because that
+ *  button rebuilds it). The run card derives its labels from here or renders no price. Optional on
+ *  the type so a server without it degrades to no label, never to a literal. */
+export function getProjection(): Promise<
+  ApiResult<{ calls: number; basis: string; armed: boolean; stages?: Partial<Record<EnrichStage, StageProjection>> }>
+> {
   return req('/api/projection');
 }
 

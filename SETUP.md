@@ -86,8 +86,9 @@ Act I ends** — the figures, the scorecard and the caveats are readable before 
 **Act II — the interpretation.** Voices, the mandate lens, the discourse cascades, the audited
 report and the chat index, streaming in Watch.
 
-> **Act II spends money, and it starts on its own.** A full run is roughly **1,800 model calls**
-> — the three discourse cascades are ~90% of that. The Run button tells you the estimate before
+> **Act II spends money, and it starts on its own.** A full run is **several thousand model calls**
+> — the three discourse cascades and the chat index are most of that (the Run button's own
+> projection, from one server function, is the number to trust). The Run button tells you the estimate before
 > you press it, the running total sits beside a **Stop interpretation** button while it works, and
 > stopping keeps everything already generated (the figures never depended on it). To turn the
 > chain off entirely, launch the server with `NADI_AUTO_ENRICH=0`; Act I still runs, and the three

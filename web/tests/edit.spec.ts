@@ -40,6 +40,19 @@ async function mockBackend(page: Page) {
   // V2.0b: the base road layer's geometry (network.json) + eligibility-only /api/edges (joined by id).
   await page.route('**/network.json', (route) => route.fulfill({ json: { edges: [netEntry(E_ELIG), netEntry(E_INELIG)] } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [eligEntry(E_ELIG), eligEntry(E_INELIG)], count: 2 } }));
+  // V2.7d follow-up — the wire shape GET /api/projection serves: the whole + the three enrich
+  // buttons' own projections (the run card's labels derive from `stages` or render no price)
+  await page.route('**/api/projection**', (route) =>
+    route.fulfill({
+      json: {
+        calls: 7223, basis: 'the whole', armed: true,
+        stages: {
+          voices: { calls: 215, basis: '212 travelers, one call each, plus a retry allowance' },
+          report: { calls: 4719, basis: '~13 report slots, plus the chat index this button also rebuilds' },
+          discourse: { calls: 2289, basis: '3 discourse cascades' },
+        },
+      },
+    }));
   await page.route('**/api/simulate', (route) => {
     lastType = route.request().postDataJSON()?.change?.type ?? 'new_road';
     return route.fulfill({ json: { run_id: RUN_ID } });
@@ -139,6 +152,17 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('enrich-voices')).toBeVisible();
   await expect(page.getByTestId('enrich-discourse')).toBeVisible();
+  // V2.7d follow-up — THE BUTTONS' PRICES DERIVE FROM THE SERVER'S PROJECTION OR DIE. The labels
+  // were literals ("~1¢" beside a ~213-call enrich; "$" on a button that also rebuilds the chat
+  // index, the single largest metered term). The mock below is the wire shape `/api/projection`
+  // serves; the numbers are the mock's, and the client renders them and computes nothing.
+  await expect(page.getByTestId('enrich-cost-voices')).toHaveText('~215 calls');
+  await expect(page.getByTestId('enrich-cost-report')).toHaveText('~4,719 calls'); // the index, made visible
+  await expect(page.getByTestId('enrich-cost-discourse')).toHaveText('~2,289 calls');
+  await expect(page.getByTestId('enrich-cost-voices')).toHaveAttribute('title', /one call each/);
+  const card = await page.getByTestId('run-card').innerText();
+  expect(card).not.toMatch(/[¢$]/); // no cost literal survives — the projection's unit is model calls
+  if (process.env.NADI_SHOTS) await page.getByTestId('run-card').screenshot({ path: '../docs-assets/v27d-fu-run-card-costs.png' });
   await expect(page.getByTestId('no-voices')).toBeVisible(); // fresh run has no voices — say so plainly
   // 5.3: the change-visibility overlay resolved the new_road location → the "proposed road"
   // legend shows (V2.7a: the top-left map chrome hides in Read — assert from Watch).

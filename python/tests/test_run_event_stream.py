@@ -151,6 +151,46 @@ def test_post_enrich_appends_and_never_truncates(client: TestClient) -> None:
     assert events[-1][1]["stages"] == ["sampling travelers", "generating voices"]
 
 
+def test_post_enrich_writes_the_stage_projection_before_the_job_runs(client: TestClient, monkeypatch) -> None:
+    """V2.7d FOLLOW-UP. The manual enrich wrote NO projection, so the Act II cost line read
+    "model calls: 0" through a ~213-call voices enrich — no denominator, no basis, a sentence reading
+    "this costs nothing" beside a spend. The projection is the STAGE's (voices = the sample, one call
+    each, plus the measured retry allowance) and it must be durable BEFORE the ``stage_start`` line and
+    before the background job: ``stage_start`` is what arms the client's single ledger re-read."""
+    import run_ledger
+
+    seen: dict = {}
+
+    def _job(run_id, *a, **k):
+        seen["projection_at_launch"] = (run_ledger.read(run_id) or {}).get("projection")
+        run_state.release()
+
+    monkeypatch.setattr(server, "_run_subprocess_job", _job)
+    _terminal(RUN)
+    r = client.post(f"/api/runs/{RUN}/enrich", json={"stage": "voices"})
+    assert r.status_code == 200
+    expected = server._project_stage("voices")
+    assert seen["projection_at_launch"] == expected, "the projection must be on disk when the job starts"
+    assert run_ledger.read(RUN)["projection"] == expected
+    assert expected["calls"] and expected["calls"] > 0
+    events, _ = run_events.read_from(run_events.events_path(RUN), 0)
+    assert events[-1][1]["event"] == "stage_start"
+
+
+def test_the_projection_endpoint_serves_the_three_button_stages(client: TestClient) -> None:
+    """The run card's enrich buttons derive their labels from HERE — the same function the manual
+    enrich writes into the ledger — or render no price at all. The three stage keys are exactly the
+    three buttons, and they partition the whole."""
+    r = client.get("/api/projection")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body["stages"]) == {"voices", "report", "discourse"}
+    for st in body["stages"].values():
+        assert st["calls"] > 0 and st["basis"]
+    assert sum(st["calls"] for st in body["stages"].values()) == body["calls"]
+    assert body["stages"]["report"]["calls"] > body["stages"]["voices"]["calls"], "the index rides report"
+
+
 def test_post_enrich_backfills_a_header_when_the_file_is_gone(client: TestClient) -> None:
     """A run whose events file was pruned (7 days) or predates V2.7b: the POST reconstructs the header
     from run-state so ``stage_start`` can never be line 0."""

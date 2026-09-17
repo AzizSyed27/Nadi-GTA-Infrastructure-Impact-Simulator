@@ -216,10 +216,59 @@ def test_the_projection_never_hides_the_terms_that_dominate_it() -> None:
     discourse = 3 * (server.CASCADE_STEPS * acting + round(server.CASCADE_SCORING_PER_AGENT * 212))
     assert str(discourse) in p["basis"], "the discourse term is not shown"
     assert "chat index" in p["basis"] and "documents" in p["basis"], "the index term is not shown"
-    # and the total is the sum of the four terms — no rounding slop hiding a fifth
+    # and the total is the sum of the four terms — no rounding slop hiding a fifth. The voices
+    # term carries the MEASURED retry allowance (the V2.7d follow-up): the sample, one call each,
+    # plus the retries the acceptance run actually made.
     corpus = 212 + round(server.CASCADE_POSTS_PER_CALL * 3 * server.CASCADE_STEPS * acting)
-    assert p["calls"] == 212 + server.REPORT_SLOT_ESTIMATE + discourse + round(
+    assert p["calls"] == 212 + server.retry_allowance(212) + server.REPORT_SLOT_ESTIMATE + discourse + round(
         server.INDEX_CALLS_PER_DOC * corpus)
+
+
+# ------------------------------------------------------- the per-STAGE projections (V2.7d follow-up)
+# The run card's three enrich buttons and the manual enrich's cost line read a STAGE's projection,
+# composed from the same terms as the whole — one cost model, three callers. Measured on C11's run A:
+# voices 213 (212 records + one audit retry), report 10 + chat index 2,751 (the report BUTTON rebuilds
+# the index too), discourse 2,231. A stage projection sits ABOVE its measured stage, or it understates
+# on a consent surface — the one direction it may never err in.
+
+def test_each_stage_projection_sits_above_the_measured_acceptance_run() -> None:
+    assert server._project_stage("voices")["calls"] >= 213, "212 records metered 213 — the retry"
+    assert server._project_stage("report")["calls"] >= 10 + 2751, "the report button rebuilds the index"
+    assert server._project_stage("discourse")["calls"] >= 2231
+
+
+def test_the_stage_projections_partition_the_whole() -> None:
+    """The three buttons add up to the Run button's number — the index rides `report`, because that is
+    what the button launches; nothing is counted twice and nothing is dropped."""
+    whole = server._project_interpretation()["calls"]
+    parts = sum(server._project_stage(s)["calls"] for s in ("voices", "report", "discourse"))
+    assert parts == whole, f"{parts} != {whole}"
+
+
+def test_each_stage_basis_names_its_terms_and_the_retry_clause() -> None:
+    v = server._project_stage("voices")["basis"]
+    assert "one call each" in v and "retry" in v and "institutions cost nothing" in v
+    assert "standard sample" in v, "pre-sampler, the count is the configured sample — and says so"
+    r = server._project_stage("report")["basis"]
+    assert "report slots" in r and "chat index" in r and "documents" in r
+    d = server._project_stage("discourse")["basis"]
+    assert "cascade" in d and "scoring" in d
+    for b in (v, r, d):
+        assert "retries push the actual above this" in b
+
+
+def test_the_voices_retry_allowance_is_measured_and_rounds_up() -> None:
+    """One retry in 212 on run A is 0.47 %; the allowance is the next whole percent, never less than one
+    call — over-estimating is the safe side of a consent number (the C11 terms' own rule)."""
+    assert server.VOICE_RETRY_ALLOWANCE == 0.01
+    assert server.retry_allowance(212) >= 1
+    assert server.retry_allowance(1) == 1, "floored at one call"
+    assert server.retry_allowance(1000) == 10
+
+
+def test_an_unknown_stage_is_refused_not_guessed() -> None:
+    with pytest.raises(ValueError):
+        server._project_stage("index")
 
 
 def test_the_projection_errs_HIGH_not_low_against_the_measured_acceptance_run() -> None:

@@ -149,6 +149,19 @@ def test_dark_run_does_the_physics_and_the_results_document_and_stops(env, monke
     assert led["ended"]["status"] == "complete"
     assert all(s["status"] == "skipped" for s in led["stages"]), "never-run stages say so honestly"
     assert _kinds(ev)[-1] == "run_ended"
+    # V2.7d FOLLOW-UP — THE REAL EMISSION, pinned as a literal sequence. act-one.spec's chain-off
+    # footer pin replays exactly this tail (cmd_start, cmd_end, a `results` stage_end, then
+    # run_ended); the two pins can only drift apart if this one fails first. The results document
+    # ENDS a stage it never started (``_run_cmds`` emits stage_end only) — a fact of the emission the
+    # client's fold ignores by construction, recorded here rather than assumed.
+    staged = [(e["event"], e.get("stage")) for e in _events(ev)]
+    assert staged[-5:] == [
+        ("stage_end", "simulate"),
+        ("cmd_start", None),
+        ("cmd_end", None),
+        ("stage_end", "results"),
+        ("run_ended", None),
+    ], staged
 
 
 # ------------------------------------------------------------------------------------- the chain

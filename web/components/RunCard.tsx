@@ -1,8 +1,9 @@
 'use client';
 
 import { nonCompletionsLine } from '@/lib/nonCompletions';
-import { useCallback, useState } from 'react';
-import { postEnrich, postIdentity, type EnrichStage, type RunStatus } from '@/lib/api';
+import { useCallback, useEffect, useState } from 'react';
+import { getProjection, postEnrich, postIdentity, type EnrichStage, type RunStatus, type StageProjection } from '@/lib/api';
+import { STATIC_DEMO } from '@/lib/demo';
 import type { RunFeed } from '@/lib/useRunFeed';
 import { signedMinutes } from '@/lib/viz';
 import { fmtWindowRange } from '@/lib/simTime';
@@ -26,12 +27,18 @@ const STAGE_LABEL: Record<string, string> = {
 // only when the run's assignment is 'settled' (day-one rails are byte-identical to before).
 const SETTLE_STAGES = ['settle_baseline', 'settle_scenario'] as const;
 
-// Enrich buttons with cost labels pulled from the METERED actuals (approximate — the tooltip says so).
-// Understating a cost-consent label is worse than none: voices ≈0.7¢, report ≈$0.05, discourse ≈$2.2 (3 cascades).
-const ENRICH: { stage: EnrichStage; label: string; cost: string; tip: string }[] = [
-  { stage: 'voices', label: 'voices', cost: '~1¢', tip: 'Sample persona reactions. Approx cost ~1¢ per run.' },
-  { stage: 'report', label: 'report', cost: '$', tip: 'Generate the per-run report. Approx cost ~$0.05.' },
-  { stage: 'discourse', label: 'discourse', cost: '$$', tip: 'Run the 3-cascade social propagation. Approx cost ~$2.' },
+// The enrich buttons. V2.7d FOLLOW-UP — NO COST LITERAL SURVIVES HERE. The prices were V2.3-era
+// literals ("~1¢" beside an enrich that meters ~213 calls; "$" on a button that also rebuilds the
+// chat index, the single largest metered term) under a comment claiming they were "pulled from the
+// metered actuals". Each button's price now comes from `GET /api/projection`'s per-stage terms —
+// the same function the manual enrich writes into the ledger, so the number a reader consents to
+// on the button and the denominator the cost line later divides by can never come from two
+// formulas — or it renders NO price: a missing number is a missing number, never an invented one.
+// The unit is model calls (the projection's), not money: no per-call price exists in this repo.
+const ENRICH: { stage: EnrichStage; label: string; tip: string }[] = [
+  { stage: 'voices', label: 'voices', tip: 'Sample persona reactions.' },
+  { stage: 'report', label: 'report', tip: 'Generate the per-run report and rebuild the chat index.' },
+  { stage: 'discourse', label: 'discourse', tip: 'Run the 3-cascade social propagation.' },
 ];
 
 
@@ -65,6 +72,14 @@ export function RunCard({
   const { status, notFound, streamProgress, streamDegraded, enrichLaunched, mergeStatus } = feed;
   const [enrichBusy, setEnrichBusy] = useState<EnrichStage | null>(null);
   const [enrichError, setEnrichError] = useState<string | null>(null);
+  // The buttons' prices — the SERVER's per-stage projections, fetched once per mount (a property of
+  // the server's configuration, not of the run). `armed` is deliberately NOT consulted: it is the
+  // CHAIN's switch, and these buttons spend regardless of it. Unreachable or shapeless → no price.
+  const [stageCosts, setStageCosts] = useState<Partial<Record<EnrichStage, StageProjection>> | null>(null);
+  useEffect(() => {
+    if (STATIC_DEMO) return; // the demo has no API, and the buttons are disabled there anyway
+    void getProjection().then((r) => setStageCosts(r.ok ? (r.value.stages ?? null) : null));
+  }, []);
   // V2.4c - the identity (name/note) edit affordance
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -423,18 +438,29 @@ export function RunCard({
           )}
           <div className="ed-label">Enrich this run</div>
           <div className="ed-btnrow" data-testid="enrich-buttons">
-            {ENRICH.map((e) => (
-              <button
-                key={e.stage}
-                className="btn btn-secondary"
-                title={e.tip}
-                disabled={enrichBusy !== null}
-                onClick={() => runEnrich(e.stage)}
-                data-testid={`enrich-${e.stage}`}
-              >
-                {e.label} <span className="ed-cost">{e.cost}</span>
-              </button>
-            ))}
+            {ENRICH.map((e) => {
+              const cost = stageCosts?.[e.stage];
+              return (
+                <button
+                  key={e.stage}
+                  className="btn btn-secondary"
+                  title={e.tip}
+                  disabled={enrichBusy !== null}
+                  onClick={() => runEnrich(e.stage)}
+                  data-testid={`enrich-${e.stage}`}
+                >
+                  {e.label}
+                  {cost != null && cost.calls > 0 && (
+                    <>
+                      {' '}
+                      <span className="ed-cost" title={cost.basis} data-testid={`enrich-cost-${e.stage}`}>
+                        ~{cost.calls.toLocaleString()} calls
+                      </span>
+                    </>
+                  )}
+                </button>
+              );
+            })}
           </div>
           {enrichError && <div className="ed-warn" data-testid="enrich-error">{enrichError}</div>}
           {/* V2.4c — clone this run's changes[] into a fresh draft (D4: iterate by adjusting the

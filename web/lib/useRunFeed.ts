@@ -30,7 +30,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getLedger, getRunStatus, type EnrichStage, type RunStatus } from './api';
 import { STATIC_DEMO } from './demo';
 import { openRunStream, type RunEvent, type VoiceEvent } from './runStream';
-import { emptyFeedState, foldEvent, resolveEnding, seedFromLedger,
+import { chainState, emptyFeedState, foldEvent, resolveEnding, seedFromLedger,
          type Ledger, type RunFeedState } from './runFeed';
 
 const POLL_MS = 1500;
@@ -153,7 +153,10 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   // `== null` check on it is false from the first paint onwards — the re-read never fired and the
   // live cost line still had no denominator (caught on run D, after the first fix looked right in a
   // mock that returned a bare null the server never sends).
-  const chainStarted = experience.stages.some((s) => s.status !== 'pending');
+  // ONE discriminator (V2.7d follow-up): this was an inline copy of chainState's first check, and a
+  // copy does not inherit a fix — on a chain-off run the ledger's six `skipped` stages would have
+  // fired a needless re-read here forever.
+  const chainStarted = chainState(experience) === 'running';
   const needsProjection = chainStarted && experience.projection?.calls == null;
   useEffect(() => {
     if (!runId || STATIC_DEMO || !needsProjection) return;
@@ -322,8 +325,22 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
       setStreamProgress(null); // a fresh job — never show a previous stage's counts
       streamEnded.current = false;
       openStream(); // open immediately (stage_start is already on disk — the POST wrote it synchronously)
+      // V2.7d follow-up — AND RE-READ THE LEDGER FOR THE STAGE'S PROJECTION. The manual enrich POST
+      // writes the projection of the ONE stage it launches (synchronously, before its stage_start
+      // line), and this is the spend now being metered — so it REPLACES whatever projection the
+      // feed holds, including a whole-chain number a reopened run carries (otherwise a voices-only
+      // enrich would read "47 of ~7,157"). A merge into `prev`, never a re-seed: the fold's beats and
+      // voices are the fresher truth. Deterministic by construction — the POST resolved before this
+      // ran. Without it the C11 re-read above fires once, sees a non-null number, and never asks.
+      if (!runId || STATIC_DEMO) return;
+      void getLedger(runId).then((res) => {
+        if (!res.ok || !res.value.ledger) return;
+        const durable = seedFromLedger(res.value.ledger as Ledger, runId);
+        if (durable.projection?.calls == null) return; // the placeholder — nothing to show
+        setExperience((prev) => (prev.runId === runId ? { ...prev, projection: durable.projection } : prev));
+      });
     },
-    [openStream],
+    [openStream, runId],
   );
 
   const mergeStatus = useCallback((patch: Partial<RunStatus>) => {

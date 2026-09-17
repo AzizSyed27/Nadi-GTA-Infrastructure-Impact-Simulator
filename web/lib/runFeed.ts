@@ -395,20 +395,38 @@ export function foldEvents(seed: RunFeedState, events: RunEvent[]): RunFeedState
  * the chain can be disarmed (`NADI_AUTO_ENRICH=0`; it was off by default until C10b),
  * and behind the modal the run card then shows `voices —` beside manual enrich buttons.
  *
- * The discriminator is the fold's own stage set, because the no-chain path writes NO stage events
- * at all — the server ends the run with `run_ended` and the ledger's
- * `reason: "interpretation not requested"`, which never reaches the client live (the ledger is read
- * once at mount, before the run ends, and the live `run_ended` line carries `detail: ""`).
+ * The discriminator is the fold's own stage set: a stage is STARTED when its status is one a stage
+ * can only reach by running — `running`, `done`, `partial`, `failed`. `pending` is not started, and
+ * neither is `skipped`: that is the status `run_ledger.end()` stamps on every stage that NEVER RAN,
+ * and it reaches this fold through the terminal-edge ledger re-read (useRunFeed), which merges the
+ * ledger's statuses in the instant `run_ended` folds.
  *
- *   'running'  a stage has moved off `pending`, so something started.
+ * V2.7d FOLLOW-UP — THE PREMISE THIS ONCE RESTED ON DIED AT C10b, AND THE PINS DID NOT NOTICE. The
+ * first version counted any non-`pending` status as started, on the premise that "the no-chain
+ * path writes NO stage events and the ledger's reason never reaches the client live". Both halves
+ * were false by the time it shipped: the chain-off path DOES write a stage event (`stage_end
+ * stage="results"` for the facts-only document — harmless here, it has no stage key in
+ * `STATE_TO_KEYS` and folds to a no-op) and the ledger's `ended.reason` DOES reach the client (the
+ * C10b re-read copies it into `ended.detail`) — and so do six `skipped` statuses, which flipped the
+ * footer to "already underway" on every chain-off run one paint after it had said the truth. The
+ * three footer pins stayed green through it because they mocked a null ledger and a lone
+ * `run_ended` line: a pin that mocks a premise cannot detect the premise dying. The chain-off pin
+ * now replays the real emission over the real ledger (act-one.spec, with test_stage_runner pinning
+ * the same literal sequence server-side). `ended.detail === "interpretation not requested"` is an
+ * available positive signal and deliberately NOT used: a cross-language string coupling for a fact
+ * the stage set already carries.
+ *
+ *   'running'  a stage is or was actually running, so something started.
  *   'none'     the run ended having started none.
  *   'unknown'  neither yet — the facts-only window between the physics finishing and the chain's
  *              first stage. Real, brief, and NOT worth guessing about on screen.
  */
 export type ChainState = 'running' | 'none' | 'unknown';
 
+const STARTED: ReadonlySet<StageStatus> = new Set(['running', 'done', 'partial', 'failed']);
+
 export function chainState(state: RunFeedState): ChainState {
-  if (state.stages.some((s) => s.status !== 'pending')) return 'running';
+  if (state.stages.some((s) => STARTED.has(s.status))) return 'running';
   return state.ended ? 'none' : 'unknown';
 }
 

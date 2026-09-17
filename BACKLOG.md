@@ -494,15 +494,22 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   `data-status` before the click, or give the running card a `prefers-reduced-motion`-style test
   hook; either way a pin that the fix actually removes the instability (Playwright's
   `--repeat-each 5` green on the loaded box).
-- **A MANUAL enrich's Act II cost line reads "model calls: 0" while it spends** (found at the
-  V2.7d closeout's live acceptance, run `multimodal-scenario-20260915T051601Z`: a manual voices enrich
-  with the chain OFF streamed 214 voices under "model calls: 0" and the voices card's "0 calls").
-  CAUSE: the ledger's projection is written at CHAIN start (`_project_interpretation` → the ledger),
-  and a manual `POST /enrich` never passes through it, so the line has no denominator and no metered
-  count. V2.7b territory (C10a/C11 built the cost line for the chained path). It is an UNDERSTATEMENT
-  on the one surface that may never understate — fix: the enrich endpoint writes a per-stage
-  projection (voices = the run's sample size, one call each) or the line says "manual enrich — not
-  metered" instead of a zero.
+- **CLOSED (the V2.7d follow-up, 2026-09-16) — a MANUAL enrich's Act II cost line read "model calls:
+  0" while it spent** (found at the V2.7d closeout's live acceptance, run
+  `multimodal-scenario-20260915T051601Z`: a manual voices enrich with the chain OFF streamed 214
+  voices under "model calls: 0" and the voices card's "0 calls"). CAUSE, corrected by the follow-up's
+  exploration: the manual `POST /enrich` wrote NOTHING to the ledger (no projection, no stage rows —
+  its one ledger touch was `_absorb_usage` after every subprocess had exited), the client's enrich
+  launch re-read no ledger, and the C11 projection re-read fires once and never retries; the "0 calls"
+  on the voices CARD was the chain-off ledger's `llm_calls: 0` seeded as a number where an unseeded
+  stage renders ''. `stage_usage` is emitted once at the stage's process exit, so mid-stage NOTHING
+  is metered — the honest numerator is zero, and the fix is the denominator: the POST now writes the
+  STAGE's projection (`_project_stage`, the same terms as the whole) synchronously before its
+  `stage_start` line, the client re-reads it on the enrich launch (replacing a reopened run's
+  whole-chain number), and the line's title says a zero beside an estimate is not yet metered, not
+  free. The RATIFIED resting state — `model calls: 0 of ~215` with the basis, then `47 of ~215` once
+  the stage reports — is pinned by content (enrich-stream.spec); a progress-derived floor was
+  deliberately NOT built (a second client-derived cost model, and stage-inconsistent).
 - **Act I's beat-4 held panel re-shows over Act II when Watch is entered during a manual enrich of an
   already-finished run** ("NO WITHDRAWAL — THIS CHANGE HAS NO WINDOW", the results-ready beat, over the
   streaming voices — `docs-assets/v27d-acceptance-voices-od.png`). CAUSE: the beats fold from the
@@ -514,27 +521,44 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   C10 exploration, pre-existing (V2.4b), not d's. Reachability doubtful: a 1-member draft takes the
   single-change path, so only a TAGGED non-speed 1-member composite could hit it. One-line fix when a
   hand is next in that function; banked with its cause, not fixed in the closeout.
-- **The run card's voices button says "~1¢"; the enrich it launches meters ~213 model calls**
-  (`RunCard.tsx:32` — a literal from the V2.3a-era button, written before V2.7b metered anything; its
-  tooltip repeats it: "Approx cost ~1¢ per run"). Seen at the V2.7d closeout's authorized manual enrich
-  (213 voice calls on `multimodal-scenario-20260915T051601Z`; the user's own estimate was about a
-  quarter dollar; even the V2.3b interview note's ~0.03¢ per short DeepSeek call gives ~6¢). An
-  UNDERSTATEMENT on a consent surface — the never-understate rule. No metered dollar figure exists for
-  this run (manual enriches are unmetered — the cost-line item above). Fix: derive the label from
-  `_project_interpretation`'s voices term (sample size × one call) through `/api/projection`, the way
-  the Run button renders M verbatim, and give the report / discourse labels ("$" / "$$") their metered
-  terms the same way.
-- **The held moment says "Interpretation is already underway below" on a chain-OFF run**
-  (`docs-assets/v27d-acceptance-build.png` / `-read.png`: the run ended "interpretation not requested",
-  yet the panel's DERIVED first clause read `HELD_NOTE_UNDERWAY`, not `HELD_NOTE_NOT_STARTED`). CAUSE,
-  verified in the live run's event log: `chainState` calls the chain 'running' once any stage leaves
-  `pending`, and the chain-off path runs `_run_facts_only` BEFORE the `auto_enrich_enabled()` check
-  (`server.py:851-854`), so `stage_end results done` (event line 13) precedes `run_ended complete`
-  (line 14) — the discriminator's premise, "the no-chain path writes NO stage events at all"
-  (`runFeed.ts` docstring above `chainState`), has been false since C10b made facts-only
-  unconditional. V2.7b territory, not d's (d touched neither file). Fix: the discriminator ignores
-  the `results` stage (code-rendered, never a model call), or keys on `run_ended` arriving with no
-  model stage started. Related: the same panel stays up over Build and Read until dismissed — by
+- **CLOSED (the V2.7d follow-up, 2026-09-16) — the run card's voices button said "~1¢" beside an
+  enrich that meters ~213 model calls** (`RunCard.tsx` — V2.3a-era literals under a comment claiming
+  they were "pulled from the metered actuals"; "$" on the report button, which ALSO rebuilds the chat
+  index, the single largest metered term). Now every price derives from `GET /api/projection`'s
+  per-stage `stages` (the same `_project_stage` the manual enrich writes into the ledger — one cost
+  model, three callers) as "~N calls" with the stage basis as its title, or renders NO price when the
+  endpoint is unreachable or shapeless; no cost literal survives, and the unit is model calls because
+  no per-call price exists in this repo. `armed` is not consulted — the buttons spend regardless.
+  Pinned in edit.spec (the derived labels; the `¢`/`$` sweep over the card).
+- **CLOSED (the V2.7d follow-up, 2026-09-16) — the held moment said "Interpretation is already
+  underway below" on a chain-OFF run** (`docs-assets/v27d-acceptance-build.png` / `-read.png`). The
+  CAUSE first recorded here (the facts-only `results` stage_end) was WRONG at the fold level: that
+  event has no key in `STATE_TO_KEYS` and folds to a no-op. The real poison: `run_ledger.end()`
+  marks every never-run stage `skipped`, the server writes that BEFORE emitting `run_ended`, the
+  client's C10b terminal-edge re-read merges the six `skipped` statuses in, and `chainState`
+  counted any non-`pending` status as started — 'none' for one paint, then 'running'. The three
+  footer pins stayed green because `mockActOne` routed the ledger as null, so the re-read had
+  nothing to merge. Fixed: a stage is started only when its status is `running`/`done`/`partial`/
+  `failed`; the hook's inline duplicate of the check now calls `chainState`; the docstring states
+  the true premise. The chain-off pin replays the server's real four-line tail over the real
+  chain-off ledger (act-one.spec), with test_stage_runner pinning the same literal sequence
+  server-side. Related, unchanged: the same panel stays up over Build and Read until dismissed — by
   design (a moment, dismissable), noted so the acceptance frames are read right.
+- **Banked by the follow-up's exploration (V2.7b territory, none fixed):** (a) the ledger ACCUMULATES
+  `llm_calls` (`add_llm_calls` +=) while the stream fold SETS them — a re-enrich reads 426 in the
+  ledger against 213 live, and the terminal-edge merge prefers the ledger; (b) that merge takes
+  `durable.projection ?? prev.projection`, and the placeholder `{calls: null, basis: ""}` is truthy —
+  it can overwrite a good projection, and it overwrites stage STATUSES from a ledger the manual path
+  never updates (a manual `stage_end` cannot flip a `skipped`-seeded stage to `done`: the fold's
+  guard takes the verdict only on `running` stages); (c) the manual `stage_start` carries
+  `label: "enrich:voices"` (machinery) where the chain sends the human label, and the first card's
+  detail shows it; (d) `_project_interpretation(instrumented=…)` has no caller, so the basis's "the
+  run's own count replaces this" promise is never fulfilled (the chain could pass the sampler's
+  count after personas); (e) a pre-V2.7b run gets a ledger initialised with `quant: running` by
+  `ensure()` at its first manual enrich (via `_absorb_usage` before, `set_projection` now too);
+  (f) `_run_cmds` emits `stage_end` only — the quant leg's `stage_start` says `quant` and its
+  `stage_end` says `simulate`, and the facts-only document ends a `results` stage nothing started;
+  no pin covers a stage-field VALUE (only event names are lockstepped) and none locksteps
+  `run_ledger.STAGE_KEYS` with `runFeed.ts`'s.
 - **The RunCard's `rename-toggle` uses `.ed-link .ed-sub`** — a button styled as a sub-line; if the
   run card gets a §-source in a later design session, its identity affordance is the row to revisit.

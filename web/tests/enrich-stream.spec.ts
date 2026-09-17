@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openRunFromList } from './support/shell';
+import { openRunFromList, openStage } from './support/shell';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -108,7 +108,15 @@ function partialStreamBody(): string {
 async function mockBackend(
   page: Page,
   opts: { streamBody: (i: number) => string | null; holdPolls: number | { polls: number };
-          polledProgress?: { done: number; total: number } },
+          polledProgress?: { done: number; total: number };
+          /** V2.7d follow-up — the ledger, keyed BY CONTENT on whether the enrich has been POSTed
+           *  (never on a read count: opening the run performs the seed read AND the terminal-edge
+           *  merge, so "the first read" is off by one under load). Default: no ledger. */
+          ledger?: (enrichPosted: boolean) => Record<string, unknown> | null;
+          /** A gate the i-th stream response waits on before it is served — lets a test assert the
+           *  state BETWEEN two bodies BY CONTENT (e.g. before a `stage_usage` frame lands), never
+           *  by a timer that a loaded box can win or lose. */
+          streamGate?: (i: number) => Promise<void> | undefined },
 ) {
   const base = fs.readFileSync(FIXTURE, 'utf-8');
   const enrichedArt = JSON.parse(base);
@@ -132,8 +140,13 @@ async function mockBackend(
     enrichDone = false;
     return route.fulfill({ json: { run_id: RUN_ID, stage: 'voices' } });
   });
-  await page.route('**/api/runs/*/events', (route) => {
-    const body = opts.streamBody(streamCalls++);
+  await page.route('**/api/runs/*/ledger', (route) =>
+    route.fulfill({ json: { run_id: RUN_ID, ledger: opts.ledger ? opts.ledger(enrichPosted) : null } }));
+  await page.route('**/api/runs/*/events', async (route) => {
+    const i = streamCalls++;
+    const gate = opts.streamGate?.(i);
+    if (gate) await gate;
+    const body = opts.streamBody(i);
     if (body == null) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"detail":"no stream"}' });
     return route.fulfill({ status: 200, contentType: 'text/event-stream', headers: { 'Cache-Control': 'no-cache' }, body });
   });
@@ -199,6 +212,85 @@ async function openRun(page: Page) {
   // the fixture has NO voices — the honest empty state is the genuine starting point
   await expect(page.getByTestId('no-voices')).toBeVisible({ timeout: 15_000 });
 }
+
+// ------------------------------------------------------ the cost line through a MANUAL enrich (V2.7d follow-up)
+
+/** The chain-off ledger the acceptance run left behind, with a CHAIN-vintage projection on it — the
+ *  shape a run reopened after a whole-chain run carries. The manual enrich must REPLACE that
+ *  denominator with its own stage's, or the line reads "47 of ~7,157" through a voices-only enrich. */
+function ledgerBefore(): Record<string, unknown> {
+  return {
+    run_id: RUN_ID,
+    quant: { status: 'done', started_at: 1, ended_at: 2 },
+    facts_report: { status: 'done', at: 3 },
+    stages: ['personas', 'voices', 'institutions', 'discourse', 'report', 'index'].map((key) => ({
+      key, label: key, llm: key !== 'personas' && key !== 'institutions', status: 'skipped', llm_calls: 0, detail: '',
+    })),
+    projection: { calls: 7157, basis: 'the whole chain' },
+    ended: { status: 'complete', at: 4, reason: 'interpretation not requested' },
+  };
+}
+
+/** The same ledger once `POST /enrich` has written the STAGE's projection (server.py, before the
+ *  stage_start line). The numbers are the mock's; the client renders and computes nothing. */
+function ledgerAfter(): Record<string, unknown> {
+  return {
+    ...ledgerBefore(),
+    projection: { calls: 215, basis: '212 travelers (the standard sample), one call each, plus a 1% retry allowance' },
+  };
+}
+
+/** A manual voices enrich in flight: the manual `stage_start` payload verbatim, the voices, and —
+ *  only from the second request on — the `stage_usage` frame the stage writes as it exits. */
+function meteredStreamBody(withUsage: boolean): string {
+  let b = 'retry: 100\n\n';
+  b += frame(0, 'run_start', { run_id: RUN_ID, description: 'school zone fixture' });
+  b += frame(1, 'stage_start', { stage: 'enrich:voices', label: 'enrich:voices', kind: 'llm', stages: ['sampling travelers', 'generating voices'] });
+  b += frame(2, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
+  b += frame(3, 'voices_total', { total: TOTAL });
+  VOICES.forEach((agent, i) => {
+    b += frame(4 + i, 'voice', { index: i, done: i + 1, total: TOTAL, agent });
+  });
+  if (withUsage) b += frame(4 + TOTAL, 'stage_usage', { stage: 'voices', calls: 47 });
+  return b; // no stream_end: the job is still running, EventSource reconnects and the fold dedups by id
+}
+
+test('the cost line carries the STAGE\'s denominator through a manual enrich, and the metered count exactly', async ({ page }) => {
+  // THE DEFECT WAS THE RESTING STATE. V2.7d's acceptance watched a ~213-call voices enrich under
+  // "model calls: 0" with no denominator and no basis — a sentence reading "this costs nothing"
+  // beside a spend. The manual POST wrote no projection, and the client's enrich launch never
+  // re-read the ledger. Now: the denominator and basis are on screen from the first frame (0 of
+  // ~215 — the zero is the metered truth, because a stage's count lands when its process exits,
+  // and the title says so), the numerator is EXACTLY the metered figure once `stage_usage` lands
+  // (never inflated by a client-side floor), and the denominator is the STAGE's, replacing the
+  // chain-vintage number a reopened run carries.
+  // the usage frame rides the RECONNECT body, which is held until the resting state is asserted
+  let releaseUsage: () => void = () => {};
+  const usageGate = new Promise<void>((res) => (releaseUsage = res));
+  await mockBackend(page, {
+    streamBody: (i) => meteredStreamBody(i >= 1),
+    streamGate: (i) => (i >= 1 ? usageGate : undefined),
+    holdPolls: { polls: 10_000 },
+    ledger: (posted) => (posted ? ledgerAfter() : ledgerBefore()),
+  });
+  await openRun(page);
+
+  await page.getByTestId('enrich-voices').click();
+  await openStage(page, 'watch');
+  await expect(page.getByTestId('act-two')).toBeVisible({ timeout: 15_000 });
+
+  const cost = page.getByTestId('act-two-cost');
+  // the resting state, pinned: denominator + basis before any usage frame, numerator honestly zero
+  await expect(cost).toHaveText(/^model calls: 0 of ~215$/, { timeout: 10_000 });
+  await expect(cost).toHaveAttribute('title', /not yet metered/);
+  await expect(cost).toHaveAttribute('title', /not a cap/);
+  await expect(page.getByTestId('act-two-cost-basis')).toContainText('one call each');
+  if (process.env.NADI_SHOTS) await page.getByTestId('act-two').screenshot({ path: '../docs-assets/v27d-fu-cost-line-manual.png' });
+  // once the stage reports its metered count: exactly that, over the same denominator
+  releaseUsage();
+  await expect(cost).toHaveText(/^model calls: 47 of ~215$/, { timeout: 15_000 });
+  await expect(cost).not.toContainText('7,157'); // the chain's number never stood in for the stage's
+});
 
 test('streamed voices render incrementally while the enrich job is still running', async ({ page }) => {
   // The status is HELD at enrich:voices until this test has finished asserting the live state, then
