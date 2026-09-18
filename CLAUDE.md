@@ -898,12 +898,102 @@ C8a tree failed 2 of 3 at the same line on the same server**, so it was the box,
 FRESH dev server it passed 2/2 (the seven-hour-old server had hot-reloaded through a stash cycle —
 the stale-server memory, again); act-two:478 passed 1 of 2 on the fresh server — the pre-arc
 weakness, unchanged in kind, its BACKLOG item written at C9. No python or asset change; no perf.
+**V2.7e — SCORECARD DOORWAYS + THE TWO-GROUP ROOM + THE PROMPT-NAMES RATIFICATION (C1 `d6948c5` ·
+C2 `16cae9f` · C3 `aad455b` · C4 the closeout · C5 the ratified prompt names; NO contract change; plan +
+execution log at `~/.claude/plans/begin-v2-7e-scorecard-doorways-idempotent-key.md`). THE ROLLUP:**
+the run document's 2.4 rows SELECT (the ratified canvas, form 1d: toggle, cap two, oldest dropped)
+instead of navigating; the TRAY says what is picked ("pick one group to hear it; two to put them in
+a room" when nothing is); ONE selection renders the EVIDENCE STRIP — composed by the pure
+`web/lib/groupEvidence.ts` from the ARTIFACT alone: the group's voices per grounding with the HEAR
+door (the existing scorecard→feed join, unchanged), the ASK door (the interview drawer on a STATED
+pick — the group's most-affected simulated voice, ties by artifact index, else its first inferred
+voice; the rule is on the button), the three cells WITH their confidence and note as BODY TEXT (the
+first time a cell note is read rather than hovered anywhere in the document), and the sentence that
+says what is NOT a door (discourse, chat and graphs carry no per-group view) — a group with no
+voice gets a sentence, never a dead button; TWO selections offer "Put {A} + {B} in a conversation →"
+(canvas-verbatim), which seeds a FRESH room by the RATIFIED pick rule (alternating A/B up to the
+cap, most-affected first) and says its composition in a separate `room-seed-note` ("seeded 3 from
+Car commuters, 2 from Cyclists — most-affected first; add or remove anyone" — one derived template,
+true in the imbalanced 4 + 1 case too), or, when the pair cannot fill a room, a sentence with the
+count. `ROOM_MIN` / `ROOM_MAX` became one source (the drawer's floor and cap, the map view's add
+cap, the five "3–5 voices" titles — bytes identical). The feed's filtered empty state distinguishes
+"no voices yet — keep playing" from "no voices in this run". **THE CONFLICTS TABLE (ratified vs
+shipped):** (1) a row click SELECTS, not navigates — the canvas; the door is the strip's button.
+(2) The Ask door opens on ONE agent (interviews are per agent; there is no group interview) — the
+pick is the room seed's rule, stated on the button. (3) Explore surfaces are NOT doors — none carries
+a group join; said in a sentence rather than faked. (4) The CTA lands with the feed on group A, not
+both — the two-group feed filter is DEFERRED (BACKLOG, reason stated). (5) The room's "voices you
+picked" curation note keeps its pinned bytes; the seed note is a sibling element. (6) Act I needs no
+door: Read shows the not-computed panel (already pinned); the doors are BLOCKED with the reason while
+Act II holds Watch (`doorwaysBlocked = actTwo` at the Read mount, always at the Act II report
+stage). **THE WRONG-RUN PREDICATES, answered as written:** the strip reads `artifact.agents` /
+`artifact.scorecard` (the loaded run by construction) and is disabled under Act II. **THE SETTLED
+CONDITION — CHECKED, NOT FIRED:** the figure is **+2.31 s** (README.md:235; the "+22.31 s" carried
+in the queue's wording was a typo); no new surface features it — the strip shows the loaded run's
+own cells. **THE `_SAFETY_NOTE` CEREMONY — TAKEN at Exit B (C3):** the strip made the example run
+READ "seeds 42/43/44" beside its own single-seed caveat, so the note derives now
+(`default_safety_note`: single / multi / not-recorded forms; the legacy literal kept and RECOGNISED
+by the report's caveat and the earned rewrite, never written); the EXAMPLE run recomputed under
+`NADI_ALLOW_PINNED_ENRICH=1` (only its four safety notes changed — every value, share, confidence
+and range byte-equal; the other blocks identical) and its report refreshed (zero LLM); the two web
+fixtures' notes patched IN PLACE at their vintages — a full regen from their producer modules
+re-versions them to 0.10.0, which their vintage pins forbid by design (a method fact, recorded);
+`scorecard.main()` refuses a protected run without the env (proven refusing, then run under it);
+the PINNED run's recompute BANKED with its cost (imprecise, not false). One pre-existing bug fixed on
+the way: the CLI's readback print crashed on a composite-null access cell (after the write).
+**LIVE ACCEPTANCE (C4, 2026-09-18, against the running API + dev server — the SPEND-FREE HALF):**
+the doorway walk on the V2.7d acceptance run `multimodal-scenario-20260915T051601Z` (214 voices from
+d's closeout, single seed). **Its first frame showed the disease C3 cured, on a run computed before
+C3:** the strip's safety basis read "sign not stable across seeds 42/43/44" as BODY TEXT while the
+caveat one screen below said "This run used a single seed (42)" — the vintage divergence, seen in
+one viewport (`docs-assets/v27e-c4-live-strip-legacy-note.png`, kept as the finding). The run is
+local, unprotected and uncommitted, so a zero-LLM scorecard recompute is the honest maintenance op:
+run, old-vs-new compared — ONLY the four safety notes changed, 214 agents byte-equal — and the strip
+then read "single seed (42) — cross-seed sign stability was not probed; magnitude only, directional
+claim not supported" in agreement with the caveat (`v27e-c4-live-strip.png`). The HEAR door landed
+in Watch with the filter chip "showing: Car commuters", the scorecard's Car commuters row
+highlighted and car-commuter voices in the feed (`v27e-c4-live-hear.png`). **Every other pre-C3
+run on this box keeps the legacy literal in its cells** — the strip is where a reader now meets it;
+the recompute above is the per-run cure (protected runs need the env, and the PINNED run's is
+banked). **THE OTHER HALF — NOT YET SPENT:** the omitted-od-line SIMULATED voice card and the
+manual-enrich cost line (`model calls: 0 of ~215` then `N of ~215`) need Act II mounted live, which
+needs one voices re-enrich of that run (~215 model calls) — confirmed with the user before spending,
+and folded into C5's own gate (one enrich serves both), so the record of it rides C5. That re-enrich
+REPLACES the acceptance run's quoted voice text (the "from Galloway Road to Windover Drive" cards are
+that enrich's, not stable artifacts) while the od line's precondition — the nearest-edge geometry —
+survives untouched.
+**FRAMES, looked at:** `docs-assets/v27e-c1-tray.png` (the tray + strip on the example: 120
+voices, both doors, the basis lines — including the baked note C3 then cured), `v27e-c1-no-voices.png`,
+`v27e-c1-blocked.png`, `v27e-c2-room-cta.png`, `v27e-c2-seeded-room.png` (five members alternating
+car / bike under the seed note), the three C4 live frames above (`v27e-c4-live-strip-legacy-note`,
+`-live-strip`, `-live-hear`; all viewport captures of the real UI against the live backend).
+Element captures of the document section and the drawer were
+CLIPPED at the panel's scroll fold or never reached "stable" under live re-renders → viewport
+captures after `scrollIntoViewIfNeeded`. **GATES:** C1 265 Playwright (five foreground chunks; the
+first attempt at chunk 1 was KILLED by the box's memory watchdog while the session idled — restarted
+only when the user said so); C2 268; C3 733 pytest (+11) + the eight spec files reading the moved
+bytes (run-document, institutions, school-zone, scorecard-scope, app-shell, compare, discourse,
+edit — 62 passed in one chunk, no flakes; a python + data commit, the full Playwright suite rides
+C4's tree unchanged from C2's). **TWO METHOD FINDINGS:** a component prop declared in the type but not destructured surfaces
+only as a runtime `ReferenceError` in the dev log (twice, RunDocument then ReportStage) — read the
+dev log after a GREEN as a matter of course; and Act II's stream REPLACES the fixture's agents with
+placeholder personas that map to no group, so an Act II pin over a group needs one real persona id
+in the streamed body. **PROMPT NAMES — RATIFIED (D-Q3, 2026-09-17), landing as C5 after the closeout
+push:** name-plus-id in `reactions.py`'s three id branches (unnamed bytes byte-identical), the
+"no street names" framing clause reworded to "beyond those provided", `report._change_phrase` and
+the CLI harness descriptions in lockstep, gated by one live voices enrich with a looked-at sample;
+the vintage divergence stated beside C10's. The dossier that decided it: the vocabulary was ALREADY
+split by change type inside one prompt (speed limits reach the prompt as name-plus-id via the
+server description; closures and incidents carry a bare id; bike lanes and new roads carry
+neither); 0 of 4,686 committed LLM voices ever said an edge id; two CLI runs whose description
+named "Kingston Rd" produced ~2 % of voices naming it naturally under the existing clause.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor restyle + street names + the per-lane table — SHIPPED** (fifteen commits; see the
 V2.7d box — the netconvert regen was measured at C0 and NOT taken: names ride the export from the
-tracked OSM extract, the canonical net is a fixed asset) · **V2.7e doorways/room** (+ the two V2.7d
-deferrals: map street labels, `reactions.py` prompt names as a ratification item) +
+tracked OSM extract, the canonical net is a fixed asset) · **V2.7e scorecard doorways + the
+two-group room — C1–C3 SHIPPED, C4 closeout + C5 prompt names (ratified) in flight** (see the V2.7e
+box; the one V2.7d deferral still open: map street labels) +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
@@ -2114,7 +2204,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   display: 7.0 or 13.6 ms) — read p95.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (715 tests — sections: golden spine; contract
+- **Tests:** `python -m pytest python/tests` (733 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -2130,9 +2220,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   shape, the corpus handle collision, the held-lock-vs-stale rule and the projection floor; V2.7d
   network-export v2 + the lane invariant RE-DERIVED over the wire table + the street-name resolver
   and its server / scheduler / report / corpus consumers — unnamed forms byte-identical, the golden
-  report untouched) and
+  report untouched; V2.7e's derived safety note, its recognisers over both prefixes, the earned
+  rewrite over a derived prefix, the caveat coupling both ways and the protected-run recompute
+  guard) and
   `cd web && npx playwright test`
-  (255 tests across 32 spec files incl. the V2.7d `lane-rows` (compass initials at the sector
+  (268 tests across 33 spec files incl. the V2.7e `group-evidence` (the composer, the pick rule with
+  ties, the room seed's balanced / imbalanced / under-three cases) pure spec and the run-document /
+  act-two / group-interview doorway pins — selection, the tray, the strip's honest states, the
+  blocked doors, the CTA and the seeded room; the V2.7d `lane-rows` (compass initials at the sector
   boundaries, the table's rows both directions, closable = server list ∩ table, one member per
   directional edge, the direction sentences) and `street-names` (the name-plus-id lockstep forms,
   nearest edge at 25.0 in / 25.001 out, the od line, the cross-street walk with fork stop) specs plus

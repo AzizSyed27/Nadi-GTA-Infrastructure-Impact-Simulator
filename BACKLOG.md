@@ -301,10 +301,14 @@ why in the demo) but is optional, not required.
   `run_quant_runtime` (5.2b). No live producer emits the flat shape; safe to delete in a dedicated cleanup step.
 
 ## V2.7a follow-ons (recorded at the C6 closeout)
-- **The two-group room doorway (V2.7e):** 2.4's tray renders single-group doorways only (click →
-  that group's voices in Watch); the ratified "Put A + B in a conversation →" CTA is deliberately
-  NOT rendered — a live-looking button that cannot assemble a 3–5-voice room violates the
-  clickable-then-failing rule. V2.7e wires group→voices selection into the room flow.
+- **The two-group room doorway — SHIPPED in V2.7e C2:** 2.4's rows SELECT (cap two); one selection
+  opens the evidence strip (the hear door, the Ask door, the cells' basis, what is not a door); two
+  offer "Put A + B in a conversation →", which seeds the room by the RATIFIED pick rule (each group's
+  most-affected simulated voices first, ties by artifact index, then inferred, alternating; the seed
+  note states the actual counts) or, when the pair cannot fill a room, a sentence with the count.
+  **Deferred from it, with the reason:** the two-group FEED filter (`feedGroup` is a single-group
+  join eight spec files drive; the CTA lands with the feed on group A and the drawer showing both —
+  widening the join is a behavioural change on a shared surface for a cosmetic gain).
 - **Per-stage document-panel articles — the Watch half SHIPPED in V2.7b C10b** (the playback
   article: near-miss callout with its surrogate footnote, the transport, the vehicles-on-network
   readout, inside the document panel, on the FINISHED-run Watch state). The Build-fresh article
@@ -355,15 +359,27 @@ to V2.7d beside the street-name regen by the ratified c/d split. When it lands: 
 table, the invariant test retires, the three residual counts become zero by construction, and a
 dedicated BUS-lane band becomes drawable if the net ever carries one (it carries none today).
 
-## V2.7a follow-up — scorecard._SAFETY_NOTE bakes "42/43/44" into single-seed artifacts
-`scorecard.py` `_SAFETY_NOTE` ("sign not stable across seeds 42/43/44; …") is the V1 default
+## V2.7a follow-up — scorecard._SAFETY_NOTE bakes "42/43/44" into single-seed artifacts — TAKEN in V2.7e C3 (Exit B)
+`scorecard.py` `_SAFETY_NOTE` ("sign not stable across seeds 42/43/44; …") was the V1 default
 note written into every SINGLE-seed artifact's safety cells — the same constant-seed-tuple
 disease the V2.7a follow-up fixed in `report._cross_seed_sentence`, but baked into COMMITTED
-artifacts (both the pinned and example runs carry it in cell notes + a caveat body). Multi-seed
-runs already replace it with the V2.1d earned note (derived list). Fixing the single-seed
-default means choosing honest tuple-free wording AND a deliberate scorecard-recompute ceremony
-over the committed artifacts (artifact churn + the test_seed_ranges note pins) — its own step,
-not a drive-by.
+artifacts. Hover-only until V2.7e C1's evidence strip put the cell notes on screen as body text —
+the EXAMPLE run then READ "seeds 42/43/44" beside its own single-seed caveat, in one file. **CLOSED
+at the ratified scope (Exit B, 2026-09-18):** the note DERIVES (`default_safety_note` — "single seed
+(42) — cross-seed sign stability was not probed; magnitude only, directional claim not supported";
+multi-seed names the seeds and leaves stability to the range; a fixture built without a run says
+"seed count not recorded"); the legacy literal is KEPT and RECOGNISED by both the report's caveat and
+the earned-note rewrite (`is_default_safety_note` / `strip_default_safety_prefix`), never written;
+the EXAMPLE run recomputed (only its four notes changed) + its report refreshed; the two web
+fixtures' notes patched in place at their vintages; `scorecard.main()` refuses a protected run
+without `NADI_ALLOW_PINNED_ENRICH=1`. **BANKED, with the cost:** the PINNED run
+`multimodal-scenario-20260702T044134Z` still carries the legacy literal — imprecise, not false (a
+real 42/43/44 verdict exists for it; a faithful derivation reads "seeds 42, 43, 44 were run — …"),
+and its recompute is ~20 MB of tracked churn plus a report refresh, under the same env. The 0709 pair,
+`sample_v0_4_0.json` and the archived V2.1b smoke report keep the literal too (known vintages, read
+correctly by the recognisers). **A method fact:** regenerating a committed fixture from its producer
+module RE-VERSIONS it to the producer's current schema (0.10.0), which the fixtures' vintage pins
+forbid by design — for a note-only change, patch through `trajectory_io.dump_artifact` in place.
 
 ## V2.7b follow-ons (recorded at the C11 closeout, from the live acceptance)
 
