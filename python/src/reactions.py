@@ -69,8 +69,8 @@ _SIM_FRAMING = (
     "You are role-playing ONE specific Toronto traveler reacting to a PROPOSED road change on a corridor, "
     "for a city-planning preview. Speak in the FIRST PERSON, 1-2 sentences, plain-spoken. This is an "
     "ANTICIPATED reaction (how you'd feel) — NOT a verdict or prediction. Ground your reaction STRICTLY in "
-    "the specific numbers about YOUR trip below; do NOT invent specifics (no street names, exact times, "
-    "distances, or facts not provided).\n\n"
+    "the specific numbers about YOUR trip below; do NOT invent specifics (no street names beyond those "
+    "provided, exact times, distances, or facts not provided).\n\n"
 )
 
 _INFERRED_FRAMING = (
@@ -149,10 +149,24 @@ def _fmt_minutes(seconds: float) -> str:
     return f"{seconds / 60.0:.1f} min"
 
 
+def _road_ref(edge_id: str | None, capital: bool = False) -> str:
+    """V2.7e C5 (ratified): the prompt's road reference is NAME-PLUS-ID when `network.json` names the edge
+    — `Lawrence Avenue East (edge -439600156#2)` — and the pre-C5 `the corridor road (<id>)` BYTE-IDENTICAL
+    when it does not (test_prompt_names pins both forms per branch). Never name-instead-of-id: the id
+    stays the falsifiable reference the interview's grounding and the corpus share."""
+    import street_names
+
+    if edge_id is not None and street_names.name_of(edge_id):
+        return street_names.describe_edge(edge_id)
+    return f"{'The' if capital else 'the'} corridor road ({edge_id})"
+
+
 def _change_line(change: dict, profile: str = "synthetic_demo") -> str:
     """A MECHANICAL description of the change — no asserted benefit (no 'calmer'/'safer'). Cacheable prefix.
     V2.2a: windowed changes render their window — clock times on the calibrated profile (t=0 == 07:00),
-    sim-seconds on synthetic (fmt_window)."""
+    sim-seconds on synthetic (fmt_window). V2.7e C5: the road is `_road_ref` (name-plus-id when named);
+    bike_lane gains the name inside its MECHANICAL sentence and never adopts the description (a CLI
+    description is id-only and the server's is a label — a recorded decision); new_road has no edge."""
     from demand_profiles import fmt_window
 
     window_txt = f" {fmt_window(change['window'], profile)}" if change.get("window") else ""
@@ -162,33 +176,37 @@ def _change_line(change: dict, profile: str = "synthetic_demo") -> str:
                 f"{change.get('to_junction')} — a NEW travel option, not a reallocation of existing lanes; "
                 f"it carries no sidewalk at this stage.")
     if change.get("type") == "bike_lane":
-        return "One general-traffic (car) lane on the corridor is being converted into a bicycle-only lane."
+        import street_names
+
+        edge = change.get("target_edge")
+        where = street_names.describe_edge(edge) if edge and street_names.name_of(edge) else "the corridor"
+        return f"One general-traffic (car) lane on {where} is being converted into a bicycle-only lane."
     if change.get("type") == "lane_closure":
         n = len(change.get("target_lanes") or [])
         lanes_word = "car lanes" if n != 1 else "car lane"
         verb = "are" if n != 1 else "is"
-        return (f"{n} {lanes_word} on the corridor road ({change.get('target_edge')}) {verb} "
+        return (f"{n} {lanes_word} on {_road_ref(change.get('target_edge'))} {verb} "
                 f"closed{window_txt}; the road stays open in the remaining lane(s).")
     if change.get("type") == "road_closure":
-        return (f"The corridor road ({change.get('target_edge')}) is fully closed{window_txt}; "
+        return (f"{_road_ref(change.get('target_edge'), capital=True)} is fully closed{window_txt}; "
                 f"traffic must use other streets.")
     if change.get("type") == "incident":
         # a CAPACITY event, never a crash simulation — mechanical, no crash words
         eff = change.get("effect") or {}
-        edge = change.get("target_edge")
+        road = _road_ref(change.get("target_edge"))
         parts = []
         lanes = change.get("target_lanes") or []
         if eff.get("blocked") and lanes:
             n = len(lanes)
-            parts.append(f"{n} car lane{'s' if n != 1 else ''} on the corridor road ({edge}) "
+            parts.append(f"{n} car lane{'s' if n != 1 else ''} on {road} "
                          f"{'are' if n != 1 else 'is'} blocked")
         if eff.get("speed_factor") is not None:
             pct = f"{eff['speed_factor'] * 100:.0f}%"
             if parts:
                 parts.append(f"and traffic is slowed to {pct} of its normal speed")
             else:
-                parts.append(f"Traffic on the corridor road ({edge}) is slowed to {pct} of its normal speed")
-        body = " ".join(parts) or f"Capacity on the corridor road ({edge}) is reduced"
+                parts.append(f"Traffic on {road} is slowed to {pct} of its normal speed")
+        body = " ".join(parts) or f"Capacity on {road} is reduced"
         return f"{body}{window_txt} — a temporary incident; capacity is reduced while it is active, then restored."
     desc = change.get("description") or change.get("type", "a road change")
     if change.get("value_mps") is not None:

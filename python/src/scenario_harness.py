@@ -45,6 +45,7 @@ import change_scheduler
 import demand_profiles as _dp_fmt  # V2.7b beats: profile-honest sim-time formatting
 import run_events
 import run_sim  # also puts SUMO_HOME/tools on sys.path, so `sumolib` imports below
+import street_names  # V2.7e C5: CLI descriptions are name-plus-id like the server's, id-only when unnamed
 import sumolib
 import trajectory_io
 from contract_models import (
@@ -1582,7 +1583,7 @@ def _run_speed_limit(args) -> None:
         getattr(args, "assignment", "day_one"), "speed_limit", window is not None, False)
     if reason is not None:
         raise SystemExit(reason)
-    base_desc = f"Reduced max speed on edge {target_edge} to {kmh:.0f} km/h"
+    base_desc = cli_base_desc("speed_limit", target_edge, kmh=kmh)
     if window is not None:
         from demand_profiles import fmt_window
         base_desc += f" {fmt_window(window, getattr(args, 'demand_profile', 'synthetic_demo'))}"
@@ -1624,7 +1625,7 @@ def _run_bike_lane(args) -> None:
     print(f"[lane] converting lane {target_lane} (curbside car lane) -> bicycle-only; "
           f"connectivity: {'OK' if not severed else f'SEVERS car turns to {sorted(severed)}'}")
     change = Change(type="bike_lane", target_edge=target_edge, target_lane=target_lane,
-                    description=args.description or f"Converted lane {target_lane} of edge {target_edge} to a bicycle-only lane")
+                    description=args.description or cli_base_desc("bike_lane", target_edge, target_lane=target_lane))
     ts = getattr(args, "run_ts", None) or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = f"multimodal-scenario-{ts}"
     try:
@@ -1639,6 +1640,31 @@ def _run_bike_lane(args) -> None:
     except Exception as e:  # noqa: BLE001
         run_state.set_stage(run_id, "failed", str(e)[:800])  # wide enough to carry SUMO's error-log tail
         raise
+
+
+def cli_base_desc(change_type: str, edge: str, *, kmh: float | None = None, n_closed: int | None = None,
+                  n_car_lanes: int | None = None, target_lane: int | None = None,
+                  blocked_lanes: list[int] | None = None, speed_factor: float | None = None) -> str:
+    """The CLI's default run descriptions (V2.7e C5) through `street_names`, closing the CLI/server
+    description vintage axis: name-plus-id when `network.json` names the edge, every unnamed form
+    BYTE-IDENTICAL to the pre-C5 CLI wording (`describe_edge` renders an unnamed edge as `edge <id>`;
+    test_prompt_names pins both). FOUR of the five match `server.py`'s `/api/simulate` composers byte for
+    byte (speed_limit / lane_closure / road_closure / incident); bike_lane keeps the CLI's own MECHANICAL
+    sentence ("Converted lane k of …"), named, where the server composes the label "Bike lane on …".
+    `--description` still overrides at every call site."""
+    ref = street_names.describe_edge(edge)
+    if change_type == "speed_limit":
+        return f"Reduced max speed on {ref} to {kmh:.0f} km/h"
+    if change_type == "lane_closure":
+        return f"Closed {n_closed} of {n_car_lanes} car lanes on {ref}"
+    if change_type == "road_closure":
+        return street_names.closed_all_lanes_desc(edge)
+    if change_type == "bike_lane":
+        return f"Converted lane {target_lane} of {ref} to a bicycle-only lane"
+    if change_type == "incident":
+        return change_scheduler.incident_base_desc(blocked_lanes, speed_factor, edge,
+                                                   edge_label=street_names.describe_edge(edge, tail="incident"))
+    raise ValueError(f"no CLI description for change type {change_type!r}")
 
 
 def _parse_window(args) -> Window | None:
@@ -1677,11 +1703,11 @@ def _run_closure(args, change_type: str) -> None:
         if reason is not None:
             raise SystemExit(reason)
         closes_all = set(car_lanes) <= set(lanes)
-        base_desc = f"Closed {len(lanes)} of {len(car_lanes)} car lanes on edge {edge}"
+        base_desc = cli_base_desc("lane_closure", edge, n_closed=len(lanes), n_car_lanes=len(car_lanes))
     else:
         lanes = None
         closes_all = True
-        base_desc = f"Closed edge {edge} (all lanes)"
+        base_desc = cli_base_desc("road_closure", edge)
 
     reason = change_scheduler.assignment_rejection_reason(
         getattr(args, "assignment", "day_one"), change_type, window is not None, closes_all)
@@ -1738,7 +1764,7 @@ def _run_incident(args) -> None:
 
     profile = getattr(args, "demand_profile", "synthetic_demo")
     desc = args.description or (
-        change_scheduler.incident_base_desc(lanes if blocked else None, speed_factor, edge)
+        cli_base_desc("incident", edge, blocked_lanes=lanes if blocked else None, speed_factor=speed_factor)
         + f" {fmt_window(window, profile)}")
     change = Change(type="incident", target_edge=edge, target_lanes=lanes, window=window,
                     effect=Effect(blocked=blocked or None, speed_factor=speed_factor),

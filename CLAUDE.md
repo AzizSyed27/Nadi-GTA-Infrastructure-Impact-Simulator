@@ -899,7 +899,7 @@ FRESH dev server it passed 2/2 (the seven-hour-old server had hot-reloaded throu
 the stale-server memory, again); act-two:478 passed 1 of 2 on the fresh server — the pre-arc
 weakness, unchanged in kind, its BACKLOG item written at C9. No python or asset change; no perf.
 **V2.7e — SCORECARD DOORWAYS + THE TWO-GROUP ROOM + THE PROMPT-NAMES RATIFICATION (C1 `d6948c5` ·
-C2 `16cae9f` · C3 `aad455b` · C4 the closeout · C5 the ratified prompt names; NO contract change; plan +
+C2 `16cae9f` · C3 `aad455b` · C4 `e9fd920` · C5 the prompt names — ALL SHIPPED; NO contract change; plan +
 execution log at `~/.claude/plans/begin-v2-7e-scorecard-doorways-idempotent-key.md`). THE ROLLUP:**
 the run document's 2.4 rows SELECT (the ratified canvas, form 1d: toggle, cap two, oldest dropped)
 instead of navigating; the TRAY says what is picked ("pick one group to hear it; two to put them in
@@ -987,13 +987,81 @@ split by change type inside one prompt (speed limits reach the prompt as name-pl
 server description; closures and incidents carry a bare id; bike lanes and new roads carry
 neither); 0 of 4,686 committed LLM voices ever said an edge id; two CLI runs whose description
 named "Kingston Rd" produced ~2 % of voices naming it naturally under the existing clause.
+**C5 — PROMPT NAMES, LANDED AND GATED LIVE (2026-09-18):**
+`reactions._road_ref` renders the prompt's road NAME-PLUS-ID when `network.json` names the edge
+("1 car lane on Lawrence Avenue East (edge -439600156#2) is closed …") and the pre-C5
+`the corridor road (<id>)` BYTE-IDENTICAL when not, at lane_closure / road_closure / all three
+incident shapes; **bike_lane gains the name inside its MECHANICAL sentence and never adopts the
+description** (a recorded decision against the plan's wording: a CLI description is id-only, so
+adopting it would move the unnamed bytes, and the server's is a label — "Bike lane on …" — where a
+mechanism belongs); new_road is untouched (no edge, no name); `_SIM_FRAMING` says "no street names
+beyond those provided" (the inferred framing and the interview constitution already said "not
+provided" — verified, untouched). **`report._road_name` is the id-free twin ON PURPOSE:** the
+framing slot's prompt forbids numbers and `audit_prose` forbids digits, and an edge id IS digits —
+feeding one would invite an echo, a retry and a false drift reading on the audit-retry canary; the
+slot gains the NAME alone ("closed on Lawrence Avenue East"), unnamed byte-identical — and
+**DIGIT-FREE BY CONSTRUCTION**: 50 of the net's 4,487 named edges carry digits ("Highway 401
+Collector" / "Express", address-style "3939 Lawrence Avenue East"), and with a retry-once-then-
+fail-loudly slot audit a digit-bearing name would be a systematic failure source, so such an edge
+keeps the fallback (pinned: the phrase says "the corridor road" while the voices' line, which has
+no digit rule, says "Highway 401 Collector (edge H1)"). The `speed_limit` branch's
+`change.description` passthrough is PRE-EXISTING (name-plus-id, digits and all, since V2.7d C2) and
+not this commit's — the four new branches are id-free by construction. **The next report
+generation's audit count is the FIRST READING after the framing phrase gained the street** (a
+baseline note like 2026-07-31 and 2026-08-19, not a shift to investigate). **The CLI/server
+description axis CLOSED:** `scenario_harness.cli_base_desc` through `street_names` — FOUR of the
+five forms match the server's composers byte for byte (speed_limit / lane_closure / road_closure /
+incident); bike_lane keeps the CLI's own mechanical "Converted lane k of …" sentence, named, where
+the server composes the label "Bike lane on …" (unnamed forms byte-identical to the pre-C5 CLI
+wording; `--description` still overrides). `test_prompt_names.py` (19 pins over a three-edge
+`network.json` in tmp_path — never a skip): both forms per branch as full-string literals copied
+from a run of the untouched code, the framing clause, the id-free twin and its digit rule, the CLI
+forms, and the interview's inheritance (`build_system` carries the named line; the room rides the
+same grounding; the leakage matrix stayed green). Full pytest **752** (733 + 19). No web file
+moved (every interview/room spec mocks the backend), so no
+Playwright. **THE VOCABULARY VINTAGE DIVERGENCE, stated beside C10's "unreachable" wording:** every
+voice generated after C5 hears the street; every voice before heard "the corridor road (<id>)" —
+so committed and protected runs, their cascades (seeded from the comments verbatim) and their chat
+corpora keep the old vocabulary. Measured loudness on the acceptance run's 200 pre-C5 sim voices:
+0 say "Lawrence", 0 say the id, 27 say "corridor" — the divergence is "the corridor road" → the
+street name, never id → name. **THE GATE — RUN (2026-09-18, the user's authorized spend; one
+voices enrich of `multimodal-scenario-20260915T051601Z` from its run card, DeepSeek, metered 213
+calls, ~70 s):** the SAME 200 vehicles re-sampled (deterministic sampler), 0 of 200 comments
+identical to before. **The looked-at sample:** 65 of 212 voices name the street ("Losing a lane
+on Lawrence adds about a minute and a half to my usual eleven-minute run"; "Losing a car lane on
+Lawrence Avenue East adds about 0.3 minutes…"; "one less lane of cars squeezing past me on
+Lawrence") against 0 before — far above the ~2 % of the CLI natural experiment, which named the
+street only in a description the closure branch never showed; "corridor" fell 27 → 11; **0 say
+the id**; and the ONLY street-name token in all 212 comments is "Lawrence Avenue" — no invented
+geography under the reworded clause. One wording that LOOKS like invention is not C5's: cautious
+cyclists speculating that "closing a car lane means there's finally a protected bike lane" —
+12 such comments BEFORE, 14 after, the persona's own prior on a closure, pre-existing and
+recorded, not fixed here. **C4's two deferred observations, carried by this enrich:** (a) the
+od-line split reproduced by DOM count at +72 s — 214 cards, 198 with an od line — and the two
+omitted simulated cards are vehicles 156 (Time-pressed commuter) and 40 (Resident who drives the
+corridor), both present in the re-sample, both with a destination on an unnamed nearest edge;
+Act II unmounted at the done edge before an element capture landed, the SECOND time a specific
+card has been DOM-quoted rather than framed (a product item, BACKLOG). (b) THE COST LINE ON A
+RE-ENRICH: the FIRST frame (+3 s) read "model calls: 213 of ~215" with the voices card already
+"✓ 213 calls" — the PRIOR enrich's metered count from the ledger, rendered as if this one were
+complete (the ratified "0 of ~215" resting state is a first enrich's; a re-enrich seeds from the
+ledger row); after completion the ledger's voices row reads **426** (`add_llm_calls` accumulated
+213 + 213 while the stream fold sets) with its status still "skipped" — BACKLOG:564's divergence
+SEEN LIVE, and the row's status never marked. And the beat-4 held panel ("NO WITHDRAWAL — THIS
+CHANGE HAS NO WINDOW") re-showed over Act II on entering Watch during the manual enrich, then
+over playback after it — d's banked observation REPRODUCED (`v27e-c5-live-act2-first.png`,
+`v27e-c5-live-held-panel-after-enrich.png`, both looked at). The panel beneath it read "Building
+the chat index … It is still working" for a stage that was not running (its card said 0 calls) —
+banked beside it. The API server's in-process `interview` import needs a restart before a live
+interview reflects the line; the voices subprocess read the new `reactions.py` as is (proven by
+the sample).
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor restyle + street names + the per-lane table — SHIPPED** (fifteen commits; see the
 V2.7d box — the netconvert regen was measured at C0 and NOT taken: names ride the export from the
 tracked OSM extract, the canonical net is a fixed asset) · **V2.7e scorecard doorways + the
-two-group room — C1–C3 SHIPPED, C4 closeout + C5 prompt names (ratified) in flight** (see the V2.7e
-box; the one V2.7d deferral still open: map street labels) +
+two-group room + the prompt names — SHIPPED, C1–C5** (see the V2.7e box; the one V2.7d deferral
+still open: map street labels) +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
@@ -2204,7 +2272,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   display: 7.0 or 13.6 ms) — read p95.
 - **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
   demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (733 tests — sections: golden spine; contract
+- **Tests:** `python -m pytest python/tests` (752 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -2222,7 +2290,8 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   and its server / scheduler / report / corpus consumers — unnamed forms byte-identical, the golden
   report untouched; V2.7e's derived safety note, its recognisers over both prefixes, the earned
   rewrite over a derived prefix, the caveat coupling both ways and the protected-run recompute
-  guard) and
+  guard; C5's prompt-names pins — both forms per branch as literals, the framing clause, the
+  report's id-free and digit-free twin, the CLI forms, the interview inheritance) and
   `cd web && npx playwright test`
   (268 tests across 33 spec files incl. the V2.7e `group-evidence` (the composer, the pick rule with
   ties, the room seed's balanced / imbalanced / under-three cases) pure spec and the run-document /

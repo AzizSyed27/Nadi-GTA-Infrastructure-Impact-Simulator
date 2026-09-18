@@ -14,7 +14,7 @@ planner concludes**, never the other way around.
 the run document), **V2.7b** (the run experience — two acts over one event stream), **V2.7c** (map
 styling), **V2.7d** (the editor restyle + street names + the per-lane table) and **V2.7e** (the
 scorecard doorways + the two-group room) complete · trajectory contract
-**v0.10.0** · **733 pytest + 268 Playwright** tests · study corridor: Scarborough / Pickering /
+**v0.10.0** · **752 pytest + 268 Playwright** tests · study corridor: Scarborough / Pickering /
 Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
@@ -284,7 +284,10 @@ cd web && npx playwright test        # 185 tests, 28 specs
   most-affected voice, the numbers' basis with each cell's note read as text — or a sentence when
   it carries none; pick two to put them in a conversation, a room seeded by a stated rule that says
   its own composition). The safety cell's note now derives from the run's own seeds instead of a
-  baked tuple; the example run and the web fixtures were recomputed at that scope.
+  baked tuple; the example run and the web fixtures were recomputed at that scope. And the
+  persona prompts name the street beside the edge id (id-only when the net has no name, byte for
+  byte as before), so new voices say "Lawrence" where older ones said "the corridor road" — a
+  vocabulary vintage split that committed runs keep on their old side.
 - **V2.7d ✅** — the **editor restyle + street names + the per-lane table**: drag a change tile
   onto a road (or arm it and click), an inline mini-form fed by the road's REAL lane table for both
   directions — one member per direction, and the form says which direction it closes before you
@@ -297,7 +300,7 @@ cd web && npx playwright test        # 185 tests, 28 specs
   and bus-lane bands draw from data instead of a rule.
 - **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
   changes the saturation finding), street labels on the map itself (deferred with its cost
-  recorded; street names in the persona prompts are ratified and landing next), the window-preset chips on the drop
+  recorded), the window-preset chips on the drop
   form, a real student-demand segment, periodic mandate re-verification, the settled-basis
   re-verification rerun.
 

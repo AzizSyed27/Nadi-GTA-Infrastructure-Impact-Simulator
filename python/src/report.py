@@ -965,6 +965,22 @@ async def _slot(client, system, user, wire, field, name, audit_log) -> dict:
 # Narrative slots
 # ===================================================================================================
 
+def _road_name(change, fallback: str = "the corridor road") -> str:
+    """V2.7e C5: the framing slot's road is the street NAME ALONE when `network.json` names the edge, else
+    the pre-C5 fallback byte-identical. The id-free twin of `reactions._road_ref` ON PURPOSE: this slot's
+    prompt says "NO numbers" and `audit_prose` forbids digits — an edge id IS digits, and feeding one here
+    would invite an echo, a retry, and a false drift reading on the audit-retry canary. The same rule keeps
+    a DIGIT-BEARING name out (50 of 4,487 named edges on this net: "Highway 401 Collector", the address-style
+    "3939 Lawrence Avenue East") — such an edge keeps the fallback, so the slot is digit-free by construction
+    rather than by the model's restraint. (The `speed_limit` branch's `change.description` passthrough is
+    pre-existing — name-plus-id since V2.7d C2 — and not this rule's.)"""
+    import street_names
+
+    edge = getattr(change, "target_edge", None)
+    name = street_names.name_of(edge) if edge else None
+    return fallback if not name or _DIGIT.search(name) else name
+
+
 def _change_phrase(change, profile: str = "synthetic_demo") -> str:
     from demand_profiles import fmt_window
 
@@ -975,15 +991,17 @@ def _change_phrase(change, profile: str = "synthetic_demo") -> str:
         return (f"a new {lanes}-lane {way} road connecting junction {change.from_junction} to junction "
                 f"{change.to_junction} (no sidewalk at this stage)")
     if change.type == "bike_lane":
-        return "one general-traffic (car) lane on the corridor is being converted into a bicycle-only lane"
+        return (f"one general-traffic (car) lane on {_road_name(change, 'the corridor')} is being converted "
+                f"into a bicycle-only lane")
+    road = _road_name(change)
     if change.type == "lane_closure":  # V2.2a — mechanical; clock times on calibrated (t=0 == 07:00)
         n = len(change.target_lanes or [])
-        return (f"{n} car lane{'s are' if n != 1 else ' is'} closed on the corridor road{window_txt}; "
+        return (f"{n} car lane{'s are' if n != 1 else ' is'} closed on {road}{window_txt}; "
                 f"the road stays open in the remaining lane(s)")
     if change.type == "road_closure":
-        return f"the corridor road is fully closed{window_txt}; traffic must use other streets"
+        return f"{road} is fully closed{window_txt}; traffic must use other streets"
     if change.type == "incident":  # V2.2b — a capacity event, never a crash simulation
-        return (f"lanes blocked / capacity reduced on the corridor road{window_txt} "
+        return (f"lanes blocked / capacity reduced on {road}{window_txt} "
                 f"(a temporary incident; capacity is restored afterwards)")
     return change.description
 

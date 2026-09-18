@@ -475,12 +475,17 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   commit with the harness re-run at fit / z15.2 / z16.5, in e or f. Until it lands, street names are
   legible in the draft rows, the drop form, the run card, the report and the voice cards, but not on
   the map itself. Data is ready: `network.json` carries `name` per edge (4,487 named / 83 unnamed).
-- **`reactions.py` PROMPT NAMES — a V2.7e RATIFICATION item, not a rendering change.** Giving the
-  persona prompts the street name beside the edge id changes what the generation pipeline says, so it
-  is a generation-pipeline change wearing street-names clothing. Its cost to state when ratifying:
-  every committed artifact's voices speak edge ids (`edge -1288863201`) while new voices would speak
-  names — a VOCABULARY VINTAGE DIVERGENCE readers will meet across runs, the same class as the
-  C10 "unreachable" wording divergence. Sits beside the scorecard work in e.
+- **CLOSED (V2.7e C5, 2026-09-18) — `reactions.py` PROMPT NAMES, ratified at D-Q3 and landed.**
+  The prompt's road is name-plus-id when the net names the edge and the pre-C5 `the corridor road
+  (<id>)` byte for byte when not; bike_lane gains the name inside its mechanical sentence (never the
+  description); the framing clause reads "no street names beyond those provided"; the report's
+  framing phrase is the id-free AND digit-free twin (50 named edges carry digits — Highway 401 —
+  and that slot's audit fails loudly on digits); the CLI descriptions ride `street_names` too.
+  Gated by one live voices enrich: 65 of 212 voices named the street, 0 said the id, the only
+  street token in the corpus was the provided one. The VOCABULARY VINTAGE DIVERGENCE it predicted
+  is now a fact stated in CLAUDE.md beside C10's: voices before hear "the corridor road", voices
+  after hear the street; committed and protected runs, their cascades and their corpora keep the
+  old side (the divergence was never id → name — 0 of 4,686 committed comments said an id).
 - **Window PRESETS on the drop form (AM PEAK / SCHOOL PM / ALL DAY) — NOT implemented.** The ratified
   §1d form shows preset chips; the shipped form keeps V2.2c's start + duration minutes. When built:
   AM PEAK derives from the calibrated profile's anchor map (`simTime` / `demand_profiles` — never a
@@ -532,6 +537,26 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   durable event log on every Watch entry and the held moment keys on the results-ready beat, not on
   whether the reader already read past it. Cosmetic ("a moment, not a gate", dismissable) — V2.7b
   territory; decide whether a run that has ended dismisses the held moment by default.
+  **REPRODUCED 2026-09-18 (V2.7e C5's gate enrich):** over Act II on entering Watch, then over
+  playback after the enrich ended (`docs-assets/v27e-c5-live-act2-first.png`,
+  `v27e-c5-live-held-panel-after-enrich.png`).
+- **The stage panel under the held moment said "Building the chat index … It is still working" for
+  a stage that was not running** (V2.7e C5's gate, a voices-only manual enrich on a chain-off run:
+  card 06 rendered selected with "— 0 calls" while its body used the in-progress copy;
+  `v27e-c5-live-act2-first.png`). V2.7b territory, banked with the frame: the body copy for a
+  `skipped` / never-started stage must not say "working"; find which selection rule picked card 06.
+- **An Act II voice card cannot be framed once the enrich ends — twice now DOM-quoted, never
+  framed** (d's acceptance and e's C5: the two omitted-od-line simulated cards, vehicles 156 and 40
+  on the acceptance run, identified by artifact geometry; Act II unmounts on the done edge's 1.5 s
+  poll before an element capture lands). A product item, not a test item: a way to reopen Act II's
+  voices panel over a finished run (or a voice card in the feed that carries the od line) so a
+  specific card can be looked at without another spend.
+- **Cyclist personas speculate a closure creates "a protected bike lane"** ("If closing a car lane
+  means there's finally a protected bike lane on Lawrence…" — `cautious_cyclist`, `bike_commuter`):
+  12 such comments on the acceptance run BEFORE V2.7e C5 and 14 after, so the persona's own prior
+  and not the prompt-names change; the prompt's mechanical sentence says the lane is CLOSED and says
+  nothing about reallocation. A persona-prior honesty item: decide whether the cyclist personas'
+  descriptions or the closure line should say a closed lane is not a bike lane.
 - **`server.py:1067/1069` — the composite description has no singular guard** ("1 changes on the
   corridor" / "1 speed-limit changes"); only the school-zone branch at 1065 pluralizes. Found by the
   C10 exploration, pre-existing (V2.4b), not d's. Reachability doubtful: a 1-member draft takes the
@@ -562,7 +587,12 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   design (a moment, dismissable), noted so the acceptance frames are read right.
 - **Banked by the follow-up's exploration (V2.7b territory, none fixed):** (a) the ledger ACCUMULATES
   `llm_calls` (`add_llm_calls` +=) while the stream fold SETS them — a re-enrich reads 426 in the
-  ledger against 213 live, and the terminal-edge merge prefers the ledger; (b) that merge takes
+  ledger against 213 live, and the terminal-edge merge prefers the ledger **— SEEN LIVE 2026-09-18
+  (V2.7e C5's gate, the second voices enrich of the acceptance run): the ledger's voices row read
+  426 afterwards with its status still `skipped`, and the FIRST frame of the re-enrich (+3 s) read
+  "model calls: 213 of ~215" with the voices card already "✓ 213 calls" — the prior enrich's count
+  seeded from the ledger row and rendered as if this enrich were complete; the ratified "0 of ~215"
+  resting state is a first enrich's only**; (b) that merge takes
   `durable.projection ?? prev.projection`, and the placeholder `{calls: null, basis: ""}` is truthy —
   it can overwrite a good projection, and it overwrites stage STATUSES from a ledger the manual path
   never updates (a manual `stage_end` cannot flip a `skipped`-seeded stage to `done`: the fold's
