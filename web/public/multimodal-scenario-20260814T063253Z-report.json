@@ -361,7 +361,7 @@
         "safety_delta": {
           "value": 21.702,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "single seed (42) — cross-seed sign stability was not probed; magnitude only, directional claim not supported"
         },
         "access_delta": {
           "confidence": "low",
@@ -380,7 +380,7 @@
         "safety_delta": {
           "value": 5.43,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "single seed (42) — cross-seed sign stability was not probed; magnitude only, directional claim not supported"
         },
         "access_delta": {
           "confidence": "low",
@@ -399,7 +399,7 @@
         "safety_delta": {
           "value": -0.163,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "single seed (42) — cross-seed sign stability was not probed; magnitude only, directional claim not supported"
         },
         "access_delta": {
           "confidence": "low",
@@ -412,7 +412,7 @@
         "safety_delta": {
           "value": 24.201,
           "confidence": "low",
-          "note": "sign not stable across seeds 42/43/44; directional claim not supported"
+          "note": "single seed (42) — cross-seed sign stability was not probed; magnitude only, directional claim not supported"
         },
         "access_delta": {
           "confidence": "low",
@@ -744,5 +744,5 @@
     "outcomes-20260814T063253Z.json",
     "conflicts-baseline-20260814T063253Z.json"
   ],
-  "facts_refreshed_at": "2026-09-04T01:10:54.729981+00:00"
+  "facts_refreshed_at": "2026-09-18T05:13:16.982981+00:00"
 }

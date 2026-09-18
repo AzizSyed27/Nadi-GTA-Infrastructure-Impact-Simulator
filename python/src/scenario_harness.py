@@ -1875,7 +1875,8 @@ def run_quant(change: Change, ts: str, scenario_net_path: Path, new_edge_ids: li
     sc = scorecard.compute_scorecard(buckets, ids["conf_b"]["ssm"] + ids["conf_b"]["ped"], conflicts_s,
                                      [change.model_dump(exclude_none=True)], demand_profile=profile,
                                      conflict_sample_of=len(conflicts_s)
-                                     if len(conflicts_render) < len(conflicts_s) else None)
+                                     if len(conflicts_render) < len(conflicts_s) else None,
+                                     seeds=[ids.get("seed", DEFAULT_SEED)])  # V2.7e C3: the note names THIS seed
     seeds_obj, seed_cells = _attach_seed_ranges(sc, ids, [change], profile, demand, assignment)
 
     (RUNS_DIR / f"outcomes-{ids['ts']}.json").write_text(json.dumps({
@@ -1962,7 +1963,8 @@ def run_quant_runtime(changes: list[Change], ts: str, target_lane: int | None, s
                                      [c.model_dump(exclude_none=True) for c in changes],
                                      demand_profile=profile,
                                      conflict_sample_of=len(conflicts_s)
-                                     if len(conflicts_render) < len(conflicts_s) else None)
+                                     if len(conflicts_render) < len(conflicts_s) else None,
+                                     seeds=[ids.get("seed", DEFAULT_SEED)])  # V2.7e C3: the note names THIS seed
     seeds_obj, seed_cells = _attach_seed_ranges(sc, ids, changes, profile, demand, assignment)
 
     # V2.2a/b capacity events: the first-class numbers are diverted count (reroute),

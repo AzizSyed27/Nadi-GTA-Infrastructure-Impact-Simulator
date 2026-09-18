@@ -1177,9 +1177,11 @@ def _safety_direction_body(facts: dict) -> str:
     follow-up; same cure. The calibrated peak-density clause is real content appended AFTER that
     prefix and survives verbatim (the `removeprefix` idiom scorecard.py:265 already uses).
 
-    The cell NOTES themselves still carry the baked tuple — fixing those means recomputing the
-    scorecard into committed artifacts, a deliberate ceremony recorded in BACKLOG. This cures the
-    one surface where the stale text is READ, not hovered."""
+    V2.7e C3 — the cell notes derive from the run's seeds too now (`scorecard.default_safety_note`;
+    the EXAMPLE run and the web fixtures recomputed), but every un-recomputed vintage still carries
+    the V1 literal, so this branch recognises BOTH default prefixes (`is_default_safety_note`) and
+    quotes only an EARNED note. The example's own contradiction — single-seed caveat beside 42/43/44
+    cells — is what the evidence strip put on screen, and why the recompute ceremony was taken."""
     import scorecard  # deferred: keeps report ← scorecard acyclic (scorecard never imports report)
 
     note = next((g.safety_delta.note for g in facts["by_group"].values()
@@ -1187,11 +1189,11 @@ def _safety_direction_body(facts: dict) -> str:
     tail = ("The safety surrogate is reported as a magnitude only — its direction is not claimed"
             "{clause}. Do not read the safety column as 'the change made things safer or "
             "more dangerous'.")
-    if note and not note.startswith(scorecard._SAFETY_NOTE):
+    if note and not scorecard.is_default_safety_note(note):
         # an EARNED note (a multi-seed run measured its own stability) — quote it as before
         return tail.format(clause=f": “{note}”")
     seeds = facts["seeds"]
-    appendix = note.removeprefix(scorecard._SAFETY_NOTE) if note else ""
+    appendix = scorecard.strip_default_safety_prefix(note) if note else ""
     if len(seeds) > 1:
         derived = (f". Seeds {_seed_list(seeds)} were run for this scenario, but no per-cell sign "
                    f"stability was recorded for the safety column")

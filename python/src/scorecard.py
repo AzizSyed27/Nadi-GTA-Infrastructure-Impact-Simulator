@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -38,9 +39,69 @@ WEB_PUBLIC = ROOT / "web" / "public"
 # (The 0.5 s "loser" threshold gave a near-noise 36% for cars that collapsed to ~3% at >30 s — the honest
 # concentration story is a small hard-hit tail, majority unaffected. 2.5-close-out re-labels to this.)
 MATERIALITY_CUTOFF_S = 30.0
-# Robustness caveat baked into the safety cells: the precursor showed every per-group safety-delta sign
-# flips across seeds 42/43/44 — the number is a magnitude, NOT a directional claim.
-_SAFETY_NOTE = "sign not stable across seeds 42/43/44; directional claim not supported"
+# V2.7e C3 — THE SAFETY CELL'S NOTE DERIVES FROM THIS RUN'S SEEDS. The V1 literal below baked the
+# canonical 42/43/44 tuple into every SINGLE-seed run's safety cells (the precursor's finding, stated
+# as if every run had re-checked it) — the same constant-seed-tuple disease `report._cross_seed_sentence`
+# and the landing caveat were cured of, but written into committed artifacts. It stayed hover-only
+# until V2.7e C1 put the cell notes on screen as body text. The literal is KEPT and RECOGNISED — every
+# un-recomputed vintage on disk still carries it (the pinned run, the 0709 pair, sample_v0_4_0, the
+# archived V2.1b smoke) — but it is never written again: `default_safety_note` composes the note from
+# the seeds the run actually used, and `_apply_ranges` still replaces either prefix with the EARNED
+# note once a multi-seed run's ranges attach.
+_LEGACY_SAFETY_NOTE = "sign not stable across seeds 42/43/44; directional claim not supported"
+_SAFETY_NOTE = _LEGACY_SAFETY_NOTE  # the tests' name for the V1 literal — recognised, not written
+_DEFAULT_TAIL = "cross-seed sign stability was not probed; magnitude only, directional claim not supported"
+_DEFAULT_NOTE_RE = re.compile(
+    r"^(?:single seed \(\d+\) — cross-seed sign stability was not probed"
+    r"|seed count not recorded — cross-seed sign stability was not probed"
+    r"|seeds [\d, ]+ were run — per-cell sign stability rides the range where recorded)"
+    r"; magnitude only, directional claim not supported"
+)
+
+
+def default_safety_note(seeds: list[int] | None) -> str:
+    """The safety cells' default note, from the seeds THIS run used (None = not recorded — a fixture
+    built without a run says so rather than borrowing a tuple). Stability is never claimed here:
+    a multi-seed run's `_apply_ranges` rewrites the note from what its seeds actually showed."""
+    if not seeds:
+        return f"seed count not recorded — {_DEFAULT_TAIL}"
+    if len(seeds) == 1:
+        return f"single seed ({seeds[0]}) — {_DEFAULT_TAIL}"
+    listed = ", ".join(str(s) for s in seeds)
+    return (f"seeds {listed} were run — per-cell sign stability rides the range where recorded; "
+            f"magnitude only, directional claim not supported")
+
+
+def _default_prefix(note: str) -> str | None:
+    if note.startswith(_LEGACY_SAFETY_NOTE):
+        return _LEGACY_SAFETY_NOTE
+    m = _DEFAULT_NOTE_RE.match(note)
+    return m.group(0) if m else None
+
+
+def is_default_safety_note(note: str | None) -> bool:
+    """A DEFAULT note (legacy literal or derived) as opposed to an EARNED one a multi-seed run
+    measured — the report quotes earned notes and derives its caveat from default ones."""
+    return bool(note) and _default_prefix(note or "") is not None
+
+
+def strip_default_safety_prefix(note: str | None) -> str:
+    """Whatever rides AFTER the default prefix (the calibrated peak-density clause, the sample
+    disclosure) — real content that survives every rewrite; an earned note passes through whole."""
+    n = note or ""
+    p = _default_prefix(n)
+    return n[len(p):] if p else n
+
+
+def refuse_if_protected(run_id: str) -> None:
+    """The mechanical layer the recompute ceremony lacked: a scorecard recompute REWRITES the
+    artifact, so a protected run refuses without the same env escape hatch the enrich guards honour."""
+    if trajectory_io.pinned_enrich_blocked(run_id):
+        raise SystemExit(
+            f"{run_id} is a PROTECTED run (its artifact is committed and landing-load-bearing) and a "
+            f"scorecard recompute REWRITES it. Refusing. For the deliberate ceremony set "
+            f"{trajectory_io.ALLOW_PINNED_ENV}=1."
+        )
 
 # The seven canonical groups: three sim-grounded (have trips) + four inferred (no simulated trip).
 SIM_GROUPS = ("car_commuter", "cyclist", "pedestrian")
@@ -114,7 +175,8 @@ def _severity_sums(conflicts: list[dict]) -> dict[str, float]:
 
 def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts: list[dict],
                       changes: list[dict], demand_profile: str = "synthetic_demo",
-                      conflict_sample_of: int | None = None) -> Scorecard:
+                      conflict_sample_of: int | None = None,
+                      seeds: list[int] | None = None) -> Scorecard:
     """Assemble the 7-group scorecard. ``buckets`` = outcomes['modes']; conflicts are lists of dicts.
     ``changes`` is the v0.5.0 change list (a single-change scenario is a list of one → identical output).
 
@@ -128,7 +190,9 @@ def compute_scorecard(buckets: dict, base_conflicts: list[dict], scen_conflicts:
     # safety = Δ severity-sum (scenario − baseline). Sim groups MEASURED; local_resident = overall ESTIMATED.
     base_s, scen_s = _severity_sums(base_conflicts), _severity_sums(scen_conflicts)
 
-    safety_note = _SAFETY_NOTE
+    # V2.7e C3 — from THIS run's seeds (the harness passes them; `main()` derives them; a fixture
+    # built without a run passes none and the note says so)
+    safety_note = default_safety_note(seeds)
     if demand_profile == "calibrated_am_peak":
         safety_note += (
             ". At peak density, safety surrogates are dominated by queue interactions; raw conflict "
@@ -261,8 +325,7 @@ def _apply_ranges(sc: Scorecard, values: dict, *, settled: bool) -> None:
                     f"sign consistent across seeds {seed_list} in this run; still reported as "
                     f"magnitude only (a {len(vs)}-seed probe, not proof of direction)"
                 )
-                old = cell.note or ""
-                cell.note = earned + old.removeprefix(_SAFETY_NOTE)
+                cell.note = earned + strip_default_safety_prefix(cell.note)
             elif not cell.range.sign_stable:
                 appendix = "sign not stable across seeds this run — magnitude only"
                 cell.note = f"{cell.note}; {appendix}" if cell.note else appendix
@@ -286,7 +349,10 @@ def _resolve(run_id: str | None) -> tuple[Path, str]:
 
 
 def _fmt_cell(cell) -> str:
-    if cell is None:
+    # V2.7e C3 — a composite-null cell (value None WITH a note, the V2.4b shape) used to crash this
+    # print with a NoneType format error; the artifact write precedes the print, so the crash hid
+    # nothing, but the readback is the ceremony's proof and must render.
+    if cell is None or cell.value is None:
         return "—"
     tag = {"measured": "MEAS", "low": "LOW"}.get(cell.confidence, "?")
     share = f", {cell.affected_share:.0%} affected" if cell.affected_share is not None else ""
@@ -299,6 +365,9 @@ def main() -> None:
     args = ap.parse_args()
 
     art_path, ts = _resolve(args.run_id)
+    # V2.7e C3 — a recompute REWRITES a committed artifact for a protected run: refuse unless the
+    # deliberate-ceremony env is set (the same escape hatch the enrich guards honour).
+    refuse_if_protected(art_path.stem)
     outcomes = json.loads((RUNS_DIR / f"outcomes-{ts}.json").read_text(encoding="utf-8"))
     baseline = json.loads((RUNS_DIR / f"conflicts-baseline-{ts}.json").read_text(encoding="utf-8"))
     raw_art = json.loads(art_path.read_text(encoding="utf-8"))
@@ -320,11 +389,27 @@ def main() -> None:
         scen_conflicts = raw_art["conflicts"]
     sample_of = len(scen_conflicts) if len(raw_art["conflicts"]) < len(scen_conflicts) else None
 
+    # V2.7e C3 — the seeds THIS run used, native-first (the same chain as report.gather_facts): the
+    # outcomes sidecar (a real multi-seed run) → the legacy robustness verdict's list → [42] only.
+    sc_seeds = outcomes.get("seeds") or {}
+    if sc_seeds:
+        seeds = [sc_seeds["canonical"], *sc_seeds.get("probes", [])]
+    else:
+        verdict_path = RUNS_DIR / f"robustness-verdict-{ts}.json"
+        vseeds = None
+        if verdict_path.is_file():
+            try:
+                vseeds = json.loads(verdict_path.read_text(encoding="utf-8")).get("seeds")
+            except (OSError, ValueError):
+                vseeds = None
+        seeds = vseeds or [42]
+
     scorecard = compute_scorecard(
         outcomes["modes"], baseline["conflicts"], scen_conflicts,
         changes_of_scenario(raw_art["meta"]["scenario"]),
         demand_profile=raw_art["meta"].get("demand_profile", "synthetic_demo"),
         conflict_sample_of=sample_of,
+        seeds=seeds,
     )
     # V2.1d: a multi-seed run's sidecar carries per-seed cell values — re-attach the ranges, else
     # this recompute would silently DROP them (the probe tripinfos may be gone).
