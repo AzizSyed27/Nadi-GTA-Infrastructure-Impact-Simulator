@@ -346,6 +346,61 @@ test('the feed says a zero-voice group has NO voices in this run — never "keep
   await expect(page.getByTestId('feed-empty')).toHaveText('No Car commuters voices yet — keep playing.');
 });
 
+// ── V2.7e C2 — two selections: the ROOM CTA (canvas 1d) ─────────────────────────────────────────
+
+test('two selections offer "Put A + B in a conversation" — and the seeded room states its composition', async ({ page }) => {
+  await page.goto(`/?run=${EXAMPLE}`);
+  await gate(page);
+  await openStage(page, 'read');
+  await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 30_000 });
+  await page.locator('[data-testid="doc-group-row"][data-group="car_commuter"]').click();
+  await page.locator('[data-testid="doc-group-row"][data-group="cyclist"]').click();
+  const cta = page.getByTestId('doc-room-cta');
+  await expect(cta).toHaveText('Put Car commuters + Cyclists in a conversation →'); // canvas-verbatim
+  await expect(page.getByTestId('doc-evidence')).toHaveCount(0); // the strip is a ONE-selection surface
+  if (process.env.NADI_SHOTS) {
+    await cta.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: '../docs-assets/v27e-c2-room-cta.png' });
+  }
+  await cta.click();
+  // Watch, the room open, seeded by the STATED rule: alternating A/B, each group's most-affected
+  // simulated voices first — 120 + 40 sim voices supply five seats as 3 + 2
+  const drawer = page.getByTestId('room-drawer');
+  await expect(drawer).toBeVisible({ timeout: 15_000 });
+  await expect(drawer.locator('[data-testid^="room-member-"]')).toHaveCount(5);
+  await expect(page.getByTestId('room-seed-note')).toHaveText(
+    'seeded 3 from Car commuters, 2 from Cyclists — most-affected first; add or remove anyone',
+  );
+  // the curation note keeps its bytes — the seed sentence is a SEPARATE element
+  await expect(page.getByTestId('room-note')).toHaveText(
+    'voices you picked, answering one at a time — a conversation preview, not a poll or a sample of opinion',
+  );
+  await expect(page.getByTestId('room-blocker')).toHaveCount(0);
+  await expect(page.getByTestId('feed-filter-chip')).toContainText('Car commuters'); // the feed follows group A
+  const text = await drawer.innerText();
+  expect(text).not.toMatch(BANNED);
+  expect(text).not.toMatch(STANCE_TALLY);
+  if (process.env.NADI_SHOTS) {
+    // a viewport capture: the drawer sits in the right rail under live playback and an element
+    // capture never reaches "stable" (the same class as the Act II frame)
+    await page.getByTestId('room-seed-note').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: '../docs-assets/v27e-c2-seeded-room.png' });
+  }
+});
+
+test('a pair that cannot fill a room gets a sentence, not a door', async ({ page }) => {
+  // institutions-run.json: one car commuter + one resident — two voices, and a room needs three
+  const inst = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'institutions-run.json'), 'utf-8'));
+  const art = { ...inst, meta: { ...inst.meta, run_id: RUN_ID }, scorecard: craftedScorecard() };
+  await openDoc(page, art, mkReport(RUN_ID));
+  await page.locator('[data-testid="doc-group-row"][data-group="car_commuter"]').click();
+  await page.locator('[data-testid="doc-group-row"][data-group="local_resident"]').click();
+  await expect(page.getByTestId('doc-room-cta')).toHaveCount(0);
+  await expect(page.getByTestId('doc-room-short')).toHaveText(
+    'Car commuters + Local residents carry only 2 voices in this run — a room needs 3',
+  );
+});
+
 test('the Ask door opens the interview drawer on the group’s most-affected simulated voice', async ({ page }) => {
   await page.goto(`/?run=${EXAMPLE}`);
   await gate(page);

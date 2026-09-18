@@ -5,6 +5,10 @@ import { useMemo, useState } from 'react';
 import type { Agent, MandateAgent, PinnedSimAgent } from '@/lib/types';
 import { agentId, sentimentHex } from '@/lib/viz';
 import { GROUP_LABEL, groupOfAgent, modeIcon } from '@/lib/personaGroups';
+import { ROOM_MAX, ROOM_MIN } from '@/lib/groupEvidence';
+
+/** The ＋ buttons' title — the room's size rule from its one source. */
+const ADD_TITLE = `Add to conversation — a group interview (${ROOM_MIN}–${ROOM_MAX} voices)`;
 
 interface CommentFeedProps {
   /** Sim-grounded agents (carry trigger_t — pop at their worst moment). */
@@ -163,7 +167,7 @@ export function CommentFeed(props: CommentFeedProps) {
                   <button
                     style={addBtn}
                     data-testid="room-add-institution"
-                    title="Add to conversation — a group interview (3–5 voices)"
+                    title={ADD_TITLE}
                     aria-label={`Add ${a.persona.label} to conversation`}
                     onClick={() => onAddToRoom(a)}
                   >
@@ -211,7 +215,7 @@ export function CommentFeed(props: CommentFeedProps) {
                     <button
                       style={addBtn}
                       data-testid="room-add-sim"
-                      title="Add to conversation — a group interview (3–5 voices)"
+                      title={ADD_TITLE}
                       aria-label={`Add ${it.agent.persona.label} to conversation`}
                       onClick={() => onAddToRoom(it.agent)}
                     >
@@ -243,7 +247,7 @@ export function CommentFeed(props: CommentFeedProps) {
                     <button
                       style={addBtn}
                       data-testid="room-add-community"
-                      title="Add to conversation — a group interview (3–5 voices)"
+                      title={ADD_TITLE}
                       aria-label={`Add ${it.agent.persona.label} to conversation`}
                       onClick={() => onAddToRoom(it.agent)}
                     >

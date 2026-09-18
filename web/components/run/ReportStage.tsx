@@ -43,6 +43,7 @@ export function ReportStage({
   liveName,
   onGroupDoorway,
   onGroupInterview,
+  onGroupRoom,
 }: {
   experience: RunFeedState;
   artifact: TrajectoryArtifact;
@@ -55,6 +56,7 @@ export function ReportStage({
   /** V2.7e — threaded to the document; this stage renders INSIDE Act II, so its doors are always
    *  blocked (Watch is the interpretation streaming in, with nothing for a door to land on). */
   onGroupInterview?: (agent: Agent) => void;
+  onGroupRoom?: (a: string, b: string) => void;
 }) {
   const tally = auditTally(experience.slots);
   const corrected = experience.slots.filter((s) => s.status === 'resolved_on_retry');
@@ -97,6 +99,7 @@ export function ReportStage({
             liveName={liveName}
             onGroupDoorway={onGroupDoorway}
             onGroupInterview={onGroupInterview}
+            onGroupRoom={onGroupRoom}
             doorwaysBlocked
           />
         </div>

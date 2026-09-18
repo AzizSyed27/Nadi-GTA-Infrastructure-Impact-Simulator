@@ -33,6 +33,8 @@ import type { VoiceEvent } from '@/lib/runStream';
 import { useRunFeed } from '@/lib/useRunFeed';
 import { InterviewDrawer } from '@/components/InterviewDrawer';
 import { RoomDrawer, type RoomMsg, type RoomPair, type RoomRound } from '@/components/RoomDrawer';
+import { ROOM_MAX, roomSeed, seedNote } from '@/lib/groupEvidence';
+import { GROUP_LABEL } from '@/lib/personaGroups';
 import { GraphSplitView } from '@/components/GraphSplitView';
 import type { GraphsSidecar } from '@/lib/graphLayers';
 import { Timeline } from '@/components/Timeline';
@@ -311,6 +313,9 @@ export default function MapView() {
   const [roomMsgs, setRoomMsgs] = useState<RoomMsg[]>([]);
   const [roomRound, setRoomRound] = useState<RoomRound | null>(null);
   const [roomLastRound, setRoomLastRound] = useState<number | null>(null);
+  // V2.7e C2 — the note a document-seeded room carries ("seeded 3 from A, 2 from B — …"); null for
+  // a room the reader assembled by hand. Cleared with the rest of the session.
+  const [roomSeededFrom, setRoomSeededFrom] = useState<string | null>(null);
   const roomEpoch = useRef(0);
   // SYNCHRONOUS in-flight guard (review catch): React state commits async, so key-repeat on a
   // focused Retry/Ask can fire twice before `roomRound` updates — a ref check-and-set is the only
@@ -1167,6 +1172,7 @@ export default function MapView() {
     setRoomMsgs([]);
     setRoomRound(null);
     setRoomLastRound(null);
+    setRoomSeededFrom(null);
     // V2.3d: an enrich may have just exported fresh graph layouts for this same run_id — drop the
     // cached (possibly 404-errored) sidecar so graphs mode refetches instead of staying stale
     setGraphsSidecar(null);
@@ -1206,7 +1212,7 @@ export default function MapView() {
       if (idx < 0) return;
       setRoomOpen(true);
       setRoomPairs((cur) => {
-        if (cur.length >= 5 || cur.some((p) => p.index === idx)) return cur;
+        if (cur.length >= ROOM_MAX || cur.some((p) => p.index === idx)) return cur;
         return [...cur, { agent, index: idx }];
       });
     },
@@ -1216,6 +1222,31 @@ export default function MapView() {
   const removeFromRoom = useCallback((index: number) => {
     setRoomPairs((cur) => cur.filter((p) => p.index !== index));
   }, []);
+
+  // V2.7e C2 — the run document's two-group doorway: a FRESH room composed by `roomSeed`'s stated
+  // rule (each group's most-affected simulated voices first, alternating, cap ROOM_MAX), its note
+  // stating the actual composition. A new roster starts a new thread — the previous session's
+  // messages belonged to a room the reader is no longer in — and the epoch bump orphans any round
+  // still in flight. The feed follows group A (the existing single-group join; the two-group feed
+  // filter is deferred, BACKLOG).
+  const seedRoom = useCallback(
+    (a: string, b: string) => {
+      if (!artifact) return;
+      const seed = roomSeed(artifact, a, b);
+      if (!seed) return; // the document renders no CTA for such a pair — belt and braces
+      roomEpoch.current++;
+      roomLoopActive.current = false;
+      setRoomPairs(seed.pairs);
+      setRoomMsgs([]);
+      setRoomRound(null);
+      setRoomLastRound(null);
+      setRoomSeededFrom(seedNote(GROUP_LABEL[a] ?? a, seed.counts.a, GROUP_LABEL[b] ?? b, seed.counts.b));
+      setRoomOpen(true);
+      setFeedGroup(a);
+      setStage('watch');
+    },
+    [artifact],
+  );
 
   // The sequential round loop (the ratified speak-param transport): one POST per speaker, each
   // answer appended to the wire transcript before the next call — answers render as they arrive.
@@ -3006,6 +3037,7 @@ export default function MapView() {
                 setInterviewee(agent);
                 setStage('watch');
               }}
+              onGroupRoom={seedRoom}
             />
           }
         />
@@ -3122,6 +3154,7 @@ export default function MapView() {
                 onDismissRound={dismissRound}
                 onRemove={removeFromRoom}
                 onClose={() => setRoomOpen(false)}
+                seededFrom={roomSeededFrom}
               />
             )}
           </div>
@@ -3230,6 +3263,7 @@ export default function MapView() {
               setInterviewee(agent);
               setStage('watch');
             }}
+            onGroupRoom={seedRoom}
             // V2.7e — Act II holds Watch (no feed, no drawer to land on); Act I never reaches here
             // (Read shows the not-computed panel instead of a document)
             doorwaysBlocked={actTwo}

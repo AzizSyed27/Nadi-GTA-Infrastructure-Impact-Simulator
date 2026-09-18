@@ -140,6 +140,45 @@ async function sweepRoom(page: Page) {
   expect(drawerText).not.toMatch(STANCE_TALLY);
 }
 
+// ── V2.7e C2 — a room SEEDED from the run document's two-group doorway ──────────────────────────
+
+test('the document seeds a room from two groups by the stated rule; the reader can still edit it', async ({ page }) => {
+  // the mock's four agents: the car commuter (idx 0, sim), two residents (idx 1 and the pushed
+  // sibling at idx 3, both inferred) and the mandate voice (idx 2 — never a scorecard group)
+  const captured: CapturedPost[] = [];
+  await mockBackend(page, captured);
+  await page.goto('/');
+  await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
+  await page.reload();
+  await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 20_000 }); // the landing is Read
+  await page.locator('[data-testid="doc-group-row"][data-group="car_commuter"]').click();
+  await page.locator('[data-testid="doc-group-row"][data-group="local_resident"]').click();
+  await page.getByTestId('doc-room-cta').click();
+
+  const drawer = page.getByTestId('room-drawer');
+  await expect(drawer).toBeVisible({ timeout: 15_000 });
+  // 1 + 2 = 3 seats, alternating from A: car (0), resident (1), then B backfills — resident (3)
+  await expect(page.getByTestId('room-member-0')).toBeVisible();
+  await expect(page.getByTestId('room-member-1')).toBeVisible();
+  await expect(page.getByTestId('room-member-3')).toBeVisible();
+  await expect(page.getByTestId('room-member-2')).toHaveCount(0); // the institution is not seeded
+  // THE IMBALANCE RIDER: the note carries the ACTUAL counts, one derived template
+  await expect(page.getByTestId('room-seed-note')).toHaveText(
+    'seeded 1 from Car commuters, 2 from Local residents — most-affected first; add or remove anyone',
+  );
+  await expect(page.getByTestId('room-note')).toHaveText(
+    'voices you picked, answering one at a time — a conversation preview, not a poll or a sample of opinion',
+  );
+  await expect(page.getByTestId('room-blocker')).toHaveCount(0);
+  await sweepRoom(page);
+  // still the reader's room: remove a seeded member and the 3-voice floor gates Ask again
+  await page.getByTestId('room-remove-3').click();
+  await expect(page.getByTestId('room-blocker')).toHaveText(
+    'a room needs at least 3 voices — for one voice, use 🎤 Interview',
+  );
+  expect(captured).toHaveLength(0); // seeding POSTs nothing — only Ask spends
+});
+
 test('assembles a mixed room: per-kind grounding sentences; under 3 voices Ask is blocked', async ({ page }) => {
   const captured: CapturedPost[] = [];
   await mockBackend(page, captured);

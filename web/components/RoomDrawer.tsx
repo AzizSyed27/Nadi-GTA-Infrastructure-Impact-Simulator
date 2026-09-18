@@ -7,6 +7,7 @@ import type { GroupTurnWire } from '@/lib/api';
 import { GROUNDING_SENTENCES } from '@/components/InterviewDrawer';
 import { modeIcon, groupOfAgent, INSTITUTION_GROUP } from '@/lib/personaGroups';
 import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
+import { ROOM_MAX, ROOM_MIN } from '@/lib/groupEvidence';
 
 /**
  * V2.6b — the group-interview ROOM drawer: 3-5 of this run's voices answer one question in turn,
@@ -67,6 +68,7 @@ export function RoomDrawer({
   onDismissRound,
   onRemove,
   onClose,
+  seededFrom = null,
 }: {
   pairs: RoomPair[];
   messages: RoomMsg[];
@@ -78,6 +80,10 @@ export function RoomDrawer({
   onDismissRound: () => void;
   onRemove: (index: number) => void;
   onClose: () => void;
+  /** V2.7e C2 — the run document seeded this room from two groups: the note stating the ACTUAL
+   *  composition ("seeded 3 from A, 2 from B — most-affected first; add or remove anyone"), a
+   *  SEPARATE element from the curation note, whose bytes are pinned. */
+  seededFrom?: string | null;
 }) {
   const [input, setInput] = useState('');
   const n = pairs.length;
@@ -112,7 +118,7 @@ export function RoomDrawer({
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const q = input.trim();
-    if (!q || round != null || n < 3) return;
+    if (!q || round != null || n < ROOM_MIN) return;
     setInput('');
     onAsk(q);
   };
@@ -129,6 +135,11 @@ export function RoomDrawer({
         voices you picked, answering one at a time — a conversation preview, not a poll or a sample
         of opinion
       </div>
+      {seededFrom && (
+        <div style={curation} data-testid="room-seed-note">
+          {seededFrom}
+        </div>
+      )}
 
       <div style={memberList}>
         {pairs.map((p) => (
@@ -153,14 +164,14 @@ export function RoomDrawer({
         ))}
       </div>
 
-      {n < 3 && (
+      {n < ROOM_MIN && (
         <div style={blocker} data-testid="room-blocker">
-          a room needs at least 3 voices — for one voice, use 🎤 Interview
+          a room needs at least {ROOM_MIN} voices — for one voice, use 🎤 Interview
         </div>
       )}
-      {n === 5 && (
+      {n === ROOM_MAX && (
         <div style={capNote} data-testid="room-cap-note">
-          room capped at 5 voices — each answer is a separate guarded model call
+          room capped at {ROOM_MAX} voices — each answer is a separate guarded model call
         </div>
       )}
 
@@ -246,9 +257,9 @@ export function RoomDrawer({
               maxLength={500}
             />
             <button
-              style={{ ...sendBtn, ...(round != null || n < 3 || !input.trim() ? sendDisabled : null) }}
+              style={{ ...sendBtn, ...(round != null || n < ROOM_MIN || !input.trim() ? sendDisabled : null) }}
               data-testid="room-ask"
-              disabled={round != null || n < 3 || !input.trim()}
+              disabled={round != null || n < ROOM_MIN || !input.trim()}
             >
               Ask
             </button>

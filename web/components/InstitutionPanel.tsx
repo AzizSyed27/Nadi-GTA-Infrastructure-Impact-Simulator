@@ -1,6 +1,7 @@
 'use client';
 
 import type { MandateAgent } from '@/lib/types';
+import { ROOM_MAX, ROOM_MIN } from '@/lib/groupEvidence';
 
 /**
  * V2.3c — the institutional GROUNDING CARD (right rail, AgentPanel sibling): the sourced published
@@ -83,7 +84,7 @@ export function InstitutionPanel({
           style={interviewBtn}
           data-testid="room-add-institution-panel"
           onClick={() => onAddToRoom(agent)}
-          title="Add this mandate-lens voice to a group interview — 3–5 voices answer the same question in turn."
+          title={`Add this mandate-lens voice to a group interview — ${ROOM_MIN}–${ROOM_MAX} voices answer the same question in turn.`}
         >
           {'👥 Add to conversation'}
         </button>

@@ -2,6 +2,7 @@
 
 import type { PinnedSimAgent } from '@/lib/types';
 import { minutes, sentimentHex, signedMinutes } from '@/lib/viz';
+import { ROOM_MAX, ROOM_MIN } from '@/lib/groupEvidence';
 
 /** Side panel for a clicked instrumented traveler: persona, before/after numbers, full comment.
  *  Handles both pinned-sim kinds — vehicle-backed (driving) and person-backed (walking).
@@ -73,7 +74,7 @@ export function AgentPanel({
           style={interviewBtn}
           data-testid="room-add-panel"
           onClick={() => onAddToRoom(agent)}
-          title="Add this voice to a group interview — 3–5 voices answer the same question in turn."
+          title={`Add this voice to a group interview — ${ROOM_MIN}–${ROOM_MAX} voices answer the same question in turn.`}
         >
           {'👥 Add to conversation'}
         </button>

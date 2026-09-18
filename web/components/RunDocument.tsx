@@ -20,7 +20,7 @@ import type { Agent, TrajectoryArtifact } from '@/lib/types';
 import { changesOf } from '@/lib/types';
 import { GROUP_LABEL, SCORECARD_GROUP_ORDER, groupOfAgent } from '@/lib/personaGroups';
 import { chipInferred, chipSim, fmtSigned } from '@/lib/scorecardStyles';
-import { groupEvidence, type GroupEvidence } from '@/lib/groupEvidence';
+import { ROOM_MIN, groupEvidence, rankedVoices, roomSeed, type GroupEvidence } from '@/lib/groupEvidence';
 import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import { fmtWindowRange } from '@/lib/simTime';
 import { assignmentLabel, demandLabel } from '@/lib/provenance';
@@ -76,6 +76,7 @@ export function RunDocument({
   interpretation = null,
   onGroupDoorway,
   onGroupInterview,
+  onGroupRoom,
   doorwaysBlocked = false,
 }: {
   artifact: TrajectoryArtifact;
@@ -94,6 +95,9 @@ export function RunDocument({
   /** V2.7e — the ASK door: open the interview drawer on the group's pick (an element of
    *  artifact.agents — the drawer resolves it by reference). */
   onGroupInterview?: (agent: Agent) => void;
+  /** V2.7e C2 — the ROOM CTA: put two selected groups in a conversation (MapView seeds the room by
+   *  `roomSeed`'s stated rule and opens it in Watch). Rendered only when the pair can fill a room. */
+  onGroupRoom?: (a: string, b: string) => void;
   /** V2.7e — Watch is showing a run in progress (Act II), so the doors have nothing to land on:
    *  they render disabled with the reason, never as live-looking buttons that fail. */
   doorwaysBlocked?: boolean;
@@ -516,6 +520,15 @@ export function RunDocument({
             sup={sup}
           />
         )}
+        {selected.length === 2 && (
+          <RoomCta
+            artifact={artifact}
+            a={selected[0]}
+            b={selected[1]}
+            blocked={!!doorwaysBlocked}
+            onRoom={onGroupRoom}
+          />
+        )}
       </section>
 
       {/* ── voices / institutional / discourse — the audited report sections, testids intact ── */}
@@ -822,6 +835,56 @@ function EvidenceStrip({
   );
 }
 
+/**
+ * V2.7e C2 — two selections: the ROOM CTA (canvas 1d, "Put A + B in a conversation →"). It renders
+ * ONLY when the pair can fill a room (the 3-voice floor): a pair that cannot gets a sentence with
+ * its own count — a live-looking door that fails is the surface V2.7a refused to ship. Which voices
+ * are seeded is `roomSeed`'s stated rule; the room says the composition it was given.
+ */
+function RoomCta({
+  artifact,
+  a,
+  b,
+  blocked,
+  onRoom,
+}: {
+  artifact: TrajectoryArtifact;
+  a: string;
+  b: string;
+  blocked: boolean;
+  onRoom?: (a: string, b: string) => void;
+}) {
+  const la = GROUP_LABEL[a] ?? a;
+  const lb = GROUP_LABEL[b] ?? b;
+  const seed = roomSeed(artifact, a, b);
+  if (!seed) {
+    const n = rankedVoices(artifact, a).length + rankedVoices(artifact, b).length;
+    return (
+      <div style={stripNote} data-testid="doc-room-short">
+        {la} + {lb} carry only {n} voice{n === 1 ? '' : 's'} in this run — a room needs {ROOM_MIN}
+      </div>
+    );
+  }
+  return (
+    <div style={ctaRow}>
+      <button
+        style={{ ...cta, ...(blocked || STATIC_DEMO ? doorOff : null) }}
+        data-testid="doc-room-cta"
+        disabled={blocked || STATIC_DEMO}
+        onClick={() => onRoom?.(a, b)}
+      >
+        Put {la} + {lb} in a conversation →
+      </button>
+      {blocked && (
+        <span style={stripNote} data-testid="doc-doors-blocked">
+          Watch is showing a run in progress — these doors open when it lands
+        </span>
+      )}
+      {STATIC_DEMO && <span style={stripNote} data-testid="demo-readonly-note">{DEMO_READONLY_NOTE}</span>}
+    </div>
+  );
+}
+
 function GroupRow({
   gid,
   accent,
@@ -993,6 +1056,12 @@ const door: React.CSSProperties = {
   background: 'var(--color-accent-100)', color: 'var(--color-accent-700)', cursor: 'pointer',
 };
 const doorOff: React.CSSProperties = { opacity: 0.5, cursor: 'not-allowed' };
+const ctaRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10 };
+const cta: React.CSSProperties = {
+  font: 'inherit', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, letterSpacing: '0.03em',
+  padding: '7px 14px', border: '1px solid var(--color-accent-700)', background: 'var(--color-accent-700)',
+  color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap',
+};
 const stripNote: React.CSSProperties = { fontSize: 11.5, color: 'var(--color-neutral-600)', marginTop: 8, lineHeight: 1.5 };
 const basisHead: React.CSSProperties = { fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 10, letterSpacing: '0.04em' };
 const basisList: React.CSSProperties = { fontSize: 12, lineHeight: 1.6, margin: '4px 0 0', paddingLeft: 18, color: 'var(--color-neutral-700)' };
