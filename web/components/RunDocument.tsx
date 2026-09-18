@@ -20,6 +20,8 @@ import type { Agent, TrajectoryArtifact } from '@/lib/types';
 import { changesOf } from '@/lib/types';
 import { GROUP_LABEL, SCORECARD_GROUP_ORDER, groupOfAgent } from '@/lib/personaGroups';
 import { chipInferred, chipSim, fmtSigned } from '@/lib/scorecardStyles';
+import { groupEvidence, type GroupEvidence } from '@/lib/groupEvidence';
+import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import { fmtWindowRange } from '@/lib/simTime';
 import { assignmentLabel, demandLabel } from '@/lib/provenance';
 import { nonCompletionsLine } from '@/lib/nonCompletions';
@@ -73,6 +75,8 @@ export function RunDocument({
   liveName = null,
   interpretation = null,
   onGroupDoorway,
+  onGroupInterview,
+  doorwaysBlocked = false,
 }: {
   artifact: TrajectoryArtifact;
   report: PerRunReport | null;
@@ -85,9 +89,21 @@ export function RunDocument({
    *  static demo (no ledger, no API) and for every run that completed normally, so absence renders
    *  nothing rather than a state a reader has to dismiss. */
   interpretation?: InterpretationEnd | null;
+  /** The HEAR door: this group's voices in Watch (the existing scorecard→feed join). */
   onGroupDoorway: (group: string) => void;
+  /** V2.7e — the ASK door: open the interview drawer on the group's pick (an element of
+   *  artifact.agents — the drawer resolves it by reference). */
+  onGroupInterview?: (agent: Agent) => void;
+  /** V2.7e — Watch is showing a run in progress (Act II), so the doors have nothing to land on:
+   *  they render disabled with the reason, never as live-looking buttons that fail. */
+  doorwaysBlocked?: boolean;
 }) {
   const [showAudit, setShowAudit] = useState(false);
+  // V2.7e — 2.4's SELECTION (the ratified canvas, form 1d): a row click toggles; at most two, the
+  // oldest dropped. Local and per-mount on purpose — a selection is a moment, not a workspace.
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggleGroup = (gid: string) =>
+    setSelected((cur) => (cur.includes(gid) ? cur.filter((g) => g !== gid) : [...cur, gid].slice(-2)));
   const meta = artifact.meta;
   const changes = changesOf(artifact);
   const profile = meta.demand_profile ?? 'synthetic_demo';
@@ -423,7 +439,8 @@ export function RunDocument({
         <div style={findingTitle}>{findingHead('groups', 'WHO THIS TOUCHES, PER GROUP')}</div>
         <p style={findingProse}>
           An index, not a verdict: it shows where something moved so you can go ask the people it
-          moved. Nothing is summed across groups. Click a group to hear its voices.
+          moved. Nothing is summed across groups. Select a group to see what this run carries for it;
+          select two to put them in a room.
         </p>
         <div style={legendLine}>
           + worse · − better · ± magnitude only (direction not claimed)
@@ -438,7 +455,8 @@ export function RunDocument({
         <BucketHead accent>Where something moved</BucketHead>
         {rows.filter((r) => r.bucket === 1).map((r) => (
           <GroupRow key={r.gid} gid={r.gid} accent groupsById={groupsById} voiceCounts={voiceCounts}
-            gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={onGroupDoorway} sup={sup} />
+            gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={toggleGroup} sup={sup}
+            selected={selected.includes(r.gid)} />
         ))}
         {/* (review) the cross-note fires only when a bucket-1 row actually CARRIES a safety
             magnitude — "the safety magnitudes above" must never point at nothing */}
@@ -454,7 +472,8 @@ export function RunDocument({
             </BucketHead>
             {rows.filter((r) => r.bucket === 2).map((r) => (
               <GroupRow key={r.gid} gid={r.gid} groupsById={groupsById} voiceCounts={voiceCounts}
-                gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={onGroupDoorway} sup={sup} />
+                gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={toggleGroup} sup={sup}
+                selected={selected.includes(r.gid)} />
             ))}
           </>
         )}
@@ -467,9 +486,35 @@ export function RunDocument({
             </BucketHead>
             {rows.filter((r) => r.bucket === 3).map((r) => (
               <GroupRow key={r.gid} gid={r.gid} groupsById={groupsById} voiceCounts={voiceCounts}
-                gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={onGroupDoorway} sup={sup} />
+                gloss={rpt?.sections.who_affected.glosses[r.gid]} maxMag={maxMag} onOpen={toggleGroup} sup={sup}
+                selected={selected.includes(r.gid)} />
             ))}
           </>
+        )}
+
+        {/* V2.7e — THE TRAY (canvas 1d): what is selected, and the door it opens */}
+        <div style={tray} data-testid="doc-tray">
+          <span style={trayLabel}>selected:</span>
+          {selected.map((gid) => (
+            <button key={gid} style={trayChip} data-testid={`doc-tray-chip-${gid}`} onClick={() => toggleGroup(gid)}
+                    aria-label={`Remove ${GROUP_LABEL[gid] ?? gid} from the selection`}>
+              {GROUP_LABEL[gid] ?? gid} <span style={trayChipX}>×</span>
+            </button>
+          ))}
+          {selected.length > 0 ? (
+            <button style={trayClear} data-testid="doc-tray-clear" onClick={() => setSelected([])}>clear</button>
+          ) : (
+            <span style={trayEmpty} data-testid="doc-tray-empty">pick one group to hear it; two to put them in a room</span>
+          )}
+        </div>
+        {selected.length === 1 && (
+          <EvidenceStrip
+            ev={groupEvidence(artifact, selected[0])}
+            blocked={!!doorwaysBlocked}
+            onHear={onGroupDoorway}
+            onInterview={onGroupInterview}
+            sup={sup}
+          />
         )}
       </section>
 
@@ -688,6 +733,95 @@ function BucketHead({ children, accent }: { children: React.ReactNode; accent?: 
   );
 }
 
+/**
+ * V2.7e — the EVIDENCE STRIP: what this run actually carries for ONE selected group, per the
+ * ratified "no dead door" rule. Every door leads to evidence the artifact holds; where it holds
+ * none the strip says so in a sentence; what is not a door (the Explore surfaces have no per-group
+ * view) is said rather than faked. Both wrong-run predicates: the strip reads the ARTIFACT (the
+ * loaded run by construction), and `blocked` disables the doors while Watch shows a run in flight.
+ */
+function EvidenceStrip({
+  ev,
+  blocked,
+  onHear,
+  onInterview,
+  sup,
+}: {
+  ev: GroupEvidence;
+  blocked: boolean;
+  onHear: (gid: string) => void;
+  onInterview?: (agent: Agent) => void;
+  sup: (k: string) => React.ReactNode;
+}) {
+  const fmtCell = (c: GroupEvidence['cells'][number]): React.ReactNode => {
+    if (c.value == null) {
+      return (
+        <>
+          {c.label}: not measured in this run{sup('not-measured')}
+        </>
+      );
+    }
+    const shown =
+      c.key === 'safety'
+        ? `safety ±${Math.abs(c.value)}`
+        : c.key === 'travel'
+          ? `travel ${fmtSigned(c.value, 's')} median${(c.affectedShare ?? 0) > 0 ? `, ${Math.round((c.affectedShare ?? 0) * 1000) / 10}% >30 s` : ''}`
+          : `access ${fmtSigned(c.value, '')} by rule`;
+    return (
+      <>
+        {shown} · {c.confidence ?? 'confidence unstated'} — {c.note ?? 'no note carried'}
+        {sup(c.key)}
+      </>
+    );
+  };
+  return (
+    <div style={strip} data-testid="doc-evidence">
+      <div style={stripHead}>{ev.label.toUpperCase()} — WHAT THIS RUN CARRIES</div>
+      {ev.voices.total > 0 ? (
+        <div style={stripDoors}>
+          <span style={stripCount}>
+            {ev.voices.total} voice{ev.voices.total === 1 ? '' : 's'} in this run ({ev.voices.sim} simulated, {ev.voices.inferred} inferred)
+          </span>
+          <button style={{ ...door, ...(blocked ? doorOff : null) }} data-testid="doc-hear" disabled={blocked}
+                  onClick={() => onHear(ev.gid)}>
+            Hear {ev.label} in Watch →
+          </button>
+          {ev.firstAgent && !STATIC_DEMO && (
+            <button
+              style={{ ...door, ...(blocked ? doorOff : null) }}
+              data-testid="doc-interview"
+              disabled={blocked}
+              title="opens on the most-affected simulated voice in this run — or the first inferred voice when the group has none — pick another from the feed"
+              onClick={() => onInterview?.(ev.firstAgent as Agent)}
+            >
+              Ask one of them a question →
+            </button>
+          )}
+          {STATIC_DEMO && <span style={stripNote} data-testid="demo-readonly-note">{DEMO_READONLY_NOTE}</span>}
+        </div>
+      ) : (
+        <div style={stripNote} data-testid="doc-no-voices">
+          no voices in this run belong to {ev.label} — nothing to hear; the numbers above stand on their own
+        </div>
+      )}
+      {blocked && (
+        <div style={stripNote} data-testid="doc-doors-blocked">
+          Watch is showing a run in progress — these doors open when it lands
+        </div>
+      )}
+      <div style={basisHead}>the numbers’ basis</div>
+      <ul style={basisList}>
+        {ev.cells.map((c) => (
+          <li key={c.key} data-testid="doc-cell-basis">{fmtCell(c)}</li>
+        ))}
+      </ul>
+      <div style={stripNote} data-testid="doc-no-door">
+        discourse, the chat and the graphs have no per-group view — they are reached from Explore
+      </div>
+    </div>
+  );
+}
+
 function GroupRow({
   gid,
   accent,
@@ -697,6 +831,7 @@ function GroupRow({
   maxMag,
   onOpen,
   sup,
+  selected,
 }: {
   gid: string;
   accent?: boolean;
@@ -706,6 +841,7 @@ function GroupRow({
   maxMag: number;
   onOpen: (gid: string) => void;
   sup: (k: string) => React.ReactNode;
+  selected: boolean;
 }) {
   const g = groupsById.get(gid);
   const voices = voiceCounts.get(gid) ?? 0;
@@ -749,10 +885,15 @@ function GroupRow({
   }
   return (
     <button
-      style={{ ...groupRow, borderLeft: `2px solid ${accent ? 'var(--color-accent-400)' : 'var(--color-neutral-300)'}` }}
+      style={{
+        ...groupRow,
+        borderLeft: `2px solid ${accent ? 'var(--color-accent-400)' : 'var(--color-neutral-300)'}`,
+        ...(selected ? groupRowSelected : null),
+      }}
       onClick={() => onOpen(gid)}
       data-testid="doc-group-row"
       data-group={gid}
+      aria-pressed={selected}
     >
       <span style={groupRowHead}>
         <span style={groupName}>
@@ -825,7 +966,36 @@ const groupRow: React.CSSProperties = {
   font: 'inherit',
   color: 'inherit',
 };
+const groupRowSelected: React.CSSProperties = { background: 'var(--color-accent-100)' };
 const groupRowHead: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 };
+// V2.7e — the tray + the evidence strip
+const tray: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12,
+  borderTop: '1px solid var(--color-divider)', paddingTop: 10, minHeight: 34,
+};
+const trayLabel: React.CSSProperties = { fontSize: 11, color: 'var(--color-neutral-600)' };
+const trayChip: React.CSSProperties = {
+  font: 'inherit', fontSize: 11, padding: '2px 8px', border: '1px solid var(--color-accent-400)',
+  background: 'var(--color-accent-100)', color: 'var(--color-accent-700)', cursor: 'pointer',
+};
+const trayChipX: React.CSSProperties = { marginLeft: 2, fontWeight: 700 };
+const trayClear: React.CSSProperties = {
+  font: 'inherit', fontSize: 11.5, background: 'transparent', border: 'none', cursor: 'pointer',
+  color: 'var(--color-accent-700)', textDecoration: 'underline', padding: 0,
+};
+const trayEmpty: React.CSSProperties = { fontSize: 11, color: 'var(--color-neutral-500)', fontStyle: 'italic' };
+const strip: React.CSSProperties = { marginTop: 10, padding: '10px 12px', border: '1px solid var(--color-divider)', background: '#fafafa' };
+const stripHead: React.CSSProperties = { fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-neutral-700)' };
+const stripDoors: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 };
+const stripCount: React.CSSProperties = { fontSize: 12.5 };
+const door: React.CSSProperties = {
+  font: 'inherit', fontSize: 12, padding: '4px 10px', border: '1px solid var(--color-accent-400)',
+  background: 'var(--color-accent-100)', color: 'var(--color-accent-700)', cursor: 'pointer',
+};
+const doorOff: React.CSSProperties = { opacity: 0.5, cursor: 'not-allowed' };
+const stripNote: React.CSSProperties = { fontSize: 11.5, color: 'var(--color-neutral-600)', marginTop: 8, lineHeight: 1.5 };
+const basisHead: React.CSSProperties = { fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 10, letterSpacing: '0.04em' };
+const basisList: React.CSSProperties = { fontSize: 12, lineHeight: 1.6, margin: '4px 0 0', paddingLeft: 18, color: 'var(--color-neutral-700)' };
 const groupName: React.CSSProperties = { fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 14, letterSpacing: '0.04em' };
 const doorway: React.CSSProperties = { fontSize: 11, color: 'var(--color-accent-700)', whiteSpace: 'nowrap' };
 const groupGloss: React.CSSProperties = { fontSize: 14, lineHeight: 1.55 };

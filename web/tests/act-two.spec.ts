@@ -488,3 +488,33 @@ test('Act II adds no aggregate framing of its own, on any stage', async ({ page 
     if (k === 'discourse') expect(text).not.toMatch(GRAPHS_BANNED);
   }
 });
+
+// ── V2.7e C1 — the document's doorways answer the wrong-run predicate ───────────────────────────
+
+test('the document’s doorways are BLOCKED while Act II holds Watch', async ({ page }) => {
+  // The strip's doors lead to Watch. During Act II, Watch is the interpretation streaming in —
+  // no feed, no room, no drawer to land on — so a live-looking door would be the
+  // clickable-then-failing surface V2.7a refused to ship. (Act I needs no door at all: Read shows
+  // the not-computed panel, and no document exists to select in — pinned in act-one.spec.)
+  // The stream REPLACES the loaded artifact's voices with the streamed set (the V2.3a new-job
+  // rule), and the default body's personas are placeholders (`p0`…) that belong to no scorecard
+  // group. One token makes the streamed sim voice a real car commuter, so the strip has a door
+  // to disable — the assertion is on the door, not on an empty strip.
+  await mockActTwo(page, { events: actTwoBody().replace('"id":"p0"', '"id":"time_pressed"') });
+  await enterActTwo(page);
+  await openStage(page, 'read');
+  await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 15_000 });
+  await page.locator('[data-testid="doc-group-row"][data-group="car_commuter"]').click();
+  await expect(page.getByTestId('doc-evidence')).toContainText('1 voice in this run (1 simulated, 0 inferred)');
+  await expect(page.getByTestId('doc-doors-blocked')).toHaveText(
+    'Watch is showing a run in progress — these doors open when it lands',
+  );
+  await expect(page.getByTestId('doc-hear')).toBeDisabled();
+  await expect(page.getByTestId('doc-interview')).toBeDisabled();
+  // a VIEWPORT capture: an element capture waits for stability, which Act II's live re-renders
+  // behind the document panel never grant
+  if (process.env.NADI_SHOTS) {
+    await page.getByTestId('doc-doors-blocked').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: '../docs-assets/v27e-c1-blocked.png' });
+  }
+});

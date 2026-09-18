@@ -26,7 +26,7 @@ import { useState } from 'react';
 import { RunDocument, type ReportState } from '@/components/RunDocument';
 import type { PerRunReport } from '@/lib/reportData';
 import { auditTally, type RunFeedState, type SlotState } from '@/lib/runFeed';
-import type { TrajectoryArtifact } from '@/lib/types';
+import type { Agent, TrajectoryArtifact } from '@/lib/types';
 
 export const NO_DRAFT_RECORDED =
   'rejected draft not recorded for this report — drafts have been recorded since V2.7b';
@@ -42,6 +42,7 @@ export function ReportStage({
   isExample,
   liveName,
   onGroupDoorway,
+  onGroupInterview,
 }: {
   experience: RunFeedState;
   artifact: TrajectoryArtifact;
@@ -51,6 +52,9 @@ export function ReportStage({
   isExample: boolean;
   liveName: string | null;
   onGroupDoorway: (group: string) => void;
+  /** V2.7e — threaded to the document; this stage renders INSIDE Act II, so its doors are always
+   *  blocked (Watch is the interpretation streaming in, with nothing for a door to land on). */
+  onGroupInterview?: (agent: Agent) => void;
 }) {
   const tally = auditTally(experience.slots);
   const corrected = experience.slots.filter((s) => s.status === 'resolved_on_retry');
@@ -92,6 +96,8 @@ export function ReportStage({
             isExample={isExample}
             liveName={liveName}
             onGroupDoorway={onGroupDoorway}
+            onGroupInterview={onGroupInterview}
+            doorwaysBlocked
           />
         </div>
       </div>

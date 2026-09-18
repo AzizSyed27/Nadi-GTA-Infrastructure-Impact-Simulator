@@ -112,6 +112,16 @@ export function CommentFeed(props: CommentFeedProps) {
   const shown = expanded ? fired : fired.slice(0, CAP);
   const hiddenCount = fired.length - shown.length;
   const showInstitutionBlock = !filterGroup && (institutions.length > 0 || institutionsEmpty);
+  // V2.7e — the filtered empty state used to say "keep playing" for a group with NO voice in this
+  // run, which no amount of playing could make true. Two empties, two sentences.
+  const filteredTotal = filterGroup
+    ? [...agents, ...inferred].filter((a) => groupOfAgent(a) === filterGroup).length
+    : 0;
+  const emptyLine = filterGroup
+    ? filteredTotal === 0
+      ? `No ${GROUP_LABEL[filterGroup] ?? filterGroup} voices in this run`
+      : `No ${GROUP_LABEL[filterGroup] ?? filterGroup} voices yet — keep playing.`
+    : 'Press play — reactions pop as each traveler hits their worst moment.';
 
   return (
     <div style={wrap} data-testid="comment-feed">
@@ -167,10 +177,8 @@ export function CommentFeed(props: CommentFeedProps) {
       )}
       <div style={list}>
         {shown.length === 0 ? (
-          <div style={empty}>
-            {filterGroup
-              ? `No ${GROUP_LABEL[filterGroup] ?? filterGroup} voices yet — keep playing.`
-              : 'Press play — reactions pop as each traveler hits their worst moment.'}
+          <div style={empty} data-testid="feed-empty">
+            {emptyLine}
           </div>
         ) : (
           <>

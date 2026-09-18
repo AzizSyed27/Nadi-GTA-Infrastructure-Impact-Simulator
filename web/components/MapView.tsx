@@ -3002,6 +3002,10 @@ export default function MapView() {
                 setFeedGroup(g);
                 setStage('watch');
               }}
+              onGroupInterview={(agent) => {
+                setInterviewee(agent);
+                setStage('watch');
+              }}
             />
           }
         />
@@ -3217,10 +3221,18 @@ export default function MapView() {
             liveName={liveIdentity?.runId === meta.run_id ? liveIdentity.name : null}
             interpretation={interpretation}
             onGroupDoorway={(g) => {
-              // the 2.4 doorway: this group's voices, in Watch (the existing scorecard→feed join)
+              // the 2.4 HEAR door: this group's voices, in Watch (the existing scorecard→feed join)
               setFeedGroup(g);
               setStage('watch');
             }}
+            onGroupInterview={(agent) => {
+              // V2.7e — the ASK door: the drawer on the group's pick (the artifact's own element)
+              setInterviewee(agent);
+              setStage('watch');
+            }}
+            // V2.7e — Act II holds Watch (no feed, no drawer to land on); Act I never reaches here
+            // (Read shows the not-computed panel instead of a document)
+            doorwaysBlocked={actTwo}
           />
         </DocumentPanel>
       ) : exploreSub === 'graphs' ? (

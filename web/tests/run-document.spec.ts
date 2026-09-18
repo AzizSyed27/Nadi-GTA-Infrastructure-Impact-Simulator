@@ -203,15 +203,77 @@ test("a report for ANOTHER run renders the labeled mismatch state — never anot
   await expect(page.getByTestId('run-document')).not.toContainText('WRONG-RUN PROSE MUST NOT RENDER.');
 });
 
-test('the 2.4 doorway: a group row leaves Read and lands in Watch', async ({ page }) => {
-  // the fixture carries NO voices (agents: []) — the feed honestly doesn't render, so this
-  // half asserts the stage switch; the feed+filter half lives in the committed-example test
-  // below, where 214 real voices exist.
+// ── V2.7e C1 — 2.4 rows SELECT (the ratified canvas, form 1d); the doorway is the tray's ────────
+
+test('2.4 rows SELECT: toggle, cap two, oldest dropped; the tray says what is picked', async ({ page }) => {
+  // Before e a row click NAVIGATED (Read → Watch, the feed filtered). The canvas ratified
+  // selection: one group is the doorway to its evidence, two offer a room. Read is NOT left by
+  // a click — that is the whole change, and the first assertion pins it.
   const art = { ...FIXTURE, scorecard: craftedScorecard() };
   await openDoc(page, art, mkReport(RUN_ID));
-  await page.getByTestId('doc-group-row').first().click();
-  await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 10_000 }); // the Watch rail
-  await expect(page.getByTestId('run-document')).toHaveCount(0); // Read left behind
+  const rows = page.getByTestId('doc-group-row');
+  await expect(page.getByTestId('doc-tray-empty')).toHaveText(
+    'pick one group to hear it; two to put them in a room', // canvas-verbatim
+  );
+  await rows.nth(0).click(); // car_commuter
+  await expect(rows.nth(0)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('run-document')).toBeVisible(); // a selection, not a navigation
+  await expect(page.getByTestId('doc-tray-chip-car_commuter')).toBeVisible();
+  await rows.nth(1).click(); // cyclist — two selected
+  await expect(page.getByTestId('doc-tray-chip-cyclist')).toBeVisible();
+  await rows.nth(2).click(); // pedestrian — the OLDEST (car_commuter) drops: slice(-2)
+  await expect(page.getByTestId('doc-tray-chip-car_commuter')).toHaveCount(0);
+  await expect(page.getByTestId('doc-tray-chip-pedestrian')).toBeVisible();
+  await expect(rows.nth(0)).toHaveAttribute('aria-pressed', 'false');
+  await rows.nth(2).click(); // a second click on a selected row deselects it
+  await expect(page.getByTestId('doc-tray-chip-pedestrian')).toHaveCount(0);
+  await page.getByTestId('doc-tray-clear').click();
+  await expect(page.getByTestId('doc-tray-empty')).toBeVisible();
+  await expect(rows.nth(1)).toHaveAttribute('aria-pressed', 'false');
+  // the ordering pin's contract holds: still exactly one doc-group-row per group, in order
+  const order = await rows.evaluateAll((els) => els.map((e) => e.getAttribute('data-group')));
+  expect(order).toHaveLength(7);
+});
+
+test('one selection opens the EVIDENCE STRIP — a group with no voices says so, never a dead door', async ({ page }) => {
+  // the fixture carries NO voices (agents: []): the honest state is a sentence, not a button
+  const art = { ...FIXTURE, scorecard: craftedScorecard() };
+  await openDoc(page, art, mkReport(RUN_ID));
+  await page.getByTestId('doc-group-row').first().click(); // car_commuter (bucket 1)
+  const strip = page.getByTestId('doc-evidence');
+  await expect(strip).toBeVisible();
+  await expect(page.getByTestId('doc-no-voices')).toHaveText(
+    'no voices in this run belong to Car commuters — nothing to hear; the numbers above stand on their own',
+  );
+  await expect(page.getByTestId('doc-hear')).toHaveCount(0);
+  await expect(page.getByTestId('doc-interview')).toHaveCount(0);
+  // THE NUMBERS' BASIS — the three cells with their confidence and NOTE as body text (the first
+  // body-text render of cell notes in the document; before e they were hover titles only)
+  const basis = page.getByTestId('doc-cell-basis');
+  await expect(basis).toHaveCount(3);
+  await expect(basis.nth(0)).toContainText('travel');
+  await expect(basis.nth(0)).toContainText('measured — tt');
+  await expect(basis.nth(1)).toContainText('safety ±43.24');
+  await expect(basis.nth(1)).toContainText('low — surrogate');
+  await expect(basis.nth(2)).toContainText('access');
+  await expect(basis.nth(2)).toContainText('low — rule');
+  // what is NOT a door is said, not faked
+  await expect(page.getByTestId('doc-no-door')).toHaveText(
+    'discourse, the chat and the graphs have no per-group view — they are reached from Explore',
+  );
+  // a not-measured group: every cell reads "not measured in this run"
+  await page.getByTestId('doc-group-row').last().click(); // transit_riders — this drops car_commuter? no: two selected → the strip follows the LATEST single selection only when one is selected
+  await page.getByTestId('doc-group-row').first().click(); // deselect car_commuter → one selected (transit_riders)
+  await expect(page.getByTestId('doc-cell-basis').nth(0)).toContainText('not measured in this run');
+  const body = await page.getByTestId('run-document').innerText();
+  expect(body).not.toMatch(BANNED);
+  expect(body).not.toMatch(STANCE_TALLY);
+  if (process.env.NADI_SHOTS) {
+    // the tray + strip sit below the document panel's scroll fold: bring them into view, then a
+    // viewport capture (an element capture of the section is clipped at the fold)
+    await page.getByTestId('doc-evidence').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: '../docs-assets/v27e-c1-no-voices.png' });
+  }
 });
 
 test('the committed example renders ITS OWN report values — the rendered-equals-file pin', async ({ page }) => {
@@ -243,10 +305,59 @@ test('the committed example renders ITS OWN report values — the rendered-equal
   expect(body).not.toMatch(BANNED);
   expect(body).not.toMatch(STANCE_TALLY);
   expect(body).not.toContain('s added response-route time'); // the V2.5b vocabulary split holds
-  // the doorway with REAL voices: a group row opens Watch with that group filtering the feed
-  await page.getByTestId('doc-group-row').first().click();
+  // V2.7e — the doorway with REAL voices: SELECT a group → the strip counts what this run carries
+  // (the committed example's own agents: 120 car commuters, all simulated) → the HEAR door opens
+  // Watch with that group filtering the feed (the existing scorecard→feed join, unchanged)
+  await page.locator('[data-testid="doc-group-row"][data-group="car_commuter"]').click();
+  const strip = page.getByTestId('doc-evidence');
+  await expect(strip).toContainText('120 voices in this run (120 simulated, 0 inferred)');
+  // the Ask door's pick is a STATED curation — the rule is on the button
+  await expect(page.getByTestId('doc-interview')).toHaveAttribute('title', /most-affected simulated voice/);
+  if (process.env.NADI_SHOTS) {
+    await page.getByTestId('doc-evidence').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: '../docs-assets/v27e-c1-tray.png' });
+  }
+  await page.getByTestId('doc-hear').click();
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('feed-filter-chip')).toBeVisible();
+  await expect(page.getByTestId('feed-filter-chip')).toContainText('Car commuters');
+  await expect(page.getByTestId('run-document')).toHaveCount(0); // the door is the navigation
+});
+
+test('the feed says a zero-voice group has NO voices in this run — never "keep playing"', async ({ page }) => {
+  // institutions-run.json carries one car commuter + one resident + one mandate voice, and FIVE
+  // scorecard groups with no voice at all. Before e the filtered feed said "No Cyclists voices yet
+  // — keep playing" for both "not fired yet" and "none exist" — false in the second case, and no
+  // amount of playing could make it true.
+  const inst = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'institutions-run.json'), 'utf-8'));
+  const art = { ...inst, meta: { ...inst.meta, run_id: RUN_ID }, scorecard: craftedScorecard() };
+  await openDoc(page, art, mkReport(RUN_ID));
+  await page.locator('[data-testid="doc-group-row"][data-group="cyclist"]').click();
+  await expect(page.getByTestId('doc-no-voices')).toContainText('Cyclists');
+  // and the feed itself, reached through Watch's own scorecard row, agrees with the document
+  await openStage(page, 'watch');
+  await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 15_000 });
+  // pause at t=0 (the scrub convention): the car voice fires at t=450, and playback auto-runs at
+  // 60× — the "yet" branch must be asserted BEFORE it fires, by content, not by racing the clock
+  await page.locator('input[type=range]').first().fill('0');
+  await page.getByTestId('scorecard-row').filter({ hasText: 'Cyclists' }).click();
+  await expect(page.getByTestId('feed-empty')).toHaveText('No Cyclists voices in this run');
+  // a group WITH a voice that has not fired yet keeps the honest "yet"
+  await page.getByTestId('scorecard-row').filter({ hasText: 'Car commuters' }).click();
+  await expect(page.getByTestId('feed-empty')).toHaveText('No Car commuters voices yet — keep playing.');
+});
+
+test('the Ask door opens the interview drawer on the group’s most-affected simulated voice', async ({ page }) => {
+  await page.goto(`/?run=${EXAMPLE}`);
+  await gate(page);
+  await openStage(page, 'read');
+  await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 30_000 });
+  await page.locator('[data-testid="doc-group-row"][data-group="local_resident"]').click();
+  await expect(page.getByTestId('doc-evidence')).toContainText('3 voices in this run (0 simulated, 3 inferred)');
+  await page.getByTestId('doc-interview').click();
+  // Watch, with the drawer open on one of the group's own voices (an inferred group → its first
+  // inferred voice; the grounding sentence says which kind of voice is answering)
+  await expect(page.getByTestId('interview-drawer')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('interview-grounding')).toContainText("wasn't simulated directly");
 });
 
 // ── V2.7a follow-up — the document's NAME (the static-demo identity gap) ──────────────────────
