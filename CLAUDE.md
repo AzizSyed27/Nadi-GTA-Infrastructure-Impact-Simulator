@@ -110,7 +110,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.10.0**. Phases 0–5, V2.0–V2.6, V2.7a and V2.7b are COMPLETE: the four-stage shell
+Contract **v0.10.0**. Phases 0–5, V2.0–V2.6 and V2.7a–V2.7e are COMPLETE: the four-stage shell
 (Build → Watch → Read → Explore) fronts the whole pipeline — Build composes
 (draw a road — straight or BENT through via points (V2.6d) — / speed / bike lane / lane- & road-closures /
 incidents / 🏫 school-zone COMPOSITES —
