@@ -69,6 +69,32 @@ def test_llm_calls_accumulate_and_total() -> None:
     assert run_ledger.total_llm_calls(led) == 228
 
 
+def test_begin_stage_starts_the_row_fresh_so_a_second_job_meters_only_itself() -> None:
+    """V2.7f C0 — THE RE-ENRICH COUNT. `add_llm_calls` accumulates (a retry batch reports again within
+    ONE job), and nothing ever zeroed the row, so a second voices enrich read 213 + 213 = 426 in the
+    ledger (seen live 2026-09-18). A row is the stage's LAST job's count: `begin_stage` restarts it —
+    RUNNING, calls 0, a fresh started_at, no ended_at — and the job's own reports land on zero."""
+    run_ledger.init(RUN)
+    run_ledger.set_stage(RUN, "voices", run_ledger.RUNNING)
+    run_ledger.add_llm_calls(RUN, "voices", 213)
+    led = run_ledger.set_stage(RUN, "voices", run_ledger.DONE, detail="first job", produced={"agents": 213})
+    first_started = run_ledger.stage(led, "voices")["started_at"]
+    assert run_ledger.stage(led, "voices")["llm_calls"] == 213
+
+    led = run_ledger.begin_stage(RUN, "voices")
+    row = run_ledger.stage(led, "voices")
+    assert row["status"] == run_ledger.RUNNING
+    assert row["llm_calls"] == 0 and row["detail"] == "" and row["produced"] == {}
+    assert row["ended_at"] is None
+    assert row["started_at"] is not None and row["started_at"] >= first_started, "re-stamped, not kept"
+
+    led = run_ledger.add_llm_calls(RUN, "voices", 47)
+    assert run_ledger.stage(led, "voices")["llm_calls"] == 47, "this job's count, never 213 + 47"
+    # a key the ledger does not know is kept visible, the set_stage convention
+    led = run_ledger.begin_stage(RUN, "novel")
+    assert run_ledger.stage(led, "novel")["status"] == run_ledger.RUNNING
+
+
 def test_end_marks_never_run_stages_skipped_and_keeps_what_ran() -> None:
     """The skipped screen's 'kept / never run' split comes from here — a stage left 'pending' would
     read as still-coming forever, and a partial stage must keep its own honest status."""

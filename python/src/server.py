@@ -570,11 +570,17 @@ def _events_eof(events_path: Path | None) -> int:
 
 
 def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
-                        events_path: Path | None = None, labels: list[str] | None = None) -> None:
+                        events_path: Path | None = None, labels: list[str] | None = None,
+                        keys: list[str] | None = None) -> None:
     """The SINGLE-SHOT job: one stage, its own terminal state, its own release.
 
-    Used by POST /api/runs/<id>/enrich (the manual per-stage path, unchanged) and by a simulate whose
-    auto-chain is off. The chain has its own runner below."""
+    Used by POST /api/runs/<id>/enrich (the manual per-stage path). The chain has its own runner
+    below. V2.7f C0 — `keys` are the presented-stage rows the POST began for this job
+    (`_ENRICH_KEYS`); the job CLOSES them — DONE with this job's metered count, FAILED with the
+    detail — where before it folded the usage and wrote no status, so the rows stayed `skipped` and
+    the client's terminal re-read overwrote the stream's `done` with that. It never calls
+    `run_ledger.end()`: the run's ending is the run's verdict, and the document's finished /
+    never-ran lists derive from the rows, which are now true."""
     def _emit(event: str, **payload) -> None:
         if events_path is not None:
             run_events.emit(events_path, event, **payload)
@@ -583,6 +589,8 @@ def _run_subprocess_job(run_id: str, cmds: list[list[str]], label: str,
     try:
         ok, detail = _run_cmds(run_id, cmds, label, events_path, labels)
         _absorb_usage(run_id, events_path, before)
+        for key in keys or ():
+            run_ledger.set_stage(run_id, key, run_ledger.DONE if ok else run_ledger.FAILED, detail=detail)
         if not ok:
             _emit(run_events.RUN_ENDED, status="failed", detail=detail)
             return
@@ -835,7 +843,7 @@ def _run_chain(run_id: str, events_path: Path, only: set[str] | None = None) -> 
             _emit(run_events.RUN_ENDED, status="skipped", detail=reason)
             return
         for key in step["keys"]:
-            run_ledger.set_stage(run_id, key, run_ledger.RUNNING)
+            run_ledger.begin_stage(run_id, key)  # V2.7f: a RESUMED partial stage meters this job only
         run_state.set_stage(run_id, step["state"], step["label"])
         _emit("stage_start", stage=step["state"], label=step["label"], kind="llm",
               stages=[step["label"]])
@@ -1460,6 +1468,16 @@ _ENRICH_LABELS = {
     "report": ["writing the report", "rebuilding the chat index"],
     "discourse": ["running the discourse cascades"],
 }
+# V2.7f C0 — the PRESENTED-STAGE rows each manual enrich produces: begun fresh at the POST, closed
+# by the job, and carried on the `stage_start` line as `keys` so the client scopes its cost line
+# to THIS job (a re-enrich's "N of ~M" is this enrich's N). Pinned in LOCKSTEP with `_chain_steps`:
+# the union of the chain's keys for the same state — one report POST runs report.py AND
+# report_agent.py, so it owns report ∪ index.
+_ENRICH_KEYS = {
+    "voices": ["personas", "voices", "institutions"],
+    "report": ["report", "index"],
+    "discourse": ["discourse"],
+}
 
 
 @app.post("/api/runs/{run_id}/enrich")
@@ -1507,13 +1525,20 @@ async def enrich(run_id: str, req: EnrichReq, bg: BackgroundTasks):
     # enrich: no denominator, no basis — a sentence reading "this costs nothing" beside a spend.
     # It must precede the emit below: that event is what arms the client's single ledger re-read.
     run_ledger.set_projection(run_id, **_project_stage(req.stage))
+    # V2.7f C0 — AND THE ROWS THIS JOB WILL PRODUCE BEGIN FRESH, before the stage_start line: a
+    # re-enrich's rows kept the prior job's count and status (213, `skipped` — 426 after the second
+    # run, live 2026-09-18) and the client seeded "213 of ~215" from them on its first frame. The
+    # line carries `keys` — the server's own statement of which rows this job meters.
+    keys = _ENRICH_KEYS[req.stage]
+    for key in keys:
+        run_ledger.begin_stage(run_id, key)
     run_events.ensure_header(ev, run_id, description=st.get("description"),
                              changes=st.get("changes") or ([st["change"]] if st.get("change") else None),
                              demand_profile=st.get("demand_profile"), assignment=st.get("assignment"),
                              n_seeds=st.get("n_seeds"))
     run_events.emit(ev, "stage_start", stage=f"enrich:{req.stage}",
-                    label=f"enrich:{req.stage}", kind="llm", stages=labels)
-    bg.add_task(_run_subprocess_job, run_id, cmds, f"enrich:{req.stage}", ev, labels)
+                    label=f"enrich:{req.stage}", kind="llm", stages=labels, keys=keys)
+    bg.add_task(_run_subprocess_job, run_id, cmds, f"enrich:{req.stage}", ev, labels, keys=keys)
     return {"run_id": run_id, "stage": req.stage}
 
 

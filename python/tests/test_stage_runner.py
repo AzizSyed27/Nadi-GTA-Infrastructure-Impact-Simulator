@@ -200,6 +200,54 @@ def test_the_armed_chain_runs_every_stage_in_order_under_one_lock(env, monkeypat
     assert run_state.read(RUN)["stage"] == "done"
 
 
+def test_the_manual_job_closes_the_rows_it_began_with_its_own_count(env, monkeypatch):
+    """V2.7f C0 — THE MANUAL PATH WRITES WHAT IT DID. `_run_subprocess_job` folded usage into the
+    ledger but never wrote a stage status, so after a manual voices enrich the rows still read
+    `skipped` (and the C10b re-read overwrote the stream's `done` with it). The job now closes the
+    rows it was handed — DONE with this job's count (the row began at 213 from an earlier job),
+    FAILED carrying the detail — and never calls `end()`: the run's ending is the run's verdict."""
+    runs = _Runs(usage={"reactions": 47})
+    ev = _begin(monkeypatch, runs)
+    run_ledger.init(RUN)
+    run_ledger.set_stage(RUN, "voices", run_ledger.DONE)
+    run_ledger.add_llm_calls(RUN, "voices", 213)
+    run_ledger.end(RUN, "complete", reason="interpretation not requested")
+    keys = ["personas", "voices", "institutions"]
+    for k in keys:
+        run_ledger.begin_stage(RUN, k)  # what the POST does before stage_start
+
+    server._run_subprocess_job(RUN, [["py", "sampler.py"], ["py", "reactions.py"]], "enrich:voices",
+                               ev, ["sampling travelers", "generating voices"], keys=keys)
+
+    led = run_ledger.read(RUN)
+    by_key = {s["key"]: s for s in led["stages"]}
+    assert by_key["voices"]["status"] == "done" and by_key["voices"]["llm_calls"] == 47, "this job's, not 260"
+    assert by_key["personas"]["status"] == "done" and by_key["institutions"]["status"] == "done"
+    assert by_key["discourse"]["status"] == "skipped", "a row the job did not touch keeps its verdict"
+    assert led["ended"]["reason"] == "interpretation not requested", "the run's ending is the run's"
+    assert _kinds(ev).count("run_ended") == 1 and _events(ev)[-1]["status"] == "complete"
+    assert run_state.active() is None
+
+
+def test_the_manual_job_marks_its_rows_failed_with_the_detail(env, monkeypatch):
+    runs = _Runs(fail={"reactions"})
+    ev = _begin(monkeypatch, runs)
+    run_ledger.init(RUN)
+    keys = ["personas", "voices", "institutions"]
+    for k in keys:
+        run_ledger.begin_stage(RUN, k)
+
+    server._run_subprocess_job(RUN, [["py", "sampler.py"], ["py", "reactions.py"]], "enrich:voices",
+                               ev, ["sampling travelers", "generating voices"], keys=keys)
+
+    led = run_ledger.read(RUN)
+    for k in keys:
+        row = run_ledger.stage(led, k)
+        assert row["status"] == "failed" and "reactions exploded" in row["detail"], k
+    assert _events(ev)[-1]["event"] == "run_ended" and _events(ev)[-1]["status"] == "failed"
+    assert run_state.active() is None
+
+
 def test_a_failing_stage_degrades_the_run_without_harming_it(env, monkeypatch):
     """The run is unharmed and says so: every number came from the physics and none of them moves."""
     monkeypatch.setenv(server.AUTO_ENRICH_ENV, "1")

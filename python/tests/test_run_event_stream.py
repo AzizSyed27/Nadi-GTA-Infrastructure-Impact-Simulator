@@ -177,6 +177,68 @@ def test_post_enrich_writes_the_stage_projection_before_the_job_runs(client: Tes
     assert events[-1][1]["event"] == "stage_start"
 
 
+@pytest.mark.parametrize("stage, keys", [
+    ("voices", ["personas", "voices", "institutions"]),
+    ("report", ["report", "index"]),
+    ("discourse", ["discourse"]),
+])
+def test_post_enrich_begins_its_stage_rows_fresh_and_stamps_them_on_stage_start(
+        client: TestClient, monkeypatch, stage: str, keys: list[str]) -> None:
+    """V2.7f C0 — THE RE-ENRICH ROWS. The manual POST wrote only the projection: the stage rows kept
+    the PRIOR job's count and status (`skipped`, 213 — then 426 after the second enrich, live
+    2026-09-18), and the client seeded its numerator from them. Now the POST begins every row the job
+    will produce (RUNNING, 0) BEFORE the `stage_start` line, and that line carries `keys` — the
+    server's own statement of which presented stages this job meters, which the client scopes its
+    cost line on. Rows the job does not touch are untouched."""
+    import run_ledger
+
+    launched: dict = {}
+
+    def _job(run_id, *a, **k):
+        launched["rows"] = {s["key"]: dict(s) for s in run_ledger.read(run_id)["stages"]}
+        launched["keys"] = k.get("keys")
+        run_state.release()
+
+    monkeypatch.setattr(server, "_run_subprocess_job", _job)  # this test's spy over the fixture's stub
+    _terminal(RUN)
+    # a ledger that already ran voices once (DONE / 213) and never ran the rest
+    run_ledger.init(RUN)
+    run_ledger.set_stage(RUN, "voices", run_ledger.DONE)
+    run_ledger.add_llm_calls(RUN, "voices", 213)
+    run_ledger.set_stage(RUN, "personas", run_ledger.DONE)
+    run_ledger.set_stage(RUN, "institutions", run_ledger.DONE)
+    run_ledger.end(RUN, "complete", reason="interpretation not requested")
+
+    r = client.post(f"/api/runs/{RUN}/enrich", json={"stage": stage})
+    assert r.status_code == 200
+    rows = launched["rows"]
+    for k in keys:
+        assert rows[k]["status"] == run_ledger.RUNNING and rows[k]["llm_calls"] == 0, k
+    for k in set(rows) - set(keys):
+        assert rows[k]["status"] != run_ledger.RUNNING, f"{k} is not this job's"
+    if stage != "voices":
+        assert rows["voices"]["llm_calls"] == 213, "another stage's row keeps its own count"
+    assert launched["keys"] == keys, "the job is told which rows to close"
+    events, _ = run_events.read_from(run_events.events_path(RUN), 0)
+    last = events[-1][1]
+    assert last["event"] == "stage_start" and last["keys"] == keys
+
+
+def test_enrich_keys_are_the_chain_steps_union_for_the_same_state() -> None:
+    """LOCKSTEP: the manual path's `keys` per stage equal the union of the chain steps table's keys
+    for the same run-state string — one report enrich runs report.py AND report_agent.py, so its
+    keys are report ∪ index. A key added to one table and not the other would leave a row that
+    never begins (or never closes)."""
+    steps = server._chain_steps(RUN)
+    for stage, keys in server._ENRICH_KEYS.items():
+        state = f"enrich:{stage}"
+        union: list[str] = []
+        for s in steps:
+            if s["state"] == state or (stage == "report" and s["state"] == "enrich:index"):
+                union.extend(s["keys"])
+        assert keys == union, stage
+
+
 def test_the_projection_endpoint_serves_the_three_button_stages(client: TestClient) -> None:
     """The run card's enrich buttons derive their labels from HERE — the same function the manual
     enrich writes into the ledger — or render no price at all. The three stage keys are exactly the

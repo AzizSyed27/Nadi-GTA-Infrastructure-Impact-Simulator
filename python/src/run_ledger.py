@@ -130,9 +130,28 @@ def set_stage(run_id: str, key: str, status: str, **fields) -> dict:
     return _write(led)
 
 
+def begin_stage(run_id: str, key: str) -> dict:
+    """V2.7f C0 — START A STAGE'S ROW FRESH for the job about to produce it: RUNNING, calls 0, a new
+    `started_at`, no `ended_at`, detail and produced cleared. `set_stage(RUNNING)` keeps a prior
+    job's count and start time (it stamps only when None), which is why a second voices enrich read
+    213 + 213 = 426 in the ledger (live, 2026-09-18). A row is the stage's LAST job's count — the
+    manual enrich POST, the chain and a resume all begin their rows here. Lifetime spend across
+    re-enrichs is deliberately NOT tracked (a stated non-goal, BACKLOG)."""
+    led = ensure(run_id)
+    row = stage(led, key)
+    if row is None:  # the set_stage convention: an unknown key stays visible, never vanishes
+        row = {"key": key, "label": key, "llm": True, "status": PENDING, "started_at": None,
+               "ended_at": None, "llm_calls": 0, "detail": "", "produced": {}}
+        led["stages"].append(row)
+    row.update({"status": RUNNING, "started_at": time.time(), "ended_at": None, "llm_calls": 0,
+                "detail": "", "produced": {}})
+    return _write(led)
+
+
 def add_llm_calls(run_id: str, key: str, calls: int) -> dict:
-    """Accumulate a stage's metered model calls (the subprocess reports its own adapter total at
-    exit; a fresh process per stage makes that total exactly this stage's)."""
+    """Accumulate a stage's metered model calls WITHIN ONE JOB (the subprocess reports its own
+    adapter total at exit, and a retry batch may report again). The row is reset by `begin_stage`
+    when the next job starts, so it always reads the stage's LAST job's count."""
     led = ensure(run_id)
     row = stage(led, key)
     if row is not None:
