@@ -55,6 +55,12 @@ docs/
 # the pinned run anchors discourse.spec's report leg, the MODERN run is the landing's example).
 !web/public/multimodal-scenario-20260702T044134Z-report.json
 !web/public/multimodal-scenario-20260814T063253Z-report.json
+# V2.7f C3: the EXAMPLE run's graphs sidecar (entity half; oasis null — the example has no cascade)
+# joins the demo set so the bare URL's Explore · Graphs renders instead of the labeled-missing state.
+!web/public/multimodal-scenario-20260814T063253Z-graphs.json
+# V2.7f C3: the run-sim recipe's `cp … web/public/run.json` scratch copy — read by nothing in the
+# app (the two tracked dead-weight artifacts were removed at C3 after a verified sweep); never tracked.
+web/public/run.json
 # V2.7a C5: the latest-report POINTER is server-side alignment state, never committed (the
 # latest.json symmetry); the payload singletons are retired — per-run reports are the record.
 web/public/latest-report.json

@@ -1,0 +1,5999 @@
+{
+ "run_id": "multimodal-scenario-20260814T063253Z",
+ "oasis": null,
+ "entity": {
+  "framing": "What the report's chat agent knows — entities and relations extracted from this run's corpus",
+  "index_ts": "20260814T063253Z",
+  "index_built_at": "2026-08-30T18:51:03+00:00",
+  "note": "extracted from the chat index served for this run (index-20260814T063253Z) — reflects that index's corpus when it was built",
+  "packing_note": "disconnected clusters are packed side by side, not force-laid into false adjacency",
+  "nodes": [
+   {
+    "id": "30 Km/H Speed Limit",
+    "x": 454.7495,
+    "y": 363.6026,
+    "type": "concept",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "30 Kmh Speed Limit",
+    "x": 310.0936,
+    "y": 583.0762,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "30 km/h Stretch",
+    "x": 251.3587,
+    "y": 480.1327,
+    "type": "location",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Access",
+    "x": 434.1224,
+    "y": 563.3919,
+    "type": "concept",
+    "sources": [
+     "Business owners scorecard row",
+     "Accessibility scorecard row",
+     "Car commuters scorecard row"
+    ],
+    "source_count": 7
+   },
+   {
+    "id": "Access Column",
+    "x": 766.0747,
+    "y": 1229.3486,
+    "type": "concept",
+    "sources": [
+     "Limitation: the access column is a rule based estimate"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Access Impact",
+    "x": 779.5249,
+    "y": 1333.4505,
+    "type": "concept",
+    "sources": [
+     "Limitation: the access column is a rule based estimate"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Accessibility",
+    "x": 496.2457,
+    "y": 505.5551,
+    "type": "concept",
+    "sources": [
+     "Accessibility scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Accessibility Advocate",
+    "x": 417.9567,
+    "y": 454.3385,
+    "type": "person",
+    "sources": [
+     "Accessibility advocate (voice)",
+     "Accessibility advocate (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Accessibility Stakeholder Group",
+    "x": 415.6072,
+    "y": 328.3281,
+    "type": "organization",
+    "sources": [
+     "Accessibility advocate (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Active Window",
+    "x": 596.236,
+    "y": 391.8169,
+    "type": "event",
+    "sources": [
+     "Business owners scorecard row",
+     "Transit riders scorecard row",
+     "Pedestrians scorecard row"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Alternative Streets",
+    "x": 726.797,
+    "y": 593.1541,
+    "type": "UNKNOWN",
+    "sources": [
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Anticipated Change",
+    "x": 478.9931,
+    "y": 786.5667,
+    "type": "concept",
+    "sources": [
+     "Long-time corridor resident (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Anticipated Reaction",
+    "x": 390.5537,
+    "y": 593.656,
+    "type": "content",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Anticipated Reaction To Change",
+    "x": 275.1208,
+    "y": 350.691,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Anticipated Stance",
+    "x": 329.3682,
+    "y": 388.4902,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Anticipated Stance Toward Change",
+    "x": 526.3961,
+    "y": 560.3482,
+    "type": "concept",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Baseline Run",
+    "x": 1318.5366,
+    "y": 378.858,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Baseline Scenario",
+    "x": 278.4843,
+    "y": 382.3375,
+    "type": "event",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Baseline Travel Time",
+    "x": 363.7337,
+    "y": 406.1569,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 10
+   },
+   {
+    "id": "Baseline Trip Time",
+    "x": 543.3278,
+    "y": 405.4864,
+    "type": "data",
+    "sources": [
+     "Walk-to-transit commuter (voice)",
+     "Resident who drives the corridor (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Baseline Trip Travel Time",
+    "x": 397.2733,
+    "y": 489.0946,
+    "type": "data",
+    "sources": [
+     "Daily bike commuter (voice)",
+     "Resident who drives the corridor (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 11
+   },
+   {
+    "id": "Baseline trip travel time",
+    "x": 859.5249,
+    "y": 1125.7832,
+    "type": "data",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Bicycle Delivery Courier",
+    "x": 458.7899,
+    "y": 492.2068,
+    "type": "person",
+    "sources": [
+     "Bicycle delivery courier (voice)",
+     "Bicycle delivery courier (voice)",
+     "Bicycle delivery courier (voice)"
+    ],
+    "source_count": 12
+   },
+   {
+    "id": "Bicycles",
+    "x": 526.976,
+    "y": 777.5429,
+    "type": "data",
+    "sources": [
+     "Limitation: one corridor one demand level"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Bike Commuter",
+    "x": 537.035,
+    "y": 489.7654,
+    "type": "person",
+    "sources": [
+     "Daily bike commuter (voice)",
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Bike Commuter Id",
+    "x": 538.059,
+    "y": 414.8847,
+    "type": "data",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Bike Commuter Persona",
+    "x": 510.7222,
+    "y": 383.9831,
+    "type": "concept",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Bike Lane",
+    "x": 1024.3777,
+    "y": 1125.7832,
+    "type": "location",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Block",
+    "x": 0.0,
+    "y": 1518.7287,
+    "type": "location",
+    "sources": [
+     "Long-time corridor resident (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Blocked Junctions",
+    "x": 1810.9247,
+    "y": 168.0396,
+    "type": "concept",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Bus Stop",
+    "x": 314.6101,
+    "y": 720.6995,
+    "type": "location",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Bus Trip",
+    "x": 309.4138,
+    "y": 556.6714,
+    "type": "concept",
+    "sources": [
+     "Walk-to-transit commuter (voice)",
+     "Transit rider perspective (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Business Owners",
+    "x": 567.83,
+    "y": 381.633,
+    "type": "organization",
+    "sources": [
+     "Business owners scorecard row",
+     "Small business owner (voice)",
+     "Small business owner (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Car Commuters",
+    "x": 388.1049,
+    "y": 479.7235,
+    "type": "organization",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 75
+   },
+   {
+    "id": "Car commuters",
+    "x": 510.9819,
+    "y": 647.0386,
+    "type": "organization",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Steady daily regular (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Cars",
+    "x": 302.7096,
+    "y": 713.3576,
+    "type": "artifact",
+    "sources": [
+     "Limitation: one corridor one demand level",
+     "Limitation: in run adaptation is not settled equilibrium",
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Cautious Cyclist",
+    "x": 614.3675,
+    "y": 567.6032,
+    "type": "person",
+    "sources": [
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Cautious Newer Rider",
+    "x": 457.5591,
+    "y": 519.1825,
+    "type": "person",
+    "sources": [
+     "Cautious newer rider (voice)",
+     "Cautious newer rider (voice)",
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 13
+   },
+   {
+    "id": "Census",
+    "x": 672.6938,
+    "y": 1283.3237,
+    "type": "concept",
+    "sources": [
+     "Limitation: a stratified sample not a census"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Change",
+    "x": 416.8966,
+    "y": 522.8434,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Daily bike commuter (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 22
+   },
+   {
+    "id": "Change +89s Travel Time Increase",
+    "x": 206.0301,
+    "y": 452.7483,
+    "type": "data",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Change In Trip Time",
+    "x": 606.4552,
+    "y": 426.1908,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Change Sentiment",
+    "x": 340.4524,
+    "y": 689.2531,
+    "type": "data",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Change To Corridor",
+    "x": 248.5874,
+    "y": 372.4647,
+    "type": "event",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Change Type",
+    "x": 752.6938,
+    "y": 1125.7832,
+    "type": "concept",
+    "sources": [
+     "Limitation: the access column is a rule based estimate"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Child",
+    "x": 262.8706,
+    "y": 417.8246,
+    "type": "person",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Child Safety",
+    "x": 216.2004,
+    "y": 481.1901,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "City Of Toronto",
+    "x": 10.2618,
+    "y": 1216.3734,
+    "type": "organization",
+    "sources": [
+     "Institutional perspective (transport_ops, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "City Of Toronto Transportation Services",
+    "x": 0.0,
+    "y": 1125.7832,
+    "type": "organization",
+    "sources": [
+     "Institutional perspective (transport_ops, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Closed Edge -36784353#20",
+    "x": 1338.8011,
+    "y": 169.1709,
+    "type": "artifact",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Closure",
+    "x": 394.8409,
+    "y": 533.0916,
+    "type": "event",
+    "sources": [
+     "Transit rider perspective (voice)",
+     "Steady daily regular (voice)",
+     "Limitation: a closure can strand trips"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Closure Run",
+    "x": 1359.9325,
+    "y": 377.4073,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Closures",
+    "x": 455.2142,
+    "y": 557.6358,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Closures And Slowdowns",
+    "x": 435.5998,
+    "y": 466.8143,
+    "type": "event",
+    "sources": [
+     "Daily bike commuter (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Closures and Slowdowns",
+    "x": 236.5532,
+    "y": 442.8109,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Commute Time Change",
+    "x": 331.4847,
+    "y": 315.4125,
+    "type": "data",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Computed Facts",
+    "x": 197.9529,
+    "y": 1438.7287,
+    "type": "data",
+    "sources": [
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor",
+    "x": 411.5104,
+    "y": 511.2763,
+    "type": "location",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 75
+   },
+   {
+    "id": "Corridor Change",
+    "x": 512.5824,
+    "y": 404.978,
+    "type": "event",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 7
+   },
+   {
+    "id": "Corridor Closure",
+    "x": 579.9097,
+    "y": 485.6667,
+    "type": "event",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor Closure And Slowdown",
+    "x": 697.4214,
+    "y": 264.2943,
+    "type": "event",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor Closure and Slowdown",
+    "x": 169.9258,
+    "y": 439.6522,
+    "type": "event",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor Closures And Slowdowns",
+    "x": 618.8652,
+    "y": 472.4471,
+    "type": "event",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor Safety Improvement",
+    "x": 574.024,
+    "y": 526.8819,
+    "type": "UNKNOWN",
+    "sources": [
+     "Bicycle delivery courier (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor Travel",
+    "x": 520.384,
+    "y": 443.1991,
+    "type": "concept",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor Travel Time Change",
+    "x": 214.8152,
+    "y": 550.124,
+    "type": "event",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Corridor closure",
+    "x": 651.8365,
+    "y": 705.956,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Crashes",
+    "x": 1712.3925,
+    "y": 0.0,
+    "type": "UNKNOWN",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Crossing Event",
+    "x": 1506.0342,
+    "y": 374.3596,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Crosswalk",
+    "x": 486.8276,
+    "y": 249.4009,
+    "type": "location",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Curb Access",
+    "x": 738.0615,
+    "y": 259.7782,
+    "type": "concept",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Customers",
+    "x": 595.5791,
+    "y": 326.4929,
+    "type": "person",
+    "sources": [
+     "Small business owner (voice)",
+     "Small business owner (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Cut-Through Chaos Concern",
+    "x": 510.1595,
+    "y": 771.2133,
+    "type": "concept",
+    "sources": [
+     "Long-time corridor resident (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Cyclists",
+    "x": 476.3984,
+    "y": 515.1707,
+    "type": "organization",
+    "sources": [
+     "Bicycle delivery courier (voice)",
+     "Cautious newer rider (voice)",
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 39
+   },
+   {
+    "id": "Daily Bike Commuter",
+    "x": 460.5739,
+    "y": 485.0298,
+    "type": "person",
+    "sources": [
+     "Daily bike commuter (voice)",
+     "Daily bike commuter (voice)",
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 14
+   },
+   {
+    "id": "Deliveries",
+    "x": 655.5374,
+    "y": 344.4441,
+    "type": "concept",
+    "sources": [
+     "Small business owner (voice)",
+     "Small business owner (voice)",
+     "Small business owner (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Delivery Driver",
+    "x": 282.4662,
+    "y": 461.5374,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Demand Level",
+    "x": 435.4312,
+    "y": 700.3585,
+    "type": "concept",
+    "sources": [
+     "Limitation: one corridor one demand level"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Demand Simulation",
+    "x": 1249.7444,
+    "y": 250.1339,
+    "type": "data",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Detour",
+    "x": 221.504,
+    "y": 636.0282,
+    "type": "concept",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Detours",
+    "x": 244.4896,
+    "y": 631.2257,
+    "type": "concept",
+    "sources": [
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Dilution Effect",
+    "x": 621.8101,
+    "y": 323.0985,
+    "type": "concept",
+    "sources": [
+     "Business owners scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Driver Ratings",
+    "x": 514.3644,
+    "y": 352.8769,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Drivers",
+    "x": 311.3446,
+    "y": 608.8788,
+    "type": "organization",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Edge -1288863201",
+    "x": 1363.6044,
+    "y": 210.7723,
+    "type": "artifact",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Edge -1288863202#6",
+    "x": 1358.7581,
+    "y": 260.1335,
+    "type": "artifact",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Faster Commute",
+    "x": 80.0,
+    "y": 1518.7287,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Fire Station 231",
+    "x": 387.5917,
+    "y": 206.8505,
+    "type": "organization",
+    "sources": [
+     "Institutional perspective (tfs, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Fire Station 232",
+    "x": 380.4792,
+    "y": 95.7864,
+    "type": "organization",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Fire Station 234",
+    "x": 392.0501,
+    "y": 73.1678,
+    "type": "organization",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Fire Station 243",
+    "x": 378.7198,
+    "y": 72.4747,
+    "type": "organization",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Front Door",
+    "x": 261.2095,
+    "y": 362.069,
+    "type": "location",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Full Closure",
+    "x": 379.0533,
+    "y": 537.0233,
+    "type": "event",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Accessibility advocate (voice)",
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 7
+   },
+   {
+    "id": "Full Closure And Slowdowns",
+    "x": 490.9298,
+    "y": 596.0482,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Full Simulated Period",
+    "x": 717.5932,
+    "y": 720.1093,
+    "type": "concept",
+    "sources": [
+     "Limitation: a windowed change scorecard measures cover the whole run"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Gig Driver",
+    "x": 424.7797,
+    "y": 376.6485,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Hard Braking",
+    "x": 1688.1403,
+    "y": 205.7811,
+    "type": "method",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Hardest-Hit Tail",
+    "x": 430.9658,
+    "y": 1244.3767,
+    "type": "concept",
+    "sources": [
+     "Limitation: a stratified sample not a census"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "In-Run Adaptation",
+    "x": 990.5625,
+    "y": 322.214,
+    "type": "concept",
+    "sources": [
+     "Limitation: in run adaptation is not settled equilibrium"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Incident",
+    "x": 368.8829,
+    "y": 133.2994,
+    "type": "event",
+    "sources": [
+     "Institutional perspective (tfs, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Incident -1288863202#6",
+    "x": 389.7686,
+    "y": 120.1652,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Incident Change",
+    "x": 1285.9682,
+    "y": 270.0534,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Institutional Perspectives",
+    "x": 205.3529,
+    "y": 1370.0737,
+    "type": "concept",
+    "sources": [
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Iterated-Assignment Claim",
+    "x": 717.2995,
+    "y": 322.7142,
+    "type": "concept",
+    "sources": [
+     "Limitation: a temporary event previewed as the day one response only"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Kids",
+    "x": 198.1334,
+    "y": 514.9997,
+    "type": "UNKNOWN",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Lane-Change Event",
+    "x": 1582.1524,
+    "y": 414.348,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Less Through-Traffic And Slower Speeds",
+    "x": 241.3036,
+    "y": 390.1265,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Limitation",
+    "x": 556.0276,
+    "y": 453.0446,
+    "type": "concept",
+    "sources": [
+     "Limitation: a temporary event previewed as the day one response only"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Local Residents",
+    "x": 454.6285,
+    "y": 640.6877,
+    "type": "organization",
+    "sources": [
+     "Long-time corridor resident (voice)",
+     "Long-time corridor resident (voice)",
+     "Long-time corridor resident (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Local residents",
+    "x": 337.721,
+    "y": 799.0875,
+    "type": "person",
+    "sources": [
+     "Local residents scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Long-Time Corridor Resident",
+    "x": 462.6005,
+    "y": 668.1414,
+    "type": "person",
+    "sources": [
+     "Long-time corridor resident (voice)",
+     "Long-time corridor resident (voice)",
+     "Long-time corridor resident (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Lost Sales",
+    "x": 715.2082,
+    "y": 230.6437,
+    "type": "concept",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Lower Speed Limit",
+    "x": 206.1158,
+    "y": 532.5924,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Members",
+    "x": 646.4126,
+    "y": 622.5526,
+    "type": "other",
+    "sources": [
+     "Limitation: a windowed change scorecard measures cover the whole run"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Morning Commute",
+    "x": 248.0367,
+    "y": 415.3826,
+    "type": "event",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Morning Schedule",
+    "x": 297.6256,
+    "y": 369.4348,
+    "type": "concept",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Named Organizations",
+    "x": 149.161,
+    "y": 1358.7658,
+    "type": "organization",
+    "sources": [
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Near-Miss Event",
+    "x": 1567.8359,
+    "y": 349.862,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Near-Miss Events",
+    "x": 1757.2814,
+    "y": 88.6157,
+    "type": "event",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Near-Miss Surrogate",
+    "x": 693.8196,
+    "y": 153.8985,
+    "type": "concept",
+    "sources": [
+     "Business owners scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Neutral Sentiment",
+    "x": 314.012,
+    "y": 488.3645,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Time-pressed commuter (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Neutral Stance",
+    "x": 417.1709,
+    "y": 478.659,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Daily bike commuter (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 15
+   },
+   {
+    "id": "Non-Completion",
+    "x": 442.7956,
+    "y": 784.7315,
+    "type": "concept",
+    "sources": [
+     "Limitation: a closure can strand trips"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Non-Completions",
+    "x": 1280.4399,
+    "y": 340.6644,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "North End of Incident -1288863202#6",
+    "x": 364.4297,
+    "y": 95.0624,
+    "type": "location",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Pedestrians",
+    "x": 405.66,
+    "y": 585.412,
+    "type": "organization",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "Walk-to-transit commuter (voice)",
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 40
+   },
+   {
+    "id": "Post-Encroachment-Time",
+    "x": 1686.9132,
+    "y": 332.1784,
+    "type": "method",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Pre-Closure Capture",
+    "x": 1426.0342,
+    "y": 395.0122,
+    "type": "UNKNOWN",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Proposed Change",
+    "x": 321.9436,
+    "y": 421.8693,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Proposed Scenario",
+    "x": 1191.9309,
+    "y": 279.4492,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Protected Lane",
+    "x": 494.4091,
+    "y": 523.8048,
+    "type": "concept",
+    "sources": [
+     "Cautious newer rider (voice)",
+     "Cautious newer rider (voice)",
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Published Mandate",
+    "x": 131.2943,
+    "y": 1309.6928,
+    "type": "content",
+    "sources": [
+     "Institutional perspective (transport_ops, mandate lens)",
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Quieter Street Change",
+    "x": 291.7499,
+    "y": 347.2842,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Quieter Street Idea",
+    "x": 557.07,
+    "y": 401.2521,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Random Seed",
+    "x": 160.0,
+    "y": 1518.7287,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Real Corridors",
+    "x": 838.2018,
+    "y": 354.1226,
+    "type": "location",
+    "sources": [
+     "Limitation: in run adaptation is not settled equilibrium"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Rear-End Event",
+    "x": 1513.3456,
+    "y": 317.7556,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Reduced Traffic",
+    "x": 391.7888,
+    "y": 467.7056,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Reduced speed limit",
+    "x": 637.5904,
+    "y": 723.3431,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Rerouting",
+    "x": 440.9351,
+    "y": 262.223,
+    "type": "event",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Resident Driver",
+    "x": 446.1819,
+    "y": 459.1361,
+    "type": "person",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Resident who drives the corridor (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 9
+   },
+   {
+    "id": "Resident Who Drives The Corridor",
+    "x": 356.6581,
+    "y": 459.6182,
+    "type": "person",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Resident who drives the corridor (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 16
+   },
+   {
+    "id": "Retrieval Date",
+    "x": 254.9091,
+    "y": 1331.6761,
+    "type": "data",
+    "sources": [
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Rideshare / Delivery Driver",
+    "x": 353.5027,
+    "y": 488.6828,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 11
+   },
+   {
+    "id": "Rideshare Delivery Driver",
+    "x": 372.8332,
+    "y": 524.8062,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Rideshare Driver",
+    "x": 367.0196,
+    "y": 502.6264,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 7
+   },
+   {
+    "id": "Rideshare Or Delivery Driver",
+    "x": 493.2185,
+    "y": 466.5556,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Rideshare/Delivery Driver",
+    "x": 421.4799,
+    "y": 438.4117,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Road",
+    "x": 435.2428,
+    "y": 594.5713,
+    "type": "artifact",
+    "sources": [
+     "Cautious newer rider (voice)",
+     "Limitation: a closure can strand trips",
+     "Pedestrians scorecard row"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Road Change",
+    "x": 306.1791,
+    "y": 524.5816,
+    "type": "event",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Transit rider perspective (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Road Changes",
+    "x": 331.915,
+    "y": 718.3795,
+    "type": "concept",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Road Closing",
+    "x": 440.0111,
+    "y": 415.1709,
+    "type": "event",
+    "sources": [
+     "Time-pressed commuter (voice)",
+     "Steady daily regular (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Road Closure",
+    "x": 394.2089,
+    "y": 442.8709,
+    "type": "event",
+    "sources": [
+     "Institutional perspective (tfs, mandate lens)",
+     "Business owners scorecard row",
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 14
+   },
+   {
+    "id": "Road Closure -36784353#20",
+    "x": 402.004,
+    "y": 96.499,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Road Closure And Slowdown",
+    "x": 530.4335,
+    "y": 540.5994,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Road Closure Change",
+    "x": 1273.5906,
+    "y": 213.0932,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Road Condition",
+    "x": 345.7457,
+    "y": 727.2278,
+    "type": "concept",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Road Safety Change",
+    "x": 310.6161,
+    "y": 503.3435,
+    "type": "event",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Road Severance",
+    "x": 457.9827,
+    "y": 680.046,
+    "type": "event",
+    "sources": [
+     "Car commuters scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Road Work And Speed Changes",
+    "x": 484.3046,
+    "y": 548.1064,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Run",
+    "x": 245.308,
+    "y": 810.9455,
+    "type": "event",
+    "sources": [
+     "Limitation: in run adaptation is not settled equilibrium"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safer Crossings",
+    "x": 299.3894,
+    "y": 675.2013,
+    "type": "concept",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safer Streets",
+    "x": 194.059,
+    "y": 497.0087,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety",
+    "x": 642.3172,
+    "y": 248.4624,
+    "type": "concept",
+    "sources": [
+     "Business owners scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety (Surrogate Near-Miss)",
+    "x": 452.0335,
+    "y": 510.8967,
+    "type": "concept",
+    "sources": [
+     "Accessibility scorecard row",
+     "Car commuters scorecard row",
+     "Transit riders scorecard row"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Safety (surrogate near-miss)",
+    "x": 189.1109,
+    "y": 867.8133,
+    "type": "concept",
+    "sources": [
+     "Local residents scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety Feeling",
+    "x": 251.1837,
+    "y": 655.194,
+    "type": "concept",
+    "sources": [
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety Improvement",
+    "x": 209.2973,
+    "y": 465.6415,
+    "type": "UNKNOWN",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety Near-Miss",
+    "x": 588.3501,
+    "y": 566.3602,
+    "type": "concept",
+    "sources": [
+     "Cyclists scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety Surrogate",
+    "x": 60.0519,
+    "y": 904.5402,
+    "type": "concept",
+    "sources": [
+     "Limitation: safety direction is not established"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety-Conscious Driver-Parent",
+    "x": 334.0471,
+    "y": 497.6871,
+    "type": "person",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 22
+   },
+   {
+    "id": "Safety-Conscious Driver-Parent (id safety_first_parent)",
+    "x": 0.0,
+    "y": 1598.7287,
+    "type": "person",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety-First Parent",
+    "x": 342.7839,
+    "y": 517.5118,
+    "type": "person",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Safety-First Parent Persona",
+    "x": 214.5851,
+    "y": 513.9357,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Safety-conscious driver-parent",
+    "x": 456.5024,
+    "y": 595.573,
+    "type": "person",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Sales",
+    "x": 692.5986,
+    "y": 209.2532,
+    "type": "UNKNOWN",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Scenario",
+    "x": 270.2707,
+    "y": 481.2752,
+    "type": "event",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Scenario Change",
+    "x": 264.5659,
+    "y": 395.8743,
+    "type": "concept",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Scenario Travel Time",
+    "x": 354.1885,
+    "y": 393.9679,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Rideshare / delivery driver (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 10
+   },
+   {
+    "id": "Scenario Trip Time",
+    "x": 552.3429,
+    "y": 418.6457,
+    "type": "data",
+    "sources": [
+     "Walk-to-transit commuter (voice)",
+     "Resident who drives the corridor (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Scenario Trip Travel Time",
+    "x": 404.7669,
+    "y": 481.4272,
+    "type": "data",
+    "sources": [
+     "Daily bike commuter (voice)",
+     "Resident who drives the corridor (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 11
+   },
+   {
+    "id": "Scenario trip travel time",
+    "x": 944.3777,
+    "y": 1125.7832,
+    "type": "data",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Schedule Change",
+    "x": 441.8954,
+    "y": 531.0515,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Schedule Disruption",
+    "x": 476.3322,
+    "y": 334.4953,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "School",
+    "x": 353.8141,
+    "y": 532.1765,
+    "type": "location",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 10
+   },
+   {
+    "id": "School Drop-Off",
+    "x": 326.564,
+    "y": 353.1014,
+    "type": "event",
+    "sources": [
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "School Run",
+    "x": 340.3325,
+    "y": 631.7769,
+    "type": "event",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "School Safety Improvement",
+    "x": 63.2722,
+    "y": 400.3755,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "School-Run Parent On Foot",
+    "x": 371.3601,
+    "y": 577.8661,
+    "type": "person",
+    "sources": [
+     "School-run parent on foot (voice)",
+     "School-run parent on foot (voice)",
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 14
+   },
+   {
+    "id": "School-Run Parent On Foot (Id School_Run_Parent)",
+    "x": 80.0,
+    "y": 1598.7287,
+    "type": "person",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "School_Run_Parent",
+    "x": 319.2085,
+    "y": 679.7373,
+    "type": "person",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Scorecard",
+    "x": 550.6612,
+    "y": 522.0392,
+    "type": "artifact",
+    "sources": [
+     "Accessibility scorecard row",
+     "Cyclists scorecard row"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Scorecard Measures",
+    "x": 647.8198,
+    "y": 639.419,
+    "type": "concept",
+    "sources": [
+     "Car commuters scorecard row",
+     "Limitation: a windowed change scorecard measures cover the whole run"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Scorecard measures",
+    "x": 378.338,
+    "y": 958.5013,
+    "type": "data",
+    "sources": [
+     "Local residents scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Section 1",
+    "x": 459.8832,
+    "y": 889.1192,
+    "type": "content",
+    "sources": [
+     "Limitation: a closure can strand trips"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Seed 42",
+    "x": 119.0344,
+    "y": 894.6542,
+    "type": "data",
+    "sources": [
+     "Limitation: safety direction is not established",
+     "Local residents scorecard row"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Seed 43",
+    "x": 107.2757,
+    "y": 872.3239,
+    "type": "data",
+    "sources": [
+     "Limitation: safety direction is not established",
+     "Local residents scorecard row"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Seed 44",
+    "x": 112.342,
+    "y": 883.8241,
+    "type": "data",
+    "sources": [
+     "Limitation: safety direction is not established",
+     "Local residents scorecard row"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Senior Walker",
+    "x": 397.1217,
+    "y": 623.2522,
+    "type": "person",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "Senior who walks everywhere (voice)",
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Senior Who Walks Everywhere",
+    "x": 355.1001,
+    "y": 573.2694,
+    "type": "person",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "Senior who walks everywhere (voice)",
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 12
+   },
+   {
+    "id": "Sentiment",
+    "x": 504.5968,
+    "y": 578.5482,
+    "type": "concept",
+    "sources": [
+     "Steady daily regular (voice)",
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Sentiment - Senior Walker",
+    "x": 382.2558,
+    "y": 746.6664,
+    "type": "data",
+    "sources": [
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Settled Equilibrium",
+    "x": 841.1019,
+    "y": 365.4399,
+    "type": "concept",
+    "sources": [
+     "Limitation: in run adaptation is not settled equilibrium"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Severity Ordinal Scale",
+    "x": 1525.8527,
+    "y": 401.8884,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Shop Owner",
+    "x": 758.4031,
+    "y": 311.6609,
+    "type": "person",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Simulated Period",
+    "x": 529.355,
+    "y": 432.1403,
+    "type": "event",
+    "sources": [
+     "Business owners scorecard row",
+     "Limitation: a temporary event previewed as the day one response only",
+     "Pedestrians scorecard row"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Simulated Travelers",
+    "x": 484.5984,
+    "y": 1125.7832,
+    "type": "person",
+    "sources": [
+     "Limitation: a stratified sample not a census"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Simulated period",
+    "x": 424.8001,
+    "y": 1038.0174,
+    "type": "concept",
+    "sources": [
+     "Local residents scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Simulation",
+    "x": 516.3204,
+    "y": 612.3949,
+    "type": "data",
+    "sources": [
+     "Limitation: one corridor one demand level",
+     "Car commuters scorecard row",
+     "Cyclists scorecard row"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Simulation Period",
+    "x": 565.1378,
+    "y": 274.2157,
+    "type": "concept",
+    "sources": [
+     "Transit riders scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Skeptical Taxpayer",
+    "x": 1189.2305,
+    "y": 1125.7832,
+    "type": "person",
+    "sources": [
+     "Skeptical taxpayer (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Slow-downs",
+    "x": 514.0137,
+    "y": 595.4776,
+    "type": "event",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Slowdown",
+    "x": 494.0307,
+    "y": 315.1375,
+    "type": "event",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Slowdowns",
+    "x": 358.3042,
+    "y": 509.05,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)",
+     "Steady daily regular (voice)",
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Slower Speed",
+    "x": 451.8983,
+    "y": 703.4986,
+    "type": "concept",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Slower Speed Limit",
+    "x": 469.2729,
+    "y": 544.9599,
+    "type": "concept",
+    "sources": [
+     "Cautious newer rider (voice)",
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Slower Speeds",
+    "x": 249.3289,
+    "y": 565.5344,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)",
+     "Senior who walks everywhere (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 5
+   },
+   {
+    "id": "Slower Speeds And Closures",
+    "x": 318.0494,
+    "y": 642.0062,
+    "type": "concept",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Slower Traffic",
+    "x": 355.8904,
+    "y": 669.5782,
+    "type": "concept",
+    "sources": [
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Slower Traffic And Temporary Slowdown",
+    "x": 368.1677,
+    "y": 694.7455,
+    "type": "UNKNOWN",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Small Business Owner",
+    "x": 642.6127,
+    "y": 312.5176,
+    "type": "person",
+    "sources": [
+     "Small business owner (voice)",
+     "Small business owner (voice)",
+     "Small business owner (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "South End of Incident -1288863202#6",
+    "x": 387.2011,
+    "y": 0.0,
+    "type": "location",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Spanning Window",
+    "x": 617.9382,
+    "y": 446.7742,
+    "type": "method",
+    "sources": [
+     "Business owners scorecard row",
+     "Limitation: a windowed change scorecard measures cover the whole run"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Spanning window",
+    "x": 406.9205,
+    "y": 1045.7832,
+    "type": "concept",
+    "sources": [
+     "Local residents scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Speed Limit Change",
+    "x": 1291.7123,
+    "y": 239.1315,
+    "type": "event",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Speed Limit Drop",
+    "x": 574.3931,
+    "y": 466.807,
+    "type": "concept",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Speed Reduction",
+    "x": 288.8322,
+    "y": 612.278,
+    "type": "event",
+    "sources": [
+     "Transit rider perspective (voice)",
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Stakeholder Group",
+    "x": 314.4367,
+    "y": 391.3693,
+    "type": "concept",
+    "sources": [
+     "Steady daily regular (voice)",
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Steady Daily Regular",
+    "x": 421.8782,
+    "y": 501.7394,
+    "type": "person",
+    "sources": [
+     "Steady daily regular (voice)",
+     "Steady daily regular (voice)",
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 23
+   },
+   {
+    "id": "Steady Daily Regular Car Commuter",
+    "x": 389.4398,
+    "y": 422.1511,
+    "type": "person",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Steady Regular Traveler",
+    "x": 441.4705,
+    "y": 445.2994,
+    "type": "person",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Steady daily regular",
+    "x": 556.2443,
+    "y": 643.1752,
+    "type": "person",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Stratified Sample",
+    "x": 508.0001,
+    "y": 1207.8613,
+    "type": "method",
+    "sources": [
+     "Limitation: a stratified sample not a census"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Street Calmness",
+    "x": 101.5497,
+    "y": 605.081,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Street Closures",
+    "x": 0.0,
+    "y": 630.3437,
+    "type": "event",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Street Quieter For Residents",
+    "x": 306.3181,
+    "y": 338.6902,
+    "type": "concept",
+    "sources": [
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Streets Near School Safety",
+    "x": 228.077,
+    "y": 538.3978,
+    "type": "concept",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Support For Change",
+    "x": 289.0293,
+    "y": 661.0862,
+    "type": "concept",
+    "sources": [
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Supportive Stance",
+    "x": 286.2825,
+    "y": 559.4966,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "School-run parent on foot (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Surrogate Measures",
+    "x": 1811.1194,
+    "y": 115.7494,
+    "type": "concept",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Surrogate Safety Measures",
+    "x": 1653.6416,
+    "y": 281.3366,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Taxpayer",
+    "x": 1274.0833,
+    "y": 1125.7832,
+    "type": "organization",
+    "sources": [
+     "Skeptical taxpayer (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Temporary Closure",
+    "x": 730.2919,
+    "y": 244.1829,
+    "type": "event",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Temporary Slowdown",
+    "x": 262.5165,
+    "y": 652.0059,
+    "type": "event",
+    "sources": [
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "The Change",
+    "x": 345.8548,
+    "y": 483.0602,
+    "type": "concept",
+    "sources": [
+     "Steady daily regular (voice)",
+     "Time-pressed commuter (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "The Closure",
+    "x": 160.0,
+    "y": 1598.7287,
+    "type": "event",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "The Corridor",
+    "x": 305.2226,
+    "y": 430.5884,
+    "type": "location",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Resident who drives the corridor (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "The Shop",
+    "x": 618.1996,
+    "y": 289.0929,
+    "type": "artifact",
+    "sources": [
+     "Small business owner (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "The Tool",
+    "x": 1728.6956,
+    "y": 63.9479,
+    "type": "artifact",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "This Run",
+    "x": 350.9658,
+    "y": 1420.4331,
+    "type": "event",
+    "sources": [
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Time-Pressed Commuter",
+    "x": 366.4446,
+    "y": 465.2842,
+    "type": "person",
+    "sources": [
+     "Time-pressed commuter (voice)",
+     "Time-pressed commuter (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 24
+   },
+   {
+    "id": "Time-To-Collision",
+    "x": 1714.6209,
+    "y": 224.7446,
+    "type": "method",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Tool",
+    "x": 285.992,
+    "y": 1403.7697,
+    "type": "artifact",
+    "sources": [
+     "Limitation: institutional perspectives are generated not statements"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Toronto",
+    "x": 21.5222,
+    "y": 1171.5299,
+    "type": "location",
+    "sources": [
+     "Institutional perspective (tfs, mandate lens)",
+     "Institutional perspective (transport_ops, mandate lens)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Toronto Fire Services",
+    "x": 378.4357,
+    "y": 192.8561,
+    "type": "organization",
+    "sources": [
+     "Institutional perspective (tfs, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Toronto Open Data",
+    "x": 346.5326,
+    "y": 124.9758,
+    "type": "organization",
+    "sources": [
+     "Institutional perspective (tfs, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Toronto Transportation Services",
+    "x": 64.2395,
+    "y": 1239.2302,
+    "type": "organization",
+    "sources": [
+     "Institutional perspective (transport_ops, mandate lens)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Traffic",
+    "x": 532.2165,
+    "y": 470.6665,
+    "type": "concept",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Traffic Calming",
+    "x": 203.8341,
+    "y": 487.5768,
+    "type": "UNKNOWN",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Traffic Calming Change",
+    "x": 420.6687,
+    "y": 581.1427,
+    "type": "event",
+    "sources": [
+     "Senior who walks everywhere (voice)",
+     "School-run parent on foot (voice)",
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Traffic Change",
+    "x": 373.2092,
+    "y": 546.5589,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)",
+     "School-run parent on foot (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Traffic Diversion",
+    "x": 1109.2305,
+    "y": 1125.7832,
+    "type": "event",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Traffic Shift",
+    "x": 191.5841,
+    "y": 348.0302,
+    "type": "concept",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Traffic Slowing Measures",
+    "x": 495.6459,
+    "y": 780.5318,
+    "type": "concept",
+    "sources": [
+     "Long-time corridor resident (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Traffic Speed Reduction",
+    "x": 308.543,
+    "y": 405.1912,
+    "type": "concept",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Trajectory-Derived Surrogates",
+    "x": 1747.7112,
+    "y": 147.0781,
+    "type": "concept",
+    "sources": [
+     "Limitation: surrogate measures are not crash predictions"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Transit Corridor",
+    "x": 282.2516,
+    "y": 701.2963,
+    "type": "location",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Transit Rider Perspective",
+    "x": 324.0099,
+    "y": 566.5385,
+    "type": "concept",
+    "sources": [
+     "Transit rider perspective (voice)",
+     "Transit rider perspective (voice)"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Transit Riders",
+    "x": 367.7003,
+    "y": 559.912,
+    "type": "organization",
+    "sources": [
+     "Transit rider perspective (voice)",
+     "Transit riders scorecard row",
+     "Transit rider perspective (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Transit Stop",
+    "x": 463.5767,
+    "y": 625.7498,
+    "type": "location",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Transit Walker",
+    "x": 402.9274,
+    "y": 552.0428,
+    "type": "concept",
+    "sources": [
+     "Walk-to-transit commuter (voice)",
+     "Walk-to-transit commuter (voice)",
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 7
+   },
+   {
+    "id": "Transit_Walker",
+    "x": 621.497,
+    "y": 372.9825,
+    "type": "person",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Transportation Change",
+    "x": 331.826,
+    "y": 560.5927,
+    "type": "event",
+    "sources": [
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travel Time",
+    "x": 450.058,
+    "y": 483.1733,
+    "type": "data",
+    "sources": [
+     "Business owners scorecard row",
+     "Accessibility scorecard row",
+     "Steady daily regular (voice)"
+    ],
+    "source_count": 11
+   },
+   {
+    "id": "Travel Time Baseline",
+    "x": 381.9503,
+    "y": 335.3263,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travel Time Change",
+    "x": 383.0787,
+    "y": 439.9727,
+    "type": "event",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Time-pressed commuter (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 17
+   },
+   {
+    "id": "Travel Time Reduction",
+    "x": 417.0944,
+    "y": 261.3186,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travel Time Scenario",
+    "x": 396.5591,
+    "y": 334.4771,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travel time",
+    "x": 309.1254,
+    "y": 905.1079,
+    "type": "concept",
+    "sources": [
+     "Local residents scorecard row"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travel-Time Delta",
+    "x": 496.1397,
+    "y": 916.8947,
+    "type": "concept",
+    "sources": [
+     "Limitation: a closure can strand trips"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travel-Time Tail",
+    "x": 172.2795,
+    "y": 828.3649,
+    "type": "concept",
+    "sources": [],
+    "source_count": 0
+   },
+   {
+    "id": "Traveler",
+    "x": 531.747,
+    "y": 1008.3209,
+    "type": "person",
+    "sources": [
+     "Limitation: a closure can strand trips"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Travelers",
+    "x": 664.3395,
+    "y": 410.6703,
+    "type": "person",
+    "sources": [
+     "Limitation: in run adaptation is not settled equilibrium",
+     "Limitation: a temporary event previewed as the day one response only"
+    ],
+    "source_count": 2
+   },
+   {
+    "id": "Trip",
+    "x": 392.2403,
+    "y": 581.0438,
+    "type": "event",
+    "sources": [
+     "Resident who drives the corridor (voice)",
+     "Time-pressed commuter (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 5
+   },
+   {
+    "id": "Trip Time",
+    "x": 570.8528,
+    "y": 572.2265,
+    "type": "UNKNOWN",
+    "sources": [
+     "Cautious newer rider (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Trip Travel Time",
+    "x": 383.1944,
+    "y": 504.144,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Resident who drives the corridor (voice)",
+     "Resident who drives the corridor (voice)"
+    ],
+    "source_count": 68
+   },
+   {
+    "id": "Trip Travel Time - Senior Walker",
+    "x": 403.6545,
+    "y": 745.9501,
+    "type": "data",
+    "sources": [
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Trip Travel Time Change",
+    "x": 457.2335,
+    "y": 439.7285,
+    "type": "data",
+    "sources": [
+     "Daily bike commuter (voice)",
+     "Cautious newer rider (voice)",
+     "Time-pressed commuter (voice)"
+    ],
+    "source_count": 3
+   },
+   {
+    "id": "Trip Travel Time Reduction",
+    "x": 355.9338,
+    "y": 322.1039,
+    "type": "data",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Trip travel time",
+    "x": 614.4422,
+    "y": 807.0965,
+    "type": "data",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Trips On The Corridor",
+    "x": 622.86,
+    "y": 456.1263,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Vision Impaired Individuals",
+    "x": 377.2639,
+    "y": 417.6898,
+    "type": "person",
+    "sources": [
+     "Accessibility advocate (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Voice",
+    "x": 402.2795,
+    "y": 543.0194,
+    "type": "person",
+    "sources": [
+     "Rideshare / delivery driver (voice)",
+     "Daily bike commuter (voice)",
+     "Senior who walks everywhere (voice)"
+    ],
+    "source_count": 12
+   },
+   {
+    "id": "Voice - Walk-to-transit commuter [Pedestrians]",
+    "x": 529.3556,
+    "y": 729.8544,
+    "type": "person",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Voiced Reactions",
+    "x": 596.3904,
+    "y": 1248.3091,
+    "type": "content",
+    "sources": [
+     "Limitation: a stratified sample not a census"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Walk-To-Transit Commuter",
+    "x": 406.9072,
+    "y": 526.0647,
+    "type": "person",
+    "sources": [
+     "Walk-to-transit commuter (voice)",
+     "Walk-to-transit commuter (voice)",
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 8
+   },
+   {
+    "id": "Walk-to-Transit Commuter",
+    "x": 364.0081,
+    "y": 602.7214,
+    "type": "person",
+    "sources": [
+     "Walk-to-transit commuter (voice)",
+     "Walk-to-transit commuter (voice)",
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 4
+   },
+   {
+    "id": "Wheelchair Users",
+    "x": 417.8265,
+    "y": 405.7802,
+    "type": "person",
+    "sources": [
+     "Accessibility advocate (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "Windowed Changes",
+    "x": 633.3897,
+    "y": 526.9171,
+    "type": "event",
+    "sources": [
+     "Limitation: a windowed change scorecard measures cover the whole run"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "affects",
+    "x": 427.6275,
+    "y": 638.0137,
+    "type": "UNKNOWN",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "closure and slowdown",
+    "x": 482.8175,
+    "y": 695.5078,
+    "type": "event",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "compared to",
+    "x": 297.9816,
+    "y": 281.8458,
+    "type": "UNKNOWN",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "gig_driver",
+    "x": 239.4414,
+    "y": 493.8374,
+    "type": "concept",
+    "sources": [
+     "Rideshare / delivery driver (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "protected lane",
+    "x": 582.4473,
+    "y": 503.3805,
+    "type": "UNKNOWN",
+    "sources": [
+     "Daily bike commuter (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "safety_first_parent",
+    "x": 0.0,
+    "y": 1678.7287,
+    "type": "person",
+    "sources": [
+     "Safety-conscious driver-parent (voice)"
+    ],
+    "source_count": 1
+   },
+   {
+    "id": "transit_walker",
+    "x": 597.9568,
+    "y": 821.6653,
+    "type": "person",
+    "sources": [
+     "Walk-to-transit commuter (voice)"
+    ],
+    "source_count": 1
+   }
+  ],
+  "edges": [
+   {
+    "from": "30 Km/H Speed Limit",
+    "to": "Crosswalk",
+    "weight": 1.0
+   },
+   {
+    "from": "Access",
+    "to": "Accessibility",
+    "weight": 1.0
+   },
+   {
+    "from": "Access",
+    "to": "Local residents",
+    "weight": 1.0
+   },
+   {
+    "from": "Access",
+    "to": "Road Severance",
+    "weight": 1.0
+   },
+   {
+    "from": "Access Column",
+    "to": "Change Type",
+    "weight": 1.0
+   },
+   {
+    "from": "Access Impact",
+    "to": "Access Column",
+    "weight": 1.0
+   },
+   {
+    "from": "Accessibility",
+    "to": "Safety (Surrogate Near-Miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Accessibility",
+    "to": "Scorecard",
+    "weight": 2.0
+   },
+   {
+    "from": "Accessibility Advocate",
+    "to": "Accessibility",
+    "weight": 1.0
+   },
+   {
+    "from": "Accessibility Advocate",
+    "to": "Accessibility Stakeholder Group",
+    "weight": 1.0
+   },
+   {
+    "from": "Accessibility Advocate",
+    "to": "Vision Impaired Individuals",
+    "weight": 1.0
+   },
+   {
+    "from": "Accessibility Advocate",
+    "to": "Wheelchair Users",
+    "weight": 1.0
+   },
+   {
+    "from": "Active Window",
+    "to": "Dilution Effect",
+    "weight": 1.0
+   },
+   {
+    "from": "Active Window",
+    "to": "Simulation Period",
+    "weight": 1.0
+   },
+   {
+    "from": "Active Window",
+    "to": "Spanning Window",
+    "weight": 1.0
+   },
+   {
+    "from": "Active Window",
+    "to": "Windowed Changes",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Travel Time",
+    "to": "Commute Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Travel Time",
+    "to": "Scenario Travel Time",
+    "weight": 6.0
+   },
+   {
+    "from": "Baseline Travel Time",
+    "to": "Time-Pressed Commuter",
+    "weight": 2.0
+   },
+   {
+    "from": "Baseline Travel Time",
+    "to": "Travel Time Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Baseline Travel Time",
+    "to": "Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Trip Time",
+    "to": "Corridor Travel",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Trip Time",
+    "to": "Resident Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Trip Time",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Trip Time",
+    "to": "Scenario Trip Time",
+    "weight": 3.0
+   },
+   {
+    "from": "Baseline Trip Travel Time",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline Trip Travel Time",
+    "to": "Scenario Trip Travel Time",
+    "weight": 4.0
+   },
+   {
+    "from": "Baseline Trip Travel Time",
+    "to": "Steady Daily Regular",
+    "weight": 3.0
+   },
+   {
+    "from": "Baseline Trip Travel Time",
+    "to": "Time-Pressed Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Baseline trip travel time",
+    "to": "Scenario trip travel time",
+    "weight": 1.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Corridor",
+    "weight": 7.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Corridor Change",
+    "weight": 3.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Corridor Safety Improvement",
+    "weight": 1.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Cyclists",
+    "weight": 13.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Full Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Neutral Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Bicycle Delivery Courier",
+    "to": "Trip Travel Time",
+    "weight": 2.0
+   },
+   {
+    "from": "Business Owners",
+    "to": "Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Business Owners",
+    "to": "Active Window",
+    "weight": 1.0
+   },
+   {
+    "from": "Business Owners",
+    "to": "Dilution Effect",
+    "weight": 1.0
+   },
+   {
+    "from": "Business Owners",
+    "to": "Safety",
+    "weight": 1.0
+   },
+   {
+    "from": "Business Owners",
+    "to": "Small Business Owner",
+    "weight": 3.0
+   },
+   {
+    "from": "Business Owners",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Gig Driver",
+    "weight": 2.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Resident Driver",
+    "weight": 8.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 16.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Rideshare / Delivery Driver",
+    "weight": 9.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Rideshare Delivery Driver",
+    "weight": 2.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Rideshare Driver",
+    "weight": 7.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 3.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Safety (Surrogate Near-Miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Safety-Conscious Driver-Parent",
+    "weight": 22.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Safety-First Parent",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Schedule Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Stakeholder Group",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Steady Daily Regular",
+    "weight": 25.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Steady Daily Regular Car Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Steady Regular Traveler",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Time-Pressed Commuter",
+    "weight": 26.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Traffic Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Car Commuters",
+    "to": "Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Car commuters",
+    "to": "Steady daily regular",
+    "weight": 1.0
+   },
+   {
+    "from": "Cars",
+    "to": "Run",
+    "weight": 1.0
+   },
+   {
+    "from": "Cars",
+    "to": "School-Run Parent On Foot",
+    "weight": 1.0
+   },
+   {
+    "from": "Cars",
+    "to": "Travel-Time Tail",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Cyclist",
+    "to": "Alternative Streets",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Cyclist",
+    "to": "Trip Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Baseline Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Cautious Cyclist",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Neutral Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Protected Lane",
+    "weight": 2.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Reduced Traffic",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Road",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Road Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Scenario Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Slower Speed Limit",
+    "weight": 2.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Traffic Calming Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Trip Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Cautious Newer Rider",
+    "to": "Trip Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Census",
+    "to": "Voiced Reactions",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Accessibility Advocate",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Cautious Newer Rider",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Closures",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Daily Bike Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Local Residents",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Resident Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Rideshare / Delivery Driver",
+    "weight": 3.0
+   },
+   {
+    "from": "Change",
+    "to": "Rideshare Driver",
+    "weight": 2.0
+   },
+   {
+    "from": "Change",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Safety-Conscious Driver-Parent",
+    "weight": 2.0
+   },
+   {
+    "from": "Change",
+    "to": "Safety-conscious driver-parent",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Scenario Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "School",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "School-Run Parent On Foot",
+    "weight": 2.0
+   },
+   {
+    "from": "Change",
+    "to": "Slow-downs",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Steady Daily Regular",
+    "weight": 3.0
+   },
+   {
+    "from": "Change",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Change",
+    "to": "Trip Travel Time",
+    "weight": 2.0
+   },
+   {
+    "from": "Change",
+    "to": "affects",
+    "weight": 1.0
+   },
+   {
+    "from": "Closed Edge -36784353#20",
+    "to": "Road Closure Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Closure",
+    "to": "Road",
+    "weight": 1.0
+   },
+   {
+    "from": "Closure",
+    "to": "Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Closure",
+    "to": "Steady Daily Regular",
+    "weight": 1.0
+   },
+   {
+    "from": "Closure",
+    "to": "Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Closure",
+    "to": "Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Closure Run",
+    "to": "Pre-Closure Capture",
+    "weight": 1.0
+   },
+   {
+    "from": "Closures And Slowdowns",
+    "to": "Rideshare Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Accessibility Advocate",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Car Commuters",
+    "weight": 11.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Cautious Newer Rider",
+    "weight": 10.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Change",
+    "weight": 8.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Closures",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Corridor Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Daily Bike Commuter",
+    "weight": 7.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Full Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Gig Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Limitation",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Long-Time Corridor Resident",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Protected Lane",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Reduced Traffic",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Resident Driver",
+    "weight": 7.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 7.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Rideshare / Delivery Driver",
+    "weight": 3.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Rideshare Driver",
+    "weight": 4.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Rideshare/Delivery Driver",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Road Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Road Closing",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Road Safety Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Road Work And Speed Changes",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Safety-Conscious Driver-Parent",
+    "weight": 12.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Safety-First Parent",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Safety-conscious driver-parent",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Schedule Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "School-Run Parent On Foot",
+    "weight": 7.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Senior Walker",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Simulation",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Slower Speed Limit",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Steady Daily Regular",
+    "weight": 13.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Steady Daily Regular Car Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Steady Regular Traveler",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Steady daily regular",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Time-Pressed Commuter",
+    "weight": 12.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Traffic Calming Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Traffic Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Transit Rider Perspective",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Transportation Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Travelers",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Trip Travel Time",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Vision Impaired Individuals",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Walk-To-Transit Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Walk-to-Transit Commuter",
+    "weight": 2.0
+   },
+   {
+    "from": "Corridor",
+    "to": "Wheelchair Users",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Change",
+    "to": "Customers",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Change",
+    "to": "Deliveries",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Change",
+    "to": "Gig Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Change",
+    "to": "Slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Change",
+    "to": "Small Business Owner",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Change",
+    "to": "The Shop",
+    "weight": 1.0
+   },
+   {
+    "from": "Corridor Closure and Slowdown",
+    "to": "School Safety Improvement",
+    "weight": 1.0
+   },
+   {
+    "from": "Crossing Event",
+    "to": "Severity Ordinal Scale",
+    "weight": 1.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Cautious Newer Rider",
+    "weight": 13.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Daily Bike Commuter",
+    "weight": 14.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Safety Near-Miss",
+    "weight": 1.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Scorecard",
+    "weight": 1.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Simulation",
+    "weight": 1.0
+   },
+   {
+    "from": "Cyclists",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Baseline Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Bike Commuter",
+    "weight": 2.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Bike Commuter Id",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Bike Commuter Persona",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Closures And Slowdowns",
+    "weight": 2.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Corridor Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Full Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Neutral Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Protected Lane",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Scenario Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Speed Limit Drop",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Traffic",
+    "weight": 2.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Traffic Speed Reduction",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "Trip Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Daily Bike Commuter",
+    "to": "protected lane",
+    "weight": 1.0
+   },
+   {
+    "from": "Deliveries",
+    "to": "Shop Owner",
+    "weight": 1.0
+   },
+   {
+    "from": "Demand Level",
+    "to": "Bicycles",
+    "weight": 1.0
+   },
+   {
+    "from": "Demand Level",
+    "to": "Cars",
+    "weight": 1.0
+   },
+   {
+    "from": "Demand Level",
+    "to": "Simulation",
+    "weight": 1.0
+   },
+   {
+    "from": "Edge -1288863201",
+    "to": "Speed Limit Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Edge -1288863202#6",
+    "to": "Incident Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 231",
+    "to": "Incident",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 231",
+    "to": "Incident -1288863202#6",
+    "weight": 2.0
+   },
+   {
+    "from": "Fire Station 231",
+    "to": "North End of Incident -1288863202#6",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 231",
+    "to": "Road Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 231",
+    "to": "Road Closure -36784353#20",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 232",
+    "to": "North End of Incident -1288863202#6",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 232",
+    "to": "Road Closure -36784353#20",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 234",
+    "to": "North End of Incident -1288863202#6",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 234",
+    "to": "Road Closure -36784353#20",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 234",
+    "to": "South End of Incident -1288863202#6",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 243",
+    "to": "North End of Incident -1288863202#6",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 243",
+    "to": "Road Closure -36784353#20",
+    "weight": 1.0
+   },
+   {
+    "from": "Fire Station 243",
+    "to": "South End of Incident -1288863202#6",
+    "weight": 1.0
+   },
+   {
+    "from": "Full Closure",
+    "to": "30 Kmh Speed Limit",
+    "weight": 1.0
+   },
+   {
+    "from": "Full Closure",
+    "to": "Accessibility Advocate",
+    "weight": 1.0
+   },
+   {
+    "from": "Full Closure",
+    "to": "Drivers",
+    "weight": 1.0
+   },
+   {
+    "from": "Full Closure",
+    "to": "Rideshare Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Full Closure",
+    "to": "Senior Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Gig Driver",
+    "to": "Rerouting",
+    "weight": 1.0
+   },
+   {
+    "from": "Gig Driver",
+    "to": "Slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Gig Driver",
+    "to": "Travel Time Baseline",
+    "weight": 1.0
+   },
+   {
+    "from": "Gig Driver",
+    "to": "Travel Time Reduction",
+    "weight": 1.0
+   },
+   {
+    "from": "Gig Driver",
+    "to": "Travel Time Scenario",
+    "weight": 1.0
+   },
+   {
+    "from": "Hard Braking",
+    "to": "Surrogate Safety Measures",
+    "weight": 1.0
+   },
+   {
+    "from": "In-Run Adaptation",
+    "to": "Real Corridors",
+    "weight": 1.0
+   },
+   {
+    "from": "In-Run Adaptation",
+    "to": "Settled Equilibrium",
+    "weight": 1.0
+   },
+   {
+    "from": "Incident -1288863202#6",
+    "to": "Fire Station 232",
+    "weight": 2.0
+   },
+   {
+    "from": "Incident -1288863202#6",
+    "to": "Fire Station 234",
+    "weight": 1.0
+   },
+   {
+    "from": "Incident -1288863202#6",
+    "to": "Fire Station 243",
+    "weight": 1.0
+   },
+   {
+    "from": "Institutional Perspectives",
+    "to": "Computed Facts",
+    "weight": 1.0
+   },
+   {
+    "from": "Institutional Perspectives",
+    "to": "Named Organizations",
+    "weight": 1.0
+   },
+   {
+    "from": "Institutional Perspectives",
+    "to": "Retrieval Date",
+    "weight": 1.0
+   },
+   {
+    "from": "Institutional Perspectives",
+    "to": "Tool",
+    "weight": 1.0
+   },
+   {
+    "from": "Local residents",
+    "to": "Safety (surrogate near-miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Local residents",
+    "to": "Scorecard measures",
+    "weight": 1.0
+   },
+   {
+    "from": "Local residents",
+    "to": "Travel time",
+    "weight": 1.0
+   },
+   {
+    "from": "Long-Time Corridor Resident",
+    "to": "Anticipated Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Long-Time Corridor Resident",
+    "to": "Cut-Through Chaos Concern",
+    "weight": 1.0
+   },
+   {
+    "from": "Long-Time Corridor Resident",
+    "to": "Local Residents",
+    "weight": 3.0
+   },
+   {
+    "from": "Long-Time Corridor Resident",
+    "to": "Traffic Slowing Measures",
+    "weight": 1.0
+   },
+   {
+    "from": "Near-Miss Event",
+    "to": "Crossing Event",
+    "weight": 1.0
+   },
+   {
+    "from": "Near-Miss Event",
+    "to": "Lane-Change Event",
+    "weight": 1.0
+   },
+   {
+    "from": "Near-Miss Event",
+    "to": "Rear-End Event",
+    "weight": 1.0
+   },
+   {
+    "from": "Near-Miss Event",
+    "to": "Severity Ordinal Scale",
+    "weight": 1.0
+   },
+   {
+    "from": "Near-Miss Event",
+    "to": "Surrogate Safety Measures",
+    "weight": 1.0
+   },
+   {
+    "from": "Near-Miss Events",
+    "to": "The Tool",
+    "weight": 1.0
+   },
+   {
+    "from": "Neutral Stance",
+    "to": "Rideshare Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Neutral Stance",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Neutral Stance",
+    "to": "Steady Daily Regular",
+    "weight": 4.0
+   },
+   {
+    "from": "Neutral Stance",
+    "to": "Walk-To-Transit Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Non-Completion",
+    "to": "Section 1",
+    "weight": 1.0
+   },
+   {
+    "from": "Non-Completion",
+    "to": "Travel-Time Delta",
+    "weight": 1.0
+   },
+   {
+    "from": "Non-Completions",
+    "to": "Baseline Run",
+    "weight": 1.0
+   },
+   {
+    "from": "Non-Completions",
+    "to": "Closure Run",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Corridor",
+    "weight": 2.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Demand Level",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Road",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Safety (Surrogate Near-Miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "School-Run Parent On Foot",
+    "weight": 14.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Senior Walker",
+    "weight": 3.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Traffic Calming Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Traffic Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Transit Walker",
+    "weight": 3.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Voice",
+    "weight": 2.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Voice - Walk-to-transit commuter [Pedestrians]",
+    "weight": 1.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Walk-To-Transit Commuter",
+    "weight": 7.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "Walk-to-Transit Commuter",
+    "weight": 4.0
+   },
+   {
+    "from": "Pedestrians",
+    "to": "closure and slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Proposed Change",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 2.0
+   },
+   {
+    "from": "Proposed Scenario",
+    "to": "Demand Simulation",
+    "weight": 1.0
+   },
+   {
+    "from": "Proposed Scenario",
+    "to": "In-Run Adaptation",
+    "weight": 1.0
+   },
+   {
+    "from": "Proposed Scenario",
+    "to": "Incident Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Proposed Scenario",
+    "to": "Non-Completions",
+    "weight": 1.0
+   },
+   {
+    "from": "Proposed Scenario",
+    "to": "Road Closure Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Proposed Scenario",
+    "to": "Speed Limit Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Published Mandate",
+    "to": "Institutional Perspectives",
+    "weight": 1.0
+   },
+   {
+    "from": "Published Mandate",
+    "to": "Named Organizations",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Driver",
+    "to": "Corridor Change",
+    "weight": 3.0
+   },
+   {
+    "from": "Resident Driver",
+    "to": "Neutral Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Driver",
+    "to": "Quieter Street Idea",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Driver",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Driver",
+    "to": "Travel Time Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Anticipated Reaction To Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Anticipated Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Change To Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Front Door",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Less Through-Traffic And Slower Speeds",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Neutral Sentiment",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Neutral Stance",
+    "weight": 2.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Quieter Street Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Resident Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Street Quieter For Residents",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "The Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "The Corridor",
+    "weight": 2.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Traffic Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Resident Who Drives The Corridor",
+    "to": "Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Baseline Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Closures and Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Proposed Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Rideshare Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Road Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Scenario Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Supportive Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Travel Time Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "Trip Travel Time",
+    "weight": 3.0
+   },
+   {
+    "from": "Rideshare / Delivery Driver",
+    "to": "gig_driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Delivery Driver",
+    "to": "30 Kmh Speed Limit",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Delivery Driver",
+    "to": "Anticipated Reaction",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Driver",
+    "to": "30 km/h Stretch",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Driver",
+    "to": "Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Or Delivery Driver",
+    "to": "Change In Trip Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Or Delivery Driver",
+    "to": "Corridor Closures And Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare Or Delivery Driver",
+    "to": "Trips On The Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Baseline Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Car Commuters",
+    "weight": 2.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Driver Ratings",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Scenario Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Schedule Disruption",
+    "weight": 1.0
+   },
+   {
+    "from": "Rideshare/Delivery Driver",
+    "to": "Trip Travel Time",
+    "weight": 2.0
+   },
+   {
+    "from": "Road",
+    "to": "Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Change",
+    "to": "Bus Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closing",
+    "to": "Corridor Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closing",
+    "to": "Gig Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closing",
+    "to": "Steady Regular Traveler",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closure",
+    "to": "Access",
+    "weight": 2.0
+   },
+   {
+    "from": "Road Closure",
+    "to": "Road Safety Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closure",
+    "to": "Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closure",
+    "to": "Traffic Calming Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closure",
+    "to": "Transit Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Road Closure",
+    "to": "Walk-To-Transit Commuter",
+    "weight": 2.0
+   },
+   {
+    "from": "Road Safety Change",
+    "to": "Slower Speeds",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety",
+    "to": "Near-Miss Surrogate",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety Surrogate",
+    "to": "Seed 42",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety Surrogate",
+    "to": "Seed 43",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety Surrogate",
+    "to": "Seed 44",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Baseline Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Change +89s Travel Time Increase",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Child Safety",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Corridor Closure and Slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Corridor Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Full Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Kids",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Lower Speed Limit",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Reduced Traffic",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Road Safety Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Safer Streets",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Safety Improvement",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Safety-First Parent Persona",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Scenario Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "School",
+    "weight": 8.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Slower Speeds",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Streets Near School Safety",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Traffic Calming",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-Conscious Driver-Parent",
+    "to": "Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-First Parent",
+    "to": "School",
+    "weight": 1.0
+   },
+   {
+    "from": "Safety-conscious driver-parent",
+    "to": "Car commuters",
+    "weight": 3.0
+   },
+   {
+    "from": "Scenario Travel Time",
+    "to": "Commute Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Travel Time",
+    "to": "Proposed Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Travel Time",
+    "to": "Time-Pressed Commuter",
+    "weight": 2.0
+   },
+   {
+    "from": "Scenario Travel Time",
+    "to": "Travel Time Change",
+    "weight": 2.0
+   },
+   {
+    "from": "Scenario Travel Time",
+    "to": "Trip Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Travel Time",
+    "to": "compared to",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Trip Time",
+    "to": "Corridor Travel",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Trip Time",
+    "to": "Resident Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Trip Time",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Trip Travel Time",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Scenario Trip Travel Time",
+    "to": "Steady Daily Regular",
+    "weight": 3.0
+   },
+   {
+    "from": "Scenario Trip Travel Time",
+    "to": "Time-Pressed Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "School",
+    "to": "Safety-conscious driver-parent",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "Change Sentiment",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "Safer Crossings",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "School Run",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "School_Run_Parent",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "Slower Traffic And Temporary Slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "Support For Change",
+    "weight": 1.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "Traffic Calming Change",
+    "weight": 2.0
+   },
+   {
+    "from": "School-Run Parent On Foot",
+    "to": "Traffic Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Scorecard Measures",
+    "to": "Full Simulated Period",
+    "weight": 1.0
+   },
+   {
+    "from": "Scorecard Measures",
+    "to": "Windowed Changes",
+    "weight": 1.0
+   },
+   {
+    "from": "Scorecard measures",
+    "to": "Simulated period",
+    "weight": 1.0
+   },
+   {
+    "from": "Scorecard measures",
+    "to": "Spanning window",
+    "weight": 1.0
+   },
+   {
+    "from": "Seed 42",
+    "to": "Safety (surrogate near-miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Seed 42",
+    "to": "Travel-Time Tail",
+    "weight": 1.0
+   },
+   {
+    "from": "Seed 43",
+    "to": "Safety (surrogate near-miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Seed 43",
+    "to": "Travel-Time Tail",
+    "weight": 1.0
+   },
+   {
+    "from": "Seed 44",
+    "to": "Safety (surrogate near-miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Seed 44",
+    "to": "Travel-Time Tail",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Walker",
+    "to": "Sentiment - Senior Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Walker",
+    "to": "Traffic Calming Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Walker",
+    "to": "Trip Travel Time - Senior Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Cars",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Corridor",
+    "weight": 8.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Detours",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Drivers",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Full Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Neutral Sentiment",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Pedestrians",
+    "weight": 11.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Safety Feeling",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Slower Speeds",
+    "weight": 2.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Slower Speeds And Closures",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Slower Traffic",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Speed Reduction",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Temporary Slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Trip Travel Time",
+    "weight": 5.0
+   },
+   {
+    "from": "Senior Who Walks Everywhere",
+    "to": "Voice",
+    "weight": 2.0
+   },
+   {
+    "from": "Simulated Period",
+    "to": "Active Window",
+    "weight": 2.0
+   },
+   {
+    "from": "Simulated Period",
+    "to": "Limitation",
+    "weight": 1.0
+   },
+   {
+    "from": "Simulated Period",
+    "to": "Safety (Surrogate Near-Miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Simulation",
+    "to": "Scorecard Measures",
+    "weight": 1.0
+   },
+   {
+    "from": "Skeptical Taxpayer",
+    "to": "Taxpayer",
+    "weight": 2.0
+   },
+   {
+    "from": "Slowdowns",
+    "to": "Transportation Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Slower Speeds",
+    "to": "Street Calmness",
+    "weight": 1.0
+   },
+   {
+    "from": "Slower Speeds",
+    "to": "Streets Near School Safety",
+    "weight": 1.0
+   },
+   {
+    "from": "Slower Speeds And Closures",
+    "to": "School-Run Parent On Foot",
+    "weight": 1.0
+   },
+   {
+    "from": "Slower Traffic",
+    "to": "Senior Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "Corridor Closure And Slowdown",
+    "weight": 2.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "Curb Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "Customers",
+    "weight": 1.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "Deliveries",
+    "weight": 1.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "Lost Sales",
+    "weight": 1.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "Temporary Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Small Business Owner",
+    "to": "The Shop",
+    "weight": 1.0
+   },
+   {
+    "from": "Spanning Window",
+    "to": "Windowed Changes",
+    "weight": 1.0
+   },
+   {
+    "from": "Spanning window",
+    "to": "Simulated period",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Anticipated Reaction",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Anticipated Stance Toward Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Closures",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Corridor Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Corridor Travel",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Full Closure And Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Road Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Road Closure And Slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Road Work And Speed Changes",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Schedule Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Sentiment",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Slowdowns",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Steady Regular Traveler",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "The Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Traffic Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Transportation Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady Daily Regular",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady daily regular",
+    "to": "Corridor closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Steady daily regular",
+    "to": "Reduced speed limit",
+    "weight": 1.0
+   },
+   {
+    "from": "Stratified Sample",
+    "to": "Hardest-Hit Tail",
+    "weight": 1.0
+   },
+   {
+    "from": "Stratified Sample",
+    "to": "Simulated Travelers",
+    "weight": 1.0
+   },
+   {
+    "from": "Stratified Sample",
+    "to": "Voiced Reactions",
+    "weight": 1.0
+   },
+   {
+    "from": "Street Closures",
+    "to": "Street Calmness",
+    "weight": 1.0
+   },
+   {
+    "from": "Supportive Stance",
+    "to": "School-Run Parent On Foot",
+    "weight": 1.0
+   },
+   {
+    "from": "Surrogate Safety Measures",
+    "to": "Post-Encroachment-Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Temporary Closure",
+    "to": "Curb Access",
+    "weight": 1.0
+   },
+   {
+    "from": "The Shop",
+    "to": "Sales",
+    "weight": 1.0
+   },
+   {
+    "from": "The Tool",
+    "to": "Crashes",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Anticipated Stance",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Baseline Scenario",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Child",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Full Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Morning Commute",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Morning Schedule",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Neutral Sentiment",
+    "weight": 2.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Neutral Stance",
+    "weight": 2.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Road Closing",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Road Closure",
+    "weight": 4.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Scenario Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "School Drop-Off",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "The Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "The Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Travel Time Change",
+    "weight": 4.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Trip",
+    "weight": 2.0
+   },
+   {
+    "from": "Time-Pressed Commuter",
+    "to": "Trip Travel Time Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Time-To-Collision",
+    "to": "Surrogate Safety Measures",
+    "weight": 1.0
+   },
+   {
+    "from": "Tool",
+    "to": "This Run",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto",
+    "to": "City Of Toronto",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto",
+    "to": "City Of Toronto Transportation Services",
+    "weight": 2.0
+   },
+   {
+    "from": "Toronto",
+    "to": "Toronto Transportation Services",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Fire Station 231",
+    "weight": 2.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Fire Station 232",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Fire Station 234",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Fire Station 243",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Incident",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Road Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Fire Services",
+    "to": "Toronto Open Data",
+    "weight": 2.0
+   },
+   {
+    "from": "Toronto Transportation Services",
+    "to": "City Of Toronto",
+    "weight": 1.0
+   },
+   {
+    "from": "Toronto Transportation Services",
+    "to": "Published Mandate",
+    "weight": 1.0
+   },
+   {
+    "from": "Traffic Calming Change",
+    "to": "Slower Speed",
+    "weight": 1.0
+   },
+   {
+    "from": "Traffic Change",
+    "to": "School Run",
+    "weight": 1.0
+   },
+   {
+    "from": "Traffic Diversion",
+    "to": "Bike Lane",
+    "weight": 1.0
+   },
+   {
+    "from": "Traffic Speed Reduction",
+    "to": "Traffic Shift",
+    "weight": 1.0
+   },
+   {
+    "from": "Trajectory-Derived Surrogates",
+    "to": "Blocked Junctions",
+    "weight": 1.0
+   },
+   {
+    "from": "Trajectory-Derived Surrogates",
+    "to": "Hard Braking",
+    "weight": 1.0
+   },
+   {
+    "from": "Trajectory-Derived Surrogates",
+    "to": "Near-Miss Events",
+    "weight": 1.0
+   },
+   {
+    "from": "Trajectory-Derived Surrogates",
+    "to": "Surrogate Measures",
+    "weight": 1.0
+   },
+   {
+    "from": "Trajectory-Derived Surrogates",
+    "to": "The Tool",
+    "weight": 1.0
+   },
+   {
+    "from": "Trajectory-Derived Surrogates",
+    "to": "Time-To-Collision",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Access",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Bus Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Safety (Surrogate Near-Miss)",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Speed Reduction",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Transit Rider Perspective",
+    "weight": 2.0
+   },
+   {
+    "from": "Transit Riders",
+    "to": "Travel Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit_Walker",
+    "to": "Baseline Trip Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Transit_Walker",
+    "to": "Scenario Trip Time",
+    "weight": 1.0
+   },
+   {
+    "from": "Transportation Change",
+    "to": "Detour",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time",
+    "to": "Accessibility",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time",
+    "to": "Simulated Period",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "Gig Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "School-Run Parent On Foot",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "Steady Daily Regular",
+    "weight": 3.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "Steady Daily Regular Car Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "Travel Time Baseline",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "Travel Time Scenario",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel Time Change",
+    "to": "Trip Travel Time Reduction",
+    "weight": 1.0
+   },
+   {
+    "from": "Travel-Time Delta",
+    "to": "Traveler",
+    "weight": 1.0
+   },
+   {
+    "from": "Travelers",
+    "to": "Iterated-Assignment Claim",
+    "weight": 1.0
+   },
+   {
+    "from": "Travelers",
+    "to": "Limitation",
+    "weight": 1.0
+   },
+   {
+    "from": "Travelers",
+    "to": "Real Corridors",
+    "weight": 1.0
+   },
+   {
+    "from": "Travelers",
+    "to": "Settled Equilibrium",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip",
+    "to": "Non-Completion",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip",
+    "to": "Road",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Cautious Newer Rider",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Daily Bike Commuter",
+    "weight": 3.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Resident Who Drives The Corridor",
+    "weight": 10.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Rideshare Delivery Driver",
+    "weight": 2.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Rideshare Driver",
+    "weight": 3.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Rideshare Or Delivery Driver",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Safety-Conscious Driver-Parent",
+    "weight": 5.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Scenario",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "School-Run Parent On Foot",
+    "weight": 7.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Steady Daily Regular",
+    "weight": 6.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Time-Pressed Commuter",
+    "weight": 12.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Transit Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Transportation Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Walk-To-Transit Commuter",
+    "weight": 3.0
+   },
+   {
+    "from": "Trip Travel Time",
+    "to": "Walk-to-Transit Commuter",
+    "weight": 2.0
+   },
+   {
+    "from": "Voice",
+    "to": "Accessibility Advocate",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice",
+    "to": "Cautious Newer Rider",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice",
+    "to": "Daily Bike Commuter",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice",
+    "to": "School-Run Parent On Foot",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice",
+    "to": "Senior Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice",
+    "to": "Steady Daily Regular",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice",
+    "to": "The Change",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice - Walk-to-transit commuter [Pedestrians]",
+    "to": "Trip travel time",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice - Walk-to-transit commuter [Pedestrians]",
+    "to": "closure and slowdown",
+    "weight": 1.0
+   },
+   {
+    "from": "Voice - Walk-to-transit commuter [Pedestrians]",
+    "to": "transit_walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-To-Transit Commuter",
+    "to": "30 Km/H Speed Limit",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-To-Transit Commuter",
+    "to": "Bus Trip",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-To-Transit Commuter",
+    "to": "Transit Stop",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-To-Transit Commuter",
+    "to": "Transit Walker",
+    "weight": 4.0
+   },
+   {
+    "from": "Walk-to-Transit Commuter",
+    "to": "Bus Stop",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-to-Transit Commuter",
+    "to": "Road Changes",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-to-Transit Commuter",
+    "to": "Road Closure",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-to-Transit Commuter",
+    "to": "Road Condition",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-to-Transit Commuter",
+    "to": "Transit Corridor",
+    "weight": 1.0
+   },
+   {
+    "from": "Walk-to-Transit Commuter",
+    "to": "Transit Walker",
+    "weight": 1.0
+   },
+   {
+    "from": "Windowed Changes",
+    "to": "Members",
+    "weight": 1.0
+   }
+  ],
+  "components": 15,
+  "isolates": 7
+ },
+ "generated_at": "2026-08-30T18:51:03+00:00"
+}

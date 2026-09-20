@@ -32,6 +32,7 @@ const KEEP = new Set([
   `${PINNED}.json`,
   `${PINNED}-graphs.json`,
   `${MODERN}.json`,
+  `${MODERN}-graphs.json`, // V2.7f C3: the landing run's Explore · Graphs (entity half; +0.12 MiB)
   `${PINNED}-report.json`,
   `${MODERN}-report.json`,
 ]);
