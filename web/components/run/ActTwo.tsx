@@ -24,6 +24,7 @@ import { memo, useMemo, useState } from 'react';
 import type { Agent, LonLat, TrajectoryArtifact } from '@/lib/types';
 import {
   STAGE_COSTS_MODEL,
+  costLineSpent,
   type RunFeedState,
   type StageKey,
   type StageState,
@@ -86,7 +87,9 @@ export function ActTwo({
   skipError: string | null;
 }) {
   const { stages } = experience;
-  const spent = experience.llmCallsTotal;
+  // V2.7f C1 — this job's stages while a manual enrich is in flight (the projection beside it is
+  // that stage's), else the whole run: a re-enrich's line read "213 of ~215" on its first frame.
+  const spent = costLineSpent(experience);
   const projected = experience.projection?.calls ?? null;
 
   // AUTO-FOLLOW: the running stage, else the last one that has started. A reader who clicks a

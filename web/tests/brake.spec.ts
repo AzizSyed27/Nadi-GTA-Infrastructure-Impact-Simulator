@@ -174,7 +174,10 @@ test('SKIP takes the reader to Read, where the answer is', async ({ page }) => {
   // the skip's reason IS the heading — repeating it below would be a stray fragment
   await expect(block).not.toContainText('Reason given');
   await expect(block).toContainText('never ran: institutions, discourse, report, chat index');
-  await expect(block).toContainText('The run spent 47 model calls.');
+  // V2.7f C1 — the sentence claims what the rows ARE (the stages as they stand), not a lifetime
+  // "spent": a ledger row is the stage's LAST job's count, so after a re-enrich the number can drop.
+  await expect(block).toContainText('This run’s stages as they stand cost 47 model calls.');
+  await expect(block).not.toContainText('The run spent');
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27b-c10-skipped-state.png' });
 });
 

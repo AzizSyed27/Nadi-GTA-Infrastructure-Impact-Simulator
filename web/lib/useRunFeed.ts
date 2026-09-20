@@ -185,6 +185,10 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
   // three. MERGES rather than replaces: streamed content is the fresher truth and is never
   // overwritten by a re-read.
   const endedStatus = experience.ended?.status ?? null;
+  // V2.7f C1 — keyed on the COUNT of endings too: a re-enrich's own `run_ended` (`complete`) equals
+  // the ledger-seeded status, so on `endedStatus` alone this never re-fired and the rows the manual
+  // job closed (C0) were never merged in.
+  const endings = experience.endings;
   useEffect(() => {
     if (!runId || STATIC_DEMO || !endedStatus) return;
     let cancelled = false;
@@ -198,7 +202,9 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
         return {
           ...prev,
           ended: durable.ended ?? prev.ended,
-          projection: durable.projection ?? prev.projection,
+          // the ledger's placeholder `{calls: null, basis: ""}` is truthy and must not overwrite a
+          // real projection (BACKLOG (b), taken here with the semantics it sat beside)
+          projection: durable.projection?.calls != null ? durable.projection : prev.projection,
           llmCallsTotal: durable.llmCallsTotal || prev.llmCallsTotal,
           stages: prev.stages.map((st) => {
             const row = durable.stages.find((d) => d.key === st.key);
@@ -214,7 +220,7 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
     return () => {
       cancelled = true;
     };
-  }, [runId, endedStatus]);
+  }, [runId, endedStatus, endings]);
 
   useEffect(() => {
     // No run, or no backend to ask: the static demo serves pre-computed files and has no API, so

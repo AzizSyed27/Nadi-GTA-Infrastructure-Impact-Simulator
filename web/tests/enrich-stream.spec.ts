@@ -70,6 +70,14 @@ const TOTAL = VOICES.length; // 5
 const frame = (id: number, event: string, data: Record<string, unknown>) =>
   `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify({ event, ts: 0, ...data })}\n\n`;
 
+/** V2.7f C1 — which ledger the mock serves: before the enrich POST, after it (the server has begun
+ *  the job's rows and written the stage's projection), and once the job's `run_ended` has been served
+ *  (the rows closed with this job's count). */
+type LedgerPhase = 'before' | 'posted' | 'ended';
+/** The manual POST's own statement of which presented stages a voices job meters (server.py
+ *  `_ENRICH_KEYS`, C0) — rides the `stage_start` line, mirrored here verbatim. */
+const VOICES_KEYS = ['personas', 'voices', 'institutions'];
+
 /** A complete stream: run_start(0) … all voices … stream_end. `retry: 100` speeds any reconnect. */
 function fullStreamBody(): string {
   let b = 'retry: 100\n\n';
@@ -112,7 +120,7 @@ async function mockBackend(
           /** V2.7d follow-up — the ledger, keyed BY CONTENT on whether the enrich has been POSTed
            *  (never on a read count: opening the run performs the seed read AND the terminal-edge
            *  merge, so "the first read" is off by one under load). Default: no ledger. */
-          ledger?: (enrichPosted: boolean) => Record<string, unknown> | null;
+          ledger?: (enrichPosted: boolean, phase: LedgerPhase) => Record<string, unknown> | null;
           /** A gate the i-th stream response waits on before it is served — lets a test assert the
            *  state BETWEEN two bodies BY CONTENT (e.g. before a `stage_usage` frame lands), never
            *  by a timer that a loaded box can win or lose. */
@@ -128,6 +136,11 @@ async function mockBackend(
   let enrichPolls = 0; // reset on every enrich POST — the machine supports a re-enrich cycle
   let streamCalls = 0;
   let enrichDone = false;
+  // V2.7f C1 — the ledger's third PHASE is keyed BY CONTENT too: 'ended' once a stream body carrying
+  // the job's `run_ended` line has been served (the server writes the rows' terminal statuses
+  // before that line), never on a read count or a timer.
+  let servedRunEnded = false;
+  const phase = (): LedgerPhase => (servedRunEnded ? 'ended' : enrichPosted ? 'posted' : 'before');
 
   await page.route('**/api/junctions**', (route) => route.fulfill({ json: { junctions: [], count: 0 } }));
   await page.route('**/api/edges**', (route) => route.fulfill({ json: { edges: [], count: 0 } }));
@@ -141,13 +154,14 @@ async function mockBackend(
     return route.fulfill({ json: { run_id: RUN_ID, stage: 'voices' } });
   });
   await page.route('**/api/runs/*/ledger', (route) =>
-    route.fulfill({ json: { run_id: RUN_ID, ledger: opts.ledger ? opts.ledger(enrichPosted) : null } }));
+    route.fulfill({ json: { run_id: RUN_ID, ledger: opts.ledger ? opts.ledger(enrichPosted, phase()) : null } }));
   await page.route('**/api/runs/*/events', async (route) => {
     const i = streamCalls++;
     const gate = opts.streamGate?.(i);
     if (gate) await gate;
     const body = opts.streamBody(i);
     if (body == null) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"detail":"no stream"}' });
+    if (body.includes('event: run_ended')) servedRunEnded = true;
     return route.fulfill({ status: 200, contentType: 'text/event-stream', headers: { 'Cache-Control': 'no-cache' }, body });
   });
   await page.route('**/api/runs/*/status', (route) => {
@@ -242,18 +256,89 @@ function ledgerAfter(): Record<string, unknown> {
 
 /** A manual voices enrich in flight: the manual `stage_start` payload verbatim, the voices, and —
  *  only from the second request on — the `stage_usage` frame the stage writes as it exits. */
-function meteredStreamBody(withUsage: boolean): string {
+function meteredStreamBody(withUsage: boolean, withEnding = false): string {
   let b = 'retry: 100\n\n';
   b += frame(0, 'run_start', { run_id: RUN_ID, description: 'school zone fixture' });
-  b += frame(1, 'stage_start', { stage: 'enrich:voices', label: 'enrich:voices', kind: 'llm', stages: ['sampling travelers', 'generating voices'] });
+  b += frame(1, 'stage_start', { stage: 'enrich:voices', label: 'enrich:voices', kind: 'llm', stages: ['sampling travelers', 'generating voices'], keys: VOICES_KEYS });
   b += frame(2, 'cmd_start', { i: 0, n: 2, label: 'sampling travelers' });
   b += frame(3, 'voices_total', { total: TOTAL });
   VOICES.forEach((agent, i) => {
     b += frame(4 + i, 'voice', { index: i, done: i + 1, total: TOTAL, agent });
   });
   if (withUsage) b += frame(4 + TOTAL, 'stage_usage', { stage: 'voices', calls: 47 });
+  if (withEnding) {
+    // the job's tail as the server writes it — the rows are closed in the ledger BEFORE this line
+    b += frame(5 + TOTAL, 'stage_end', { stage: 'enrich:voices', status: 'done', detail: '' });
+    b += frame(6 + TOTAL, 'run_ended', { status: 'complete', detail: '' });
+  }
   return b; // no stream_end: the job is still running, EventSource reconnects and the fold dedups by id
 }
+
+/** V2.7f C1 — A RE-ENRICH'S LEDGER, in its three phases. Voices already ran once (DONE / 213 — the
+ *  count the first frame used to render as if THIS enrich were complete); after the POST the server
+ *  has begun the three rows fresh (RUNNING / 0) and written the stage's projection; after the job
+ *  the rows are closed with this job's count (47 — never 213 + 47 = 260). */
+function ledgerReenrich(phase: LedgerPhase): Record<string, unknown> {
+  const row = (key: string, status: string, calls: number) => ({ key, label: key, llm: key !== 'personas' && key !== 'institutions', status, llm_calls: calls, detail: '' });
+  const rest = [row('discourse', 'skipped', 0), row('report', 'skipped', 0), row('index', 'skipped', 0)];
+  const head = phase === 'before'
+    ? [row('personas', 'done', 0), row('voices', 'done', 213), row('institutions', 'done', 0)]
+    : phase === 'posted'
+      ? [row('personas', 'running', 0), row('voices', 'running', 0), row('institutions', 'running', 0)]
+      : [row('personas', 'done', 0), row('voices', 'done', 47), row('institutions', 'done', 0)];
+  return {
+    run_id: RUN_ID,
+    quant: { status: 'done', started_at: 1, ended_at: 2 },
+    facts_report: { status: 'done', at: 3 },
+    stages: [...head, ...rest],
+    projection: phase === 'before' ? { calls: 7157, basis: 'the whole chain' }
+      : { calls: 215, basis: '212 travelers (the standard sample), one call each, plus a 1% retry allowance' },
+    ended: { status: 'complete', at: 4, reason: 'interpretation not requested' },
+  };
+}
+
+test('a RE-enrich\'s cost line is THIS enrich\'s count, from its first frame through its ending', async ({ page }) => {
+  // THE DEFECT (live, 2026-09-18): the first frame of a second voices enrich read "model calls:
+  // 213 of ~215" with the voices card already ticked — the PRIOR job's ledger count seeded as the
+  // numerator and rendered as if this job were complete — and the ledger row read 426 after. The
+  // follow-up's design pinned the resting state over an ALL-ZERO ledger, where a numerator summed
+  // over every stage and one scoped to this job's stages read the same; this pin seeds from a
+  // ledger that already carries 213 and asserts the three states a re-enrich passes through:
+  // 0 (this job's, not yet metered) → 47 (metered) → 47 after the job's own `run_ended` folds and
+  // the terminal re-read merges a ledger whose row now reads 47 (the server began it fresh, C0).
+  let releaseUsage: () => void = () => {};
+  const usageGate = new Promise<void>((res) => (releaseUsage = res));
+  let releaseEnding: () => void = () => {};
+  const endingGate = new Promise<void>((res) => (releaseEnding = res));
+  await mockBackend(page, {
+    streamBody: (i) => meteredStreamBody(i >= 1, i >= 2),
+    streamGate: (i) => (i === 1 ? usageGate : i >= 2 ? endingGate : undefined),
+    holdPolls: { polls: 10_000 },
+    ledger: (_posted, phase) => ledgerReenrich(phase),
+  });
+  await openRun(page);
+
+  await page.getByTestId('enrich-voices').click();
+  await openStage(page, 'watch');
+  await expect(page.getByTestId('act-two')).toBeVisible({ timeout: 15_000 });
+
+  const cost = page.getByTestId('act-two-cost');
+  const voicesCard = page.getByTestId('act-two-card-voices');
+  // this enrich's resting state — never the prior job's 213
+  await expect(cost).toHaveText(/^model calls: 0 of ~215$/, { timeout: 10_000 });
+  await expect(voicesCard).not.toContainText('213');
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27f-c1-reenrich-first-frame.png' });
+  releaseUsage();
+  await expect(cost).toHaveText(/^model calls: 47 of ~215$/, { timeout: 15_000 });
+  // the job ends: the rows the server closed carry 47, the act stays up, the line does not move
+  releaseEnding();
+  await expect.poll(async () => (await page.evaluate(() => (window as unknown as { __nadiRunFeed?: { ended: string | null; llmCalls: number } }).__nadiRunFeed))?.llmCalls, { timeout: 15_000 }).toBe(47);
+  await expect(cost).toHaveText(/^model calls: 47 of ~215$/);
+  await expect(voicesCard).toContainText('47 calls');
+  await expect(cost).not.toContainText('260');
+  await expect(page.getByTestId('act-two')).toBeVisible();
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27f-c1-reenrich-ended.png' });
+});
 
 test('the cost line carries the STAGE\'s denominator through a manual enrich, and the metered count exactly', async ({ page }) => {
   // THE DEFECT WAS THE RESTING STATE. V2.7d's acceptance watched a ~213-call voices enrich under

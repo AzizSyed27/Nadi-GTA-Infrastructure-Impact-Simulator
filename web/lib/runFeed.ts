@@ -143,6 +143,24 @@ export interface RunFeedState {
   endedByState: boolean;
   llmCallsTotal: number;
   projection: { calls: number | null; basis: string } | null;
+  /** V2.7f C1 — THE COST LINE'S SCOPE. A `stage_start` carrying `keys` (the MANUAL enrich path —
+   *  server.py's `_ENRICH_KEYS`, the server's own statement of which presented stages this job
+   *  meters) sets it; a `stage_start` WITHOUT keys (the chain — a fresh run or a RESUME) clears it
+   *  to null, which is chain semantics: Σ all. Both halves matter: a stale scope after a manual
+   *  enrich would keep summing three old keys through a resume that meters thousands off-line.
+   *  `run_ended` never touches it — the terminal frame still reads this job's count. */
+  inFlight: StageKey[] | null;
+  /** How many `run_ended` lines have folded. A re-enrich's own ending equals the seeded
+   *  `ended.status` (both `complete`), so the terminal-edge ledger re-read keys on THIS. */
+  endings: number;
+}
+
+/** What the Act II cost line's numerator IS: this job's stages while a manual enrich is in flight
+ *  (the projection beside it is that stage's), else the whole run's rows as they stand. */
+export function costLineSpent(state: RunFeedState): number {
+  if (!state.inFlight) return state.llmCallsTotal;
+  const keys = new Set<StageKey>(state.inFlight);
+  return state.stages.reduce((n, s) => n + (keys.has(s.key) ? (s.calls ?? 0) : 0), 0);
 }
 
 export function emptyFeedState(runId: string | null = null): RunFeedState {
@@ -159,6 +177,7 @@ export function emptyFeedState(runId: string | null = null): RunFeedState {
     slots: [], indexDocs: null,
     ended: null, endedByState: false,
     llmCallsTotal: 0, projection: null,
+    inFlight: null, endings: 0,
   };
 }
 
@@ -180,7 +199,10 @@ export function seedFromLedger(ledger: Ledger | null, runId: string | null = nul
   });
   base.llmCallsTotal = ledger.stages.reduce((n, s) => n + (s.llm_calls ?? 0), 0);
   base.projection = ledger.projection ?? null;
-  if (ledger.ended) base.ended = { status: ledger.ended.status, detail: ledger.ended.reason };
+  if (ledger.ended) {
+    base.ended = { status: ledger.ended.status, detail: ledger.ended.reason };
+    base.endings = 1;
+  }
   if (ledger.facts_report?.status === 'done' && ledger.facts_report.at) {
     base.resultsReadyAt = ledger.facts_report.at;
   }
@@ -255,6 +277,13 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
       const keys = STATE_TO_KEYS[ev.stage as string];
       if (!keys) return prev; // the quant stage: Act I renders from beats, not stage cards
       s.stages = [...s.stages];
+      // V2.7f C1 — THE SCOPE RULE, both halves (see `inFlight`). A keyed start (the manual path)
+      // scopes the cost line to this job's stages and starts their counts FRESH — null, "not yet
+      // metered", never the prior job's ledger count; a keyless start (the chain, a resume) clears
+      // the scope to Σ all. The server's keys are the truth about which rows this job began (C0).
+      const jobKeys = Array.isArray(ev.keys) ? (ev.keys as StageKey[]) : null;
+      s.inFlight = jobKeys;
+      for (const k of jobKeys ?? []) setStage(s, k, { status: 'pending', calls: null, detail: '' });
       // Only the FIRST of a multi-stage subprocess goes running; the rest follow as their content
       // arrives, so "institutions" doesn't claim to be working while voices are still generating.
       setStage(s, keys[0], { status: 'running', detail: (ev.label as string) ?? '' });
@@ -376,6 +405,7 @@ export function foldEvent(prev: RunFeedState, ev: RunEvent): RunFeedState {
 
     case 'run_ended':
       s.ended = { status: ev.status as RunEnding, detail: (ev.detail as string) ?? '' };
+      s.endings = prev.endings + 1; // never touches `inFlight`: the terminal frame reads this job
       return s;
 
     default:

@@ -61,7 +61,7 @@ import { betweenLine, buildNodeIndex, crossStreets } from '@/lib/streetNames';
 import { WatchArticle } from '@/components/run/WatchArticle';
 import { DiscourseStage } from '@/components/run/DiscourseStage';
 import { ReportStage } from '@/components/run/ReportStage';
-import { chainState } from '@/lib/runFeed';
+import { chainState, costLineSpent } from '@/lib/runFeed';
 import { mergeSlots } from '@/lib/mergeSlots';
 import { reportRunId, reportUrl, type PerRunReport } from '@/lib/reportData';
 import { ConflictLegend } from '@/components/ConflictLegend';
@@ -1428,6 +1428,8 @@ export default function MapView() {
       resultsReady: x.resultsReadyAt != null,
       ended: x.ended?.status ?? (x.endedByState ? 'by-state' : null),
       llmCalls: x.llmCallsTotal,
+      spent: costLineSpent(x), // V2.7f: what the Act II line renders — scoped to an in-flight job
+      inFlight: x.inFlight,
     };
   }, [runFeed.experience]);
 
@@ -2132,7 +2134,12 @@ export default function MapView() {
         })
         .join(', ')}`);
     }
-    const cost = x.llmCallsTotal ? `The run spent ${x.llmCallsTotal.toLocaleString()} model calls.` : null;
+    // V2.7f C1 — THE COPY CLAUSE: a ledger row is the stage's LAST job's count (lifetime spend across
+    // re-enrichs is a stated non-goal), so after a voices re-enrich on a chained run this number can
+    // DROP. "The run spent N" was a lifetime claim; the sentence now says what the rows ARE.
+    const cost = x.llmCallsTotal
+      ? `This run’s stages as they stand cost ${x.llmCallsTotal.toLocaleString()} model calls.`
+      : null;
     const sentence = kept.length
       ? `${kept.join('; ').replace(/^./, (c) => c.toUpperCase())}. ${cost ?? ''}`.trim()
       : cost;
