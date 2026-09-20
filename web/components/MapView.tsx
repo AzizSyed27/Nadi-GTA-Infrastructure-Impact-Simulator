@@ -5,7 +5,7 @@ import Map, { useControl, type MapRef } from 'react-map-gl/maplibre';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { PathStyleExtension } from '@deck.gl/extensions';
 import { fmtSimTime, fmtWindowRange } from '@/lib/simTime';
-import { ARTIFACT_CACHE, EXAMPLE_RUN_ID, STATIC_DEMO } from '@/lib/demo';
+import { ARTIFACT_CACHE, DEMO_PINNED_RUN_ID, EXAMPLE_RUN_ID, STATIC_DEMO } from '@/lib/demo';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, PathLayer, TextLayer } from '@deck.gl/layers';
 import type { Layer, PickingInfo } from '@deck.gl/core';
@@ -3314,9 +3314,21 @@ export default function MapView() {
         // discourse→playback degrade: enterable, honest about why, names the recovery path
         // (the graphs-panel convention).
         <div style={discourseEmpty} data-testid="discourse-empty">
-          No simulated discourse on this run yet — the discourse enrich hasn&apos;t run for it. Run it
-          from the run card in the Build stage (voices, then discourse), or open a run that
-          carries a discourse cascade.
+          {STATIC_DEMO ? (
+            // V2.7f C4 — a demo visitor cannot run the enrich; the caption names the shipped run
+            // that carries a cascade instead of pointing at a Build stage the demo has locked.
+            <>
+              No simulated discourse on this run — the discourse enrich needs the local backend.
+              The 212-voice run carries one:{' '}
+              <a href={`/?run=${DEMO_PINNED_RUN_ID}`}>open it</a>.
+            </>
+          ) : (
+            <>
+              No simulated discourse on this run yet — the discourse enrich hasn&apos;t run for it. Run it
+              from the run card in the Build stage (voices, then discourse), or open a run that
+              carries a discourse cascade.
+            </>
+          )}
         </div>
       )}
 

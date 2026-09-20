@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getRuns, type RunSummary } from '@/lib/api';
+import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 
 /** Short, human label for a run row: its description if present, else the timestamp tail of the id. */
 function runLabel(r: RunSummary): string {
@@ -22,6 +23,7 @@ export function RunSwitcher({ activeRunId, onLoad }: { activeRunId: string | nul
   const [down, setDown] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (STATIC_DEMO) return; // V2.7f C4 — no inventory to ask for, and no API to ask
     const res = await getRuns();
     if (res.ok) {
       setRuns(res.value.runs);
@@ -34,6 +36,7 @@ export function RunSwitcher({ activeRunId, onLoad }: { activeRunId: string | nul
   // Refresh on mount and whenever the active run changes (a fresh run just landed in the list). Uses a local
   // promise chain (setState in the async callback, not synchronously in the effect body).
   useEffect(() => {
+    if (STATIC_DEMO) return; // V2.7f C4 — Compare mounts two of these; neither may reach for /api/runs
     let cancelled = false;
     getRuns().then((res) => {
       if (cancelled) return;
@@ -57,10 +60,12 @@ export function RunSwitcher({ activeRunId, onLoad }: { activeRunId: string | nul
           style={select}
           value={activeRunId ?? ''}
           onChange={(e) => e.target.value && onLoad(e.target.value)}
+          disabled={STATIC_DEMO}
+          title={STATIC_DEMO ? DEMO_READONLY_NOTE : undefined}
           data-testid="run-select"
         >
           <option value="" disabled>
-            {down ? 'backend unreachable' : runs.length ? 'select a completed run…' : 'no runs yet'}
+            {STATIC_DEMO ? 'the two demo runs are the deep links' : down ? 'backend unreachable' : runs.length ? 'select a completed run…' : 'no runs yet'}
           </option>
           {runs.map((r) => (
             <option key={r.id} value={r.id}>
@@ -68,7 +73,7 @@ export function RunSwitcher({ activeRunId, onLoad }: { activeRunId: string | nul
             </option>
           ))}
         </select>
-        <button style={refreshBtn} onClick={refresh} title="Refresh run list" data-testid="run-refresh">
+        <button style={refreshBtn} onClick={refresh} disabled={STATIC_DEMO} title={STATIC_DEMO ? DEMO_READONLY_NOTE : 'Refresh run list'} data-testid="run-refresh">
           ↻
         </button>
       </div>

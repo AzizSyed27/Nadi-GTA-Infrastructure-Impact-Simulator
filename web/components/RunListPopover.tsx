@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getRuns, type RunSummary } from '@/lib/api';
-import { EXAMPLE_RUN_ID, EXAMPLE_RUN_NAME } from '@/lib/demo';
+import { DEMO_READONLY_NOTE, EXAMPLE_RUN_ID, EXAMPLE_RUN_NAME, STATIC_DEMO } from '@/lib/demo';
 
 const STAGE_LABEL: Record<string, string> = {
   queued: 'queued',
@@ -61,9 +61,13 @@ export function RunListPopover({
   onNewDraft: () => void;
   onClose: () => void;
 }) {
-  const [runs, setRuns] = useState<RunSummary[] | null>(null);
+  // V2.7f C4 — the static demo has no inventory to ask for: the list is empty from the first
+  // render (never "backend unreachable" — a failure framing for a property of the distribution),
+  // refresh is a no-op, and no request goes to an API the bundle does not have.
+  const [runs, setRuns] = useState<RunSummary[] | null>(STATIC_DEMO ? [] : null);
   const [down, setDown] = useState(false);
   const refresh = useCallback(() => {
+    if (STATIC_DEMO) return;
     getRuns().then((res) => {
       if (res.ok) {
         setRuns(res.value.runs);
@@ -105,6 +109,9 @@ export function RunListPopover({
             backend unreachable — the run inventory needs the local server; the example below
             still opens from committed files.
           </div>
+        )}
+        {STATIC_DEMO && (
+          <div style={mutedSmall} data-testid="demo-readonly-note">{DEMO_READONLY_NOTE}</div>
         )}
         <div style={rowsWrap}>
           {sorted.map((r) => {
@@ -186,10 +193,13 @@ export function RunListPopover({
               <div style={chLine}>road closure + speed limit + incident</div>
               <div style={actions}>
                 <button
-                  style={{ ...cloneBtn, ...(exampleLoaded ? null : disabledBtn) }}
-                  onClick={() => exampleLoaded && onCloneExample()}
-                  disabled={!exampleLoaded}
-                  title={exampleLoaded ? undefined : 'open the example first — its members come from the loaded artifact'}
+                  style={{ ...cloneBtn, ...(exampleLoaded && !STATIC_DEMO ? null : disabledBtn) }}
+                  onClick={() => exampleLoaded && !STATIC_DEMO && onCloneExample()}
+                  disabled={!exampleLoaded || STATIC_DEMO}
+                  // V2.7f C4 — this button and "+ new draft" enter Build DIRECTLY (setStage), past
+                  // the header's lock; in the demo Build fetches /api/junctions + /api/edges and
+                  // shows a broken draw card. Locked with the same sentence as the header.
+                  title={STATIC_DEMO ? DEMO_READONLY_NOTE : exampleLoaded ? undefined : 'open the example first — its members come from the loaded artifact'}
                   data-testid={`run-row-clone-${EXAMPLE_RUN_ID}`}
                 >
                   ⧉ CLONE TO DRAFT
@@ -214,12 +224,18 @@ export function RunListPopover({
               </div>
             </div>
           )}
-          {runs != null && sorted.length === 0 && !down && (
+          {runs != null && sorted.length === 0 && !down && !STATIC_DEMO && (
             <div style={mutedSmall}>no local runs yet — the example ships with the tool; Build makes more</div>
           )}
         </div>
         <div style={footer}>
-          <button style={linkBtn} onClick={onNewDraft} data-testid="run-list-new-draft">
+          <button
+            style={{ ...linkBtn, ...(STATIC_DEMO ? disabledBtn : null) }}
+            onClick={() => !STATIC_DEMO && onNewDraft()}
+            disabled={STATIC_DEMO}
+            title={STATIC_DEMO ? DEMO_READONLY_NOTE : undefined}
+            data-testid="run-list-new-draft"
+          >
             + new draft
           </button>
           <span style={mutedSmall}>deltas live in Compare — it refuses mismatched provenance</span>

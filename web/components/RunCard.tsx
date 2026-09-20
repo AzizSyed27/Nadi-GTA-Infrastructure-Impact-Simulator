@@ -3,7 +3,7 @@
 import { nonCompletionsLine } from '@/lib/nonCompletions';
 import { useCallback, useEffect, useState } from 'react';
 import { getProjection, postEnrich, postIdentity, type EnrichStage, type RunStatus, type StageProjection } from '@/lib/api';
-import { STATIC_DEMO } from '@/lib/demo';
+import { DEMO_READONLY_NOTE, STATIC_DEMO } from '@/lib/demo';
 import type { RunFeed } from '@/lib/useRunFeed';
 import { signedMinutes } from '@/lib/viz';
 import { fmtWindowRange } from '@/lib/simTime';
@@ -444,8 +444,10 @@ export function RunCard({
                 <button
                   key={e.stage}
                   className="btn btn-secondary"
-                  title={e.tip}
-                  disabled={enrichBusy !== null}
+                  title={STATIC_DEMO ? DEMO_READONLY_NOTE : e.tip}
+                  // V2.7f C4 — unreachable in the demo once Build is locked end to end, gated
+                  // for the rule's sake: a clickable-then-failing POST is the thing the demo refuses
+                  disabled={enrichBusy !== null || STATIC_DEMO}
                   onClick={() => runEnrich(e.stage)}
                   data-testid={`enrich-${e.stage}`}
                 >

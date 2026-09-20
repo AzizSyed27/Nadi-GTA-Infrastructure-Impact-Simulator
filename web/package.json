@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:demo": "playwright test --project=static-demo"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.4",

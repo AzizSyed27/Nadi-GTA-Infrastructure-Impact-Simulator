@@ -1156,7 +1156,7 @@ export function ExampleBuildView({
           className="btn btn-primary"
           onClick={onStartDraft}
           disabled={demoLocked}
-          title={demoLocked ? undefined : undefined}
+          title={demoLocked ? DEMO_READONLY_NOTE : undefined}
           data-testid="example-start-draft"
         >
           Start a new draft

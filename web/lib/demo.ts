@@ -29,3 +29,8 @@ export const EXAMPLE_RUN_ID = 'multimodal-scenario-20260814T063253Z';
 // renders it, and the committed example report's run.name is spec-pinned EQUAL to it (two
 // hardcoded copies of one name is the drift disease).
 export const EXAMPLE_RUN_NAME = 'Closure at the fire station’s doorstep';
+// V2.7f C4 — the demo's OTHER shipped run: the pinned 212-voice run, the one that carries a
+// discourse cascade. The demo's Explore · Discourse empty state points at it (the example has no
+// `social` block and a demo visitor cannot run the enrich). scripts/build-static-demo.mjs keeps
+// its own PINNED literal; the lockstep is the demo spec's 200 on this link inside the bundle.
+export const DEMO_PINNED_RUN_ID = 'multimodal-scenario-20260702T044134Z';
