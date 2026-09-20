@@ -37,6 +37,9 @@ export const REPLAY_NOTE =
 export const DISCOURSE_DOORWAY = 'The full cascade feed — who said what, and what moved — is in Explore · Discourse.';
 export const NO_GRAPH_YET =
   'No graph layouts for this run yet. They are exported when the discourse enrich finishes.';
+/** V2.7f C2 — a ledger `skipped` is a verdict that the stage never ran: said, never "yet". */
+export const DISCOURSE_SKIPPED =
+  'The discourse stage did not run in this run — no graph was exported.';
 
 export function DiscourseStage({
   stage,
@@ -96,7 +99,9 @@ export function DiscourseStage({
   if (!oasis) {
     return (
       <div style={col} data-testid="act-two-discourse">
-        <p style={para}>{stage.status === 'running' ? DISCOURSE_RUNNING : NO_GRAPH_YET}</p>
+        <p style={para}>
+          {stage.status === 'running' ? DISCOURSE_RUNNING : stage.status === 'skipped' ? DISCOURSE_SKIPPED : NO_GRAPH_YET}
+        </p>
       </div>
     );
   }

@@ -453,10 +453,13 @@ export function foldEvents(seed: RunFeedState, events: RunEvent[]): RunFeedState
  */
 export type ChainState = 'running' | 'none' | 'unknown';
 
-const STARTED: ReadonlySet<StageStatus> = new Set(['running', 'done', 'partial', 'failed']);
+/** The statuses a stage can only reach by RUNNING. `skipped` is a ledger verdict ("never ran"),
+ *  not a start — V2.7f C2 exports the set so the Act II rail's follow fallback and its per-card
+ *  count key on the same fact as the chain discriminator, instead of on `!== 'pending'`. */
+export const STAGE_STARTED: ReadonlySet<StageStatus> = new Set(['running', 'done', 'partial', 'failed']);
 
 export function chainState(state: RunFeedState): ChainState {
-  if (state.stages.some((s) => STARTED.has(s.status))) return 'running';
+  if (state.stages.some((s) => STAGE_STARTED.has(s.status))) return 'running';
   return state.ended ? 'none' : 'unknown';
 }
 

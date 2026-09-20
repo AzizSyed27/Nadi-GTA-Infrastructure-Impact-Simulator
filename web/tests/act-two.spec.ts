@@ -489,6 +489,105 @@ test('Act II adds no aggregate framing of its own, on any stage', async ({ page 
   }
 });
 
+// ── V2.7f C2 — the panel narrates what the ledger says ran ─────────────────────────────────────
+
+/** The chain-off ledger the V2.7d acceptance run left behind (act-one's `CHAIN_OFF_LEDGER` shape,
+ *  under this file's run) AS THE SERVER HOLDS IT DURING A MANUAL VOICES JOB: the three rows that job
+ *  began are `running` / 0 (C0 begins them at the POST); every never-run stage `skipped` — a ledger
+ *  VERDICT, not a start; once the job ends, its rows are closed with its count. */
+function chainOffLedger(closed = false) {
+  const row = (key: string, label: string, llm: boolean, status: string, calls: number) =>
+    ({ key, label, llm, status, llm_calls: calls, detail: '' });
+  const inFlight = closed ? 'done' : 'running';
+  return {
+    run_id: RUN,
+    quant: { status: 'done', started_at: 1, ended_at: 2 },
+    facts_report: { status: 'done', at: 3 },
+    stages: [
+      row('personas', 'personas sampled', false, inFlight, 0),
+      row('voices', 'voices', true, inFlight, closed ? 3 : 0),
+      row('institutions', 'institutions', false, inFlight, 0),
+      row('discourse', 'discourse', true, 'skipped', 0),
+      row('report', 'report', true, 'skipped', 0),
+      row('index', 'chat index', true, 'skipped', 0),
+    ],
+    projection: { calls: 215, basis: '212 travelers, one call each, plus a 1% retry allowance' },
+    ended: { status: 'complete', at: 4, reason: 'interpretation not requested' },
+  };
+}
+
+/** A MANUAL voices enrich as the server writes it (C0: `keys` on the start line), optionally with
+ *  the job's own ending — the rows are closed in the ledger BEFORE that line. */
+function manualVoicesBody(withEnding: boolean): string {
+  let b = 'retry: 300\n\n';
+  b += frame(0, 'run_start', { run_id: ART, description: 'a closure', demand_profile: 'synthetic_demo' });
+  b += frame(1, 'stage_start', { stage: 'enrich:voices', label: 'enrich:voices', kind: 'llm', stages: ['sampling travelers', 'generating voices'], keys: ['personas', 'voices', 'institutions'] });
+  b += frame(2, 'personas', { total: 212, sim: 41, inferred: 171, basis: 'each point is one traveler on their own computed route' });
+  b += frame(3, 'voices_total', { total: 3 });
+  b += frame(4, 'voice', voice(0, 'Time-pressed commuter', 'My usual drive felt longer.', { grounding: 'sim', vehicle_id: 'veh0' }));
+  b += frame(5, 'voice', voice(1, 'Long-time corridor resident', 'Side streets picked up traffic.'));
+  b += frame(6, 'voice', voice(2, 'Local shop owner', 'Fewer people came past the door.'));
+  b += frame(7, 'institutions', { spoke: [], silent: [TDSB_SILENT] });
+  b += frame(8, 'stage_usage', { stage: 'voices', calls: 3 });
+  if (withEnding) {
+    b += frame(9, 'stage_end', { stage: 'enrich:voices', status: 'done', detail: '' });
+    b += frame(10, 'run_ended', { status: 'complete', detail: '' });
+  }
+  return b;
+}
+
+test('a manual voices enrich on a chain-off run: the panel follows what ran, and a stage that did not run says so', async ({ page }) => {
+  // THE LIVE FRAME (v27e-c5-live-act2-first.png): card 06 "chat index" rendered SELECTED with
+  // "— 0 calls" and a body reading "Building the chat index from this run's corpus… It is still
+  // working." — on a voices-only manual enrich of a run whose chain never ran. The follow fallback
+  // treated the ledger's `skipped` as "started" (index is last in the rail, so it won every time no
+  // stage was running), the body keyed on `done` alone, and a skipped row's `llm_calls: 0` rendered
+  // as a count. Narration derives from the ledger's stage states now: skipped is a verdict.
+  await mockActTwo(page);
+  let releaseEnding: () => void = () => {};
+  const endingGate = new Promise<void>((res) => (releaseEnding = res));
+  let servedEnding = false;
+  await page.unroute('**/api/runs/*/ledger');
+  await page.route('**/api/runs/*/ledger', (r) => r.fulfill({ json: { run_id: RUN, ledger: chainOffLedger(servedEnding) } }));
+  await page.unroute('**/api/runs/*/events');
+  let streamCalls = 0;
+  await page.route('**/api/runs/*/events', async (r) => {
+    const i = streamCalls++;
+    if (i >= 1) {
+      await endingGate;
+      servedEnding = true; // the rows are closed before the run_ended line is written
+    }
+    return r.fulfill({ status: 200, contentType: 'text/event-stream', body: manualVoicesBody(i >= 1) });
+  });
+  await enterActTwo(page);
+
+  // the followed card is the last stage that actually RAN — institutions, never the skipped index
+  await expect(page.getByTestId('act-two-panel-institutions')).toBeVisible({ timeout: 15_000 });
+  const index = page.getByTestId('act-two-card-index');
+  await expect(index).toHaveAttribute('data-status', 'skipped');
+  await expect(index).toHaveAttribute('aria-current', 'false');
+  await expect(index).not.toContainText('calls'); // a skipped row's 0 is not a count
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27f-c2-manual-voices-panel.png' });
+
+  await index.click();
+  const panel = page.getByTestId('act-two-index');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('did not run');
+  await expect(panel).not.toContainText('Building');
+  await expect(panel).not.toContainText('still working');
+  const text = await page.getByTestId('act-two').innerText();
+  expect(text).not.toMatch(BANNED);
+  expect(text).not.toMatch(STANCE_TALLY);
+  if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27f-c2-index-did-not-run.png' });
+
+  // the job ends: the rows the server closed merge in, the act stays up (a server that had left
+  // them skipped would flip the chain state to 'none' on the re-read and unmount it)
+  releaseEnding();
+  await expect.poll(async () => (await page.evaluate(() => (window as unknown as { __nadiRunFeed?: { ended: string | null } }).__nadiRunFeed))?.ended, { timeout: 15_000 }).toBe('complete');
+  await expect(page.getByTestId('act-two')).toBeVisible();
+  await expect(page.getByTestId('act-two-card-voices')).toHaveAttribute('data-status', 'done', { timeout: 10_000 });
+});
+
 // ── V2.7e C1 — the document's doorways answer the wrong-run predicate ───────────────────────────
 
 test('the document’s doorways are BLOCKED while Act II holds Watch', async ({ page }) => {

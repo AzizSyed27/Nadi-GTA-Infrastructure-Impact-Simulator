@@ -24,6 +24,7 @@ import { memo, useMemo, useState } from 'react';
 import type { Agent, LonLat, TrajectoryArtifact } from '@/lib/types';
 import {
   STAGE_COSTS_MODEL,
+  STAGE_STARTED,
   costLineSpent,
   type RunFeedState,
   type StageKey,
@@ -92,13 +93,16 @@ export function ActTwo({
   const spent = costLineSpent(experience);
   const projected = experience.projection?.calls ?? null;
 
-  // AUTO-FOLLOW: the running stage, else the last one that has started. A reader who clicks a
+  // AUTO-FOLLOW: the running stage, else the last one that has STARTED. A reader who clicks a
   // started card PINS it (so a voice that would otherwise scroll past can be read) and the
-  // following control gives the act back.
+  // following control gives the act back. V2.7f C2 — "started" is `STAGE_STARTED`, never
+  // `!== 'pending'`: a ledger-seeded `skipped` is a verdict that a stage NEVER RAN, and on a
+  // chain-off run's manual enrich the old test landed the follow on the skipped chat-index card
+  // (last in the rail) and narrated it as working (v27e-c5-live-act2-first.png).
   const followed = useMemo<StageKey>(() => {
     const running = stages.find((s) => s.status === 'running');
     if (running) return running.key;
-    const started = [...stages].reverse().find((s) => s.status !== 'pending');
+    const started = [...stages].reverse().find((s) => STAGE_STARTED.has(s.status));
     return started?.key ?? 'personas';
   }, [stages]);
   const [pinned, setPinned] = useState<StageKey | null>(null);
@@ -167,9 +171,12 @@ export function ActTwo({
 }
 
 /** Per-stage cost. `STAGE_COSTS_MODEL` gets its first consumer here: a stage that runs no model
- *  states that, and a stage that does but hasn't reported yet says nothing rather than "0". */
+ *  states that, and a stage that does but hasn't reported yet says nothing rather than "0".
+ *  V2.7f C2 — a stage that never STARTED says nothing either: a skipped ledger row carries
+ *  `llm_calls: 0` (never null), which rendered as "0 calls" on the never-run chat-index card. */
 function costLine(s: StageState): string {
   if (!STAGE_COSTS_MODEL[s.key]) return 'no model';
+  if (!STAGE_STARTED.has(s.status)) return '';
   return s.calls == null ? '' : `${s.calls} call${s.calls === 1 ? '' : 's'}`;
 }
 
@@ -355,19 +362,38 @@ function InstitutionCard({ agent }: { agent: Agent }) {
 
 // ----------------------------------------------------------------------------------- chat index
 
+/** What the chat-index stage says about itself, PER LEDGER STATUS (V2.7f C2). The old panel said
+ *  "Building the chat index…" unconditionally and "It is still working." for every status but
+ *  done — on a chain-off run's manual voices enrich it narrated a stage that never ran and had no
+ *  subprocess in that job. The narration derives from the ledger's state, chain or manual alike. */
+export const INDEX_ROLE =
+  'This stage produces no reading of its own: it is what makes “ask the report” able to answer from this run.';
+export function indexNarration(status: StageState['status'], docs: number | null, detail: string): [string, string] {
+  switch (status) {
+    case 'running':
+      return [docs != null ? `Building the chat index — ${docs} documents from this run.`
+                           : 'Building the chat index from this run’s corpus.', 'It is still working.'];
+    case 'done':
+      return [docs != null ? `The chat index was built — ${docs} documents from this run.`
+                           : 'The chat index was built from this run’s corpus.', 'It finished.'];
+    case 'partial':
+      return ['The chat index was built part-way before the stop.', 'It kept what had landed.'];
+    case 'failed':
+      return ['The chat index could not be built.', detail ? `It failed: ${detail}` : 'It failed.'];
+    case 'skipped':
+      return ['The chat index was not built in this run — this stage did not run.', ''];
+    default:
+      return ['The chat index has not started.', ''];
+  }
+}
+
 export function IndexPanel({ experience, stage }: { experience: RunFeedState; stage: StageState }) {
   // A stage with no content to show says exactly that. No fake terminal, no invented progress bar.
+  const [head, tail] = indexNarration(stage.status, experience.indexDocs, stage.detail);
   return (
     <div style={col} data-testid="act-two-index">
-      <p style={para}>
-        {experience.indexDocs != null
-          ? `Building the chat index — ${experience.indexDocs} documents from this run.`
-          : 'Building the chat index from this run’s corpus.'}
-      </p>
-      <p style={muted}>
-        This stage produces no reading of its own: it is what makes “ask the report” able to answer
-        from this run. {stage.status === 'done' ? 'It finished.' : 'It is still working.'}
-      </p>
+      <p style={para}>{head}</p>
+      <p style={muted}>{INDEX_ROLE}{tail ? ` ${tail}` : ''}</p>
     </div>
   );
 }

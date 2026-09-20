@@ -208,11 +208,19 @@ export function useRunFeed(runId: string | null, h: RunFeedHandlers): RunFeed {
           llmCallsTotal: durable.llmCallsTotal || prev.llmCallsTotal,
           stages: prev.stages.map((st) => {
             const row = durable.stages.find((d) => d.key === st.key);
+            if (!row) return st;
+            // V2.7f C2 — A ROW THAT STILL SAYS `running` NEVER OVERTURNS WHAT THE STREAM SETTLED.
+            // This re-read also fires at seed time on a RE-enrich (the prior run's ending is on
+            // the ledger), while the job's rows are `running` / 0 from the POST (C0) — coarser than
+            // the stream, which has already folded `personas` done and the voices' metered count.
+            // The row's terminal statuses and counts are durable truth (the job closes them before
+            // its `run_ended`); its `running` is not fresher than a stage's own settled event.
+            const settled = st.status === 'done' || st.status === 'partial' || st.status === 'failed';
+            const status = row.status === 'running' && settled ? st.status : row.status;
+            const calls = row.status === 'running' ? (st.calls ?? row.calls) : (row.calls ?? st.calls);
             // `detail` too: it is where the ledger keeps a failed stage's REASON, and the
             // document's degraded block is the only thing that ever shows it to a reader
-            return row
-              ? { ...st, status: row.status, calls: row.calls ?? st.calls, detail: row.detail || st.detail }
-              : st;
+            return { ...st, status, calls, detail: row.detail || st.detail };
           }),
         };
       });
