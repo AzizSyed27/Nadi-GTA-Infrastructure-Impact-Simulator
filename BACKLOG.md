@@ -577,6 +577,12 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   in the static demo it is an instruction the visitor cannot follow. graphs.spec pins the empty
   states' text, so it wants its own small commit: name the Build stage's run card (and, in the
   demo, the shipped run that carries a cascade, as the discourse caption now does).
+- **V2.7f's two honesty fixes are pinned, not live-verified (the residual, stated):** the re-enrich
+  cost line (C0/C1) and the manual-enrich narration (C2) are pinned against the server's real
+  ordering, but no live enrich ran during f. One ~215-call voices re-enrich of
+  `multimodal-scenario-20260915T051601Z` would show "model calls: 0 of ~215" on the first frame,
+  the ledger's voices row at that job's count with status `done`, and Act II mounted until the
+  poll's done edge. A spend is the user's; offered as a follow-on.
 - **Lifetime spend across re-enrichs is NOT tracked (a stated non-goal, V2.7f C0/C1):** a ledger
   row is the stage's LAST job's count (`begin_stage` resets it), so "This run’s stages as they
   stand cost N model calls" can DROP after a voices re-enrich on a chained run — the sentence says

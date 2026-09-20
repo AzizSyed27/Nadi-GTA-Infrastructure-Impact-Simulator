@@ -1155,9 +1155,14 @@ compare + composite-runcard + discourse 26 · draft-basket + edit + edit-guard +
 group-evidence 57 · group-interview + incident + institutions + lane-rows + map-ladder 34 ·
 overlay-playback + road-geometry + run-document + run-identity + run-list 54 · school-zone +
 scorecard-scope + seeds + street-names + via-rules + windowed-runcard 32 = 273, the listing's
-number; static-demo 11/11 on the final bundle; pytest 759 re-run on the same tree.** **THE v2.7
-TAG** rides the C7 commit — inside the range like v2.5, docs before the tag — annotated `a:`–`f:`
-with the suites and the contract line.
+number; static-demo 11/11 on the final bundle; pytest 759 re-run on the same tree.** **THE ONE
+RESIDUAL, stated:** fixes (a) and (b) are pinned against the server's REAL ordering (the rows
+closed before `run_ended`; the ledger as the server holds it mid-job) but were NOT re-verified on
+a live enrich — a ~215-call voices re-enrich of `multimodal-scenario-20260915T051601Z` would show
+"model calls: 0 of ~215" on its first frame, the ledger's voices row at that job's count with
+status `done`, and Act II mounted until the poll's done edge. Not spent during f (a spend is the
+user's), offered as a follow-on. **THE v2.7 TAG** rides the last docs commit — inside the range
+like v2.5, docs before the tag — annotated `a:`–`f:` with the suites and the contract line.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor restyle + street names + the per-lane table — SHIPPED** (fifteen commits; see the
