@@ -10,19 +10,29 @@ node scripts/build-static-demo.mjs
 ```
 
 This runs the `NEXT_STATIC_EXPORT=1` export build, prunes `web/out/` to the demo set (the pinned
-212-voice run's triple, the modern institutional run + its per-run report, `network.json`), writes
-the `out/latest.json` pointer (build-written, never committed), and prints the manifest with a
-per-file size check. Expect **~44 MB total, every file under 25 MiB** — that last number is
-Cloudflare Pages' hard per-file cap, and the script fails loudly if any file crosses it.
+212-voice run's triple, the example run's artifact + per-run report + graphs sidecar (V2.7f),
+`network.json`), writes the `out/latest.json` pointer (build-written, never committed, aimed at the
+example run), and prints the manifest with a per-file size check. Expect **~45 MB total, every
+file under 25 MiB** — that last number is Cloudflare Pages' hard per-file cap, and the script sets
+a failing exit code if any file crosses it (check the exit code, not only the log).
 
-Sanity-check locally before deploying (any static server works):
+Run the build BETWEEN Playwright chunks, never during one: it writes `web/.next`, which the dev
+server on :3000 also uses.
+
+Verify the bundle before deploying — the `static-demo` Playwright project (V2.7f) serves `web/out`
+on :3001 with python's `http.server` and pins the read-only rule surface by surface (Build locked
+with the why, the document's doors, the run list, chat, the Compare pickers, the demo discourse
+caption, the example's graphs, and ZERO requests to `/api/*` across a landing → Watch → Explore
+walk):
 
 ```bash
-cd web/out && python -m http.server 8080    # → http://localhost:8080
+cd web && npm run e2e:demo
 ```
 
-The three walkthrough stops from the README should all render, and the edit/chat/interview
-affordances should show the read-only sentence.
+The project is SKIPPED with a printed line when `web/out/latest.json` is absent — build first. The
+three walkthrough stops from the README should also render by hand at `http://localhost:3001`
+(`cd web && python -m http.server 3001 --directory out`); every live affordance shows the read-only
+sentence rather than failing.
 
 ## 2. Deploy to Cloudflare Pages
 

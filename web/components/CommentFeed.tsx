@@ -26,6 +26,11 @@ interface CommentFeedProps {
   currentTime: number;
   simStart: number;
   simEnd: number;
+  /** V2.7f C6 — the feed's left edge. Watch's collapsed article strip (DocumentPanel's 46 px at
+   *  left 20) sat over the feed's left 50 px, clipping "ANTICIPATED REACTIONS" and every card's
+   *  first characters (visible in every V2.7e live frame and in the served-demo hero); the Watch
+   *  mount pushes the feed clear of the strip while it is up. Default: the pre-C6 16 px. */
+  leftOffset?: number;
   /** When set, show only voices whose group matches (the scorecard→feed join). */
   filterGroup: string | null;
   onClearFilter: () => void;
@@ -128,7 +133,7 @@ export function CommentFeed(props: CommentFeedProps) {
     : 'Press play — reactions pop as each traveler hits their worst moment.';
 
   return (
-    <div style={wrap} data-testid="comment-feed">
+    <div style={{ ...wrap, left: props.leftOffset ?? 16 }} data-testid="comment-feed">
       <div style={head}>
         <span>ANTICIPATED REACTIONS</span>
         {filterGroup && (

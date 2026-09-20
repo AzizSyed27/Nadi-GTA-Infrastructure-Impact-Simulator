@@ -3106,6 +3106,9 @@ export default function MapView() {
             onInstitution={setInstitution}
             selectedId={selected ? agentId(selected) : null}
             onAddToRoom={addToRoom}
+            // V2.7f C6 — clear the Watch article's collapsed strip (left 20 + 46 px + a gap);
+            // when the article is open its full panel overlays the feed by design
+            leftOffset={stage === 'watch' && watchDocCollapsed ? 74 : 16}
           />
           <div style={rightRail}>
             <ScorecardPanel
