@@ -8,14 +8,15 @@ with an LLM-driven stakeholder-reaction layer: moving dots on a map, a per-stake
 question, and a simulated-discourse view — built so that **the tool arranges evidence and the
 planner concludes**, never the other way around.
 
-![The pinned 212-voice run mid-playback: dots, the reaction feed, the per-stakeholder scorecard](docs-assets/v25d-hero-playback.png)
+![The 212-voice run replayed in Watch from the static demo: sentiment dots on the transit-map, the anticipated-reactions feed, the per-stakeholder scorecard, the near-miss legend](docs-assets/v27f-hero-demo-watch.png)
 
-**Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`), **V2.7a** (the four-stage shell +
-the run document), **V2.7b** (the run experience — two acts over one event stream), **V2.7c** (map
-styling), **V2.7d** (the editor restyle + street names + the per-lane table) and **V2.7e** (the
-scorecard doorways + the two-group room) complete · trajectory contract
-**v0.10.0** · **752 pytest + 268 Playwright** tests · study corridor: Scarborough / Pickering /
-Ajax. The *simulation* is bounded to one corridor, even though the framing is "the GTA."
+**Status:** Phases 0–5, V2.0–**V2.6** (tags `v2.2` … `v2.6`) and **V2.7** (tag `v2.7`: **a** the
+four-stage shell + the run document, **b** the run experience — two acts over one event stream,
+**c** map styling, **d** the editor restyle + street names + the per-lane table, **e** the
+scorecard doorways + the two-group room, **f** the two consent-surface honesty fixes + the static
+demo's own test project + the close) complete · trajectory contract **v0.10.0** · **759 pytest +
+273 Playwright + 11 static-demo** tests · study corridor: Scarborough / Pickering / Ajax. The
+*simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
 
@@ -35,7 +36,9 @@ walkthrough locally in two commands). Three stops:
 
 Two things the demo is honest about up front. The runs are **pre-computed and real**: nothing
 simulates in the browser, and these are actual SUMO runs on calibrated Toronto open data — not
-mockups. And the live affordances are visibly disabled rather than clickable-then-failing, each
+mockups; Watch replays a finished run's own traffic, and the live run experience (the physics
+beats, the streaming interpretation) needs the local backend and never appears in the demo. And
+the live affordances are visibly disabled rather than clickable-then-failing, each
 carrying the same sentence: *"read-only walkthrough of pre-computed runs; editing, chat, and
 interviews need the local backend (SUMO + a model key) — see SETUP.md in the repo."*
 
@@ -47,7 +50,7 @@ etiquette. The locked decisions:
 
 - **Preview, never verdict.** The agent layer anticipates *who wins, who loses, and what each
   objection sounds like*. It is not a referendum: no stance tallies, no sentiment averages, no
-  winner, anywhere. This is test-enforced — a banned-language sweep rides **23 of the 28
+  winner, anywhere. This is test-enforced — a banned-language sweep rides **24 of the 36
   Playwright specs** plus a python-side sweep, so a regression toward "62% support" fails CI, not
   a code review. The group room states it on its own surface: *"voices you picked, answering one
   at a time — a conversation preview, not a poll or a sample of opinion."*
@@ -223,8 +226,9 @@ chat + interviews, discourse) unlocks with one. The repo ships two complete pre-
 the map renders before you ever run SUMO.
 
 ```bash
-python -m pytest python/tests        # 689 tests
-cd web && npx playwright test        # 185 tests, 28 specs
+python -m pytest python/tests        # 759 tests
+cd web && npx playwright test        # 273 tests, 34 specs against the dev server
+node scripts/build-static-demo.mjs && cd web && npm run e2e:demo   # 11 tests against the served demo bundle
 ```
 
 ## History
@@ -279,15 +283,6 @@ cd web && npx playwright test        # 185 tests, 28 specs
 - **V2.7c ✅** — **map styling**: the transit-map palette, a zoom ladder (centerlines far out,
   lane stripes and direction chevrons closer in, overhead mode icons closest), and drawn roads that
   render as roads — a body at their lane count under a "proposed" casing, bends included.
-- **V2.7e ✅** — the **scorecard doorways + the two-group room**: a group row in the run document
-  SELECTS (pick one to see what the run carries for it — its voices, an interview on its
-  most-affected voice, the numbers' basis with each cell's note read as text — or a sentence when
-  it carries none; pick two to put them in a conversation, a room seeded by a stated rule that says
-  its own composition). The safety cell's note now derives from the run's own seeds instead of a
-  baked tuple; the example run and the web fixtures were recomputed at that scope. And the
-  persona prompts name the street beside the edge id (id-only when the net has no name, byte for
-  byte as before), so new voices say "Lawrence" where older ones said "the corridor road" — a
-  vocabulary vintage split that committed runs keep on their old side.
 - **V2.7d ✅** — the **editor restyle + street names + the per-lane table**: drag a change tile
   onto a road (or arm it and click), an inline mini-form fed by the road's REAL lane table for both
   directions — one member per direction, and the form says which direction it closes before you
@@ -298,7 +293,29 @@ cd web && npx playwright test        # 185 tests, 28 specs
   the report, the chat corpus and the voice cards, always as name-plus-id so the id stays the
   falsifiable reference. The wire carries each lane's width and permitted modes, so the sidewalk
   and bus-lane bands draw from data instead of a rule.
-- **Open** — [BACKLOG.md](BACKLOG.md): bbox expansion + signal rebuild (a larger net is what
+- **V2.7e ✅** — the **scorecard doorways + the two-group room**: a group row in the run document
+  SELECTS (pick one to see what the run carries for it — its voices, an interview on its
+  most-affected voice, the numbers' basis with each cell's note read as text — or a sentence when
+  it carries none; pick two to put them in a conversation, a room seeded by a stated rule that says
+  its own composition). The safety cell's note now derives from the run's own seeds instead of a
+  baked tuple; the example run and the web fixtures were recomputed at that scope. And the
+  persona prompts name the street beside the edge id (id-only when the net has no name, byte for
+  byte as before), so new voices say "Lawrence" where older ones said "the corridor road" — a
+  vocabulary vintage split that committed runs keep on their old side.
+- **V2.7f ✅ (`v2.7`)** — the **close**: two honesty fixes on the consent surfaces that e's live
+  frames caught — a re-enrich's running cost now counts THIS enrich (the server begins each stage's
+  row fresh and says which stages a job meters; the client scopes the line on that and clears the
+  scope when the chain or a resume takes over; the document's "spent" sentence says what the rows
+  are instead of a lifetime it does not track), and the interpretation panel narrates from the
+  ledger's own stage states (a stage that never ran says so, is never followed, shows no count).
+  The static demo gets its own Playwright project against the served bundle — which found three
+  routes into a broken Build stage and locked them with the same sentence as everything else — plus
+  a demo-aware discourse caption, the example run's graphs, a rewritten shot list, and a fresh hero
+  whose first take exposed a strip covering the feed. The front door was deliberately not built:
+  no ratified canvas exists for it, so it opens the next arc with a design session.
+- **Open** — [BACKLOG.md](BACKLOG.md): **the front door** (a marketing front door outside the
+  shell — the next arc, a design session first; the shell stays mountable from a route it can link
+  into), bbox expansion + signal rebuild (a larger net is what
   changes the saturation finding), street labels on the map itself (deferred with its cost
   recorded), the window-preset chips on the drop
   form, a real student-demand segment, periodic mandate re-verification, the settled-basis

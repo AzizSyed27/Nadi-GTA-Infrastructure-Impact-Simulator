@@ -271,15 +271,34 @@ never a drive-by reword. No mechanism until it hurts.
   deliberately if a room of same-label siblings becomes a real use pattern.
 
 ## Static-demo DEPLOY + the README "See it live" link swap (blocked on the user's click)
-The V2.5d demo bundle is BUILT and smoke-verified (`node scripts/build-static-demo.mjs` →
-`web/out/`, 43.9 MB, every file <25 MiB — regenerate freely, it's untracked) but **NOT deployed**:
-the Cloudflare Pages click is deliberately the user's (`DEPLOY.md` has the wrangler commands and
-the connect-repo alternative). When the live `*.pages.dev` URL exists, it replaces the "deploy in
-flight" placeholder in README "See it live" — the ONE pending README edit, deliberately blocked
-on the deploy. NB the bundle predates V2.6 (pinned triple + the `…20260814T063253Z` run at their
-committed vintages — still valid; the 0.10.0 back-compat readers render them); rebuilding before
-deploying would fold in the V2.6 UI (room buttons, curved-draw affordances render disabled-with-
-why in the demo) but is optional, not required.
+**Rebuilt and re-verified at V2.7f (2026-09-20).** The bundle is BUILT from the V2.7f tree (`node
+scripts/build-static-demo.mjs` → `web/out/`, 45.4 MB, every file <25 MiB — regenerate freely, it's
+untracked): the pinned triple, the example run's artifact + report + graphs sidecar, `network.json`,
+the pointer at the example. Verified STRUCTURALLY by the `static-demo` Playwright project (`cd web
+&& npm run e2e:demo`, 11 pins over the served bundle incl. zero `/api/*` requests) and by a served
+walk of the README's three stops. **NOT deployed**: the Cloudflare Pages click is deliberately the
+user's (`DEPLOY.md`: `npx wrangler login` · `npx wrangler pages deploy web/out --project-name
+nadi-demo`, or the connect-repo alternative). When the live `*.pages.dev` URL exists, it replaces
+the "deploy in flight" placeholder in README "See it live" — the ONE pending README edit,
+deliberately blocked on the deploy and NOT on the `v2.7` tag (the link swap is a follow-on commit).
+
+## The front door (the NEXT arc — a design session first)
+**The 0.1b constraint, promoted verbatim from the gitignored `docs/v2.7a-brief.md:50-52` so it
+survives a clone:** "FRONT-DOOR CONSTRAINT (recorded 0.1b): a marketing front door OUTSIDE this
+shell will exist later. Do not hardcode an entry flow that precludes it — the shell must be
+mountable from a route the front door can link into." The standing answer (V2.7a C6): the shell
+stays at `/`; a front-door route can mount beside it (repeat the `dynamic(..., {ssr:false})`
+wrapper); nothing in the shell precludes it. **V2.7f's finding (DesignSync, 2026-09-19):** the
+design project "Nadi traffic simulation redesign" holds five canvases, all app screens — Shell v2's
+`data-screen-label`s are `Nadi shell` / `Read — example run document` / `Build — draft` / `Watch —
+playback` / `Explore`, and the project's own `github.md` calls the Read document "the landing"; no
+front-door, hero, marketing or landing-page section exists. Per the design-first convention no
+front door is built from taste, so f shipped without one. What the next arc needs before any
+commit: a design session on the canvas (the front door's own screen, what it links into, whether
+`/` stays the shell or moves), then `next.config.ts` decisions a second route forces (`trailingSlash`
+— `about.html` vs `about/index.html` in the export; `images: { unoptimized: true }` if a hero uses
+`next/image` under `output: 'export'`), the demo project extended to the new route, and OG/twitter
+metadata (`layout.tsx` carries only title + description today).
 
 ## Standing items (scattered across prior plans)
 - **Rung-2/3 change types** — beyond the palette's rung-1 (see the tiered list above).
@@ -425,7 +444,10 @@ forbid by design — for a note-only change, patch through `trajectory_io.dump_a
   file only under `if (n_written and beats.on)`, so no run predating V2.7b has one and neither
   demo run qualifies; and the client reaches it through the `baseline_ready` SSE event's url,
   which a static export never fires. A demo that wants Act I's playback needs a `baselineUrl` that
-  does not come from the stream — that is the honest shape of the debt.
+  does not come from the stream — that is the honest shape of the debt. **V2.7f says it in the
+  README instead** ("Watch replays a finished run's own traffic, and the live run experience …
+  needs the local backend and never appears in the demo"); the demo project pins that no Act I/II
+  mounts on the served bundle.
 - **Per-step cascade content events** (`cascade_step` / `cascade_posts`): would give the discourse
   stage live content instead of the graph at stage end. Enters as ONE server commit — emitters in
   `propagation.py` **plus** `run_events.EVENT_NAMES` and `runStream.ts`'s `RUN_EVENT_NAMES` in the
@@ -540,11 +562,26 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   **REPRODUCED 2026-09-18 (V2.7e C5's gate enrich):** over Act II on entering Watch, then over
   playback after the enrich ended (`docs-assets/v27e-c5-live-act2-first.png`,
   `v27e-c5-live-held-panel-after-enrich.png`).
-- **The stage panel under the held moment said "Building the chat index … It is still working" for
-  a stage that was not running** (V2.7e C5's gate, a voices-only manual enrich on a chain-off run:
-  card 06 rendered selected with "— 0 calls" while its body used the in-progress copy;
-  `v27e-c5-live-act2-first.png`). V2.7b territory, banked with the frame: the body copy for a
-  `skipped` / never-started stage must not say "working"; find which selection rule picked card 06.
+- **CLOSED (V2.7f C2, 2026-09-20) — the stage panel under the held moment said "Building the chat
+  index … It is still working" for a stage that was not running** (V2.7e C5's gate;
+  `v27e-c5-live-act2-first.png`). The selection rule was the follow fallback's `!== 'pending'`,
+  which counted a ledger-seeded `skipped` as started, and the chat-index card is last in the rail;
+  the body keyed on `done` alone; a skipped row's `llm_calls: 0` rendered as "0 calls". Now the
+  fallback and the per-card count key on `STAGE_STARTED` (skipped is a verdict), the index panel
+  renders one sentence pair per status ("was not built in this run — this stage did not run"), the
+  discourse stage has a skipped branch, and the pin (act-two.spec) surfaced the terminal-edge merge
+  letting a row still `running` overturn stream-settled statuses at seed on a re-enrich — fixed in
+  the same commit (`v27f-c2-manual-voices-panel.png`, `v27f-c2-index-did-not-run.png`).
+- **GraphSplitView's oasis-empty copy says "Run it from the ✏️ Edit rail"** (found by V2.7f C4's
+  demo frame `v27f-demo-graphs-example.png`): the ✏️ Edit rail is vocabulary retired at V2.7a, and
+  in the static demo it is an instruction the visitor cannot follow. graphs.spec pins the empty
+  states' text, so it wants its own small commit: name the Build stage's run card (and, in the
+  demo, the shipped run that carries a cascade, as the discourse caption now does).
+- **Lifetime spend across re-enrichs is NOT tracked (a stated non-goal, V2.7f C0/C1):** a ledger
+  row is the stage's LAST job's count (`begin_stage` resets it), so "This run’s stages as they
+  stand cost N model calls" can DROP after a voices re-enrich on a chained run — the sentence says
+  what the rows are, on purpose. Tracking lifetime spend would need a per-job history in the
+  ledger; not built, recorded.
 - **An Act II voice card cannot be framed once the enrich ends — twice now DOM-quoted, never
   framed** (d's acceptance and e's C5: the two omitted-od-line simulated cards, vehicles 156 and 40
   on the acceptance run, identified by artifact geometry; Act II unmounts on the done edge's 1.5 s
@@ -585,7 +622,11 @@ copy, so it wants ratifying rather than inventing; the state is pinned either wa
   chain-off ledger (act-one.spec), with test_stage_runner pinning the same literal sequence
   server-side. Related, unchanged: the same panel stays up over Build and Read until dismissed — by
   design (a moment, dismissable), noted so the acceptance frames are read right.
-- **Banked by the follow-up's exploration (V2.7b territory, none fixed):** (a) the ledger ACCUMULATES
+- **Banked by the follow-up's exploration (V2.7b territory; (a) and (b) CLOSED at V2.7f C0/C1,
+  2026-09-20 — `begin_stage` starts a row fresh per job, the manual POST begins its rows and stamps
+  `keys` on `stage_start`, the job closes them, the client scopes the cost line on the keys and
+  clears it on a keyless start, the terminal re-read keys on an `endings` counter, and the truthy
+  placeholder no longer overwrites a real projection; the rest stay banked):** (a) the ledger ACCUMULATES
   `llm_calls` (`add_llm_calls` +=) while the stream fold SETS them — a re-enrich reads 426 in the
   ledger against 213 live, and the terminal-edge merge prefers the ledger **— SEEN LIVE 2026-09-18
   (V2.7e C5's gate, the second voices enrich of the acceptance run): the ledger's voices row read

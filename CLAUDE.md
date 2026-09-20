@@ -110,7 +110,9 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.10.0**. Phases 0–5, V2.0–V2.6 and V2.7a–V2.7e are COMPLETE: the four-stage shell
+Contract **v0.10.0**. Phases 0–5, V2.0–V2.6 and V2.7a–V2.7f are COMPLETE — **V2.7 (a–f) CLOSED,
+TAGGED `v2.7`** (2026-09-20; the front door is the NEXT arc, opened by a design session — no
+ratified canvas exists for it): the four-stage shell
 (Build → Watch → Read → Explore) fronts the whole pipeline — Build composes
 (draw a road — straight or BENT through via points (V2.6d) — / speed / bike lane / lane- & road-closures /
 incidents / 🏫 school-zone COMPOSITES —
@@ -233,7 +235,7 @@ report REGENERATED under the full realign ceremony — **the conjunction-baselin
 rebuilt, alignment + pins + discourse.spec re-proven. The sweep CAUGHT a real pre-existing gap:
 the code-rendered tail sentence said "the vast majority of cars unaffected" (referendum
 vocabulary no old sweep covered) — reworded at both sources (report.py, robustness.py), golden
-regenerated deliberately. Sweeps ride **23 of 28** spec files (measured; the FIVE without one are incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note — plus V2.7b's `edit-guard`, which pins filesystem drift and renders no prose at all; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
+regenerated deliberately. Sweeps ride **24 of 36** spec files (re-measured at V2.7f: `grep -l BANNED web/tests/*.spec.ts` — the demo.readonly spec sweeps its own new strings; at V2.7a the count was 23 of 28 and the FIVE without one were incident / institutions / scorecard-scope / via-rules — geometry strings, overlays and a scope note — plus V2.7b's `edit-guard`, which pins filesystem drift and renders no prose at all; the institutional PANEL's prose is swept where it streams, in act-two). ReportPanel is DELETED; chat lives
 at Explore · Chat; shared composers extracted (windowedScope/scopeNoteText, provenance labels,
 nonCompletionsLine) so pinned sentences have ONE source across surfaces. **PERF RE-MEASURED (headed, prod, this box — the V2.5c harness + a stage-watch hop since the landing defaults to Read): 90 MB fat-vintage exemplar nav→render 3.77 s (budget ≤5 s; pre-shell 3.72 — no regression), frames p50 8.1 ms/123 fps · p95 16.1 ms/62 fps · 0 longtasks (pre-shell 122/61 — identical; the document panel never subscribes to the rAF clock); pinned ~20 MB run nav→render 1.14 s (budget ≤2 s), 125/63 fps.** Suites: **595 pytest
 + 123 Playwright**.
@@ -1055,13 +1057,116 @@ the chat index … It is still working" for a stage that was not running (its ca
 banked beside it. The API server's in-process `interview` import needs a restart before a live
 interview reflects the line; the voices subprocess read the new `reactions.py` as is (proven by
 the sample).
+**V2.7f — THE TWO HONESTY FIXES, THE STATIC-DEMO PROJECT, AND THE v2.7 CLOSE (C0 `cc72610` · C1
+`2a96134` · C2 `c9a138c` · C3 `9e96efd` · C4 `21590a9` · C5+C6 `7e983fe` · C7 the docs pass, which
+the annotated `v2.7` tag rides; NO contract change; plan + execution log at
+`~/.claude/plans/typed-napping-marble.md`). THE ROLLUP:** the phase's own two holes closed FIRST (the
+F3 precedent), then the demo earned its structural test, then the close. **THE FRONT DOOR —
+DELIBERATELY NOT BUILT (ratified 2026-09-19):** the design project was read through DesignSync —
+Shell v2's five screens are `Nadi shell` / `Read — example run document` / `Build — draft` /
+`Watch — playback` / `Explore`, and the project's own `github.md` calls the Read document "the
+landing"; no front-door, hero or marketing canvas exists, and the only record was the 0.1b
+constraint in the GITIGNORED `docs/v2.7a-brief.md` ("a marketing front door OUTSIDE this shell will
+exist later … the shell must be mountable from a route the front door can link into") — promoted
+VERBATIM into BACKLOG at C7. Per the design-first convention no front door is built from taste: it
+is the next arc, opened by a design session.
+**FIX (a) — THE RE-ENRICH COST LINE (C0 + C1).** Three causes met: `add_llm_calls` accumulated
+forever; the manual `POST /enrich` wrote only the projection, never a stage row; the client's
+numerator summed every stage with no scope. So a second voices enrich opened on "213 of ~215"
+(the prior job's ledger count, the card ticked) and its ledger row read 426 after — and on a run
+that had run the whole chain the line would have read "5,208 of ~215". **Server:**
+`run_ledger.begin_stage` starts a row fresh (RUNNING, 0, a re-stamped `started_at`);
+`add_llm_calls` keeps accumulating WITHIN a job (a retry batch reports again — the accumulate pin
+stands); the POST begins every row its job will produce before the `stage_start` line and carries
+them on it as `keys` (`_ENRICH_KEYS`, pinned in LOCKSTEP with the chain steps table — one report
+POST runs report.py AND report_agent.py, so it owns report ∪ index); the job CLOSES its rows (DONE
+with its own count, FAILED with the detail) and never calls `end()` — the run's ending is the run's
+verdict; the chain and a RESUME begin their rows the same way, so a resumed partial stage meters
+that job only. **Client:** the fold carries `inFlight` — **THE SCOPE RULE, BOTH HALVES** (the
+plan-review catch): a keyed `stage_start` (the manual path) scopes `costLineSpent` to that job's
+stages and starts their counts fresh (null, "not yet metered"); a KEYLESS start (the chain, a
+resume) clears it to Σ all — without the second half a resume after a manual enrich would have kept
+summing three old keys while thousands metered off the line, the exact understatement class the
+fix exists to kill. `run_ended` never touches the scope and increments `endings`, which the
+terminal-edge re-read now keys on (a re-enrich's own ending equals the seeded status, so on the
+status alone it never re-fired). The ledger's truthy `{calls: null}` placeholder no longer
+overwrites a real projection (BACKLOG (b), taken). **THE COPY CLAUSE:** a ledger row is the stage's
+LAST job's count and lifetime spend across re-enrichs is a STATED NON-GOAL — so "The run spent N
+model calls." became a lifetime claim that visibly DROPS after a re-enrich on a chained run; it now
+reads "This run’s stages as they stand cost N model calls." (one source, `MapView`, one pin, brake).
+**A correction to e's record:** Act II's unmount on a manual enrich was the POLL's done edge, not
+the ledger merge; the merge overwriting stream-settled statuses was the LATENT half, which C2 then
+met live (below). Pins: `run-feed-fold.spec` (pure: 0 → 47 → 47 through `run_ended`, `endings` 2;
+the RESUME case reads 2,278 where a stale scope reads 47; the chain-shaped fold unchanged) and
+enrich-stream's re-enrich pin over a ledger that already carries 213, keyed BY CONTENT in three
+phases (before / posted / ended — the third once the job's `run_ended` body has been served): "0
+of ~215" on the first frame, 47 metered, still 47 after the ending with the card at 47 calls and
+the act up, never 260. The existing "0 → 47" pin over an ALL-ZERO ledger stays green — the shape
+where scoped and unscoped read the same, which is why the follow-up's design never saw this.
+**FIX (b) — THE PANEL NARRATES WHAT THE LEDGER SAYS RAN (C2).** The follow fallback treated any
+status but `pending` as started, and a ledger-seeded `skipped` on the LAST card in the rail (chat
+index) won every time no stage was running; the index panel said "Building…" unconditionally and
+"still working" for every status but done; a skipped row's `llm_calls: 0` rendered as "0 calls".
+`STAGE_STARTED` (the chain discriminator's set) is exported and the rail's fallback and per-card
+count key on it — `skipped` is a VERDICT, not a start; `indexNarration` renders one sentence pair
+per status (skipped: "was not built in this run — this stage did not run"); the discourse stage
+gains the skipped branch. **The pin surfaced a second thing:** the terminal-edge re-read also fires
+at SEED on a re-enrich (the prior run's ending is on the ledger) while the job's rows are `running`
+/ 0 from the POST — coarser than the stream, which had folded `personas` done and the voices'
+count — and "durable wins" let a row still `running` overturn stream-settled statuses and counts,
+so Act II never mounted. Rule: a ledger row that still says `running` never overturns a settled
+stage or its metered count (the job closes them before its `run_ended`); the pin's fixture is the
+ledger AS THE SERVER HOLDS IT mid-job (the three rows running), not the pre-C0 shape.
+**THE DEMO (C3–C6).** C3: the example's graphs sidecar (entity half, oasis null) joins KEEP and the
+gitignore negations so the bare URL's Explore · Graphs renders; two tracked dead-weight artifacts
+removed (`run.json`, `scenario-20260625T162323Z.json`, 7.2 MB each) VERIFIED not asserted — the
+commit message names the sweep (whole-tree grep, the discovery globs that walk `contract/runs`, zero
+test references, absent from KEEP) and why the two 0709 runs STAY (edit.spec's RUN_ID/PRIOR_ID,
+discourse.spec's pointer target); `demo-shot-list.md` rewritten for the four-stage shell. C4: the
+`static-demo` Playwright project (a second `webServer`, python's http.server on :3001, gated on
+`out/latest.json` with a LOUD skip line — PROVEN firing both ways) and two specs with NO route
+mocks; the RED run against the C3 bundle counted five `/api/runs` requests and read "backend
+unreachable" — **three ungated routes into a broken Build stage:** the run list's CLONE TO DRAFT and
+"+ new draft" (they `setStage('build')` past the header's lock, where Build fetches junctions +
+edges), Compare's two RunSwitchers, the run card's enrich buttons; every one renders
+`DEMO_READONLY_NOTE` verbatim now, the run list is empty from its first render in the demo (a sync
+setState in the effect tripped lint — state init instead), and Explore · Discourse on the example
+(no `social` block) points at the 212-voice run that carries a cascade (`DEMO_PINNED_RUN_ID`; the
+spec's 200 on the link is the lockstep with the build script's literal) instead of at a Build
+stage the demo has locked. C5: the served walk of the README's three stops, zero `/api/*` at each;
+DEPLOY.md refreshed; the deploy stays the user's click. C6: the hero
+`docs-assets/v27f-hero-demo-watch.png` (1600×1000, the served bundle, stop 2 in Watch at t=12:18)
+— and its first take showed a defect no seam test could: the Watch article's collapsed strip
+(DocumentPanel's 46 px at left 20) covered the feed's left 50 px, clipping "ANTICIPATED REACTIONS"
+and every card's first characters, present in every V2.7e live frame since the article landed at
+V2.7b C10b; the feed takes a `leftOffset` and the Watch mount pushes it clear while the strip is
+up. **Watch in the demo is the finished run's own playback, never Act I/II — by construction**
+(`feedRunId` is never set without a backend); no off-stream `baselineUrl` exists (BACKLOG's debt
+stands, and the README now says it). **FINDINGS BANKED (C7):** GraphSplitView's oasis-empty copy
+says "Run it from the ✏️ Edit rail" (retired vocabulary; demo-unfollowable; graphs.spec pins it).
+**GATES:** pytest 759 (752 + 7, C0; unchanged after); Playwright per commit in foreground chunks,
+the recorded order-sensitive pair riding along (act-two:478 red alone on the working tree AND 1 of
+2 on the committed tree on the same server — the stash bisect; run-identity:118 3/3 alone) plus two
+cold-server load reds (enrich-stream:464 and :489, each 3/3 alone); **the FULL suite once on the
+C7 tree before the tag (2026-09-20, fresh dev server, nine foreground chunks): act-one 22 ·
+act-two 17 (16 in-chunk + :478 alone 1/1, the recorded weakness) · brake + run-feed +
+run-feed-fold 21 · enrich-stream + interview 10 · app-shell + closure-palette + compact-run +
+compare + composite-runcard + discourse 26 · draft-basket + edit + edit-guard + graphs +
+group-evidence 57 · group-interview + incident + institutions + lane-rows + map-ladder 34 ·
+overlay-playback + road-geometry + run-document + run-identity + run-list 54 · school-zone +
+scorecard-scope + seeds + street-names + via-rules + windowed-runcard 32 = 273, the listing's
+number; static-demo 11/11 on the final bundle; pytest 759 re-run on the same tree.** **THE v2.7
+TAG** rides the C7 commit — inside the range like v2.5, docs before the tag — annotated `a:`–`f:`
+with the suites and the contract line.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor restyle + street names + the per-lane table — SHIPPED** (fifteen commits; see the
 V2.7d box — the netconvert regen was measured at C0 and NOT taken: names ride the export from the
 tracked OSM extract, the canonical net is a fixed asset) · **V2.7e scorecard doorways + the
-two-group room + the prompt names — SHIPPED, C1–C5** (see the V2.7e box; the one V2.7d deferral
-still open: map street labels) +
+two-group room + the prompt names — SHIPPED, C1–C5** (see the V2.7e box) · **V2.7f the two honesty
+fixes + the static-demo project + the close — SHIPPED, C0–C7, TAGGED `v2.7`** (see the V2.7f box;
+the deploy click and the README link swap are the user's follow-on; the FRONT DOOR is the next
+arc — design session first; the one V2.7d deferral still open: map street labels) +
 `BACKLOG.md` (bbox expansion, student demand, mandate re-verification, the calibrated composite
 exemplar, the settled-basis re-verification, per-window probing at rung 3, the V2.7
 legacy-fallback removal, the room's prompt-side sibling-label ambiguity — its UI half closed in
@@ -1072,12 +1177,14 @@ interpretation's SHAPE as a product decision now that it is metered (the chat in
 of a run's spend), per-step cascade events, the two C11 residuals — the FORWARD-ONLY corpus-handle
 fix (the pinned run's served index still missing 115 of its 1,355 posts) and the lock-scoped
 staleness rule — and the empty-map caption's overpromise on a failed baseline fetch).
-**Deployment handoff (2026-08-17):** the static demo bundle is BUILT and smoke-verified at
-`v2.5` (`node scripts/build-static-demo.mjs` → `web/out/`, 43.9 MB — untracked build output,
-regenerate freely) but **NOT yet deployed** — the Cloudflare Pages click is the user's
-(DEPLOY.md has the wrangler commands). When the live `*.pages.dev` URL exists, it replaces the
-"deploy in flight" placeholder in README "See it live" — the ONE pending README edit,
-deliberately blocked on the deploy. `main` + all five annotated tags (v2.2–v2.5) are pushed to
+**Deployment handoff (2026-08-17; REBUILT and RE-VERIFIED at V2.7f, 2026-09-20):** the static demo
+bundle is BUILT from the V2.7f tree (`node scripts/build-static-demo.mjs` → `web/out/`, 45.4 MB —
+untracked build output, regenerate freely), verified by the `static-demo` Playwright project
+(11/11) and a served walk of the README's three stops with zero `/api/*` requests, but **NOT yet
+deployed** — the Cloudflare Pages click is the user's (DEPLOY.md has the wrangler commands:
+`npx wrangler login` · `npx wrangler pages deploy web/out --project-name nadi-demo`). When the
+live `*.pages.dev` URL exists, it replaces the "deploy in flight" placeholder in README "See it
+live" — the ONE pending README edit, deliberately blocked on the deploy and NOT on the `v2.7` tag. `main` + all five annotated tags (v2.2–v2.5) are pushed to
 origin as of this handoff; `v2.6` pushed with the V2.6 closeout (2026-08-23), README refreshed
 to the v2.6 vintage the same day (status/counts/contract v0.10.0, the room + curve + payload
 rung in History, the stale payload-thinning Open item retired).
@@ -2270,9 +2377,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `--zoom Z --center lon,lat` to sample the frame window inside a stated band; every layer-touching
   commit re-measures fitBounds + z15.2 + z16.5 on both artifacts. p50 on this box is bimodal (144 Hz
   display: 7.0 or 13.6 ms) — read p95.
-- **Static demo build (V2.5d):** `node scripts/build-static-demo.mjs` → `web/out/` pruned to the
-  demo set (43.9 MB; every file <25 MiB) — deploy per `DEPLOY.md`.
-- **Tests:** `python -m pytest python/tests` (752 tests — sections: golden spine; contract
+- **Static demo build (V2.5d; the demo PROJECT V2.7f):** `node scripts/build-static-demo.mjs` →
+  `web/out/` pruned to the demo set (45.4 MB at V2.7f — the pinned triple, the example's artifact +
+  report + graphs sidecar, `network.json`; every file <25 MiB; the guard sets an EXIT CODE) — deploy
+  per `DEPLOY.md`. Build BETWEEN Playwright chunks, never during one (it writes `web/.next`). Then
+  `cd web && npm run e2e:demo` — the `static-demo` Playwright project serves `web/out` on :3001
+  (python's http.server, no dependency) and pins the read-only rule surface by surface plus ZERO
+  `/api/*` requests; it is SKIPPED with a printed line when `out/latest.json` is absent.
+- **Tests:** `python -m pytest python/tests` (759 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -2291,9 +2403,14 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   report untouched; V2.7e's derived safety note, its recognisers over both prefixes, the earned
   rewrite over a derived prefix, the caveat coupling both ways and the protected-run recompute
   guard; C5's prompt-names pins — both forms per branch as literals, the framing clause, the
-  report's id-free and digit-free twin, the CLI forms, the interview inheritance) and
+  report's id-free and digit-free twin, the CLI forms, the interview inheritance; V2.7f C0's
+  `begin_stage` fresh row, the manual POST's rows + `keys`, the job closing its rows, the
+  `_ENRICH_KEYS` lockstep) and
   `cd web && npx playwright test`
-  (268 tests across 33 spec files incl. the V2.7e `group-evidence` (the composer, the pick rule with
+  (273 chromium + 11 static-demo tests across 36 spec files — the C4 commit message said 35, a
+  miscount; incl. the V2.7f `run-feed-fold` pure spec (the cost line's scope both halves, the
+  resume case), `demo.bundle` + `demo.readonly` (the served bundle, run under the second project
+  only), the enrich-stream re-enrich pin and act-two's manual-voices narration pin; the V2.7e `group-evidence` (the composer, the pick rule with
   ties, the room seed's balanced / imbalanced / under-three cases) pure spec and the run-document /
   act-two / group-interview doorway pins — selection, the tray, the strip's honest states, the
   blocked doors, the CTA and the seeded room; the V2.7d `lane-rows` (compass initials at the sector
