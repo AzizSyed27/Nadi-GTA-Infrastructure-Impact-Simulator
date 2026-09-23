@@ -44,6 +44,7 @@ execSync('npm run build', {
   env: { ...process.env, NEXT_STATIC_EXPORT: '1', NEXT_PUBLIC_STATIC_DEMO: '1' },
 });
 
+// the static export copies web/public verbatim, which includes dev-only fixtures; prune them out.
 console.log('[demo] pruning out/ to the demo set…');
 let pruned = 0;
 for (const entry of fs.readdirSync(OUT)) {
@@ -61,6 +62,7 @@ for (const entry of fs.readdirSync(OUT)) {
 // the pinned run stays reachable via ?run= (every pinned spec deep-links).
 fs.writeFileSync(path.join(OUT, 'latest.json'), JSON.stringify({ run_id: MODERN }) + '\n');
 
+// report the bundle size and any files > 1 MiB (Cloudflare Pages has a 25 MiB/file cap).
 let total = 0;
 const manifest = [];
 const walk = (dir) => {

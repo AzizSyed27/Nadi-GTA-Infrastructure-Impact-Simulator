@@ -30,6 +30,8 @@ const opt = (name, dflt) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : dflt;
 };
+
+// the PIXELS ARC's capture vehicle: the same viewport, the same centre, the same three zooms
 const URL_BASE = opt('url', 'http://localhost:3000');
 const RUN_ID = opt('run', 'multimodal-scenario-20260814T063253Z'); // the committed EXAMPLE run
 const TAG = opt('tag', 'shot');
