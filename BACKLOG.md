@@ -270,17 +270,21 @@ never a drive-by reword. No mechanism until it hurts.
   object-identity self-detection) — only the prompt-side rendered label collides. Decide
   deliberately if a room of same-label siblings becomes a real use pattern.
 
-## Static-demo DEPLOY + the README "See it live" link swap (blocked on the user's click)
-**Rebuilt and re-verified at V2.7f (2026-09-20).** The bundle is BUILT from the V2.7f tree (`node
-scripts/build-static-demo.mjs` → `web/out/`, 45.4 MB, every file <25 MiB — regenerate freely, it's
-untracked): the pinned triple, the example run's artifact + report + graphs sidecar, `network.json`,
-the pointer at the example. Verified STRUCTURALLY by the `static-demo` Playwright project (`cd web
-&& npm run e2e:demo`, 11 pins over the served bundle incl. zero `/api/*` requests) and by a served
-walk of the README's three stops. **NOT deployed**: the Cloudflare Pages click is deliberately the
-user's (`DEPLOY.md`: `npx wrangler login` · `npx wrangler pages deploy web/out --project-name
-nadi-demo`, or the connect-repo alternative). When the live `*.pages.dev` URL exists, it replaces
-the "deploy in flight" placeholder in README "See it live" — the ONE pending README edit,
-deliberately blocked on the deploy and NOT on the `v2.7` tag (the link swap is a follow-on commit).
+## Static-demo DEPLOY + the README "See it live" link swap — DEPLOYED (2026-09-24, the v2.7 follow-on)
+**Live at `https://nadi-demo.pages.dev/`** (Cloudflare Pages, project `nadi-demo`; the deployment
+the user pushed is `88d7cd0b.nadi-demo.pages.dev` — a per-deployment URL that changes on every
+redeploy, which is why the README links the stable project URL). The bundle is the V2.7f tree's
+(`node scripts/build-static-demo.mjs` → `web/out/`, 45.4 MB, every file <25 MiB): the pinned
+triple, the example run's artifact + report + graphs sidecar, `network.json`, the pointer at the
+example. Verified STRUCTURALLY before the deploy by the `static-demo` Playwright project (`cd web
+&& npm run e2e:demo`, 11 pins incl. zero `/api/*` requests) and a served walk of the three stops;
+verified ON THE LIVE HOST before the link swap: the root and `latest.json` return 200 with the
+pointer at the example run, the pinned-run `?run=` deep link returns 200, and the 20 MB artifact
+arrives `content-encoding: br` (cache-control `public, max-age=0, must-revalidate` — Pages'
+default; a longer max-age on the immutable run files is a possible follow-on, not a debt). The
+README's "deploy in flight" placeholder is replaced by the live link (one follow-on commit, off the
+`v2.7` tag as planned). Redeploy = rebuild + `npx wrangler pages deploy web/out --project-name
+nadi-demo` (the login persists).
 
 ## The front door (the NEXT arc — a design session first)
 **The 0.1b constraint, promoted verbatim from the gitignored `docs/v2.7a-brief.md:50-52` so it

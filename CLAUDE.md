@@ -1185,11 +1185,12 @@ staleness rule — and the empty-map caption's overpromise on a failed baseline 
 **Deployment handoff (2026-08-17; REBUILT and RE-VERIFIED at V2.7f, 2026-09-20):** the static demo
 bundle is BUILT from the V2.7f tree (`node scripts/build-static-demo.mjs` → `web/out/`, 45.4 MB —
 untracked build output, regenerate freely), verified by the `static-demo` Playwright project
-(11/11) and a served walk of the README's three stops with zero `/api/*` requests, but **NOT yet
-deployed** — the Cloudflare Pages click is the user's (DEPLOY.md has the wrangler commands:
-`npx wrangler login` · `npx wrangler pages deploy web/out --project-name nadi-demo`). When the
-live `*.pages.dev` URL exists, it replaces the "deploy in flight" placeholder in README "See it
-live" — the ONE pending README edit, deliberately blocked on the deploy and NOT on the `v2.7` tag. `main` + all five annotated tags (v2.2–v2.5) are pushed to
+(11/11) and a served walk of the README's three stops with zero `/api/*` requests — and
+**DEPLOYED 2026-09-24 by the user's click: `https://nadi-demo.pages.dev/`** (deployment
+`88d7cd0b`; verified on the live host before the README link swap — root + pointer 200 with the
+pointer at the example, the pinned-run `?run=` deep link 200, artifacts served Brotli). The README
+placeholder is swapped in the v2.7 follow-on commit, off the tag as planned; DEPLOY.md keeps the
+redeploy recipe (`npx wrangler pages deploy web/out --project-name nadi-demo`). `main` + all five annotated tags (v2.2–v2.5) are pushed to
 origin as of this handoff; `v2.6` pushed with the V2.6 closeout (2026-08-23), README refreshed
 to the v2.6 vintage the same day (status/counts/contract v0.10.0, the room + curve + payload
 rung in History, the stale payload-thinning Open item retired).

@@ -20,18 +20,19 @@ demo's own test project + the close) complete · trajectory contract **v0.10.0**
 
 ## See it live
 
-A **static demo** is the fastest way in — a read-only walkthrough of pre-computed runs (deploy in
-flight per [DEPLOY.md](DEPLOY.md); until the link lands here, [SETUP.md](SETUP.md) runs the same
-walkthrough locally in two commands). Three stops:
+A **static demo** is the fastest way in — a read-only walkthrough of pre-computed runs, live at
+**[nadi-demo.pages.dev](https://nadi-demo.pages.dev/)** (Cloudflare Pages; [DEPLOY.md](DEPLOY.md)
+is the recipe, and [SETUP.md](SETUP.md) runs the same walkthrough locally in two commands). Three
+stops:
 
-1. **The bare URL** — the EXAMPLE run's RUN DOCUMENT (the Read stage of the V2.7a shell),
-   titled *"Closure at the fire station's doorstep"*: a
+1. **[The bare URL](https://nadi-demo.pages.dev/)** — the EXAMPLE run's RUN DOCUMENT (the Read
+   stage of the V2.7a shell), titled *"Closure at the fire station's doorstep"*: a
    3-member composite (that road closure + a speed limit + an
    incident), abstract first, every number carrying its caveat. Walk the stages: 02 Watch
    replays the simulated traffic; 04 Explore holds Compare/Discourse/Graphs/Chat.
-2. **`/?run=multimodal-scenario-20260702T044134Z`** — the 212-voice run: Watch the playback,
-   click dots, open Explore · Discourse and Explore · Graphs.
-3. **`/?run=multimodal-scenario-20260702T044134Z&compare=multimodal-scenario-20260814T063253Z`**
+2. **[`/?run=multimodal-scenario-20260702T044134Z`](https://nadi-demo.pages.dev/?run=multimodal-scenario-20260702T044134Z)**
+   — the 212-voice run: Watch the playback, click dots, open Explore · Discourse and Explore · Graphs.
+3. **[`/?run=…20260702T044134Z&compare=…20260814T063253Z`](https://nadi-demo.pages.dev/?run=multimodal-scenario-20260702T044134Z&compare=multimodal-scenario-20260814T063253Z)**
    — Explore · Compare, including the provenance-mismatch guard doing its job on a mismatched pair.
 
 Two things the demo is honest about up front. The runs are **pre-computed and real**: nothing
