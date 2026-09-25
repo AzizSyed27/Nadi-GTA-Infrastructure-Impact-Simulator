@@ -242,6 +242,7 @@ const frames = await page.evaluate(
       requestAnimationFrame(tick);
     }),
 );
+// The frame window is now complete: stop the CPU profile and attribute the time.
 if (PROFILE && cdp) {
   const { profile } = await cdp.send('Profiler.stop');
   const hits = new Map();
@@ -259,6 +260,7 @@ if (PROFILE && cdp) {
   for (const [k, v] of top) console.log(`${(100 * v / total).toFixed(1).padStart(5)}%  ${k}`);
 }
 
+// The frame window is now complete: report the numbers.
 const sorted = frames.deltas.slice().sort((a, b) => a - b);
 const p50 = pct(sorted, 50);
 const p95 = pct(sorted, 95);
