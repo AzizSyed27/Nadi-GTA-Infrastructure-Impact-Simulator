@@ -18,10 +18,17 @@ const barlowCondensed = Barlow_Condensed({
   subsets: ["latin"],
 });
 
+const TITLE = "Nadi — arranges evidence; the planner concludes";
+const DESCRIPTION =
+  "Preview the impact of a proposed street change on a Toronto corridor: SUMO microsimulation, per-stakeholder evidence, simulated reactions.";
+
 export const metadata: Metadata = {
-  title: "Nadi — arranges evidence; the planner concludes",
-  description:
-    "Preview the impact of a proposed street change on a Toronto corridor: SUMO microsimulation, per-stakeholder evidence, simulated reactions.",
+  title: TITLE,
+  description: DESCRIPTION,
+  // V2.8: the landing page is what a shared link unfurls. No image yet (a hero card needs a
+  // designed asset), so the card is text-only by choice.
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "website" },
+  twitter: { card: "summary", title: TITLE, description: DESCRIPTION },
 };
 
 export default function RootLayout({

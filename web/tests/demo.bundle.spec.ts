@@ -61,3 +61,21 @@ test('a landing → run list → Watch → Explore walk asks nothing of an API',
   });
   expect(hits, 'requests to /api/* from the static demo').toEqual([]);
 });
+
+// V2.8 - the landing page is the bundle's front door: `/` paints the landing (no map, no API, no
+// artifact), its CTA opens the shell at /app/ on the SAME host, and a pre-V2.8 deep link at `/`
+// forwards to the shell on a plain file server exactly as it does on the CDN.
+test('the bundle opens on the landing; its CTA and a pre-V2.8 deep link both reach the shell', async ({ page }) => {
+  const hits = await apiRequestsDuring(page, async () => {
+    await page.goto('/');
+    await expect(page.getByTestId('landing')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('h1')).toContainText('Predict.');
+    await page.getByRole('link', { name: 'Try the live demo' }).click();
+    await page.waitForURL((u) => u.pathname === '/app/', { timeout: 20_000 });
+    await expect(page.getByTestId('example-kicker')).toBeVisible({ timeout: 30_000 });
+    await page.goto(`/?run=${PINNED}`);
+    await page.waitForURL((u) => u.pathname === '/app/' && u.searchParams.get('run') === PINNED, { timeout: 20_000 });
+    await expect(page.getByTestId('stage-build')).toBeAttached({ timeout: 30_000 });
+  });
+  expect(hits).toEqual([]);
+});

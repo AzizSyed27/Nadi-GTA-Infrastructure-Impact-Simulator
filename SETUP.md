@@ -74,7 +74,7 @@ conda run --no-capture-output -n oasis python python/src/oasis_spike.py
 cd python/src && uvicorn server:app --port 8000
 
 # terminal 2 — the frontend
-cd web && npm run dev          # http://localhost:3000 → lands on the run document (Read)
+cd web && npm run dev          # http://localhost:3000 → the landing page; the app (run document, Read) is /app/
 ```
 
 Compose a change in **Build**, then press Run. What follows is two acts:

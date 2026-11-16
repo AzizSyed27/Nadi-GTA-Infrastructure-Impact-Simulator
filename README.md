@@ -14,18 +14,20 @@ planner concludes**, never the other way around.
 four-stage shell + the run document, **b** the run experience — two acts over one event stream,
 **c** map styling, **d** the editor restyle + street names + the per-lane table, **e** the
 scorecard doorways + the two-group room, **f** the two consent-surface honesty fixes + the static
-demo's own test project + the close) complete · trajectory contract **v0.10.0** · **759 pytest +
-273 Playwright + 11 static-demo** tests · study corridor: Scarborough / Pickering / Ajax. The
+demo's own test project + the close) complete · trajectory contract **v0.10.0** · **761 pytest +
+284 Playwright + 12 static-demo** tests · study corridor: Scarborough / Pickering / Ajax. The
 *simulation* is bounded to one corridor, even though the framing is "the GTA."
 
 ## See it live
 
 A **static demo** is the fastest way in — a read-only walkthrough of pre-computed runs, live at
 **[nadi-demo.pages.dev](https://nadi-demo.pages.dev/)** (Cloudflare Pages; [DEPLOY.md](DEPLOY.md)
-is the recipe, and [SETUP.md](SETUP.md) runs the same walkthrough locally in two commands). Three
-stops:
+is the recipe, and [SETUP.md](SETUP.md) runs the same walkthrough locally in two commands). The
+site opens on a **landing page** (V2.8) that explains the tool in five short sheets; the app itself
+lives at `/app/`, and a pre-V2.8 link of the form `/?run=<id>` still forwards there. Three stops:
 
-1. **[The bare URL](https://nadi-demo.pages.dev/)** — the EXAMPLE run's RUN DOCUMENT (the Read
+1. **[`/app/`](https://nadi-demo.pages.dev/app/)** (the landing's *Try the live demo* button) —
+   the EXAMPLE run's RUN DOCUMENT (the Read
    stage of the V2.7a shell), titled *"Closure at the fire station's doorstep"*: a
    3-member composite (that road closure + a speed limit + an
    incident), abstract first, every number carrying its caveat. Walk the stages: 02 Watch
@@ -219,7 +221,7 @@ Full local setup — SUMO 1.27, the python envs, keys per optional layer — liv
 
 ```bash
 cd python/src && uvicorn server:app --port 8000   # the job-runner API
-cd web && npm run dev                              # → http://localhost:3000 → the run document (Read); Build starts a new draft
+cd web && npm run dev                              # → http://localhost:3000 → the landing page; the app is /app/ (the run document; Build starts a new draft)
 ```
 
 The quant pipeline (simulate → scorecard) needs **no keys**; each enrich layer (voices, report +
@@ -227,8 +229,8 @@ chat + interviews, discourse) unlocks with one. The repo ships two complete pre-
 the map renders before you ever run SUMO.
 
 ```bash
-python -m pytest python/tests        # 759 tests
-cd web && npx playwright test        # 273 tests, 34 specs against the dev server
+python -m pytest python/tests        # 761 tests
+cd web && npx playwright test        # 284 tests, 35 specs against the dev server
 node scripts/build-static-demo.mjs && cd web && npm run e2e:demo   # 11 tests against the served demo bundle
 ```
 

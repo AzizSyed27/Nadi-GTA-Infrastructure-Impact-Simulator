@@ -110,7 +110,7 @@ scorecard and a queryable report. Study area: Scarborough / Pickering / Ajax.
 
 ## Current phase
 **CURRENT STATE (the rollup — everything below this box is the per-step historical record):**
-Contract **v0.10.0**. Phases 0–5, V2.0–V2.6 and V2.7a–V2.7f are COMPLETE — **V2.7 (a–f) CLOSED,
+Contract **v0.10.0**. **V2.8 - THE FRONT DOOR - SHIPPED 2026-11-16: the landing page owns `/`, the four-stage shell lives at `/app/` (see the V2.8 box; the Cloudflare redeploy and the push are the user's).** Phases 0–5, V2.0–V2.6 and V2.7a–V2.7f are COMPLETE — **V2.7 (a–f) CLOSED,
 TAGGED `v2.7`** (2026-09-20; the front door is the NEXT arc, opened by a design session — no
 ratified canvas exists for it): the four-stage shell
 (Build → Watch → Read → Explore) fronts the whole pipeline — Build composes
@@ -1163,6 +1163,72 @@ a live enrich — a ~215-call voices re-enrich of `multimodal-scenario-20260915T
 status `done`, and Act II mounted until the poll's done edge. Not spent during f (a spend is the
 user's), offered as a follow-on. **THE v2.7 TAG** rides the last docs commit — inside the range
 like v2.5, docs before the tag — annotated `a:`–`f:` with the suites and the contract line.
+**V2.8 — THE FRONT DOOR (the landing page at `/`, the shell at `/app/`; C1 `3661780` the route
+move · C2 the design-system classes · C3 the landing with its pins, frames and docs; NO contract, python-source or
+data change; plan at `~/.claude/plans/purrfect-sparking-dongarra.md`). THE ROLLUP:** the canvas
+the v2.7 close was waiting for exists — `Nadi Landing.dc.html` in the design project, read in full
+through DesignSync on 2026-11-15 — and it is built: nav, hero over an animated street, five
+"sheets" (what it does · how it works · three things it computed · honesty as architecture · see it
+live), the thesis interlude and the footer. **ONE ROUTING SHAPE EVERYWHERE** (dev, prod, the static
+demo): `/` is the landing, `/app/` is the four-stage shell (`web/app/app/page.tsx`, the
+`dynamic(MapView, {ssr:false})` wrapper moved verbatim; `trailingSlash: true` so the export emits
+`app/index.html`, which Cloudflare Pages and the demo project's plain file server both serve).
+**THE DEEP-LINK FORWARD IS PERMANENT:** a visit to `/` carrying `?run=` or `?compare=` is forwarded
+to `/app/` with its query intact (`Landing.tsx`), so the README's published stops and every link
+shared before the move keep working; pinned in app-shell.spec and, on the served bundle, in
+demo.bundle.spec. Every data fetch was already root-absolute, so nothing else moved; every spec
+navigates through ONE constant (`tests/support/app-url.ts`, `APP = '/app/'`).
+**HOW IT WAS BUILT:** the canvas is 109 KB of inline-styled markup, so it was TRANSCRIBED by a
+one-shot converter (HTML → JSX with style objects; scratch, not committed) into
+`web/components/landing/LandingMarkup.tsx`, hand-maintained from here; the canvas's component class
+is ported to `useLanding.tsx` (the 80 ms tick, count-ups, the console clock + Replay, hover
+previews, the intro, the street traffic and pylon drop, the thesis parade, the 212 voice dots) with
+the mutable model in a ref only the tick and the handlers touch; `glyphs.tsx` carries the nine
+road-sign silhouettes and the SMIL reroute diagram, coordinates verbatim. `nadi.css` gains a
+`.nadi-landing` scope: the button and tag rules are SHARED with the shell through grouped selectors
+(one set of declarations), plus the design system's `nav`, three hover classes for the canvas's
+`style-hover` attributes, and the canvas's keyframes, responsive and reduced-motion blocks verbatim.
+`globals.css` locks html/body to the viewport for the map shell, so the landing is its own scroll
+container. The landing mounts no map and issues ZERO requests to an API or an artifact (pinned).
+**THE HERO IS A RATIFIED EXCEPTION (user, 2026-11-15), recorded here so review does not "fix" it:**
+"Plan, Preview, and Predict." with two vehicles colliding into "Predict" ships EXACTLY as designed,
+on the landing only. The locked decisions (a preview, never an oracle; no crash wording or imagery)
+are unchanged for the product: the exception is the marketing headline and its intro animation,
+nothing in the app, the report, the voices or the docs.
+**THE CONFLICTS TABLE (canvas vs shipped — the user ratified "correct to the record"; seven
+sentences were listed at plan time and FOUR MORE were found afterwards inside SVG labels and one
+paragraph the text-only reading had hidden, corrected under the same ratification and reported):**
+(1) "fails CI on any percentage" → "fails the test suite on tally language" (no CI exists; the sweep
+bans tallies, not every percentage). (2) "from the nearest of four real Toronto Fire stations" →
+"from four real Toronto Fire stations, among those that can still reach it", and the diagram's
+"NEAREST STATION" label → "ANOTHER STATION" (no claim about which station responds). (3) The
+example-run console's "About 67,000 morning travelers, calibrated…" → "The corridor's synthetic
+morning demand" (the example run is `synthetic_demo`). (4) "PROVENANCE MISMATCH · NOT COMPARED" →
+"· FLAGGED" and "a pair that should not be compared" → "a mismatched pair" (the guard informs,
+never blocks). (5) "what each of them will say" (twice) → "is likely to say". (6) The speed-limit
+tile's and preview label's "or a timed window" removed (the palette's speed limit is unwindowed; the
+zone macro times it). (7) The demo sheet's "finished SUMO runs on calibrated Toronto open data" →
+"on the real Toronto corridor" (both shipped runs are synthetic demand). (8) The saturation chart's
+axis "06:00 / 07:30" → "07:00 / 08:00" (the calibrated window is 07:00–09:00). (9) Demo links are
+SAME-HOST `/app/…` (the canvas hardcodes `nadi-demo.pages.dev` and opens a new tab). (10) The three
+test counts read ONE constant (`web/lib/landingCounts.ts`), pinned by `test_landing_counts.py`
+against this file's Tests bullet — update both at a phase close. (11) The plan's `landingCopy.ts`
+(every string in one module) was NOT built: with transcribed markup the strings live in the markup,
+and the corrected sentences are pinned as literals in landing.spec instead. **Kept verbatim and
+checked true:** 67,000 and 212 in sheets 01 and 04, +29.1 / +1.7 / Station 231, 30 against 28 with
+both notes, 72 % and 51.8 % of 421, "24 of 36", the six guards, the stack tags. The page QUOTES
+what the tool refuses ("62% of residents support the change.", a struck "7.4/10") and its footer
+says "Not a referendum"; landing.spec exempts exactly the quote and the footer sentence from its
+sweep, by literal, and sweeps everything else.
+**FRAMES, looked at against the canvas** (1440 and 390 wide, reduced motion so every section is at
+rest): `docs-assets/v28-landing-*.png`. **GATES:** C1's full chromium gate is in its commit message
+(275, four box flakes each green alone, the stash bisect attempted and aborted). After the landing:
+landing.spec 9/9, app-shell 9/9, tsc + lint clean, pytest 761 (759 + the two-test counts pin), and
+the closing numbers are in the C3 commit message. **THE BOX:** 0.4–1.3 GB free memory all session
+(OneDrive holding ~6 GB) — the perf harness was NOT re-run, because a number from that box is a
+number about the box; the landing adds no layer and no fetch to the shell, and the re-measure is a
+BACKLOG item for a quiet box. **NOT DONE, the user's:** the Cloudflare redeploy (the live site still
+serves the pre-V2.8 bundle, where `/app/` does not exist) and the push.
 Open threads: **V2.7b F3 SHIPPED (`a9f1d04`)** — a mid-run reload or `?run=` deep link now restores
 the run the reader was watching, beats, act, live cost and all · **V2.7c map styling — SHIPPED** (six commits; see the V2.7c box) ·
 **V2.7d editor restyle + street names + the per-lane table — SHIPPED** (fifteen commits; see the
@@ -2362,7 +2428,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   ```bash
   conda run --no-capture-output -n oasis python python/src/oasis_spike.py   # -> contract/runs/oasis-spike-<ts>.json
   ```
-- **Frontend:** `cd web && npm run dev`  → http://localhost:3000  (lands on the run document
+- **Frontend (V2.8: `/` is the landing page; the shell is `/app/`, and a `/?run=<id>` deep link forwards there):** `cd web && npm run dev`  → http://localhost:3000  (lands on the run document
   (Read stage); chat = Explore · Chat)
 - **Perf harness (V2.5c budgets):** `node scripts/perf-harness.mjs --headed` against a prod build
   (`npm run build && npm run start`) — frame numbers are HEADED numbers (headless measures
@@ -2390,7 +2456,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `cd web && npm run e2e:demo` — the `static-demo` Playwright project serves `web/out` on :3001
   (python's http.server, no dependency) and pins the read-only rule surface by surface plus ZERO
   `/api/*` requests; it is SKIPPED with a printed line when `out/latest.json` is absent.
-- **Tests:** `python -m pytest python/tests` (759 tests — sections: golden spine; contract
+- **Tests:** `python -m pytest python/tests` (761 tests — sections: golden spine; contract
   0.6.0–0.9.0; seed-range/report honesty invariants; the unwindowed-report golden; V2.3a
   enrich-events/builder/SSE; V2.3b interview grounding/guard/endpoint; V2.3c institutions
   roster/gating/composition/verify; V2.3d graph-export/fixture; V2.4b
@@ -2413,7 +2479,7 @@ SUMO: `export SUMO_HOME="/c/Program Files (x86)/Eclipse/Sumo"` (not on PATH). Py
   `begin_stage` fresh row, the manual POST's rows + `keys`, the job closing its rows, the
   `_ENRICH_KEYS` lockstep) and
   `cd web && npx playwright test`
-  (273 chromium + 11 static-demo tests across 36 spec files — the C4 commit message said 35, a
+  (284 chromium + 12 static-demo tests across 37 spec files - V2.8 added `landing.spec` (9), two app-shell route pins and one served-bundle landing pin; the V2.7f figures were 273 + 11 across 36 — the C4 commit message said 35, a
   miscount; incl. the V2.7f `run-feed-fold` pure spec (the cost line's scope both halves, the
   resume case), `demo.bundle` + `demo.readonly` (the served bundle, run under the second project
   only), the enrich-stream re-enrich pin and act-two's manual-voices narration pin; the V2.7e `group-evidence` (the composer, the pick rule with

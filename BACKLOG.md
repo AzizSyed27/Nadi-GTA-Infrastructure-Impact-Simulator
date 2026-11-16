@@ -286,7 +286,21 @@ README's "deploy in flight" placeholder is replaced by the live link (one follow
 `v2.7` tag as planned). Redeploy = rebuild + `npx wrangler pages deploy web/out --project-name
 nadi-demo` (the login persists).
 
-## The front door (the NEXT arc — a design session first)
+## The front door — SHIPPED (V2.8, 2026-11-16)
+**Built from the ratified canvas `Nadi Landing.dc.html`:** the landing page owns `/`, the shell
+lives at `/app/`, and a pre-V2.8 `/?run=<id>` deep link forwards there (CLAUDE.md's V2.8 box has
+the conflicts table and the ratified hero exception). **Open follow-ons:** (1) the Cloudflare
+REDEPLOY — the live site still serves the pre-V2.8 bundle, where `/app/` does not exist
+(`node scripts/build-static-demo.mjs`, then `npx wrangler pages deploy web/out --project-name
+nadi-demo`); (2) the PERF RE-MEASURE at `/app/` on a quiet box (the session ran at 0.4–1.3 GB free
+memory, so the harness was not run; the landing adds no layer and no fetch to the shell); (3) an
+Open Graph IMAGE (the card is text-only until a designed asset exists); (4) the README's "actual
+SUMO runs on calibrated Toronto open data" sentence about the demo — both shipped demo runs carry
+SYNTHETIC demand on the real corridor network (the landing says so; the README sentence predates
+the check and wants the owner's wording); (5) the two tests that failed alone during C1's gate
+(act-two "no aggregate framing", enrich-stream "re-enrich fresh voice set") have no committed-tree
+rate recorded — the stash bisect aborted on a locked `.wrangler/tmp` folder. The record below is
+kept as the history of why the arc waited for a canvas.
 **The 0.1b constraint, promoted verbatim from the gitignored `docs/v2.7a-brief.md:50-52` so it
 survives a clone:** "FRONT-DOOR CONSTRAINT (recorded 0.1b): a marketing front door OUTSIDE this
 shell will exist later. Do not hardcode an entry flow that precludes it — the shell must be

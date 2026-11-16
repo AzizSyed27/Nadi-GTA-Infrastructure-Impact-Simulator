@@ -53,7 +53,9 @@ After the first deploy, open the `*.pages.dev` URL and re-run the three-stop wal
 against the real host. Two things worth confirming in the network tab: the big artifact fetches
 arrive with `content-encoding: br` or `gzip` (Pages negotiates this itself — the ~20 MB JSON
 files travel at roughly a third of their size), and deep links with query strings
-(`/?run=…&compare=…`) resolve — they're client-side, so they should.
+(`/?run=…&compare=…`) resolve — they're client-side, so they should. Since V2.8 the
+bare URL is the landing page and the app lives at `/app/` (the export writes `app/index.html`); a
+`/?run=…` link forwards to `/app/?run=…`, so check one of each.
 
 Then put the live URL in README.md's **See it live** section.
 
