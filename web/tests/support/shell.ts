@@ -7,6 +7,7 @@
 //     StrictMode's double-mount window and fatally crash maplibre teardown in dev — gate, then
 //     reload once, then assert the shell visible.
 import { expect, type Page } from '@playwright/test';
+import { APP } from './app-url';
 
 export type Stage = 'build' | 'watch' | 'read' | 'explore';
 export type ExploreSub = 'compare' | 'discourse' | 'graphs' | 'chat';
@@ -19,8 +20,8 @@ export async function gate(page: Page) {
     .catch(() => {});
 }
 
-/** goto → gate → warm reload → shell visible. The standard opener for every `goto('/')`-class spec. */
-export async function warmOpen(page: Page, url = '/') {
+/** goto → gate → warm reload → shell visible. The standard opener for every `goto(APP)`-class spec. */
+export async function warmOpen(page: Page, url = APP) {
   await page.goto(url);
   await gate(page);
   await page.reload();

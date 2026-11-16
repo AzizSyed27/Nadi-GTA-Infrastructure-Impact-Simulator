@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
@@ -89,7 +90,7 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
   await page.route('**/api/runs/*/status', (route) =>
     route.fulfill({ json: { run_id: RUN_ID, stage: 'baseline', status: 'running', description: 'zone fixture', tags: ['school_zone'] } }));
 
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): cold dev compile + StrictMode detaches first paint
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
@@ -148,7 +149,7 @@ test('zone flow: accumulate streets, D1 lock, ONE composite POST with tags', asy
 test('loaded composite: 3 overlay items, zone designation legend sentence verbatim', async ({ page }) => {
   const { body } = fixture();
   await mockLoadedRun(page, body);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   const seam = await seamState(page);
@@ -170,7 +171,7 @@ test('loaded composite: 3 overlay items, zone designation legend sentence verbat
 test('windowed speed_limit members time-gate in playback; the zone designation never does', async ({ page }) => {
   const { body, window: w } = fixture();
   await mockLoadedRun(page, body);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   const scrubAndExpect = async (t: number, active: boolean) => {
@@ -196,7 +197,7 @@ test('an UNWINDOWED legacy change stays always-active (pixel-identical gating fo
   const art = JSON.parse(fixture().body);
   for (const c of art.meta.scenario.changes) delete c.window; // permanent limits, same composite
   await mockLoadedRun(page, JSON.stringify(art));
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
   await page.locator('input[type=range]').first().fill('0');
   await page.waitForFunction(() => {
@@ -223,7 +224,7 @@ test('the RunCard shows the zone chip (streets + window) and not a duplicate win
       ],
       demand_profile: 'synthetic_demo', cars_rerouted: 12, car_median_delta_s: 0.4,
     } }));
-  await page.goto('/');
+  await page.goto(APP);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -253,7 +254,7 @@ test('compare: composite vs single-change mismatches; vs itself silent; window d
     { id: 'sz-twin', body: JSON.stringify(twin) },
     { id: 'sz-shifted', body: JSON.stringify(shifted) },
   ]);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
   await page.getByTestId('stage-explore').click();
   await expect(page.getByTestId('compare-view')).toBeVisible();

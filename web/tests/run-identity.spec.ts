@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -78,7 +79,7 @@ async function mockBackend(
 }
 
 async function openRunCard(page: Page) {
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

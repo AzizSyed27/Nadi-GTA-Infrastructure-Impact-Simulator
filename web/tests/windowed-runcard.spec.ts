@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
@@ -66,7 +67,7 @@ async function mockBackend(page: Page) {
 
 test('the windowed lane_closure run card shows the chip + THE numbers with neutral split labels', async ({ page }) => {
   await mockBackend(page);
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny fixture can land inside StrictMode's
   // double-mount window on a cold dev compile — reload once, then interact.
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});

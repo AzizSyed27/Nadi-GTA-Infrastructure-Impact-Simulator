@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { APP } from './support/app-url';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -86,7 +87,7 @@ function reply(bodyIn: Record<string, unknown>, answer: string, status = 'clean'
 
 /** Open playback on the fixture (warm reload) and scrub to sim end so every voice has fired. */
 async function openPlayback(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

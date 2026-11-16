@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { mockDefaultArtifact } from './support/default-artifact';
 import {
   REASON_SETTLED_SEVERED,
@@ -217,7 +218,7 @@ async function mockBackend(page: Page, opts: { reject?: { status: number; detail
 }
 
 async function openEdit(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): cold dev compile + StrictMode detaches first paint
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();

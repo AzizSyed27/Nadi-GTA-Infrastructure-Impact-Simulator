@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { mockDefaultArtifact } from './support/default-artifact';
 import { netEdge } from './support/net';
 
@@ -38,7 +39,7 @@ async function mockBackend(page: Page, opts: { reject400?: string } = {}) {
 }
 
 async function openPalette(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.

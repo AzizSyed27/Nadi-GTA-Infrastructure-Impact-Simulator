@@ -8,6 +8,7 @@
 //   * ZERO API: a landing → run list → Watch → Explore walk issues no request to `/api/*` at all.
 //     The demo has no backend; a request to one is a surface that was never gated.
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { EXAMPLE_RUN_ID } from '../lib/demo';
@@ -47,7 +48,7 @@ async function apiRequestsDuring(page: Page, walk: () => Promise<void>): Promise
 
 test('a landing → run list → Watch → Explore walk asks nothing of an API', async ({ page }) => {
   const hits = await apiRequestsDuring(page, async () => {
-    await page.goto('/');
+    await page.goto(APP);
     await expect(page.getByTestId('example-kicker')).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('shell-run-tag').click();
     await expect(page.getByTestId('run-list')).toBeVisible();

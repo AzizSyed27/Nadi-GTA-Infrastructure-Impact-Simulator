@@ -1,12 +1,14 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import { useEffect } from 'react';
 
-// deck.gl + maplibre-gl touch `window`, so the map must be client-only.
-// 'use client' alone is not enough under the App Router — disable SSR for this component.
-// (Next 16 docs: `ssr: false` only works inside a Client Component, which this is.)
-const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
-
-export default function Home() {
-  return <MapView />;
+// V2.8 C1 - the route move. `/` belongs to the landing page (it lands in C3); until then this
+// route only FORWARDS to the shell at /app/, query intact. The forward of a `?run=` /
+// `?compare=` deep link is PERMANENT (the README's published stops and every link shared
+// before the move must keep working) - the landing keeps it when it takes this file over.
+export default function Root() {
+  useEffect(() => {
+    window.location.replace(`/app/${window.location.search}`);
+  }, []);
+  return null;
 }

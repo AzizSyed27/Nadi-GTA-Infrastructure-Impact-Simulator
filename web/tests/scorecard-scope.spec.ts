@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -44,7 +45,7 @@ async function warmOpen(page: Page) {
 test('windowed run: the scorecard scope line renders with the window range', async ({ page }) => {
   const body = fs.readFileSync(FIXTURE, 'utf-8');
   await mockLoadedRun(page, body);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
@@ -63,7 +64,7 @@ test('differing member windows: the scope line uses the spanning window and says
   const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
   art.meta.scenario.changes[1].window = { start_s: 900, end_s: 1500 }; // one member shifts
   await mockLoadedRun(page, JSON.stringify(art));
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
@@ -82,7 +83,7 @@ test('disjoint member windows: the scope line names the dead time', async ({ pag
   art.meta.scenario.changes[1].window = { start_s: 1500, end_s: 1800 };
   art.meta.scenario.changes[2].window = { start_s: 600, end_s: 900 }; // touching #0 — contiguous
   await mockLoadedRun(page, JSON.stringify(art));
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
@@ -101,7 +102,7 @@ test('disjoint windowed members + a permanent member: no dead-time clause', asyn
   art.meta.scenario.changes[1].window = { start_s: 1500, end_s: 1800 };
   delete art.meta.scenario.changes[2].window; // permanent — bridges the gap
   await mockLoadedRun(page, JSON.stringify(art));
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });
@@ -115,7 +116,7 @@ test('unwindowed run: no scope line (nothing new renders)', async ({ page }) => 
   const art = JSON.parse(fs.readFileSync(FIXTURE, 'utf-8'));
   for (const c of art.meta.scenario.changes) delete c.window; // permanent limits, same composite
   await mockLoadedRun(page, JSON.stringify(art));
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   await expect(page.getByTestId('scorecard-panel')).toBeVisible({ timeout: 20_000 });

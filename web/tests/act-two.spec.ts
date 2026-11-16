@@ -17,6 +17,7 @@
 //     carries stage statuses and could otherwise fake the act into history.
 
 import { expect, test, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { mockDefaultArtifactBody, DEFAULT_RUN_ID } from './support/default-artifact';
@@ -191,7 +192,7 @@ async function mockActTwo(
 
 /** Land, open the run (its artifact IS the loaded one), go to Watch. */
 async function enterActTwo(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -370,7 +371,7 @@ test('a FINISHED run reopened from the list shows no act — Act II is live-only
         },
       },
     }));
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

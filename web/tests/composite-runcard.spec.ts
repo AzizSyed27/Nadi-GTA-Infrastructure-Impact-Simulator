@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -84,7 +85,7 @@ async function mockBackend(
 test('untagged mixed composite: composite chip + spanning window; no member-0 window chip; backlog parenthetical', async ({ page }) => {
   const { body, changes } = mixedArtifact();
   await mockBackend(page, body, changes);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -151,7 +152,7 @@ const MEMBERS_DETOUR = {
 test('V2.5b members shape: the chip counts ENDS, worst added time, honesty sentences ride', async ({ page }) => {
   const { body, changes } = mixedArtifact();
   await mockBackend(page, body, changes, MEMBERS_DETOUR);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -182,7 +183,7 @@ test('a shapeless response payload renders the labeled fallback, never a crash',
     lower_bound_note:
       'free-flow estimate; does not include congestion the incident induces — a lower bound on added response time',
   });
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

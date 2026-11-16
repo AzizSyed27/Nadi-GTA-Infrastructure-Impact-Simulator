@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 import * as fs from 'node:fs';
@@ -61,7 +62,7 @@ async function mockBackend(page: Page, opts: { seedDetail?: boolean } = {}) {
 
 test('the seeds option posts n_seeds=3 and the run shows the seeds chip with probe detail', async ({ page }) => {
   const getBody = await mockBackend(page, { seedDetail: true });
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
@@ -95,7 +96,7 @@ test('the seeds option posts n_seeds=3 and the run shows the seeds chip with pro
 
 test('ranged cells render ranges; sign-unstable cells are neutral with the SIGN? badge', async ({ page }) => {
   await mockBackend(page);
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.

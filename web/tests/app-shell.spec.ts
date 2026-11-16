@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { mockDefaultArtifact } from './support/default-artifact';
+import { DEFAULT_RUN_ID, mockDefaultArtifact } from './support/default-artifact';
+import { APP } from './support/app-url';
 import { gate } from './support/shell';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
 
@@ -17,7 +18,7 @@ test('a malformed pointer degrades LABELED, never a render crash', async ({ page
   // The chain deliberately ABORTS here rather than falling to the example: an unrecognized
   // pointer is a broken installation, not a cold visitor.
   await page.route('**/latest.json', (route) => route.fulfill({ json: { weird: true } }));
-  await page.goto('/');
+  await page.goto(APP);
   await expect(page.getByTestId('artifact-load-error')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('scorecard-panel')).toHaveCount(0); // nothing bogus committed
 });
@@ -32,7 +33,7 @@ test('a payload-shaped latest.json takes the LABELED error path (the V2.5c fallb
   await page.route('**/latest.json', (route) =>
     route.fulfill({ body, contentType: 'application/json' }),
   );
-  await page.goto('/');
+  await page.goto(APP);
   const err = page.getByTestId('artifact-load-error');
   await expect(err).toBeVisible({ timeout: 20_000 });
   await expect(err).toContainText('legacy full-artifact payload');
@@ -56,7 +57,7 @@ test('pointer 404 alone → the committed EXAMPLE lands read-only at Read', asyn
     await route.fulfill({ body: JSON.stringify(example), contentType: 'application/json' });
   });
   await page.route(`**/${EXAMPLE}-report.json`, (route) => route.fulfill({ status: 404, body: 'nope' }));
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await expect(page.getByTestId('shell-run-tag')).toContainText('20260814T063253Z', { timeout: 30_000 });
   await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 30_000 });
@@ -78,7 +79,7 @@ test('pointer 404 alone → the committed EXAMPLE lands read-only at Read', asyn
 test('pointer 404 AND example unavailable → the labeled error, never a spinner', async ({ page }) => {
   await page.route('**/latest.json', (route) => route.fulfill({ status: 404, body: 'not found' }));
   await page.route(`**/${EXAMPLE}.json`, (route) => route.fulfill({ status: 404, body: 'not found' }));
-  await page.goto('/');
+  await page.goto(APP);
   const err = page.getByTestId('artifact-load-error');
   await expect(err).toBeVisible({ timeout: 20_000 });
   await expect(err).toContainText("couldn't load the scenario artifact");
@@ -98,7 +99,7 @@ test('a RETURNING user lands on their last-viewed run — localStorage beats the
   await page.addInitScript(() => {
     window.localStorage.setItem('nadi:lastRun', 'multimodal-scenario-LASTVIEWED');
   });
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await expect(page.getByTestId('shell-run-tag')).toContainText('LASTVIEWED', { timeout: 20_000 });
 });
@@ -109,15 +110,39 @@ test('an unresolvable stored run id falls through the chain (validated, never tr
     window.localStorage.setItem('nadi:lastRun', 'multimodal-scenario-PRUNED-LONG-AGO');
   });
   // the stored id 404s (nothing routes it) → hop 3 (the pointer) must land run A
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   // the tag renders the ARTIFACT's own run id (the pointer alias never surfaces)
   await expect(page.getByTestId('shell-run-tag')).toContainText('school-zone-fixture', { timeout: 20_000 });
 });
 
+// V2.8 — the landing page took `/`; the shell moved to `/app/`. Two pins: the shell mounts at
+// its own route, and a pre-V2.8 deep link (`/?run=<id>` — the README's published stops, every
+// link shared before the move) FORWARDS there with its query intact instead of dead-ending on
+// the landing.
+test('the shell mounts at /app/', async ({ page }) => {
+  await mockDefaultArtifact(page);
+  await page.goto(APP);
+  await gate(page);
+  await page.reload();
+  await expect(page.getByTestId('stage-nav')).toBeVisible({ timeout: 20_000 });
+  expect(new URL(page.url()).pathname).toBe('/app/');
+});
+
+test('a pre-V2.8 deep link at / forwards to /app/ with its query intact', async ({ page }) => {
+  await mockDefaultArtifact(page);
+  await page.goto(`/?run=${DEFAULT_RUN_ID}&compare=${DEFAULT_RUN_ID}`);
+  await page.waitForURL((u) => u.pathname === '/app/', { timeout: 20_000 });
+  const u = new URL(page.url());
+  expect(u.searchParams.get('run')).toBe(DEFAULT_RUN_ID);
+  expect(u.searchParams.get('compare')).toBe(DEFAULT_RUN_ID);
+  await gate(page);
+  await expect(page.getByTestId('stage-nav')).toBeVisible({ timeout: 20_000 });
+});
+
 test('the shell chrome renders the four stages and passes the referendum sweep', async ({ page }) => {
   await mockDefaultArtifact(page);
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-nav')).toBeVisible({ timeout: 20_000 });

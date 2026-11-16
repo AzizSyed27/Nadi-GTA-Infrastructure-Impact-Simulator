@@ -11,6 +11,7 @@
 // Strict-mode scoping: a room multi-matches every per-member/per-message testid — .nth() always.
 
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
@@ -98,7 +99,7 @@ async function mockBackend(page: Page, captured: CapturedPost[], respond?: Respo
 }
 
 async function openPlayback(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -147,7 +148,7 @@ test('the document seeds a room from two groups by the stated rule; the reader c
   // sibling at idx 3, both inferred) and the mandate voice (idx 2 — never a scorecard group)
   const captured: CapturedPost[] = [];
   await mockBackend(page, captured);
-  await page.goto('/');
+  await page.goto(APP);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 20_000 }); // the landing is Read

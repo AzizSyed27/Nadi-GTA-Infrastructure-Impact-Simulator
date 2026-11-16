@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { netEdge } from './support/net';
@@ -135,7 +136,7 @@ async function openCompare(page: Page, runA = 'cmp-settled') {
   // window, unmounting <Map> mid-cycle and fatally crashing maplibre (getProjection of null → the
   // error overlay replaces the app). One warm reload after first paint sidesteps it — production
   // builds have no StrictMode double-mount, and real artifacts (tens of MB) never hit the window.
-  await page.goto(`/?run=${runA}`);
+  await page.goto(`${APP}?run=${runA}`);
   await page.getByTestId('stage-explore').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-explore')).toBeVisible({ timeout: 20_000 }); // same budget as the deep-link path (:245)
@@ -239,7 +240,7 @@ test('same-run compare is degenerate but honest; missing scorecard renders the e
 
 test('deep-link determinism: ?run=A&compare=B with side A delayed — no blank side A', async ({ page }) => {
   await mockBackend(page, { delayA: true }); // side B's fetch resolves FIRST
-  await page.goto('/?run=cmp-settled&compare=cmp-dayone');
+  await page.goto(`${APP}?run=cmp-settled&compare=cmp-dayone`);
   // same cold-compile warm-up as openCompare (see the comment there)
   await page.getByTestId('compare-view').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();

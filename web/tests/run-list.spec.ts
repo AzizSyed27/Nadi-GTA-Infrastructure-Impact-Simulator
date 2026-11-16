@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { mockDefaultArtifact } from './support/default-artifact';
 import { gate } from './support/shell';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
@@ -38,7 +39,7 @@ async function openList(page: Page) {
       },
     }),
   );
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import fs from 'node:fs';
 import path from 'node:path';
 import { mockDefaultArtifactBody } from './support/default-artifact';
@@ -104,7 +105,7 @@ async function openDoc(page: Page, body: unknown, report: unknown | { status: nu
       ? route.fulfill({ status: (report as { status: number }).status, body: 'nope' })
       : route.fulfill({ json: report }),
   );
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -292,7 +293,7 @@ test('the committed example renders ITS OWN report values — the rendered-equal
       ...end.probes.filter((p: { added_s: number | null }) => p.added_s != null).map((p: { added_s: number }) => p.added_s),
     );
   };
-  await page.goto(`/?run=${EXAMPLE}`);
+  await page.goto(`${APP}?run=${EXAMPLE}`);
   await gate(page);
   await openStage(page, 'read');
   const doc = page.getByTestId('run-document');
@@ -349,7 +350,7 @@ test('the feed says a zero-voice group has NO voices in this run — never "keep
 // ── V2.7e C2 — two selections: the ROOM CTA (canvas 1d) ─────────────────────────────────────────
 
 test('two selections offer "Put A + B in a conversation" — and the seeded room states its composition', async ({ page }) => {
-  await page.goto(`/?run=${EXAMPLE}`);
+  await page.goto(`${APP}?run=${EXAMPLE}`);
   await gate(page);
   await openStage(page, 'read');
   await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 30_000 });
@@ -402,7 +403,7 @@ test('a pair that cannot fill a room gets a sentence, not a door', async ({ page
 });
 
 test('the Ask door opens the interview drawer on the group’s most-affected simulated voice', async ({ page }) => {
-  await page.goto(`/?run=${EXAMPLE}`);
+  await page.goto(`${APP}?run=${EXAMPLE}`);
   await gate(page);
   await openStage(page, 'read');
   await expect(page.getByTestId('run-document')).toBeVisible({ timeout: 30_000 });

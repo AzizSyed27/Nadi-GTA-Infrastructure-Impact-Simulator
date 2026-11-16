@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { netEdge } from './support/net';
@@ -66,7 +67,7 @@ async function seamState(page: Page): Promise<OverlaySeam> {
 test('a windowed closure appears and disappears AT its window during playback', async ({ page }) => {
   const { body, window: w } = fixtureWithWindowedClosure();
   await mockBackend(page, body);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
 
   // Scrub the Timeline slider — the app's own deterministic seek path (its onChange PAUSES and
@@ -94,7 +95,7 @@ test('a windowed closure appears and disappears AT its window during playback', 
 test('per-type legend row renders mechanically; edit mode shows windowed overlays regardless of t', async ({ page }) => {
   const { body } = fixtureWithWindowedClosure();
   await mockBackend(page, body);
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   await warmOpen(page);
   const legend = page.getByTestId('legend-item-lane_closure');
   await expect(legend).toBeVisible();

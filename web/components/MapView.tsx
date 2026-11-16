@@ -3323,7 +3323,7 @@ export default function MapView() {
             <>
               No simulated discourse on this run — the discourse enrich needs the local backend.
               The 212-voice run carries one:{' '}
-              <a href={`/?run=${DEMO_PINNED_RUN_ID}`}>open it</a>.
+              <a href={`/app/?run=${DEMO_PINNED_RUN_ID}`}>open it</a>.
             </>
           ) : (
             <>

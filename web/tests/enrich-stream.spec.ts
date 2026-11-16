@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList, openStage } from './support/shell';
 import { mockDefaultArtifactBody } from './support/default-artifact';
 import * as fs from 'node:fs';
@@ -208,7 +209,7 @@ async function scrubToEnd(page: Page) {
 
 /** Open '/', warm-reload (StrictMode convention), enter edit mode, select the fixture run. */
 async function openRun(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

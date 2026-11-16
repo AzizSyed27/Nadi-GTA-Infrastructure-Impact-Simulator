@@ -20,6 +20,7 @@
 // edge" overclaim). These tests assert it arrives on screen VERBATIM — one source, two ends.
 
 import { expect, test, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { mockDefaultArtifact, DEFAULT_RUN_ID } from './support/default-artifact';
 import { gate, openRunFromList, openStage } from './support/shell';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
@@ -195,7 +196,7 @@ async function serveFinishedRun(page: Page) {
 
 /** Land, then open the COMPUTING run — which the run list opens in its current state. */
 async function enterActOne(page: Page, stage: 'watch' | 'read' | 'build' = 'watch') {
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -345,7 +346,7 @@ test('a plain RELOAD while a run computes reconstructs the act — no run list n
   // which is the durable evidence a reload has to work from (the in-memory id dies with the page)
   await page.addInitScript((id) => localStorage.setItem('nadi:watchedRun', id), NEW_RUN);
 
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await openStage(page, 'watch');
@@ -365,7 +366,7 @@ test('a landing with NOTHING running attaches nothing — the cold landing stays
   await page.route('**/api/runs', (r) =>
     r.fulfill({ json: { runs: [{ id: DEFAULT_RUN_ID, description: 'the loaded run', status: 'done', stage: 'done', started_at: 1 }] } }));
 
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await openStage(page, 'watch');
@@ -384,7 +385,7 @@ test('the landing still leaves the BUILD rail alone — the feed id is not the r
   await mockActOne(page, { events: actOneBody() });
   await page.addInitScript((id) => localStorage.setItem('nadi:watchedRun', id), NEW_RUN);
 
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await openStage(page, 'watch');
@@ -405,7 +406,7 @@ test('opening a FINISHED run never announces an act — no run is being simulate
     await new Promise((res) => setTimeout(res, 3000)); // a real 20-90 MB artifact takes about this
     await r.fulfill({ body: baselineArtifact(NEW_RUN), contentType: 'application/json' });
   });
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -421,7 +422,7 @@ test('opening a FINISHED run never announces an act — no run is being simulate
 
 test('THE MISATTRIBUTION GUARD: the baseline plays and NO agent is joined to it', async ({ page }) => {
   await mockActOne(page, { events: actOneBody() });
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -443,7 +444,7 @@ test('THE MISATTRIBUTION GUARD: the baseline plays and NO agent is joined to it'
 
 test('THE STRANGER’S CHANGE: every surface describing the LOADED run is gone during Act I', async ({ page }) => {
   await mockActOne(page, { events: actOneBody() });
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

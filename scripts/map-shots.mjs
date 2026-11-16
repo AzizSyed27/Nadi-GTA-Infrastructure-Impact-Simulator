@@ -43,7 +43,7 @@ if (!fs.existsSync(OUT_DIR)) throw new Error(`run from the repo root: ${OUT_DIR}
 
 const browser = await chromium.launch({ headless: false }); // HEADED: hardware GL, the rasterizer rule
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-await page.goto(`${URL_BASE}/?run=${RUN_ID}`);
+await page.goto(`${URL_BASE}/app/?run=${RUN_ID}`);
 await page.waitForFunction(() => performance.getEntriesByName('nadi:artifact-rendered').length > 0, undefined, {
   timeout: 180_000,
 });

@@ -14,6 +14,7 @@
 // asserted through the __nadiRunFeed seam, which publishes counts and stage keys, never content.
 
 import { expect, test, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { mockDefaultArtifact, DEFAULT_RUN_ID } from './support/default-artifact';
 import { gate, openRunFromList } from './support/shell';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
@@ -80,9 +81,9 @@ async function mockRun(page: Page, opts: { events?: string | null; ledger?: unkn
 }
 
 /** Open the run so the feed is live (it runs on activeRunId), landing in Build where the run card
- *  mounts. The warm-reload is the StrictMode convention every goto('/') spec follows. */
+ *  mounts. The warm-reload is the StrictMode convention every goto(APP) spec follows. */
 async function openRun(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

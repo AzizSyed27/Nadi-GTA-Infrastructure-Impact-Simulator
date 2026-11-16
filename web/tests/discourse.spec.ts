@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gate, openStage } from './support/shell';
@@ -11,7 +12,7 @@ import { BANNED, STANCE_TALLY } from './support/sweeps';
 // 5.2b: pin to the committed 212-agent social run via ?run=, so these specs no longer depend on latest.json
 // (which the editor now overwrites at will — it is only the current-run pointer).
 const PINNED = 'multimodal-scenario-20260702T044134Z';
-const PINNED_URL = `/?run=${PINNED}`;
+const PINNED_URL = `${APP}?run=${PINNED}`;
 
 async function gotoDiscourse(page: Page) {
   await page.goto(PINNED_URL);
@@ -101,7 +102,7 @@ test('the pinned specs are independent of latest.json (repoint it and they still
     // V2.7a: goto(PINNED_URL) above persisted the pinned run as nadi:lastRun — clear it so
     // this stays the COLD default path (the pointer hop), not the returning-user hop.
     await page.evaluate(() => window.localStorage.clear());
-    await page.goto('/');
+    await page.goto(APP);
     // 20s-class budget: the resolved artifact is a real ~20 MB fetch+parse on '/' in dev mode
     await gate(page);
     await expect(page.getByTestId('shell-run-tag')).toContainText('20260709T221140Z', { timeout: 20_000 });

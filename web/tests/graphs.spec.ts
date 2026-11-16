@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -138,7 +139,7 @@ async function mockLoadedRun(page: Page, sidecar: Record<string, unknown> | null
 }
 
 async function warmOpen(page: Page) {
-  await page.goto(`/?run=${RUN_ID}`);
+  await page.goto(`${APP}?run=${RUN_ID}`);
   // warm-reload convention: cold dev compile + StrictMode detaches first paint
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
@@ -327,7 +328,7 @@ test('pinned run, real fetch: the committed sidecar lands with its EXACT OASIS n
   const expectedOasisNodes = committed.oasis.nodes.length;
   expect(expectedOasisNodes).toBeGreaterThan(100); // the 212-voice run — sanity on the fixture itself
 
-  await page.goto(`/?run=${PINNED}`);
+  await page.goto(`${APP}?run=${PINNED}`);
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 30_000 });
   await page.getByTestId('stage-explore').click();
   await page.getByTestId('explore-graphs').click();

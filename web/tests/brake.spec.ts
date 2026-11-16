@@ -19,6 +19,7 @@
 //     whole design: interpretation is an addition on top of numbers that were already complete.
 
 import { expect, test, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { mockDefaultArtifactBody, DEFAULT_RUN_ID } from './support/default-artifact';
@@ -114,7 +115,7 @@ async function openDraft(page: Page) {
   await page.unroute('**/api/edges**');
   await page.route('**/api/edges**', (r) =>
     r.fulfill({ json: { edges: [{ id: 'E_A', car_lane_count: 1, car_lane_indices: [0], eligible_bike_lane: true, eligibility_reason: 'eligible' }], count: 1 } }));
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -129,7 +130,7 @@ async function openDraft(page: Page) {
 }
 
 async function enterActTwo(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -297,7 +298,7 @@ test('a run ENDING on its own does not move the reader', async ({ page }) => {
   // The mirror image, and the reason the navigation keys on the click: a run that simply finishes,
   // or one stopped from another surface, must not yank someone off what they were reading.
   await mockRun(page, { events: stoppedBody(), ledger: LEDGER_STOPPED });
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });
@@ -364,7 +365,7 @@ test('a FINISHED run gets an article, and its near-miss count carries the surrog
   await page.unroute('**/api/runs/*/status');
   await page.route('**/api/runs/*/status', (r) =>
     r.fulfill({ json: { run_id: RUN, stage: 'done', status: 'done', description: 'a closure' } }));
-  await page.goto('/');
+  await page.goto(APP);
   await gate(page);
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

@@ -10,12 +10,13 @@
 // `stage-build` is DISABLED in the demo, so the shell helpers' `openStage(page, 'build')` is never
 // used here — a click on it no-ops silently.
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { DEMO_READONLY_NOTE, EXAMPLE_RUN_ID, EXAMPLE_RUN_NAME } from '../lib/demo';
 import { BANNED, STANCE_TALLY } from './support/sweeps';
 
 const PINNED = 'multimodal-scenario-20260702T044134Z';
 
-async function landing(page: Page, url = '/') {
+async function landing(page: Page, url = APP) {
   await page.goto(url);
   await expect(page.getByTestId('stage-build')).toBeAttached({ timeout: 30_000 });
 }
@@ -81,7 +82,7 @@ test('the run list has no "backend unreachable" — it says the note, opens the 
 });
 
 test('Watch on the 212-voice run replays its own traffic — the finished run’s playback, never Act I/II', async ({ page }) => {
-  await landing(page, `/?run=${PINNED}`);
+  await landing(page, `${APP}?run=${PINNED}`);
   await page.getByTestId('stage-watch').click();
   await expect(page.getByTestId('comment-feed')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('act-two')).toHaveCount(0);
@@ -100,7 +101,7 @@ test('Explore · Discourse on the example says the enrich needs the backend and 
   await expect(empty).toContainText('needs the local backend');
   await expect(empty).not.toContainText('Build stage');
   const link = empty.getByRole('link');
-  await expect(link).toHaveAttribute('href', `/?run=${PINNED}`);
+  await expect(link).toHaveAttribute('href', `${APP}?run=${PINNED}`);
   if (process.env.NADI_SHOTS) await page.screenshot({ path: '../docs-assets/v27f-demo-discourse-caption.png' });
   // the link resolves inside the bundle (the lockstep with the build script's own literal)
   const r = await page.request.get(`/${PINNED}.json`);
@@ -111,7 +112,7 @@ test('Explore · Discourse on the example says the enrich needs the backend and 
 });
 
 test('Explore · Discourse on the 212-voice run renders its cascade', async ({ page }) => {
-  await landing(page, `/?run=${PINNED}`);
+  await landing(page, `${APP}?run=${PINNED}`);
   await page.getByTestId('stage-explore').click();
   await page.getByTestId('explore-discourse').click();
   await expect(page.getByTestId('discourse-empty')).toHaveCount(0);
@@ -138,7 +139,7 @@ test('Explore · Chat carries the note and no composer', async ({ page }) => {
 });
 
 test('the Compare deep link: the mismatch guard does its job, and the run pickers are locked with the why', async ({ page }) => {
-  await landing(page, `/?run=${PINNED}&compare=${EXAMPLE_RUN_ID}`);
+  await landing(page, `${APP}?run=${PINNED}&compare=${EXAMPLE_RUN_ID}`);
   await expect(page.getByTestId('compare-view')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('mismatch-note').first()).toBeVisible({ timeout: 20_000 });
   const selects = page.getByTestId('run-select');

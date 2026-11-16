@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { APP } from './support/app-url';
 import { openRunFromList } from './support/shell';
 import { mockDefaultArtifact } from './support/default-artifact';
 
@@ -90,7 +91,7 @@ async function mockBackend(page: Page) {
 }
 
 async function enterEditAndLoadJunctions(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
@@ -181,7 +182,7 @@ test('draw a road, watch the staged run, land on a populated scorecard', async (
 
 test('the run switcher restores a prior run', async ({ page }) => {
   await mockBackend(page);
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
@@ -204,7 +205,7 @@ test('the run switcher restores a prior run', async ({ page }) => {
 
 test('discourse mode is locked until a run carries a social block', async ({ page }) => {
   await mockBackend(page);
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
@@ -225,7 +226,7 @@ test('discourse mode is locked until a run carries a social block', async ({ pag
 
 // ---- 5.2b: edit an existing edge ----
 async function enterEditForEdges(page: Page) {
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
@@ -308,7 +309,7 @@ test('V2.7d C8: the rail is a design-system surface — the shell class, the num
 // ---- V2.0b: the base network renderer ----
 test('the exported network renders as the base road layer (all modes)', async ({ page }) => {
   await mockBackend(page);
-  await page.goto('/');
+  await page.goto(APP);
   // warm-reload convention (compare.spec.ts): the tiny DEFAULT fixture (V2.5c pointer pair)
   // can land inside StrictMode's double-mount window and crash maplibre teardown — reload
   // once before interacting.
@@ -487,7 +488,7 @@ function curvedRunBody(via: string[]): string {
 async function overlayVertices(page: Page, body: string): Promise<number | undefined> {
   await mockBackend(page);
   await mockDefaultArtifactBody(page, body); // later registration wins — replaces the default body
-  await page.goto('/');
+  await page.goto(APP);
   await page.getByTestId('stage-build').waitFor({ state: 'attached', timeout: 30_000 }).catch(() => {});
   await page.reload();
   await expect(page.getByTestId('stage-build')).toBeVisible({ timeout: 20_000 });

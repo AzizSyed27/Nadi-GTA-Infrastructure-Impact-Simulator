@@ -52,7 +52,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 
 const t0 = Date.now();
-await page.goto(`${URL_BASE}/?run=${RUN_ID}`);
+await page.goto(`${URL_BASE}/app/?run=${RUN_ID}`);
 await page.waitForFunction(() => performance.getEntriesByName('nadi:artifact-rendered').length > 0, undefined, {
   timeout: 180_000,
 });
